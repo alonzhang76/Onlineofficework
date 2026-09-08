@@ -193,8 +193,8 @@ body {
 }
 .login-btn:hover {
   transform: translateY(-1px);
-  background: #fff;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  background: #1d4ed8;
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.45);
 }
 .login-btn:active { transform: translateY(0); }
 .login-btn:disabled {
@@ -787,7 +787,7 @@ body {
       <div class="header-logo">
         <img src="cat.jpg" alt="Logo">
       </div>
-      <div class="header-title">应用门户</div>
+      <div class="header-title">线上办公系统</div>
     </div>
     <div class="header-right">
       <button class="admin-btn" id="adminBtn" onclick="openAdminPanel()" style="display:none;">
@@ -1082,14 +1082,17 @@ async function loadUserApps(user) {
 
   // 普通用户从数据库读取权限
   try {
+    console.log('[perms] user.id =', user.id);
     const { data, error } = await supabaseClient
       .from('user_app_permissions')
       .select('app_id, permission')
       .eq('user_id', user.id);
 
+    console.log('[perms] query result:', { data, error });
+
     if (error) {
       console.warn('[perms] 读取权限失败:', error.message);
-      renderEmpty();
+      appsContainer.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">权限读取失败</div><div class="empty-desc">${error.message}</div></div>`;
       return;
     }
 
@@ -1099,13 +1102,19 @@ async function loadUserApps(user) {
       permMap[item.app_id] = item.permission;
     });
 
-    // 过滤出有权限的应用（排除 none）
+    console.log('[perms] permMap =', permMap);
+    console.log('[perms] apps =', apps.map(a => ({ id: a.id, name: a.name })));
+
+    // 过滤出有权限的应用（排除 none 和 未配置的）
     const visibleApps = apps
       .filter(app => {
         const perm = permMap[app.id];
+        console.log(`[perms] app ${app.id} -> perm = ${perm} -> visible = ${perm === 'read' || perm === 'write'}`);
         return perm === 'read' || perm === 'write';
       })
       .map(app => ({ ...app, permission: permMap[app.id] }));
+
+    console.log('[perms] visibleApps =', visibleApps.length, '个');
 
     if (visibleApps.length === 0) {
       renderEmpty();
@@ -1114,7 +1123,7 @@ async function loadUserApps(user) {
     }
   } catch (err) {
     console.error('[perms] 加载失败:', err);
-    renderEmpty();
+    appsContainer.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">加载失败</div><div class="empty-desc">${err.message || '未知错误'}</div></div>`;
   }
 }
 

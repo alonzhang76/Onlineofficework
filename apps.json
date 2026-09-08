@@ -10,10 +10,10 @@
       "sort_order": 1
     },
     {
-      "id": "app2",
-      "name": "应用二",
-      "description": "应用二的功能描述",
-      "url": "apps/app2/index.html",
+      "id": "clothing",
+      "name": "服装管理",
+      "description": "舜天汉唐服装管理系统",
+      "url": "apps/clothing/index.html",
       "icon": "📦",
       "color": "#10b981",
       "sort_order": 2
