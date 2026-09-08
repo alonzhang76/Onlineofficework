@@ -61,20 +61,20 @@
       "sort_order": 3
     },
     {
-      "id": "app5",
-      "name": "应用五",
-      "description": "炉架业务应用五",
-      "url": "apps/app5/index.html",
+      "id": "orderschedule",
+      "name": "订单统计",
+      "description": "订单及生产进度系统",
+      "url": "apps/orderschedule/index.html",
       "icon": "💡",
       "color": "#8b5cf6",
       "category": "furnace",
       "sort_order": 4
     },
     {
-      "id": "app6",
-      "name": "钢材管理",
-      "description": "钢材业务管理系统",
-      "url": "apps/app6/index.html",
+      "id": "stainlessbusiness",
+      "name": "不锈钢贸易管理",
+      "description": "不锈钢进销存全流程系统",
+      "url": "apps/stainlessbusiness/index.html",
       "icon": "🔧",
       "color": "#06b6d4",
       "category": "steel",
