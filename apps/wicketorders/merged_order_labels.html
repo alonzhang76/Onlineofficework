@@ -1,6 +1,8 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
+	<script>window.SUPABASE_APP_ID='wicketorders';</script>
+	<script src="../supabase-sync.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Order Label Generator & Records</title>
@@ -1242,7 +1244,9 @@
                     
                     // 创建打印窗口
                     const printWindow = window.open('', '_blank');
-                    printWindow.document.write('<html><head><title>Print Label</title>');
+                    printWindow.document.write('<html><head>
+	<script>window.SUPABASE_APP_ID='wicketorders';</script>
+	<script src="../supabase-sync.js"></script><title>Print Label</title>');
                     
                     // 添加样式
                     printWindow.document.write('<style>');
