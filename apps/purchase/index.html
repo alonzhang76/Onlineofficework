@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 	<script>window.SUPABASE_APP_ID='purchase';</script>
@@ -519,6 +519,9 @@
             .btn-danger {
                 @apply bg-danger text-white hover:bg-danger/90 focus:ring-danger/50;
             }
+            .btn-info {
+                @apply bg-cyan-600 text-white hover:bg-cyan-700 focus:ring-cyan-500/50;
+            }
             .nav-link {
                 @apply flex items-center gap-3 px-4 py-3 rounded-md transition-all-300;
             }
@@ -563,6 +566,8 @@
             }
             .table-container {
                 @apply overflow-x-auto relative;
+                max-height: 70vh;
+                overflow-y: auto;
             }
             .table {
                 @apply min-w-full divide-y divide-gray-200;
@@ -584,22 +589,37 @@
                 @apply min-w-[300px] max-w-[400px] whitespace-nowrap;
             }
             /* 采购订单列表冻结列样式 */
-            /* 设置每列的冻结位置和宽度 */
-            .purchase-order-table th:nth-child(1),
+            /* 表头整体垂直冻结（在 .table-container 滚动区内吸顶） */
+            .purchase-order-table thead th {
+                position: sticky;
+                top: 0;
+                z-index: 20;
+                background-color: #f9fafb; /* bg-gray-50 */
+            }
+            /* 冻结左侧列：表头 z-index 需高于表体，避免滚动时被表体覆盖 */
+            .purchase-order-table th:nth-child(1) {
+                left: 0; z-index: 30; background-color: #f9fafb; width: 40px; min-width: 40px;
+            }
             .purchase-order-table td:nth-child(1) {
                 @apply sticky left-0 bg-white z-10 w-[40px];
             }
-            .purchase-order-table th:nth-child(2),
+            .purchase-order-table th:nth-child(2) {
+                left: 40px; z-index: 31; background-color: #f9fafb; width: 120px; min-width: 120px;
+            }
             .purchase-order-table td:nth-child(2) {
-                @apply sticky left-[40px] bg-white z-20 w-[120px];
+                @apply sticky left-[40px] bg-white z-11 w-[120px];
             }
-            .purchase-order-table th:nth-child(3),
+            .purchase-order-table th:nth-child(3) {
+                left: 160px; z-index: 32; background-color: #f9fafb; width: 100px; min-width: 100px;
+            }
             .purchase-order-table td:nth-child(3) {
-                @apply sticky left-[160px] bg-white z-30 w-[100px];
+                @apply sticky left-[160px] bg-white z-12 w-[100px];
             }
-            .purchase-order-table th:nth-child(4),
+            .purchase-order-table th:nth-child(4) {
+                left: 260px; z-index: 33; background-color: #f9fafb; min-width: 300px; max-width: 400px;
+            }
             .purchase-order-table td:nth-child(4) {
-                @apply sticky left-[260px] bg-white z-40 min-w-[300px] max-w-[400px] whitespace-nowrap;
+                @apply sticky left-[260px] bg-white z-13 min-w-[300px] max-w-[400px] whitespace-nowrap;
             }
             /* 设置总金额（含税）列宽度 */
             .table.purchase-order-table th:nth-child(13),
@@ -2494,6 +2514,30 @@
                     }
                 }
             }
+            
+            // 监听 Supabase 云端数据更新事件
+            // supabase-sync.js 在云端数据同步到本地后派发 cloud-data-updated 事件；
+            // 首次加载时 renderPurchaseOrderList 可能在云端数据到达前执行，需在数据到达后重新渲染。
+            window.addEventListener('cloud-data-updated', function (e) {
+                const currentCompany = getCurrentCompany();
+                const relevantKeys = [
+                    `purchaseOrders_${currentCompany}`,
+                    `${currentCompany}-invoices`,
+                    `${currentCompany}-payments`
+                ];
+                const changedKeys = (e.detail && e.detail.keys) || [];
+                const hasRelevantChange = changedKeys.some(k => relevantKeys.includes(k));
+                if (hasRelevantChange) {
+                    // 仅在采购管理页可见时重渲染，避免不必要的 DOM 操作
+                    const procPage = document.getElementById('procurement-page');
+                    if (procPage && !procPage.classList.contains('hidden') && typeof renderPurchaseOrderList === 'function') {
+                        renderPurchaseOrderList();
+                    }
+                    if (typeof updateDetailedPurchaseReport === 'function') {
+                        updateDetailedPurchaseReport();
+                    }
+                }
+            });
             
             // 设置选项卡切换
             const tabs = document.querySelectorAll('.tab');
@@ -4814,6 +4858,51 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
         // 将函数暴露到全局作用域
         window.deletePurchaseOrder = deletePurchaseOrder;
         
+        // 复制采购订单为新订单（自动生成新合同号）
+        function copyPurchaseOrder(id) {
+            try {
+                const currentCompany = getCurrentCompany();
+                const storageKey = `purchaseOrders_${currentCompany}`;
+                const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
+                
+                const sourceOrder = purchaseOrders.find(o => o.id === id);
+                if (!sourceOrder) {
+                    alert('复制失败：未找到指定的采购订单');
+                    return;
+                }
+                
+                const newContractNumber = generateContractNumber();
+                
+                if (!confirm(`确定要复制该采购订单吗？\n\n原合同号：${sourceOrder.contractNumber}\n新合同号：${newContractNumber}\n\n复制后将生成一条新的采购订单记录。`)) {
+                    return;
+                }
+                
+                // 深拷贝源订单，生成新 id 与合同号，清空实际到货期等执行类字段
+                const newOrder = JSON.parse(JSON.stringify(sourceOrder));
+                newOrder.id = Date.now();
+                newOrder.contractNumber = newContractNumber;
+                newOrder.actualArrivalDate = null;
+                
+                purchaseOrders.push(newOrder);
+                localStorage.setItem(storageKey, JSON.stringify(purchaseOrders));
+                
+                // 同步到 contract-inventory.html
+                if (typeof syncToContractInventory === 'function') {
+                    syncToContractInventory(currentCompany);
+                }
+                
+                if (typeof renderPurchaseOrderList === 'function') {
+                    renderPurchaseOrderList();
+                }
+                
+                alert(`采购订单复制成功！\n新合同号：${newContractNumber}`);
+            } catch (error) {
+                console.error('Error copying purchase order:', error);
+                alert('复制采购订单时发生错误');
+            }
+        }
+        window.copyPurchaseOrder = copyPurchaseOrder;
+        
         // 生成采购合同
         function generateContract(id) {
             console.log('Generating contract for purchase order ID:', id);
@@ -5356,6 +5445,9 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
                             </button>
                             <button class="btn btn-small btn-success" onclick="generateContract(${order.id})" title="生成采购合同">
                                 <i class="fa fa-file-text-o"></i>
+                            </button>
+                            <button class="btn btn-small btn-info" onclick="copyPurchaseOrder(${order.id})" title="复制为新订单">
+                                <i class="fa fa-copy"></i>
                             </button>` : ''}
                         </td>
                         <td>${isFirstProduct ? (order.contractNumber || 'N/A') : ''}</td>

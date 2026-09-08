@@ -40,6 +40,36 @@
   // 跳过同步的内部 key
   var SKIP_KEYS = ['_lastLocalSave_', 'isLoggedIn', 'username', 'userPhone', 'sb-', 'supabase'];
 
+  // ===== 应用专属 localStorage 键名重映射 =====
+  // 某些应用与其他应用共用同源 localStorage，键名冲突会导致本地数据互相覆盖。
+  // 这里仅重映射 localStorage（原生存储）的键名，内存缓存与云端 store_key 仍使用原始键名，
+  // 因此云端数据不受影响。
+  var LOCAL_KEY_REMAP = (function () {
+    if (APP_ID === 'stainlessbusiness') {
+      // 不锈钢业务的通讯录/收藏联系人和服装系统(clothing)同名，改用 sb_ 前缀存储
+      return { contacts: 'sb_contacts', favoriteContacts: 'sb_favoriteContacts' };
+    }
+    return {};
+  })();
+  var REMAP_REVERSE = (function () {
+    var r = {};
+    for (var k in LOCAL_KEY_REMAP) {
+      if (Object.prototype.hasOwnProperty.call(LOCAL_KEY_REMAP, k)) {
+        r[LOCAL_KEY_REMAP[k]] = k;
+      }
+    }
+    return r;
+  })();
+  // 被重映射的原始键名集合（这些原始名若出现在原生 localStorage 中，属于其他应用，应跳过）
+  var REMAP_ORIGINALS = (function () {
+    var s = {};
+    for (var k in LOCAL_KEY_REMAP) {
+      if (Object.prototype.hasOwnProperty.call(LOCAL_KEY_REMAP, k)) s[k] = true;
+    }
+    return s;
+  })();
+  function toLocalKey(key) { return LOCAL_KEY_REMAP[key] || key; }
+
   function shouldSkip(key) {
     for (var i = 0; i < SKIP_KEYS.length; i++) {
       if (key.indexOf(SKIP_KEYS[i]) >= 0) return true;
@@ -204,6 +234,17 @@
 
       initialized = true;
       console.log('[SupabaseSync] Ready. App:', APP_ID, 'User:', user ? (user.id || 'anon') : 'none');
+
+      // 初始加载完成后派发 cloud-data-updated 事件
+      // 应用页面在 DOMContentLoaded 时可能已渲染（此时云端数据尚未到达），
+      // 需通知应用使用已加载到缓存的云端数据重新渲染。
+      try {
+        var allKeys = Object.keys(cache);
+        if (allKeys.length > 0) {
+          window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { keys: allKeys } }));
+        }
+      } catch (e) {}
+
       return true;
     })();
 
@@ -233,6 +274,21 @@
   // ===== 迁移 localStorage → Supabase =====
   async function migrateLocalStorage() {
     try {
+      // 一次性本地键名迁移：将旧的同名键（可能与其他应用冲突）搬到重映射后的本地键
+      var remapKeys = Object.keys(LOCAL_KEY_REMAP);
+      for (var rk = 0; rk < remapKeys.length; rk++) {
+        var orig = remapKeys[rk];
+        var localK = LOCAL_KEY_REMAP[orig];
+        var oldRaw = _origGetItem(orig);
+        var newRaw = _origGetItem(localK);
+        // 只有当旧键有值且新键无值时才搬迁，避免覆盖已有新数据
+        if (oldRaw !== null && oldRaw !== '' && (newRaw === null || newRaw === '')) {
+          _origSetItem(localK, oldRaw);
+          console.log('[SupabaseSync] Local key migrated:', orig, '→', localK);
+        }
+        // 旧键保留给其他应用，不删除（可能属于 clothing 等）
+      }
+
       // 查询云端已有的 key 及内容
       var existing = {};
       try {
@@ -243,13 +299,25 @@
       } catch (e) {}
 
       var migrated = 0, rescued = 0;
-      var keys = Object.keys(localStorage);
-      for (var i = 0; i < keys.length; i++) {
-        var key = keys[i];
+      var nativeKeys = Object.keys(localStorage);
+      for (var i = 0; i < nativeKeys.length; i++) {
+        var nativeKey = nativeKeys[i];
+
+        // 将原生 localStorage 键名还原为应用使用的原始键名
+        var key;
+        if (REMAP_REVERSE[nativeKey] !== undefined) {
+          key = REMAP_REVERSE[nativeKey]; // 重映射键：sb_contacts → contacts
+        } else if (REMAP_ORIGINALS[nativeKey]) {
+          // 该原始键名已被本应用重映射，出现在原生 localStorage 中说明属于其他应用，跳过
+          continue;
+        } else {
+          key = nativeKey;
+        }
+
         if (shouldSkip(key)) continue;
 
         var prefixedKey = prefixKey(key);
-        var raw = _origGetItem(key);
+        var raw = _origGetItem(nativeKey);
         var localVal;
         try { localVal = (raw === null || raw === undefined) ? undefined : JSON.parse(raw); } catch (e) { localVal = raw; }
 
@@ -279,8 +347,8 @@
             // 云端为准：将云端数据恢复到本地与缓存
             // （修复云端加载完成前应用初始化写入的过期空值残留）
             var rawC = typeof cloudVal === 'string' ? cloudVal : JSON.stringify(cloudVal);
-            if (_origGetItem(key) !== rawC) {
-              _origSetItem(key, rawC);
+            if (_origGetItem(nativeKey) !== rawC) {
+              _origSetItem(nativeKey, rawC);
             }
             cache[key] = cloudVal;
           }
@@ -344,7 +412,7 @@
       // 防护：队列值为空而本地当前值非空时跳过
       // （避免云端加载完成前应用初始化误写的空数组覆盖云端真实数据）
       if (isEmptyValue(value)) {
-        var raw = _origGetItem(key);
+        var raw = _origGetItem(toLocalKey(key));
         var cur;
         try { cur = (raw === null || raw === undefined) ? undefined : JSON.parse(raw); } catch (e) { cur = raw; }
         if (!isEmptyValue(cur)) continue;
@@ -386,9 +454,9 @@
         if (isChanged) {
           cache[origKey] = newVal;
           cacheTs[origKey] = row.updated_at;
-          // 同步到原始 localStorage
+          // 同步到原生 localStorage（使用重映射后的本地键名）
           var raw = typeof newVal === 'string' ? newVal : JSON.stringify(newVal);
-          _origSetItem(origKey, raw);
+          _origSetItem(toLocalKey(origKey), raw);
           changedKeys.push(origKey);
         }
       });
@@ -404,30 +472,30 @@
 
   // ===== 拦截 localStorage =====
   localStorage.getItem = function (key) {
-    // 优先从缓存读取
+    // 优先从缓存读取（缓存使用原始 key）
     if (cache[key] !== undefined) {
       var val = cache[key];
       return typeof val === 'string' ? val : JSON.stringify(val);
     }
-    // 回退到原始 localStorage
-    return _origGetItem(key);
+    // 回退到原生 localStorage（可能被重映射为不同的本地键名）
+    return _origGetItem(toLocalKey(key));
   };
 
   localStorage.setItem = function (key, value) {
-    // 写入原始 localStorage（保持本地缓存/回退）
-    _origSetItem(key, value);
+    // 写入原生 localStorage（使用重映射后的本地键名，避免与其他应用冲突）
+    _origSetItem(toLocalKey(key), value);
 
-    // 更新内存缓存
+    // 更新内存缓存（使用原始 key）
     try { cache[key] = JSON.parse(value); } catch (e) { cache[key] = value; }
 
-    // 异步同步到云端（跳过内部 key）
+    // 异步同步到云端（使用原始 key → store_key 为 APP_ID__key）
     if (!shouldSkip(key)) {
       syncToCloud(key, cache[key]);
     }
   };
 
   localStorage.removeItem = function (key) {
-    _origRemoveItem(key);
+    _origRemoveItem(toLocalKey(key));
     delete cache[key];
     delete cacheTs[key];
     recentWrites[key] = Date.now();
@@ -449,7 +517,7 @@
 
     // 判断某命名存储项是否有值（本地原生 或 云端缓存）
     function hasValue(prop) {
-      if (_origGetItem(prop) !== null) return true;
+      if (_origGetItem(toLocalKey(prop)) !== null) return true;
       return Object.prototype.hasOwnProperty.call(cache, prop) && cache[prop] !== undefined;
     }
 

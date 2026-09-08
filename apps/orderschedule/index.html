@@ -2879,7 +2879,8 @@
             document.getElementById('edit-id').value = '';
             document.getElementById('modal-title').textContent = '新增订单';
             document.getElementById('order-date').value = getTodayDate();
-            document.getElementById('order-invoice-date').value = getTodayDate();
+            // 开票日期默认留空，不预填今日（未开票订单）
+            document.getElementById('order-invoice-date').value = '';
             document.getElementById('order-currency').value = 'EUR';
             document.getElementById('order-modal').classList.add('active');
         }
