@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>增值税发票交接清单</title>
+    <!-- Tailwind CSS v3 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1a56db',
+                        secondary: '#6b7280',
+                        success: '#10b981',
+                        warning: '#f59e0b',
+                        danger: '#ef4444',
+                        light: '#f3f4f6',
+                        dark: '#1f2937'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .page-a4 {
+                width: 210mm;
+                min-height: 297mm;
+                padding: 10mm;
+                margin: 10mm auto;
+                background: white;
+            }
+            @media print {
+                .page-a4 {
+                    padding: 5mm;
+                    box-shadow: none;
+                    margin: 0;
+                }
+                #print-page {
+                    display: none;
+                }
+                /* 去除所有阴影效果 */
+                * {
+                    box-shadow: none !important;
+                    shadow: none !important;
+                }
+                /* 调整边距和内边距，避免分页 */
+                section {
+                    margin-bottom: 5mm !important;
+                    padding: 3mm !important;
+                }
+                /* 确保税额统计三列分布 */
+                section > div.grid {
+                    grid-template-columns: repeat(3, 1fr) !important;
+                    gap: 2mm !important;
+                }
+                section > div.grid > div {
+                    text-align: center;
+                }
+                section > div.grid > div:first-child {
+                    text-align: left;
+                }
+                section > div.grid > div:last-child {
+                    text-align: right;
+                }
+                
+                .table-border {
+                    table-layout: fixed;
+                }
+                .table-border th, .table-border td {
+                    border: 1px solid #d1d5db;
+                    padding: 2px 3px;
+                    font-size: 0.65rem;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+                .table-border th:nth-child(3), .table-border td:nth-child(3),
+                .table-border th:nth-child(4), .table-border td:nth-child(4) {
+                    font-size: 0.6rem;
+                }
+                .table-border th:nth-child(1), .table-border td:nth-child(1) {
+                    width: 4%;
+                }
+                .table-border th:nth-child(2), .table-border td:nth-child(2) {
+                    width: 12%;
+                }
+                .table-border th:nth-child(3), .table-border td:nth-child(3) {
+                    width: 18%;
+                }
+                .table-border th:nth-child(4), .table-border td:nth-child(4) {
+                    width: 20%;
+                }
+                .table-border th:nth-child(5), .table-border td:nth-child(5) {
+                    width: 10%;
+                }
+                .table-border th:nth-child(6), .table-border td:nth-child(6),
+                .table-border th:nth-child(7), .table-border td:nth-child(7),
+                .table-border th:nth-child(9), .table-border td:nth-child(9) {
+                    width: 7%;
+                }
+                .table-border th:nth-child(8), .table-border td:nth-child(8) {
+                    width: 10%;
+                }
+            }
+            .table-header-bg {
+                background-color: #f3f4f6;
+            }
+            .table-border {
+                border-collapse: collapse;
+                table-layout: fixed;
+            }
+            .table-border th, .table-border td {
+                border: 1px solid #d1d5db;
+                padding: 2px 3px;
+                font-size: 0.65rem;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .table-border th:nth-child(3), .table-border td:nth-child(3),
+            .table-border th:nth-child(4), .table-border td:nth-child(4) {
+                font-size: 0.6rem;
+            }
+            .table-border th:nth-child(1), .table-border td:nth-child(1) {
+                width: 4%;
+            }
+            .table-border th:nth-child(2), .table-border td:nth-child(2) {
+                width: 12%;
+            }
+            .table-border th:nth-child(3), .table-border td:nth-child(3) {
+                width: 18%;
+            }
+            .table-border th:nth-child(4), .table-border td:nth-child(4) {
+                width: 20%;
+            }
+            .table-border th:nth-child(5), .table-border td:nth-child(5) {
+                width: 10%;
+            }
+            .table-border th:nth-child(6), .table-border td:nth-child(6),
+            .table-border th:nth-child(7), .table-border td:nth-child(7),
+            .table-border th:nth-child(9), .table-border td:nth-child(9) {
+                width: 7%;
+            }
+            .table-border th:nth-child(8), .table-border td:nth-child(8) {
+                width: 10%;
+            }
+            .text-vertical-center {
+                vertical-align: middle;
+            }
+            .btn {
+                @apply px-4 py-2 rounded font-medium transition-colors duration-200;
+            }
+            .btn-primary {
+                @apply bg-primary text-white hover:bg-primary/90;
+            }
+            .btn-success {
+                @apply bg-success text-white hover:bg-success/90;
+            }
+            .btn-danger {
+                @apply bg-danger text-white hover:bg-danger/90;
+            }
+            .btn-sm {
+                @apply px-2 py-1 text-sm;
+            }
+            .status-badge {
+                @apply px-2 py-1 text-xs rounded-full font-medium;
+            }
+            .status-pending {
+                @apply bg-yellow-100 text-yellow-800;
+            }
+            .status-completed {
+                @apply bg-green-100 text-green-800;
+            }
+            .status-rejected {
+                @apply bg-red-100 text-red-800;
+            }
+            .status-cancelled {
+                @apply bg-red-500 text-white;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div class="page-a4">
+        <!-- 页面标题 -->
+        <header class="text-center mb-6">
+            <h1 class="text-2xl font-bold text-gray-800">增值税发票交接清单</h1>
+            <h2 id="list-period" class="text-lg font-medium text-gray-600 mt-2"></h2>
+            <h3 id="company-name" class="text-lg font-medium text-gray-600 mt-1"></h3>
+            <div class="flex justify-between items-center mt-4">
+                <div>
+                    <span class="text-gray-600">交接日期：</span>
+                    <input type="date" id="handover-date" class="border border-gray-300 rounded px-2 py-1 text-sm font-medium">
+                </div>
+                <div>
+                    <span class="text-gray-600">交接人：</span>
+                    <input type="text" id="handover-person" class="border border-gray-300 rounded px-2 py-1 text-sm" placeholder="请输入交接人" value="吴小英">
+                </div>
+                <div>
+                    <span class="text-gray-600">接收人：</span>
+                    <input type="text" id="receiver-person" class="border border-gray-300 rounded px-2 py-1 text-sm" placeholder="请输入接收人">
+                </div>
+            </div>
+        </header>
+
+        <!-- 本月税额统计 -->
+        <section class="mb-8 bg-white p-4 rounded-lg shadow">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-500 mb-1">当月进项税额</label>
+                    <div class="text-lg font-bold text-gray-800" id="monthly-in-tax">0.00</div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-500 mb-1">当月销项税额</label>
+                    <div class="text-lg font-bold text-gray-800" id="monthly-out-tax">0.00</div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-500 mb-1">税差计算结果</label>
+                    <div class="text-lg font-bold text-gray-800" id="tax-difference">0.00</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 进项发票表格 -->
+        <section class="mb-8">
+            <div class="flex justify-between items-center mb-2">
+                <h2 class="text-xl font-bold text-gray-800">进项发票</h2>
+            </div>
+                <table id="invoice-in-table" class="w-full table-border">
+                    <thead>
+                        <tr class="table-header-bg">
+                            <th class="text-vertical-center">序号</th>
+                            <th class="text-vertical-center">发票日期</th>
+                            <th class="text-vertical-center">发票号码</th>
+                            <th class="text-vertical-center">销售方</th>
+                            <th class="text-vertical-center">金额</th>
+                            <th class="text-vertical-center">税率</th>
+                            <th class="text-vertical-center">税额</th>
+                            <th class="text-vertical-center">状态</th>
+                            <th class="text-vertical-center">备注</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- 进项发票数据将通过JavaScript动态添加 -->
+                    </tbody>
+                    <tfoot>
+                        <tr class="bg-gray-50 font-medium">
+                            <td colspan="4" class="text-right">合计：</td>
+                            <td id="total-amount-in">0.00</td>
+                            <td></td>
+                            <td id="total-tax-in">0.00</td>
+                            <td colspan="2"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+        </section>
+
+        <!-- 销项发票表格 -->
+        <section class="mb-8">
+            <div class="flex justify-between items-center mb-2">
+                <h2 class="text-xl font-bold text-gray-800">销项发票</h2>
+            </div>
+                <table id="invoice-out-table" class="w-full table-border">
+                    <thead>
+                        <tr class="table-header-bg">
+                            <th class="text-vertical-center">序号</th>
+                            <th class="text-vertical-center">发票日期</th>
+                            <th class="text-vertical-center">发票号码</th>
+                            <th class="text-vertical-center">购买方</th>
+                            <th class="text-vertical-center">金额</th>
+                            <th class="text-vertical-center">税率</th>
+                            <th class="text-vertical-center">税额</th>
+                            <th class="text-vertical-center">状态</th>
+                            <th class="text-vertical-center">备注</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- 销项发票数据将通过JavaScript动态添加 -->
+                    </tbody>
+                    <tfoot>
+                        <tr class="bg-gray-50 font-medium">
+                            <td colspan="4" class="text-right">合计：</td>
+                            <td id="total-amount-out">0.00</td>
+                            <td></td>
+                            <td id="total-tax-out">0.00</td>
+                            <td colspan="2"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+        </section>
+
+        <!-- 页面底部 -->
+        <footer class="mt-8 text-right">
+            <div class="flex justify-between items-center">
+                <div>
+                    <p class="text-gray-600">打印日期：<span id="print-date"></span></p>
+                </div>
+                <div class="flex space-x-4">
+                    <button id="print-page" class="btn btn-primary">
+                        <i class="fa fa-print mr-1"></i> 打印清单
+                    </button>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- 添加发票模态框 -->
+    <div id="invoice-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="modal-title" class="text-xl font-bold text-gray-800">添加发票</h3>
+                <button id="close-modal" class="text-gray-500 hover:text-gray-700">
+                    <i class="fa fa-times text-xl"></i>
+                </button>
+            </div>
+            <form id="invoice-form">
+                <input type="hidden" id="invoice-type" value="in">
+                <input type="hidden" id="edit-index" value="-1">
+                
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label for="invoice-date" class="block text-sm font-medium text-gray-700 mb-1">发票日期</label>
+                        <input type="date" id="invoice-date" class="w-full border border-gray-300 rounded px-3 py-2" required>
+                    </div>
+                    <div>
+                        <label for="invoice-number" class="block text-sm font-medium text-gray-700 mb-1">发票号码</label>
+                        <input type="text" id="invoice-number" class="w-full border border-gray-300 rounded px-3 py-2" required>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label id="party-label" for="party-name" class="block text-sm font-medium text-gray-700 mb-1">销售方</label>
+                        <input type="text" id="party-name" class="w-full border border-gray-300 rounded px-3 py-2" required>
+                    </div>
+                    <div>
+                        <label for="invoice-amount" class="block text-sm font-medium text-gray-700 mb-1">金额</label>
+                        <input type="number" id="invoice-amount" step="0.01" min="0" class="w-full border border-gray-300 rounded px-3 py-2" required>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label for="invoice-tax-rate" class="block text-sm font-medium text-gray-700 mb-1">税率 (%)</label>
+                        <select id="invoice-tax-rate" class="w-full border border-gray-300 rounded px-3 py-2" required>
+                            <option value="13">13%</option>
+                            <option value="9">9%</option>
+                            <option value="6">6%</option>
+                            <option value="0">0%</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="invoice-tax-amount" class="block text-sm font-medium text-gray-700 mb-1">税额</label>
+                        <input type="number" id="invoice-tax-amount" step="0.01" min="0" class="w-full border border-gray-300 rounded px-3 py-2" readonly>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label for="invoice-status" class="block text-sm font-medium text-gray-700 mb-1">状态</label>
+                        <select id="invoice-status" class="w-full border border-gray-300 rounded px-3 py-2" required>
+                            <option value="pending">待处理</option>
+                            <option value="completed">已完成</option>
+                            <option value="rejected">已退回</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="invoice-remark" class="block text-sm font-medium text-gray-700 mb-1">备注</label>
+                        <input type="text" id="invoice-remark" class="w-full border border-gray-300 rounded px-3 py-2">
+                    </div>
+                </div>
+                
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" id="cancel-invoice" class="btn bg-gray-200 text-gray-800 hover:bg-gray-300">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // 全局数据存储
+        let invoiceData = {
+            in: [],  // 进项发票数据
+            out: []  // 销项发票数据
+        };
+        
+        // DOM 元素
+         const elements = {
+             // 日期显示
+             handoverDate: document.getElementById('handover-date'),
+             printDate: document.getElementById('print-date'),
+             
+             // 公司名称
+             companyName: document.getElementById('company-name'),
+             
+             // 人员信息
+             handoverPerson: document.getElementById('handover-person'),
+             receiverPerson: document.getElementById('receiver-person'),
+             
+             // 表格
+             invoiceInTable: document.getElementById('invoice-in-table').querySelector('tbody'),
+             invoiceOutTable: document.getElementById('invoice-out-table').querySelector('tbody'),
+             
+             // 合计
+             totalAmountIn: document.getElementById('total-amount-in'),
+             totalTaxIn: document.getElementById('total-tax-in'),
+             totalAmountOut: document.getElementById('total-amount-out'),
+             totalTaxOut: document.getElementById('total-tax-out'),
+             
+             // 按钮
+             printPage: document.getElementById('print-page'),
+            listPeriod: document.getElementById('list-period'),
+             
+             // 模态框
+             invoiceModal: document.getElementById('invoice-modal'),
+             modalTitle: document.getElementById('modal-title'),
+             closeModal: document.getElementById('close-modal'),
+             cancelInvoice: document.getElementById('cancel-invoice'),
+             
+             // 表单
+             invoiceForm: document.getElementById('invoice-form'),
+             invoiceType: document.getElementById('invoice-type'),
+             editIndex: document.getElementById('edit-index'),
+             partyLabel: document.getElementById('party-label'),
+             invoiceDate: document.getElementById('invoice-date'),
+             invoiceNumber: document.getElementById('invoice-number'),
+             partyName: document.getElementById('party-name'),
+             invoiceAmount: document.getElementById('invoice-amount'),
+             invoiceTaxRate: document.getElementById('invoice-tax-rate'),
+             invoiceTaxAmount: document.getElementById('invoice-tax-amount'),
+             invoiceStatus: document.getElementById('invoice-status'),
+             invoiceRemark: document.getElementById('invoice-remark')
+         };
+        
+        // 初始化
+        function init() {
+            // 设置当前日期
+            const today = new Date().toISOString().split('T')[0];
+            elements.handoverDate.value = today;
+            elements.printDate.textContent = today;
+            
+            // 检查是否有从主系统导出的数据
+            checkForExportedData();
+            
+            // 从URL参数获取数据
+            const urlParams = new URLSearchParams(window.location.search);
+            const year = urlParams.get('year');
+            const month = urlParams.get('month');
+            const company = urlParams.get('company');
+            
+            // 公司名称映射
+            const companyNames = {
+                'company1': '无锡龙力印铁设备制造有限公司',
+                'company2': '普利美（常州）环境工程科技有限公司'
+            };
+            
+            if (year && month && company) {
+                // 显示年份和月份
+                const monthName = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'][parseInt(month) - 1];
+                elements.listPeriod.textContent = `${year}年${monthName}`;
+                
+                // 显示公司名称
+                const companyName = companyNames[company] || company;
+                elements.companyName.textContent = `${companyName}`;
+                
+                // 从主系统localStorage获取发票数据
+                const mainInvoices = JSON.parse(localStorage.getItem('invoice_management_invoices')) || [];
+                const monthStr = month.toString().padStart(2, '0');
+                const filterDate = `${year}-${monthStr}`;
+                
+                // 过滤并映射数据
+                const purchaseInvoices = mainInvoices
+                    .filter(inv => inv.type === 'purchase' && inv.company === company && inv.entryDate.startsWith(filterDate))
+                    .sort((a, b) => new Date(b.entryDate) - new Date(a.entryDate))
+                    .map(inv => ({
+                        date: inv.entryDate,
+                        number: inv.invoiceNo,
+                        party: inv.supplier,
+                        amount: inv.amount.toFixed(2),
+                        taxRate: inv.taxRate,
+                        taxAmount: inv.taxAmount.toFixed(2),
+                        status: inv.status,
+                        remark: inv.remark || ''
+                    }));
+                
+                const salesInvoices = mainInvoices
+                    .filter(inv => inv.type === 'sales' && inv.company === company && inv.entryDate.startsWith(filterDate))
+                    .sort((a, b) => new Date(b.entryDate) - new Date(a.entryDate))
+                    .map(inv => ({
+                        date: inv.entryDate,
+                        number: inv.invoiceNo,
+                        party: inv.customer,
+                        amount: inv.amount.toFixed(2),
+                        taxRate: inv.taxRate,
+                        taxAmount: inv.taxAmount.toFixed(2),
+                        status: inv.status,
+                        remark: inv.remark || ''
+                    }));
+                
+                // 设置invoiceData
+                invoiceData = {
+                    in: purchaseInvoices,
+                    out: salesInvoices
+                };
+            } else {
+                // 从本地存储加载数据
+                loadData();
+            }
+            
+            // 渲染表格
+            renderTables();
+            
+            // 绑定事件
+            bindEvents();
+        }
+        
+        // 检查是否有从主系统导出的数据
+        function checkForExportedData() {
+            const exportedData = localStorage.getItem('invoiceExportData');
+            if (exportedData) {
+                try {
+                    const { invoices, company } = JSON.parse(exportedData);
+                    
+                    // 根据发票类型分类数据
+                    const purchaseInvoices = [];
+                    const salesInvoices = [];
+                    
+                    invoices.forEach(invoice => {
+                        // 映射数据到表格所需格式
+                        const mappedInvoice = {
+                            date: invoice.date || invoice.registerDate || '',
+                            number: invoice.invoiceNo || '',
+                            amount: invoice.amount || '0',
+                            taxRate: invoice.taxRate || '0',
+                            taxAmount: invoice.taxAmount || '0',
+                            status: invoice.status || 'pending',
+                            remark: invoice.remark || ''
+                        };
+                        
+                        if (invoice.invoiceType === '专票-进项') {
+                            // 进项发票：party为销售方
+                            mappedInvoice.party = invoice.seller || '';
+                            purchaseInvoices.push(mappedInvoice);
+                        } else if (invoice.invoiceType === '专票-销项') {
+                            // 销项发票：party为购买方
+                            mappedInvoice.party = invoice.buyer || '';
+                            salesInvoices.push(mappedInvoice);
+                        }
+                    });
+                    
+                    // 更新全局数据
+                    invoiceData.in = purchaseInvoices;
+                    invoiceData.out = salesInvoices;
+                    
+                    // 设置公司名称
+                if (company) {
+                    elements.companyName.textContent = `${company}`;
+                }
+                    
+                    // 清空localStorage中的导出数据，避免重复加载
+                    localStorage.removeItem('invoiceExportData');
+                } catch (error) {
+                    console.error('解析导出数据失败:', error);
+                }
+            }
+        }
+        
+        // 加载数据
+        function loadData() {
+            const savedData = localStorage.getItem('invoiceData');
+            if (savedData) {
+                const parsedData = JSON.parse(savedData);
+                // 检查数据格式是否包含source属性（新格式）
+                if (parsedData.source) {
+                    // 提取in和out数组
+                    invoiceData = {
+                        in: parsedData.in || [],
+                        out: parsedData.out || []
+                    };
+                } else {
+                    // 使用旧格式数据
+                    invoiceData = parsedData;
+                }
+            }
+        }
+        
+        // 保存数据
+        function saveData() {
+            // 保存数据时添加来源标识，用于区分是从主系统导入还是手动添加
+            const dataToSave = {
+                ...invoiceData,
+                source: 'handover_list',
+                lastUpdated: new Date().toISOString()
+            };
+            localStorage.setItem('invoiceData', JSON.stringify(dataToSave));
+            alert('数据已保存！');
+        }
+        
+        // 渲染表格
+        function renderTables() {
+            renderTable('in', elements.invoiceInTable, elements.totalAmountIn, elements.totalTaxIn);
+            renderTable('out', elements.invoiceOutTable, elements.totalAmountOut, elements.totalTaxOut);
+            
+            // 计算并显示月度税额统计
+            const inTotals = calculateTotals('in');
+            const outTotals = calculateTotals('out');
+            
+            // 获取显示元素
+            const monthlyInTaxEl = document.getElementById('monthly-in-tax');
+            const monthlyOutTaxEl = document.getElementById('monthly-out-tax');
+            const taxDifferenceEl = document.getElementById('tax-difference');
+            
+            // 更新显示值
+            monthlyInTaxEl.textContent = inTotals.totalTax.toFixed(2);
+            monthlyOutTaxEl.textContent = outTotals.totalTax.toFixed(2);
+            
+            // 计算税差（销项税额 - 进项税额）
+            const taxDifference = outTotals.totalTax - inTotals.totalTax;
+            taxDifferenceEl.textContent = taxDifference.toFixed(2);
+        }
+        
+        // 渲染单个表格
+        function renderTable(type, tableBody, totalAmountEl, totalTaxEl) {
+            // 清空表格
+            tableBody.innerHTML = '';
+            
+            // 添加数据行
+            invoiceData[type].forEach((invoice, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="text-center">${index + 1}</td>
+                    <td>${invoice.date || invoice.invoiceDate || ''}</td>
+                    <td>${invoice.number}</td>
+                    <td>${invoice.party}</td>
+                    <td class="text-right">${parseFloat(invoice.amount).toFixed(2)}</td>
+                    <td class="text-center">${parseFloat(invoice.taxRate) < 1 ? (parseFloat(invoice.taxRate) * 100) : parseFloat(invoice.taxRate)}%</td>
+                    <td class="text-right">${parseFloat(invoice.taxAmount).toFixed(2)}</td>
+                    <td class="text-center">
+                        <span class="status-badge status-${invoice.status}">
+                            ${getStatusText(invoice.status)}
+                        </span>
+                    </td>
+                    <td>${invoice.remark || ''}</td>
+
+                `;
+                tableBody.appendChild(row);
+            });
+            
+            // 计算合计
+            const totals = calculateTotals(type);
+            totalAmountEl.textContent = totals.totalAmount.toFixed(2);
+            totalTaxEl.textContent = totals.totalTax.toFixed(2);
+            
+
+        }
+        
+        // 计算合计
+        function calculateTotals(type) {
+            return invoiceData[type].reduce((totals, invoice) => {
+                totals.totalAmount += parseFloat(invoice.amount);
+                totals.totalTax += parseFloat(invoice.taxAmount);
+                return totals;
+            }, { totalAmount: 0, totalTax: 0 });
+        }
+        
+        // 获取状态文本
+        function getStatusText(status) {
+            const statusMap = {
+                'pending': '待处理',
+                'completed': '已完成',
+                'rejected': '已退回',
+                'issued': '已开具',
+                'cancelled': '已作废'
+            };
+            return statusMap[status] || status;
+        }
+        
+        // 绑定事件
+         function bindEvents() {
+             // 打印按钮
+             elements.printPage.addEventListener('click', printPage);
+             
+             // 模态框关闭按钮
+             elements.closeModal.addEventListener('click', closeModal);
+             elements.cancelInvoice.addEventListener('click', closeModal);
+             
+             // 表单提交
+             elements.invoiceForm.addEventListener('submit', handleFormSubmit);
+             
+             // 金额和税率变化时计算税额
+             elements.invoiceAmount.addEventListener('input', calculateTaxAmount);
+             elements.invoiceTaxRate.addEventListener('change', calculateTaxAmount);
+         }
+        
+
+        
+        // 打开模态框
+        function openModal(type, index = -1) {
+            elements.invoiceType.value = type;
+            elements.editIndex.value = index;
+            
+            // 设置标题和标签
+            if (index === -1) {
+                elements.modalTitle.textContent = type === 'in' ? '添加进项发票' : '添加销项发票';
+                elements.invoiceForm.reset();
+                elements.invoiceDate.value = new Date().toISOString().split('T')[0];
+                elements.invoiceTaxAmount.value = '0.00';
+            } else {
+                elements.modalTitle.textContent = type === 'in' ? '编辑进项发票' : '编辑销项发票';
+                const invoice = invoiceData[type][index];
+                elements.invoiceDate.value = invoice.date;
+                elements.invoiceNumber.value = invoice.number;
+                elements.partyName.value = invoice.party;
+                elements.invoiceAmount.value = invoice.amount;
+                elements.invoiceTaxRate.value = invoice.taxRate;
+                elements.invoiceTaxAmount.value = invoice.taxAmount;
+                elements.invoiceStatus.value = invoice.status;
+                elements.invoiceRemark.value = invoice.remark || '';
+            }
+            
+            elements.partyLabel.textContent = type === 'in' ? '销售方' : '购买方';
+            elements.invoiceModal.classList.remove('hidden');
+        }
+        
+        // 关闭模态框
+        function closeModal() {
+            elements.invoiceModal.classList.add('hidden');
+        }
+        
+        // 计算税额
+        function calculateTaxAmount() {
+            const amount = parseFloat(elements.invoiceAmount.value) || 0;
+            const taxRate = parseFloat(elements.invoiceTaxRate.value) || 0;
+            const taxAmount = amount * (taxRate / 100);
+            elements.invoiceTaxAmount.value = taxAmount.toFixed(2);
+        }
+        
+        // 处理表单提交
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            
+            const type = elements.invoiceType.value;
+            const index = parseInt(elements.editIndex.value);
+            
+            // 获取表单数据
+            const invoice = {
+                date: elements.invoiceDate.value,
+                number: elements.invoiceNumber.value,
+                party: elements.partyName.value,
+                amount: elements.invoiceAmount.value,
+                taxRate: elements.invoiceTaxRate.value,
+                taxAmount: elements.invoiceTaxAmount.value,
+                status: elements.invoiceStatus.value,
+                remark: elements.invoiceRemark.value
+            };
+            
+            // 添加或更新数据
+            if (index === -1) {
+                invoiceData[type].push(invoice);
+            } else {
+                invoiceData[type][index] = invoice;
+            }
+            
+            // 保存数据并刷新表格
+            saveData();
+            renderTables();
+            
+            // 关闭模态框
+            closeModal();
+        }
+        
+        // 编辑发票
+        function editInvoice(type, index) {
+            openModal(type, index);
+        }
+        
+        // 删除发票
+        function deleteInvoice(type, index) {
+            if (confirm('确定要删除这张发票吗？')) {
+                invoiceData[type].splice(index, 1);
+                saveData();
+                renderTables();
+            }
+        }
+        
+        // 打印页面
+        function printPage() {
+            window.print();
+        }
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

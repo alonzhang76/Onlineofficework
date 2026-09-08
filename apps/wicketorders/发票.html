@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* 蓝绿渐变配色方案 */
+        :root {
+            --primary-gradient: linear-gradient(135deg, #2563eb 0%, #10b981 100%);
+            --primary-color: #2563eb;
+            --secondary-color: #10b981;
+            --accent-color: #6366f1;
+            --text-color: #1f2937;
+            --light-text: #6b7280;
+            --border-color: #e5e7eb;
+        }
+
+        /* 全局样式 */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        /* 打印样式 */
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 0.2cm;
+            }
+            
+            body {
+                font-size: 10pt;
+                margin: 0;
+                padding: 0;
+            }
+            
+            .no-print {
+                display: none !important;
+            }
+            
+            /* 确保表格不超出页面宽度 */
+            table {
+                width: 100% !important;
+                table-layout: auto !important;
+            }
+            
+            /* 确保打印时网格布局正常显示 */
+            .grid {
+                display: grid !important;
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+                gap: 0 !important;
+            }
+            
+            /* 移除可能干扰网格布局的样式 */
+            .grid > div {
+                width: auto !important;
+                box-sizing: border-box !important;
+            }
+            
+            /* 确保所有容器不超出页面 */
+            .max-w-4xl {
+                max-width: 100% !important;
+            }
+            
+            /* 调整内边距 */
+            .p-6 {
+                padding: 0.25rem !important;
+            }
+            
+            /* 减小其他内边距 */
+            .p-4 {
+                padding: 0.2rem !important;
+            }
+            
+            /* 减小外边距 */
+            .mb-3, .mt-3, .mb-4, .mt-4 {
+                margin-bottom: 0.2rem !important;
+                margin-top: 0.2rem !important;
+            }
+            
+            /* 调整字段容器，确保内容不换行 */
+            .flex.justify-between {
+                display: flex !important;
+                justify-content: space-between !important;
+                white-space: nowrap;
+            }
+            
+            /* 调整字体大小，确保所有内容可见 */
+            .text-sm {
+                font-size: 0.7rem !important;
+            }
+            
+            .text-xs {
+                font-size: 0.6rem !important;
+            }
+            
+            /* 减小公司信息字体 */
+            .company-info {
+                font-size: 8pt !important;
+            }
+            
+            /* 减小条款区域边距 */
+            .terms-section {
+                margin-top: 0.3rem !important;
+                margin-bottom: 0.3rem !important;
+            }
+            
+            /* 减小条款标题边距 */
+            .terms-section h3 {
+                margin-bottom: 0.1rem !important;
+            }
+            
+            /* 减小条款文本间距 */
+            .terms-section p {
+                margin-bottom: 0.1rem !important;
+                line-height: 1.2 !important;
+            }
+            
+            /* 减小印章容器大小 */
+            .seal-wrapper {
+                width: 80mm !important;
+                height: 16mm !important;
+                padding: 4px !important;
+            }
+        }
+
+        /* 渐变标题 */
+        .gradient-text {
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* 渐变背景 */
+        .gradient-bg {
+            background: var(--primary-gradient);
+        }
+
+        /* 正式表格样式 */
+        .formal-table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 0.75rem; /* 缩小表格整体字体大小 */
+        }
+
+        .formal-table th {
+            background: #e3f2fd;
+            color: #0d47a1;
+            text-align: left;
+            padding: 8px 6px;
+            font-weight: 600;
+            font-size: 0.75rem;
+            border: 1px solid var(--border-color);
+            white-space: nowrap;
+        }
+
+        .formal-table td {
+            padding: 6px 8px;
+            border: 1px solid var(--border-color);
+            font-size: 0.75rem;
+            white-space: nowrap;
+        }
+        
+        /* 产品名称列样式 */
+        .product-name-col {
+            max-width: 200px;
+            width: 200px;
+        }
+        
+        /* 单位列样式 */
+        .formal-table th:nth-child(6),
+        .formal-table td:nth-child(6) {
+            width: 80px;
+            max-width: 100px;
+            text-align: center;
+        }
+        
+        .product-name-cell {
+            font-size: 0.65rem;
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            width: 150px;
+        }
+        
+        /* 可编辑输入框样式 */
+        .editable-input {
+            width: 100%;
+            padding: 2px 4px;
+            border: 1px solid #d1d5db;
+            border-radius: 2px;
+            font-size: 0.75rem;
+            background-color: #ffffff;
+            transition: border-color 0.2s;
+            box-sizing: border-box;
+        }
+        
+        .editable-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+        
+        /* 产品名称输入框特定样式 */
+        .product-name-input {
+            font-size: 0.65rem;
+            max-width: 100%;
+            width: 100%;
+        }
+        
+        /* 单位输入框特定样式 */
+        .unit-input {
+            font-size: 0.75rem;
+            text-align: center;
+            width: 60px;
+            max-width: 80px;
+        }
+
+        .formal-table tr:nth-child(even) {
+            background-color: #f9fafb;
+        }
+
+        /* 打印时的表格样式 */
+    @media print {
+        .formal-table {
+            font-size: 8pt !important;
+            table-layout: auto !important;
+            width: 100% !important;
+        }
+        .formal-table th,
+            .formal-table td {
+                font-size: 8pt !important;
+                padding: 2px 4px !important;
+                white-space: nowrap !important;
+                word-break: keep-all !important;
+            }
+            
+            /* 打印时产品名称列样式 */
+            .product-name-col,
+            .product-name-cell {
+                max-width: 200px !important;
+                width: 200px !important;
+            }
+            
+            /* 打印时单位列样式 */
+            .formal-table th:nth-child(6),
+            .formal-table td:nth-child(6) {
+                width: 80px !important;
+                max-width: 100px !important;
+                text-align: center !important;
+            }
+            
+            /* 打印时输入框宽度调整 */
+            .product-name-input {
+                width: 100% !important;
+            }
+            
+            .unit-input {
+                width: 60px !important;
+                max-width: 80px !important;
+            }
+            
+            .product-name-cell {
+                font-size: 7pt !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+            }
+            
+            /* 打印时可编辑输入框样式 */
+            .editable-input {
+                border: none !important;
+                background-color: transparent !important;
+                box-shadow: none !important;
+                font-size: inherit !important;
+                width: 100% !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                color: #000000 !important;
+            }
+            
+            .editable-input:focus {
+                outline: none !important;
+                border: none !important;
+                box-shadow: none !important;
+            }
+        .formal-table th {
+            text-align: center !important;
+        }
+        .formal-table th span {
+            font-size: 7pt !important;
+        }
+        .formal-table td.text-right {
+            text-align: right !important;
+        }
+        
+        /* 优化公司名称和标题的打印样式 */
+        .company-name {
+            font-size: 14pt !important;
+            margin-bottom: 0.5rem !important;
+        }
+        .company-info {
+            font-size: 9pt !important;
+            margin-bottom: 0.5rem !important;
+        }
+        h2.text-lg {
+            font-size: 12pt !important;
+            margin-bottom: 0.5rem !important;
+        }
+        .gradient-text {
+            font-size: 11pt !important;
+            margin-bottom: 0.5rem !important;
+            background: none !important;
+            -webkit-text-fill-color: #333 !important;
+            color: #333 !important;
+        }
+        
+        /* 确保分隔线在打印时可见 */
+        .divider {
+            height: 2px !important;
+            background: #333 !important;
+            background-image: none !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            display: block !important;
+            margin: 1rem 0 !important;
+        }
+        
+        /* 移除打印时的阴影效果 */
+        .shadow-lg, .shadow-md, .shadow-xl, .shadow {
+            box-shadow: none !important;
+        }
+        
+        /* 优化总计信息的打印样式 */
+        #totalInfo {
+            font-size: 10pt !important;
+        }
+        #totalInfo .font-bold {
+            font-size: 11pt !important;
+        }
+
+        /* 分隔线 */
+        .divider {
+            height: 2px;
+            background: var(--primary-gradient);
+            margin: 1rem 0;
+        }
+        
+
+        
+        /* 条款文字容器 */
+        .terms-container {
+            position: relative;
+            z-index: 1;
+            margin-top: 1rem;
+        }
+        
+        /* 条款和条件容器，设置为相对定位 */
+        .terms-section {
+            position: relative;
+            margin-bottom: 8rem;
+        }
+        
+        /* 发票印章样式 - 使用ID选择器确保最高特异性 */
+        #invoice-seal-container {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            height: 100px !important;
+            display: flex !important;
+            justify-content: center !important;
+            align-items: center !important;
+            overflow: visible !important;
+            z-index: 1000 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        
+        #invoice-seal {
+            width: 100mm !important;
+            height: 20mm !important;
+            border: 2px solid #2563eb !important;
+            border-radius: 4px !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: center !important;
+            align-items: center !important;
+            position: absolute !important;
+            top: 20px !important;
+            left: 50% !important;
+            transform: translateX(-50%) rotate(10deg) !important;
+            opacity: 0.7 !important;
+            background: white !important;
+            z-index: 1000 !important;
+            margin: 0 !important;
+            padding: 8px !important;
+            box-sizing: border-box !important;
+        }
+        
+        #invoice-seal-text {
+            color: #2563eb !important;
+            font-weight: bold !important;
+            text-align: center !important;
+            font-size: 5mm !important;
+            line-height: 1.4 !important;
+            white-space: nowrap !important;
+            margin-bottom: 1mm !important;
+            margin-top: 0 !important;
+            padding: 0 !important;
+        }
+        
+        #invoice-seal-text-en {
+            color: #2563eb !important;
+            text-align: center !important;
+            font-size: 3mm !important;
+            line-height: 1.4 !important;
+            white-space: nowrap !important;
+            margin-bottom: 1mm !important;
+            margin-top: 0 !important;
+            padding: 0 !important;
+        }
+        
+        #invoice-seal-signature {
+            color: #2563eb !important;
+            font-family: 'Brush Script MT', 'Cursive', 'Arial' !important;
+            text-align: center !important;
+            font-size: 5mm !important;
+            line-height: 1.4 !important;
+            white-space: nowrap !important;
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            padding: 0 !important;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- 打印控制按钮 -->
+    <div class="fixed top-4 right-4 no-print">
+        <button id="printBtn" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center shadow-lg">
+            <i class="fa fa-print mr-2"></i>Print
+        </button>
+    </div>
+
+    <!-- 发票容器 -->
+    <div class="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg">
+        <!-- 顶部公司名称 -->
+        <div class="text-center mb-8">
+            <div class="text-2xl font-bold mb-4" id="companyName"></div>
+            
+            <!-- 顶部标题区域 -->
+            <div class="gradient-text text-xl font-bold mb-4">发票 INVOICE</div>
+            <div class="divider mt-4"></div>
+        </div>
+
+        <!-- 发票信息和客户信息 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-0 mb-4 print:gap-0">
+            <!-- 发票信息 -->
+            <div class="text-nowrap">
+                <div class="space-y-1">
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-32">发票编号 Invoice No:</span>
+                        <span id="invoiceNo" class="text-xs ml-2"></span>
+                    </div>
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-32">发票日期 Invoice Date:</span>
+                        <span id="invoiceDate" class="text-xs ml-2"></span>
+                    </div>
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-32">订单编号 Order No:</span>
+                    <input type="text" id="orderNo" class="text-xs ml-2 border border-gray-200 rounded px-2 py-1 w-48" style="font-size: 12px;">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 客户信息 -->
+            <div class="text-nowrap">
+                <div class="space-y-1">
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-32">公司名称 Company:</span>
+                        <span id="customerCompany" class="text-xs ml-2"></span>
+                    </div>
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-32">联系人 Contact:</span>
+                        <span id="customerContact" class="text-xs ml-2"></span>
+                    </div>
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-32">电话 Phone:</span>
+                        <span id="customerTel" class="text-xs ml-2"></span>
+                    </div>
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-32">邮箱 Email:</span>
+                        <span id="customerEmail" class="text-xs ml-2"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 交货信息和付款信息 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-0 mb-6 print:gap-0">
+            <!-- 交货信息 -->
+            <div class="text-nowrap">
+                <div class="space-y-1">
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-36">交货方式 Delivery Method:</span>
+                        <span id="deliveryMethod" class="text-xs ml-2"></span>
+                    </div>
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-36">交货港口/地点 Delivery Port:</span>
+                        <span id="deliveryLocation" class="text-xs ml-2"></span>
+                    </div>
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-36">交货日期 Delivery Date:</span>
+                        <span id="deliveryDate" class="text-xs ml-2"></span>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- 付款信息 -->
+            <div class="text-nowrap">
+                <div class="space-y-1">
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-32">成交条款 Terms:</span>
+                        <span id="terms" class="text-xs ml-2"></span>
+                    </div>
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-36">付款方式 Payment Method:</span>
+                        <span id="paymentMethod" class="text-xs ml-2"></span>
+                    </div>
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-36">付款比例 Payment Ratio:</span>
+                        <span id="paymentRatio" class="text-xs ml-2"></span>
+                    </div>
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-32">税率 Tax Rate:</span>
+                        <span id="taxRate" class="text-xs ml-2"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 产品明细表格 -->
+        <div class="mb-0">
+            <h3 class="text-sm font-bold mb-4 gradient-text">产品明细 Product Details</h3>
+            <div class="overflow-x-auto">
+                <table class="formal-table">
+                    <thead>
+                        <tr>
+                            <th class="text-sm">序号<br><span class="text-xs">No.</span></th>
+                            <th class="text-sm">产品编号<br><span class="text-xs">Product No.</span></th>
+                            <th class="text-sm product-name-col">产品名称<br><span class="text-xs">Product Name</span></th>
+                            <th class="text-sm">图号<br><span class="text-xs">Drawing No.</span></th>
+                            <th class="text-sm">规格型号<br><span class="text-xs">Specifications</span></th>
+                            <th class="text-sm">单位<br><span class="text-xs">Unit</span></th>
+                            <th class="text-sm">数量<br><span class="text-xs">Quantity</span></th>
+                            <th class="text-sm">单价<br><span class="text-xs">Unit Price</span></th>
+                            <th class="text-sm">金额<br><span class="text-xs">Amount</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="productTableBody">
+                        <!-- 产品数据将通过JavaScript动态填充 -->
+                    </tbody>
+                </table>
+            </div>
+            
+        </div>
+
+        <!-- 总计信息 -->
+        <div class="flex flex-col items-end mb-4">
+            <div class="w-full max-w-md">
+                <div class="flex justify-between mb-2 text-xs">
+                    <span class="font-semibold">小计 Subtotal:</span>
+                    <span id="subtotal"></span>
+                </div>
+                <div class="flex justify-between mb-2 text-xs">
+                    <span class="font-semibold">税费 Tax:</span>
+                    <span id="tax"></span>
+                </div>
+                <div class="flex justify-between font-bold text-sm pt-3 border-t-2 border-gray-300">
+                    <span class="gradient-text">总计 Total:</span>
+                    <span id="total"></span>
+                </div>
+                <!-- 预付/余款行，默认隐藏 -->
+                <div id="paymentRow" class="flex justify-between mt-2" style="display: none;">
+                    <select id="paymentType" class="border border-gray-300 rounded px-3 py-1 text-sm" style="width: 200px;">
+                        <option value="advance">预付 Advance Payment</option>
+                        <option value="balance">余款 Balance Payment</option>
+                    </select>
+                    <span id="paymentAmount" class="font-bold text-base" style="min-width: 200px; text-align: right; white-space: nowrap;"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 银行账户信息 -->
+        <div class="flex justify-start mb-4">
+            <div class="flex">
+                <span class="font-semibold text-xs w-36">银行账户信息<br><span class="text-xs">Bank Account:</span></span>
+                <div id="bankAccountInfo" class="text-xs ml-2 font-semibold whitespace-pre-wrap" style="min-width: 200px;"></div>
+            </div>
+        </div>
+
+        <!-- 交货备注 -->
+        <div class="p-4 border border-gray-200 rounded-lg mb-8">
+            <div class="flex">
+                <span class="font-semibold text-xs w-36">备注<br><span class="text-xs">Remarks:</span></span>
+                <span id="remarks" class="text-xs ml-2"></span>
+            </div>
+        </div>
+
+        <!-- 印章容器 -->
+        <div class="seal-wrapper" style="position: absolute; width: 100%; height: 80px; display: flex; justify-content: center; margin-bottom: 0;">
+            <!-- 使用内联样式的印章 -->
+            <div style="
+                width: 90mm;
+                height: 18mm;
+                border: 2px solid #2563eb;
+                border-radius: 4px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                transform: rotate(10deg);
+                opacity: 0.7;
+                background: white;
+                z-index: 10;
+                padding: 6px;
+                box-sizing: border-box;
+                margin-top: -5px;
+            ">
+                <div style="
+                    color: #2563eb;
+                    font-weight: bold;
+                    text-align: center;
+                    font-size: 5mm;
+                    line-height: 1.4;
+                    white-space: nowrap;
+                    margin-bottom: 1mm;
+                    margin-top: 0;
+                    padding: 0;
+                " id="companySealName">ABC公司</div>
+                <div style="
+                    color: #2563eb;
+                    text-align: center;
+                    font-size: 3mm;
+                    line-height: 1.4;
+                    white-space: nowrap;
+                    margin-bottom: 1mm;
+                    margin-top: 0;
+                    padding: 0;
+                " id="companySealNameEn">ABC Company</div>
+                <div style="
+                    color: #2563eb;
+                    font-family: 'Brush Script MT', 'Cursive', 'Arial';
+                    text-align: center;
+                    font-size: 5mm;
+                    line-height: 1.4;
+                    white-space: nowrap;
+                    margin-top: 0;
+                    margin-bottom: 0;
+                    padding: 0;
+                " id="sealSignature">AlonZhang</div>
+            </div>
+        </div>
+
+        <!-- 条款和条件 -->
+        <div class="terms-section" style="position: relative;">
+            <h3 class="text-sm font-bold mb-3 gradient-text" style="margin-top: 5px;">条款和条件 Terms & Conditions</h3>
+            
+            <!-- 条款文字容器 -->
+            <div class="terms-container space-y-2 text-xs text-gray-600">
+                <p>1. 发票金额需在发票日期后30天内支付。 Payment must be made within 30 days of invoice date.</p>
+                <p>2. 逾期付款将产生利息。 Late payments are subject to interest.</p>
+                <p>3. 所有产品均受我们的标准保修条件约束。 All products are subject to our standard warranty conditions.</p>
+                <p>4. 如有任何疑问，请与我们联系。 Please contact us with any questions.</p>
+            </div>
+        </div>
+
+    <script>
+        // 格式化数字为千分位格式
+        function formatNumber(num) {
+            return num.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        }
+
+        // 从URL参数中获取发票数据
+        function getQueryParams() {
+            const params = new URLSearchParams(window.location.search);
+            const data = {};
+            
+            // 获取基本信息
+            data.companyName = params.get('companyName') || 'ABC公司 | ABC Company';
+            data.invoiceNo = params.get('invoiceNo') || 'N/A';
+            data.invoiceDate = params.get('invoiceDate') || 'N/A';
+            data.orderNo = params.get('orderNo') || 'N/A';
+            
+            // 获取客户信息
+            data.customerCompany = params.get('customerCompany') || 'N/A';
+            data.customerContact = params.get('customerContact') || 'N/A';
+            data.customerTel = params.get('customerTel') || 'N/A';
+            data.customerEmail = params.get('customerEmail') || 'N/A';
+            
+            // 获取交货信息
+            data.deliveryMethod = params.get('deliveryMethod') || 'N/A';
+            data.deliveryLocation = params.get('deliveryLocation') || 'N/A';
+            data.deliveryDate = params.get('deliveryDate') || 'N/A';
+            data.remarks = params.get('remarks') || 'N/A';
+            
+            // 获取付款信息
+            data.terms = params.get('terms') || 'N/A';
+            data.paymentMethod = params.get('paymentMethod') || 'N/A';
+            data.paymentRatio = params.get('paymentRatio') || 'N/A';
+            data.bankAccountInfo = params.get('bankAccountInfo') || 'N/A';
+            data.taxRate = params.get('taxRate') || 'N/A';
+            
+            // 获取产品明细（优先从sessionStorage读取）
+            try {
+                const productsKey = params.get('productsKey');
+                if (productsKey) {
+                    const productsJson = sessionStorage.getItem('invoice_products_' + productsKey);
+                    if (productsJson) {
+                        data.products = JSON.parse(productsJson);
+                        sessionStorage.removeItem('invoice_products_' + productsKey);
+                    } else {
+                        data.products = [];
+                    }
+                } else {
+                    // 兼容旧方式
+                    const productsJson = params.get('products');
+                    data.products = productsJson ? JSON.parse(productsJson) : [];
+                }
+            } catch (error) {
+                console.error('解析产品明细失败:', error);
+                data.products = [];
+            }
+            
+            // 计算总计信息
+            data.subtotal = 0;
+            data.tax = 0;
+            data.total = 0;
+            
+            if (data.products.length > 0) {
+                // 假设所有产品使用相同的货币
+                data.currency = data.products[0].currency || 'USD';
+                
+                // 计算小计
+                data.subtotal = data.products.reduce((sum, product) => sum + (product.unitPrice * product.quantity), 0);
+                
+                // 计算税费
+                const taxRate = parseFloat(data.taxRate) || 0;
+                data.tax = data.subtotal * (taxRate / 100);
+                
+                // 计算总计
+                data.total = data.subtotal;
+            } else {
+                data.currency = 'USD';
+            }
+            
+            return data;
+        }
+
+        // 填充发票数据到页面
+        function populateInvoiceData() {
+            const data = getQueryParams();
+            
+            // 填充公司名称，将中英文名称分开显示
+            const companyName = data.companyName;
+            const nameParts = companyName.split(' | ');
+            const companyNameElement = document.getElementById('companyName');
+            
+            // 根据公司名称添加地址
+            let address = '';
+            const chineseName = nameParts[0];
+            
+            if (chineseName === '普利美(常州)环境工程科技有限公司') {
+                address = '6-1, zhongnan gaoke industrial park, #8 zhounan road, xueyan town, wujin district, Changzhou City, Jiangsu Province, China.P.C.213169';
+            } else if (chineseName === '无锡龙力印铁设备制造有限公司') {
+                address = 'Room 606, Buliding C ,No.4 Longshan Road, Wangzhuang, New district , Wuxi City , Jiangsu Province, China';
+            } else if (chineseName === '无锡市天梁对外贸易有限公司') {
+                address = 'ROOM605,XINGSHENG BUILDING, NO.900 JIEFANG EAST STREET,WUXI,JIANGSU,CHINA';
+            }
+            
+            if (nameParts.length > 1) {
+                if (address) {
+                    companyNameElement.innerHTML = `${nameParts[0]}<br><span class="text-lg font-normal">${nameParts[1]}</span><br><span class="text-sm font-normal">${address}</span>`;
+                } else {
+                    companyNameElement.innerHTML = `${nameParts[0]}<br><span class="text-lg font-normal">${nameParts[1]}</span>`;
+                }
+                // 填充印章中的公司名称
+            console.log('填充印章中的公司名称:', nameParts[0], nameParts[1]);
+            
+            // 检查元素是否存在
+            const invoiceSealTextElement = document.getElementById('companySealName');
+            const invoiceSealTextEnElement = document.getElementById('companySealNameEn');
+            
+            console.log('companySealName存在:', !!invoiceSealTextElement);
+            console.log('companySealNameEn存在:', !!invoiceSealTextEnElement);
+            
+            if (invoiceSealTextElement) {
+                invoiceSealTextElement.textContent = nameParts[0];
+            }
+            if (invoiceSealTextEnElement) {
+                invoiceSealTextEnElement.textContent = nameParts[1];
+            }
+            } else {
+                companyNameElement.textContent = companyName;
+                // 填充印章中的公司名称（只有中文或英文）
+            console.log('填充印章中的公司名称（只有中文或英文）:', companyName);
+            
+            // 检查元素是否存在
+            const invoiceSealTextElement = document.getElementById('companySealName');
+            const invoiceSealTextEnElement = document.getElementById('companySealNameEn');
+            
+            console.log('companySealName存在:', !!invoiceSealTextElement);
+            console.log('companySealNameEn存在:', !!invoiceSealTextEnElement);
+            
+            if (invoiceSealTextElement) {
+                invoiceSealTextElement.textContent = companyName;
+            }
+            if (invoiceSealTextEnElement) {
+                invoiceSealTextEnElement.textContent = '';
+            }
+            }
+            
+            // 填充基本信息
+            document.getElementById('invoiceNo').textContent = data.invoiceNo;
+            document.getElementById('invoiceDate').textContent = data.invoiceDate;
+            document.getElementById('orderNo').value = data.orderNo;
+            
+            // 填充印章签名
+            const sealSignatureElement = document.getElementById('sealSignature');
+            if (sealSignatureElement && data.signature) {
+                sealSignatureElement.textContent = data.signature;
+                console.log('印章签名已填充:', data.signature);
+            }
+            
+            // 填充客户信息
+            document.getElementById('customerCompany').textContent = data.customerCompany;
+            document.getElementById('customerContact').textContent = data.customerContact;
+            document.getElementById('customerTel').textContent = data.customerTel;
+            document.getElementById('customerEmail').textContent = data.customerEmail;
+            
+            // 填充交货信息
+            document.getElementById('deliveryMethod').textContent = data.deliveryMethod;
+            document.getElementById('deliveryLocation').textContent = data.deliveryLocation;
+            document.getElementById('deliveryDate').textContent = data.deliveryDate;
+            document.getElementById('remarks').textContent = data.remarks;
+            
+            // 填充付款信息
+            document.getElementById('terms').textContent = data.terms;
+            document.getElementById('paymentMethod').textContent = data.paymentMethod;
+            document.getElementById('paymentRatio').textContent = data.paymentRatio;
+            document.getElementById('bankAccountInfo').textContent = data.bankAccountInfo;
+            document.getElementById('taxRate').textContent = data.taxRate;
+            
+            // 填充总计信息
+            document.getElementById('subtotal').textContent = `${data.currency} ${formatNumber(data.subtotal)}`;
+            document.getElementById('tax').textContent = `${data.currency} ${formatNumber(data.tax)}`;
+            document.getElementById('total').textContent = `${data.currency} ${formatNumber(data.total)}`;
+            
+            // 处理付款类型和金额的显示和计算
+            const paymentRow = document.getElementById('paymentRow');
+            const paymentType = document.getElementById('paymentType');
+            const paymentAmount = document.getElementById('paymentAmount');
+            
+            // 检查付款比例是否包含"预付"字样
+            if (data.paymentRatio && data.paymentRatio.includes('预付')) {
+                // 提取预付比例
+                const match = data.paymentRatio.match(/预付(\d+)%/);
+                if (match) {
+                    const advancePercentage = parseFloat(match[1]) / 100;
+                    
+                    // 计算预付和余款金额
+                    const advanceAmount = data.total * advancePercentage;
+                    const balanceAmount = data.total - advanceAmount;
+                    
+                    // 显示付款行
+                    paymentRow.style.display = 'flex';
+                    
+                    // 定义金额计算和显示函数
+                    function updatePaymentAmount() {
+                        const selectedValue = paymentType.value;
+                        let calculatedAmount, percentageText;
+                        
+                        if (selectedValue === 'advance') {
+                            calculatedAmount = advanceAmount;
+                            percentageText = `(${match[1]}%)`;
+                        } else {
+                            calculatedAmount = balanceAmount;
+                            percentageText = `(${formatNumber((1 - advancePercentage) * 100)}%)`;
+                        }
+                        
+                        paymentAmount.textContent = `${data.currency} ${formatNumber(calculatedAmount)} ${percentageText}`;
+                    }
+                    
+                    // 初始计算并显示预付金额
+                    updatePaymentAmount();
+                    
+                    // 添加选择事件监听器，当选择变化时重新计算金额
+                    paymentType.addEventListener('change', updatePaymentAmount);
+                }
+            } else {
+                // 隐藏付款行
+                paymentRow.style.display = 'none';
+            }
+            
+            // 填充产品明细
+            const tbody = document.getElementById('productTableBody');
+            tbody.innerHTML = '';
+            
+            data.products.forEach((product, index) => {
+                const row = document.createElement('tr');
+                const amount = product.unitPrice * product.quantity;
+                row.innerHTML = `
+                    <td>${product.serialNo}</td>
+                    <td>${product.productNo}</td>
+                    <td class="product-name-cell">
+                        <input type="text" value="${product.productName}" 
+                               class="editable-input product-name-input" 
+                               data-product-index="${index}" 
+                               placeholder="产品名称">
+                    </td>
+                    <td>${product.drawingNumber}</td>
+                    <td>${product.specification}</td>
+                    <td>
+                        <input type="text" value="${product.unit}" 
+                               class="editable-input unit-input" 
+                               data-product-index="${index}" 
+                               placeholder="单位">
+                    </td>
+                    <td class="text-right">${product.quantity.toLocaleString()}</td>
+                    <td class="text-right">${data.currency} ${formatNumber(product.unitPrice)}</td>
+                    <td class="text-right font-semibold">${data.currency} ${formatNumber(amount)}</td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            // 添加输入框事件监听器
+            addEditableInputListeners();
+        }
+
+        // 打印按钮事件
+        document.getElementById('printBtn').addEventListener('click', () => {
+            window.print();
+        });
+
+        // 可编辑输入框事件监听器
+        function addEditableInputListeners() {
+            // 产品名称输入框事件
+            const productNameInputs = document.querySelectorAll('.product-name-input');
+            productNameInputs.forEach(input => {
+                input.addEventListener('input', (e) => {
+                    const index = parseInt(e.target.dataset.productIndex);
+                    if (data.products[index]) {
+                        data.products[index].productName = e.target.value;
+                    }
+                });
+            });
+            
+            // 单位输入框事件
+            const unitInputs = document.querySelectorAll('.unit-input');
+            unitInputs.forEach(input => {
+                input.addEventListener('input', (e) => {
+                    const index = parseInt(e.target.dataset.productIndex);
+                    if (data.products[index]) {
+                        data.products[index].unit = e.target.value;
+                    }
+                });
+            });
+        }
+        
+        // 页面加载时填充数据
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('页面加载完成，开始填充数据...');
+            populateInvoiceData();
+        });
+        
+        // 确保DOM已经加载完成
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', populateInvoiceData);
+        } else {
+            populateInvoiceData();
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,1566 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>包装材料计算器</title>
+    <!-- Tailwind CSS v3 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- 统一的 Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1e40af',
+                        secondary: '#3b82f6',
+                        accent: '#60a5fa',
+                        neutral: '#f1f5f9',
+                        'neutral-dark': '#94a3b8'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'card': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                        'card-hover': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .transition-all-300 {
+                transition: all 300ms ease-in-out;
+            }
+            .input-focus {
+                @apply focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none;
+            }
+            .card-hover {
+                @apply hover:shadow-card-hover transition-all-300;
+            }
+        }
+        
+        /* 自定义动画 */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .animate-fadeIn {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+        
+        .result-item {
+            opacity: 0;
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+        
+        .result-item:nth-child(1) { animation-delay: 0.1s; }
+        .result-item:nth-child(2) { animation-delay: 0.2s; }
+        .result-item:nth-child(3) { animation-delay: 0.3s; }
+        .result-item:nth-child(4) { animation-delay: 0.4s; }
+        .result-item:nth-child(5) { animation-delay: 0.5s; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <!-- 标题区域 -->
+        <header class="text-center mb-10">
+            <h1 class="text-[clamp(1.8rem,4vw,2.5rem)] font-bold text-primary mb-2 flex items-center justify-center">
+                <i class="fa fa-cube mr-3 text-secondary"></i>
+                包装材料计算器
+            </h1>
+            <p class="text-neutral-dark text-lg">快速计算木箱和方底袋子的面积、体积、重量和价格</p>
+        </header>
+        
+        <!-- 选项卡导航 -->
+        <div class="mb-6 border-b border-gray-200">
+            <ul class="flex flex-wrap -mb-px text-sm font-medium text-center" id="calculatorTabs" role="tablist">
+                <li class="mr-2" role="presentation">
+                    <button class="inline-block p-4 border-b-2 border-primary rounded-t-lg active" id="wooden-box-tab" data-tab="wooden-box" type="button" role="tab" aria-controls="wooden-box" aria-selected="true">
+                        <i class="fa fa-cube mr-2"></i> 木箱计算器
+                    </button>
+                </li>
+                <li class="mr-2" role="presentation">
+                    <button class="inline-block p-4 border-b-2 border-transparent hover:text-gray-600 hover:border-gray-300 rounded-t-lg" id="square-bag-tab" data-tab="square-bag" type="button" role="tab" aria-controls="square-bag" aria-selected="false">
+                        <i class="fa fa-shopping-bag mr-2"></i> 方底袋子计算器
+                    </button>
+                </li>
+            </ul>
+        </div>
+        
+        <!-- 主要内容区域 -->
+        <div class="flex flex-col lg:flex-row gap-8">
+            <!-- 输入区域 -->
+            <div class="w-full lg:w-1/2">
+                <!-- 木箱计算器 -->
+                <div id="wooden-box" class="bg-white rounded-xl shadow-card p-6 card-hover tab-content active">
+                    <h2 class="text-xl font-semibold text-primary mb-6 flex items-center">
+                        <i class="fa fa-sliders mr-2"></i> 木箱参数设置
+                    </h2>
+                    
+                    <form id="calculatorForm" class="space-y-6">
+                        <!-- 木箱尺寸设置 -->
+                        <div class="bg-neutral rounded-lg p-4 mb-6">
+                            <h3 class="text-lg font-medium text-gray-700 mb-4 flex items-center">
+                                <i class="fa fa-cube mr-2 text-secondary"></i> 木箱尺寸设置
+                            </h3>
+                            
+                            <!-- 木箱内径尺寸 -->
+                            <div class="space-y-4 mb-4">
+                                <div class="flex items-center justify-between">
+                                    <h4 class="text-md font-medium text-gray-600">内径尺寸 (米)</h4>
+                                    <button id="copyDimensionsBtn" class="flex items-center text-sm text-primary hover:text-secondary transition-colors duration-300">
+                                        <i class="fa fa-copy mr-1"></i> 复制
+                                    </button>
+                                </div>
+                                
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label for="length" class="block text-sm font-medium text-gray-700 mb-1">长度 (L)</label>
+                                        <div class="relative">
+                                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                                                <i class="fa fa-arrows-h"></i>
+                                            </span>
+                                            <input type="number" id="length" name="length" step="0.01" min="0" 
+                                            class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg input-focus transition-all-300"
+                                            placeholder="输入长度" required value="2.22">
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label for="width" class="block text-sm font-medium text-gray-700 mb-1">宽度 (W)</label>
+                                        <div class="relative">
+                                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                                                <i class="fa fa-arrows-h"></i>
+                                            </span>
+                                            <input type="number" id="width" name="width" step="0.01" min="0" 
+                                            class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg input-focus transition-all-300"
+                                            placeholder="输入宽度" required value="1.01">
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label for="height" class="block text-sm font-medium text-gray-700 mb-1">高度 (H)</label>
+                                        <div class="relative">
+                                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                                                <i class="fa fa-arrows-v"></i>
+                                            </span>
+                                            <input type="number" id="height" name="height" step="0.01" min="0" 
+                                            class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg input-focus transition-all-300"
+                                            placeholder="输入高度" required value="1.10">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 新增板厚和托盘高度 -->
+                            <div class="space-y-4">
+                                <h4 class="text-md font-medium text-gray-600">结构参数</h4>
+                                
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label for="boardThickness" class="block text-sm font-medium text-gray-700 mb-1">板厚 (mm)</label>
+                                        <div class="relative">
+                                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                                                <i class="fa fa-ruler"></i>
+                                            </span>
+                                            <input type="number" id="boardThickness" name="boardThickness" step="1" min="0" 
+                                                class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg input-focus transition-all-300" 
+                                                placeholder="输入板厚" required value="5">
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label for="palletHeight" class="block text-sm font-medium text-gray-700 mb-1">托盘高度 (m)</label>
+                                        <div class="relative">
+                                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                                                <i class="fa fa-cubes"></i>
+                                            </span>
+                                            <input type="number" id="palletHeight" name="palletHeight" step="0.01" min="0" 
+                                                class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg input-focus transition-all-300" 
+                                                placeholder="输入托盘高度" required value="0.17">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 数量和价格设置 -->
+                        <div class="bg-neutral rounded-lg p-4">
+                            <h3 class="text-lg font-medium text-gray-700 mb-4 flex items-center">
+                                <i class="fa fa-cog mr-2 text-secondary"></i> 数量和价格设置
+                            </h3>
+                            
+                            <!-- 新增木箱数量 -->
+                            <div class="space-y-4 mb-4">
+                                <div>
+                                    <label for="boxQuantity" class="block text-sm font-medium text-gray-700 mb-1">木箱数量</label>
+                                    <div class="relative">
+                                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                                            <i class="fa fa-list-ol"></i>
+                                        </span>
+                                        <input type="number" id="boxQuantity" name="boxQuantity" step="1" min="1" value="1" 
+                                            class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg input-focus transition-all-300" 
+                                            placeholder="输入木箱数量" required>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 价格设置 -->
+                            <div>
+                                <label for="pricePerSqm" class="block text-sm font-medium text-gray-700 mb-1">
+                                    每平方米价格 (元/㎡)
+                                </label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                                        <i class="fa fa-cny"></i>
+                                    </span>
+                                    <input type="number" id="pricePerSqm" name="pricePerSqm" step="0.01" min="0" 
+                                                class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg input-focus transition-all-300"
+                                                placeholder="输入每平方米价格" required value="55">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 操作按钮 -->
+                        <div class="flex flex-wrap gap-3 pt-4">
+                            <button type="submit" class="flex-1 bg-primary hover:bg-primary/90 text-white py-2 px-6 rounded-lg 
+                                transition-all-300 flex items-center justify-center">
+                                <i class="fa fa-calculator mr-2"></i> 计算
+                            </button>
+                            <button type="reset" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 px-6 rounded-lg 
+                                transition-all-300 flex items-center justify-center">
+                                <i class="fa fa-refresh mr-2"></i> 重置
+                            </button>
+                            <button id="saveResultBtn" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-6 rounded-lg 
+                                transition-all-300 flex items-center justify-center opacity-50 cursor-not-allowed" disabled>
+                                <i class="fa fa-save mr-2"></i> 保存
+                            </button>
+                        </div>
+                        
+                        <!-- 历史记录和导出按钮 -->
+                        <div class="flex flex-wrap gap-3 pt-3">
+                            <button id="historyBtn" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 px-6 rounded-lg 
+                                transition-all-300 flex items-center justify-center">
+                                <i class="fa fa-history mr-2"></i> 历史记录
+                            </button>
+                            <button id="exportBtn" class="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-6 rounded-lg 
+                                transition-all-300 flex items-center justify-center opacity-50 cursor-not-allowed" disabled>
+                                <i class="fa fa-download mr-2"></i> 导出CSV
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                
+                <!-- 方底袋子计算器 -->
+                <div id="square-bag" class="bg-white rounded-xl shadow-card p-6 card-hover tab-content hidden">
+                    <h2 class="text-xl font-semibold text-primary mb-6 flex items-center">
+                        <i class="fa fa-sliders mr-2"></i> 方底袋子参数设置
+                    </h2>
+                    
+                    <form id="bagCalculatorForm" class="space-y-6">
+                        <!-- 袋子尺寸设置 -->
+                        <div class="bg-neutral rounded-lg p-4 mb-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-medium text-gray-700 flex items-center">
+                                    <i class="fa fa-shopping-bag mr-2 text-secondary"></i> 袋子尺寸设置 (厘米)
+                                </h3>
+                                <button id="copyBagDimensionsBtn" class="flex items-center text-sm text-primary hover:text-secondary transition-colors duration-300">
+                                    <i class="fa fa-copy mr-1"></i> 复制
+                                </button>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label for="bagLength" class="block text-sm font-medium text-gray-700 mb-1">长度 (L)</label>
+                                    <div class="relative">
+                                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                                            <i class="fa fa-arrows-h"></i>
+                                        </span>
+                                        <input type="number" id="bagLength" name="bagLength" step="10" min="0" 
+                                        class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg input-focus transition-all-300"
+                                        placeholder="输入长度" required value="120">
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <label for="bagWidth" class="block text-sm font-medium text-gray-700 mb-1">宽度 (W)</label>
+                                    <div class="relative">
+                                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                                            <i class="fa fa-arrows-h"></i>
+                                        </span>
+                                        <input type="number" id="bagWidth" name="bagWidth" step="10" min="0" 
+                                        class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg input-focus transition-all-300"
+                                        placeholder="输入宽度" required value="120">
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <label for="bagHeight" class="block text-sm font-medium text-gray-700 mb-1">高度 (H)</label>
+                                    <div class="relative">
+                                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                                            <i class="fa fa-arrows-v"></i>
+                                        </span>
+                                        <input type="number" id="bagHeight" name="bagHeight" step="10" min="0" 
+                                        class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg input-focus transition-all-300"
+                                        placeholder="输入高度" required value="190">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 材料和价格设置 -->
+                        <div class="bg-neutral rounded-lg p-4">
+                            <h3 class="text-lg font-medium text-gray-700 mb-4 flex items-center">
+                                <i class="fa fa-cog mr-2 text-secondary"></i> 材料和价格设置
+                            </h3>
+                            
+                            <!-- 材料克重 -->
+                            <div class="space-y-4 mb-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">材料克重</label>
+                                    <div class="grid grid-cols-3 gap-3">
+                                        <div class="relative">
+                                            <input type="radio" id="gsm120" name="gsm" value="120" class="absolute top-1/2 transform -translate-y-1/2 left-3">
+                                            <label for="gsm120" class="block pl-10 pr-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer transition-all-300">
+                                                120 克
+                                            </label>
+                                        </div>
+                                        <div class="relative">
+                                            <input type="radio" id="gsm140" name="gsm" value="140" class="absolute top-1/2 transform -translate-y-1/2 left-3" checked>
+                                            <label for="gsm140" class="block pl-10 pr-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer transition-all-300">
+                                                140 克
+                                            </label>
+                                        </div>
+                                        <div class="relative">
+                                            <input type="radio" id="gsm180" name="gsm" value="180" class="absolute top-1/2 transform -translate-y-1/2 left-3">
+                                            <label for="gsm180" class="block pl-10 pr-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer transition-all-300">
+                                                180 克
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 数量和价格 -->
+                            <div>
+                                <label for="bagQuantity" class="block text-sm font-medium text-gray-700 mb-1">袋子数量</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                                        <i class="fa fa-list-ol"></i>
+                                    </span>
+                                    <input type="number" id="bagQuantity" name="bagQuantity" step="1" min="1" value="1" 
+                                        class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg input-focus transition-all-300" 
+                                        placeholder="输入袋子数量" required>
+                                </div>
+                            </div>
+                            
+                            <!-- 价格说明 -->
+                            <div id="priceInfo" class="mt-4 bg-blue-50 p-3 rounded-lg">
+                                <h4 class="text-sm font-medium text-blue-800 mb-2">价格说明</h4>
+                                <ul class="text-sm text-blue-700 space-y-2">
+                                    <li class="flex items-center gap-2">
+                                        <span>• 表面积总数 < 6㎡：</span>
+                                        <input type="number" id="priceBelow6" name="priceBelow6" step="0.1" min="0" 
+                                            class="w-20 px-2 py-1 border border-blue-300 rounded text-blue-700 font-medium input-focus"
+                                            value="9">
+                                        <span>元/㎡</span>
+                                    </li>
+                                    <li class="flex items-center gap-2">
+                                        <span>• 表面积总数 ≥ 6㎡：</span>
+                                        <input type="number" id="priceAbove6" name="priceAbove6" step="0.1" min="0" 
+                                            class="w-20 px-2 py-1 border border-blue-300 rounded text-blue-700 font-medium input-focus"
+                                            value="7">
+                                        <span>元/㎡</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <!-- 操作按钮 -->
+                        <div class="flex flex-wrap gap-3 pt-4">
+                            <button type="submit" class="flex-1 bg-primary hover:bg-primary/90 text-white py-2 px-6 rounded-lg 
+                                transition-all-300 flex items-center justify-center">
+                                <i class="fa fa-calculator mr-2"></i> 计算
+                            </button>
+                            <button type="reset" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 px-6 rounded-lg 
+                                transition-all-300 flex items-center justify-center">
+                                <i class="fa fa-refresh mr-2"></i> 重置
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- 结果展示区域 -->
+            <div class="w-full lg:w-1/2">
+                <div id="resultsContainer" class="bg-white rounded-xl shadow-card p-6 h-full card-hover">
+                    <h2 class="text-xl font-semibold text-primary mb-6 flex items-center">
+                        <i class="fa fa-bar-chart mr-2"></i> 计算结果
+                    </h2>
+                    
+                    <div id="results" class="space-y-6">
+                        <!-- 初始提示 -->
+                        <div id="initialPrompt" class="text-center py-12 text-neutral-dark">
+                            <i class="fa fa-info-circle text-4xl mb-4"></i>
+                            <p class="text-lg">请在左侧输入参数信息</p>
+                            <p class="text-sm mt-2">输入后点击"计算"按钮查看结果</p>
+                        </div>
+                        
+                        <!-- 木箱计算结果 -->
+                        <div id="woodenBoxResults" class="hidden space-y-6">
+                            <!-- 木箱尺寸摘要 -->
+                            <div class="bg-neutral rounded-lg p-4">
+                                <h3 class="text-lg font-medium text-gray-700 mb-3 flex items-center">
+                                    <i class="fa fa-cube mr-2 text-secondary"></i> 木箱尺寸摘要
+                                </h3>
+                                <div class="grid grid-cols-3 gap-4 text-center">
+                                    <div class="bg-white rounded-lg p-3 shadow-sm">
+                                        <p class="text-sm text-neutral-dark">长度</p>
+                                        <p id="resultLength" class="text-xl font-semibold text-primary">0.00 m</p>
+                                    </div>
+                                    <div class="bg-white rounded-lg p-3 shadow-sm">
+                                        <p class="text-sm text-neutral-dark">宽度</p>
+                                        <p id="resultWidth" class="text-xl font-semibold text-primary">0.00 m</p>
+                                    </div>
+                                    <div class="bg-white rounded-lg p-3 shadow-sm">
+                                        <p class="text-sm text-neutral-dark">高度</p>
+                                        <p id="resultHeight" class="text-xl font-semibold text-primary">0.00 m</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 价格结果 -->
+                            <div class="result-item bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                                <div class="flex items-center justify-between">
+                                    <h3 class="text-lg font-medium text-gray-700 flex items-center">
+                                        <i class="fa fa-cny mr-2 text-secondary"></i> 木箱价格
+                                    </h3>
+                                    <span id="totalPrice" class="text-2xl font-bold text-primary">0.00 元</span>
+                                </div>
+                                <p class="text-sm text-neutral-dark mt-2">
+                                    计算公式: 表面积 × 每平方米价格 × 数量
+                                </p>
+                            </div>
+                            
+                            <!-- 表面积结果 -->
+                            <div class="result-item bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                                <div class="flex items-center justify-between">
+                                    <h3 class="text-lg font-medium text-gray-700 flex items-center">
+                                        <i class="fa fa-area-chart mr-2 text-secondary"></i> 木箱表面积
+                                    </h3>
+                                    <span id="surfaceArea" class="text-2xl font-bold text-primary">0.00 ㎡</span>
+                                </div>
+                                <p class="text-sm text-neutral-dark mt-2">
+                                    计算公式: 2 × (长×宽 + 长×高 + 宽×高)
+                                </p>
+                            </div>
+                            
+                            <!-- 体积结果 -->
+                            <div class="result-item bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                                <h3 class="text-lg font-medium text-gray-700 flex items-center mb-3">
+                                    <i class="fa fa-cube mr-2 text-secondary"></i> 体积计算
+                                </h3>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div class="bg-neutral rounded-lg p-3">
+                                        <p class="text-sm text-neutral-dark">内体积</p>
+                                        <p id="innerVolume" class="text-xl font-semibold text-primary">0.00 m³</p>
+                                        <p class="text-xs text-neutral-dark mt-1">长 × 宽 × 高</p>
+                                    </div>
+                                    <div class="bg-neutral rounded-lg p-3">
+                                        <p class="text-sm text-neutral-dark">外体积</p>
+                                        <p id="outerVolume" class="text-xl font-semibold text-primary">0.00 m³</p>
+                                        <p class="text-xs text-neutral-dark mt-1">考虑板厚和托盘</p>
+                                    </div>
+                                    <div class="bg-neutral rounded-lg p-3">
+                                        <p class="text-sm text-neutral-dark">总体积</p>
+                                        <p id="totalVolume" class="text-xl font-semibold text-primary">0.00 m³</p>
+                                        <p class="text-xs text-neutral-dark mt-1">外体积 × 数量</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 集装箱推荐结果 -->
+                            <div id="containerRecommendation" class="result-item bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                                <h3 class="text-lg font-medium text-gray-700 flex items-center mb-3">
+                                    <i class="fa fa-ship mr-2 text-secondary"></i> 集装箱推荐
+                                </h3>
+                                <div id="containerResults" class="space-y-4">
+                                    <!-- 集装箱推荐结果将在这里动态显示 -->
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 方底袋子计算结果 -->
+                        <div id="squareBagResults" class="hidden space-y-6">
+                            <!-- 袋子尺寸摘要 -->
+                            <div class="bg-neutral rounded-lg p-4">
+                                <h3 class="text-lg font-medium text-gray-700 mb-3 flex items-center">
+                                    <i class="fa fa-shopping-bag mr-2 text-secondary"></i> 袋子尺寸摘要
+                                </h3>
+                                <div class="grid grid-cols-3 gap-4 text-center">
+                                    <div class="bg-white rounded-lg p-3 shadow-sm">
+                                        <p class="text-sm text-neutral-dark">长度</p>
+                                        <p id="resultBagLength" class="text-xl font-semibold text-primary">0.00 cm</p>
+                                    </div>
+                                    <div class="bg-white rounded-lg p-3 shadow-sm">
+                                        <p class="text-sm text-neutral-dark">宽度</p>
+                                        <p id="resultBagWidth" class="text-xl font-semibold text-primary">0.00 cm</p>
+                                    </div>
+                                    <div class="bg-white rounded-lg p-3 shadow-sm">
+                                        <p class="text-sm text-neutral-dark">高度</p>
+                                        <p id="resultBagHeight" class="text-xl font-semibold text-primary">0.00 cm</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 面积结果 -->
+                            <div class="result-item bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                                <div class="flex items-center justify-between">
+                                    <h3 class="text-lg font-medium text-gray-700 flex items-center">
+                                        <i class="fa fa-area-chart mr-2 text-secondary"></i> 袋子表面积
+                                    </h3>
+                                    <span id="bagSurfaceArea" class="text-2xl font-bold text-primary">0.00 ㎡</span>
+                                </div>
+                                <p class="text-sm text-neutral-dark mt-2">
+                                    计算公式: 2 × (长×宽 + 长×高 + 宽×高)
+                                </p>
+                            </div>
+                            
+                            <!-- 重量结果 -->
+                            <div class="result-item bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                                <div class="flex items-center justify-between">
+                                    <h3 class="text-lg font-medium text-gray-700 flex items-center">
+                                        <i class="fa fa-weight mr-2 text-secondary"></i> 袋子重量
+                                    </h3>
+                                    <span id="bagWeight" class="text-2xl font-bold text-primary">0.00 kg</span>
+                                </div>
+                                <p class="text-sm text-neutral-dark mt-2">
+                                    计算公式: 表面积 × 克重 ÷ 1000000
+                                </p>
+                            </div>
+                            
+                            <!-- 价格结果 -->
+                            <div class="result-item bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                                <div class="flex items-center justify-between">
+                                    <h3 class="text-lg font-medium text-gray-700 flex items-center">
+                                        <i class="fa fa-cny mr-2 text-secondary"></i> 袋子总价
+                                    </h3>
+                                    <span id="bagTotalPrice" class="text-2xl font-bold text-primary">0.00 元</span>
+                                </div>
+                                <p class="text-sm text-neutral-dark mt-2">
+                                    计算公式: 单袋重量 × 数量 × 每公斤价格
+                                </p>
+                            </div>
+                            
+                            <!-- 单价结果 -->
+                            <div class="result-item bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                                <div class="flex items-center justify-between">
+                                    <h3 class="text-lg font-medium text-gray-700 flex items-center">
+                                        <i class="fa fa-tag mr-2 text-secondary"></i> 单袋单价
+                                    </h3>
+                                    <span id="bagUnitPrice" class="text-2xl font-bold text-primary">0.00 元</span>
+                                </div>
+                                <p class="text-sm text-neutral-dark mt-2">
+                                    计算公式: 总价 ÷ 数量
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 历史记录模态框 -->
+        <div id="historyModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center hidden">
+            <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold text-primary flex items-center">
+                        <i class="fa fa-history mr-2"></i> 计算历史记录
+                    </h3>
+                    <button id="closeHistoryModal" class="text-gray-500 hover:text-gray-700">
+                        <i class="fa fa-times text-xl"></i>
+                    </button>
+                </div>
+                
+                <div id="historyList" class="overflow-y-auto flex-grow pb-4">
+                    <!-- 历史记录将在这里动态显示 -->
+                    <div class="text-center py-8 text-neutral-dark">
+                        <i class="fa fa-history text-3xl mb-3"></i>
+                        <p>暂无保存的计算记录</p>
+                    </div>
+                </div>
+                
+                <div class="flex justify-between pt-4 border-t border-gray-200">
+                    <button id="clearHistoryBtn" class="text-red-600 hover:text-red-800 py-2 px-4">
+                        <i class="fa fa-trash mr-1"></i> 清空记录
+                    </button>
+                    <button id="closeHistoryBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 px-6 rounded-lg 
+                        transition-all-300">
+                        关闭
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <footer class="mt-12 text-center text-neutral-dark text-sm">
+            <p>© AlonZhang Designed</p>
+        </footer>
+    </div>
+
+    <script>
+        // 等待DOM加载完成
+        document.addEventListener('DOMContentLoaded', function() {
+            // 选项卡切换功能
+            const tabButtons = document.querySelectorAll('#calculatorTabs button');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const tabId = this.getAttribute('data-tab');
+                    
+                    // 隐藏所有选项卡内容
+                    tabContents.forEach(content => {
+                        content.classList.add('hidden');
+                    });
+                    
+                    // 显示选中的选项卡内容
+                    document.getElementById(tabId).classList.remove('hidden');
+                    document.getElementById(tabId).classList.add('active');
+                    
+                    // 更新选项卡按钮状态
+                    tabButtons.forEach(btn => {
+                        btn.classList.remove('active', 'border-primary');
+                        btn.classList.add('border-transparent');
+                        btn.setAttribute('aria-selected', 'false');
+                    });
+                    
+                    this.classList.add('active', 'border-primary');
+                    this.classList.remove('border-transparent');
+                    this.setAttribute('aria-selected', 'true');
+                    
+                    // 重置结果显示
+                    document.getElementById('initialPrompt').classList.remove('hidden');
+                    document.getElementById('woodenBoxResults').classList.add('hidden');
+                    document.getElementById('squareBagResults').classList.add('hidden');
+                });
+            });
+            
+            // 获取表单和结果元素
+            const form = document.getElementById('calculatorForm');
+            const bagForm = document.getElementById('bagCalculatorForm');
+            const initialPrompt = document.getElementById('initialPrompt');
+            const woodenBoxResults = document.getElementById('woodenBoxResults');
+            const squareBagResults = document.getElementById('squareBagResults');
+            
+            // 获取输入字段
+            const lengthInput = document.getElementById('length');
+            const widthInput = document.getElementById('width');
+            const heightInput = document.getElementById('height');
+            const boardThicknessInput = document.getElementById('boardThickness');
+            const palletHeightInput = document.getElementById('palletHeight');
+            const boxQuantityInput = document.getElementById('boxQuantity');
+            const pricePerSqmInput = document.getElementById('pricePerSqm');
+            
+            // 获取结果显示元素
+            const resultLength = document.getElementById('resultLength');
+            const resultWidth = document.getElementById('resultWidth');
+            const resultHeight = document.getElementById('resultHeight');
+            
+            // 获取复制按钮
+            const copyDimensionsBtn = document.getElementById('copyDimensionsBtn');
+            const surfaceArea = document.getElementById('surfaceArea');
+            const innerVolume = document.getElementById('innerVolume');
+            const outerVolume = document.getElementById('outerVolume');
+            const totalVolume = document.getElementById('totalVolume');
+            const totalPrice = document.getElementById('totalPrice');
+            
+            // 获取按钮元素
+            const saveResultBtn = document.getElementById('saveResultBtn');
+            const historyBtn = document.getElementById('historyBtn');
+            const exportBtn = document.getElementById('exportBtn');
+            const historyModal = document.getElementById('historyModal');
+            const closeHistoryModal = document.getElementById('closeHistoryModal');
+            const closeHistoryBtn = document.getElementById('closeHistoryBtn');
+            const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+            
+            // 获取方底袋子输入字段
+            const bagLengthInput = document.getElementById('bagLength');
+            const bagWidthInput = document.getElementById('bagWidth');
+            const bagHeightInput = document.getElementById('bagHeight');
+            const bagQuantityInput = document.getElementById('bagQuantity');
+            
+            // 获取方底袋子结果显示元素
+            const resultBagLength = document.getElementById('resultBagLength');
+            const resultBagWidth = document.getElementById('resultBagWidth');
+            const resultBagHeight = document.getElementById('resultBagHeight');
+            const bagSurfaceArea = document.getElementById('bagSurfaceArea');
+            const bagWeight = document.getElementById('bagWeight');
+            const bagTotalPrice = document.getElementById('bagTotalPrice');
+            const bagUnitPrice = document.getElementById('bagUnitPrice');
+            
+            // 集装箱类型数据
+            const containerTypes = [
+                {
+                    type: "20尺标准柜",
+                    code: "20GP",
+                    internalLength: 5.9,
+                    internalWidth: 2.35,
+                    internalHeight: 2.39,
+                    maxVolume: 33.2,
+                    maxWeight: 21000 // kg
+                },
+                {
+                    type: "40尺标准柜",
+                    code: "40GP",
+                    internalLength: 12.03,
+                    internalWidth: 2.35,
+                    internalHeight: 2.39,
+                    maxVolume: 67.7,
+                    maxWeight: 26000 // kg
+                },
+                {
+                    type: "40尺高柜",
+                    code: "40HQ",
+                    internalLength: 12.03,
+                    internalWidth: 2.35,
+                    internalHeight: 2.69,
+                    maxVolume: 76.4,
+                    maxWeight: 26000 // kg
+                },
+                {
+                    type: "45尺高柜",
+                    code: "45HQ",
+                    internalLength: 13.55,
+                    internalWidth: 2.35,
+                    internalHeight: 2.69,
+                    maxVolume: 86.0,
+                    maxWeight: 29000 // kg
+                }
+            ];
+            
+            // 计算函数
+            function calculate() {
+                // 获取输入值
+                const length = parseFloat(lengthInput.value) || 0;
+                const width = parseFloat(widthInput.value) || 0;
+                const height = parseFloat(heightInput.value) || 0;
+                const boardThickness = parseFloat(boardThicknessInput.value) || 0; // 板厚(mm)
+                const palletHeight = parseFloat(palletHeightInput.value) || 0;     // 托盘高度(m)
+                const boxQuantity = parseInt(boxQuantityInput.value) || 1;        // 木箱数量
+                const pricePerSqm = parseFloat(pricePerSqmInput.value) || 0;
+                
+                // 转换板厚为米
+                const boardThicknessM = boardThickness / 1000;
+                
+                // 计算内体积 (lwh)
+                const innerVol = length * width * height;
+                
+                // 计算外体积 (考虑板厚和托盘高度)
+                const outerLength = length + 2 * boardThicknessM;
+                const outerWidth = width + 2 * boardThicknessM;
+                const outerHeightVal = height + boardThicknessM + palletHeight;
+                const outerVol = outerLength * outerWidth * outerHeightVal;
+                
+                // 计算总体积 (单个外体积 × 数量)
+                const totalVol = outerVol * boxQuantity;
+                
+                // 计算表面积 (2*(lw + lh + wh))
+                const area = 2 * (length * width + length * height + width * height);
+                
+                // 计算总价
+                const price = area * pricePerSqm * boxQuantity;
+                
+                // 更新结果显示
+                resultLength.textContent = length.toFixed(2) + ' m';
+                resultWidth.textContent = width.toFixed(2) + ' m';
+                resultHeight.textContent = height.toFixed(2) + ' m';
+                surfaceArea.textContent = area.toFixed(4) + ' ㎡';
+                innerVolume.textContent = innerVol.toFixed(4) + ' m³';
+                outerVolume.textContent = outerVol.toFixed(4) + ' m³';
+                totalVolume.textContent = totalVol.toFixed(4) + ' m³';
+                totalPrice.textContent = price.toFixed(2) + ' 元';
+                
+                // 显示结果区域，隐藏初始提示
+                initialPrompt.classList.add('hidden');
+                woodenBoxResults.classList.remove('hidden');
+                
+                // 添加动画效果
+                const resultItems = document.querySelectorAll('.result-item');
+                resultItems.forEach((item, index) => {
+                    item.style.opacity = '0';
+                    setTimeout(() => {
+                        item.style.opacity = '1';
+                    }, 100 * (index + 1));
+                });
+                
+                // 启用保存按钮
+                saveResultBtn.disabled = false;
+                saveResultBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                
+                // 计算集装箱推荐
+                calculateContainerRecommendation(outerLength, outerWidth, outerHeightVal, outerVol, boxQuantity);
+                
+                // 检查是否有历史记录，启用或禁用导出按钮
+                checkExportButtonStatus();
+            }
+            
+            // 复制尺寸功能
+            copyDimensionsBtn.addEventListener('click', function() {
+                const length = parseFloat(lengthInput.value) || 0;
+                const width = parseFloat(widthInput.value) || 0;
+                const height = parseFloat(heightInput.value) || 0;
+                
+                // 组合尺寸为 "length*width*height" 格式
+                const dimensions = `${length.toFixed(2)}*${width.toFixed(2)}*${height.toFixed(2)}`;
+                
+                // 复制到剪贴板
+                navigator.clipboard.writeText(dimensions).then(() => {
+                    // 临时更改按钮文本以提供反馈
+                    const originalText = copyDimensionsBtn.innerHTML;
+                    copyDimensionsBtn.innerHTML = '<i class="fa fa-check mr-1"></i> 已复制';
+                    copyDimensionsBtn.classList.add('text-green-600');
+                    
+                    // 2秒后恢复原始文本
+                    setTimeout(() => {
+                        copyDimensionsBtn.innerHTML = originalText;
+                        copyDimensionsBtn.classList.remove('text-green-600');
+                    }, 2000);
+                }).catch(err => {
+                    console.error('复制失败:', err);
+                    // 如果剪贴板API不可用，使用传统方法
+                    fallbackCopyTextToClipboard(dimensions);
+                });
+            });
+            
+            // 备用复制方法
+            function fallbackCopyTextToClipboard(text) {
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                textArea.style.position = 'fixed';
+                textArea.style.left = '-999999px';
+                textArea.style.top = '-999999px';
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                
+                try {
+                    document.execCommand('copy');
+                    // 临时更改按钮文本以提供反馈
+                    const originalText = copyDimensionsBtn.innerHTML;
+                    copyDimensionsBtn.innerHTML = '<i class="fa fa-check mr-1"></i> 已复制';
+                    copyDimensionsBtn.classList.add('text-green-600');
+                    
+                    // 2秒后恢复原始文本
+                    setTimeout(() => {
+                        copyDimensionsBtn.innerHTML = originalText;
+                        copyDimensionsBtn.classList.remove('text-green-600');
+                    }, 2000);
+                } catch (err) {
+                    console.error('备用复制方法也失败:', err);
+                }
+                
+                document.body.removeChild(textArea);
+            }
+            
+            // 计算集装箱推荐
+            function calculateContainerRecommendation(boxLength, boxWidth, boxHeight, boxVolume, boxQuantity) {
+                // 计算每个集装箱可以装多少个箱子
+                const containerRecommendations = containerTypes.map(container => {
+                    // 计算箱子在集装箱中的不同摆放方式
+                    const orientations = [
+                        // 原始方向
+                        {
+                            length: boxLength,
+                            width: boxWidth,
+                            height: boxHeight
+                        },
+                        // 旋转90度
+                        {
+                            length: boxWidth,
+                            width: boxLength,
+                            height: boxHeight
+                        },
+                        // 立起来
+                        {
+                            length: boxLength,
+                            width: boxHeight,
+                            height: boxWidth
+                        }
+                    ];
+                    
+                    // 计算每种摆放方式可以装多少个箱子
+                    let maxBoxes = 0;
+                    let bestOrientation = null;
+                    
+                    orientations.forEach(orientation => {
+                        if (
+                            orientation.length <= container.internalLength && 
+                            orientation.width <= container.internalWidth && 
+                            orientation.height <= container.internalHeight
+                        ) {
+                            const boxesPerLength = Math.floor(container.internalLength / orientation.length);
+                            const boxesPerWidth = Math.floor(container.internalWidth / orientation.width);
+                            const boxesPerHeight = Math.floor(container.internalHeight / orientation.height);
+                            const totalBoxes = boxesPerLength * boxesPerWidth * boxesPerHeight;
+                            
+                            if (totalBoxes > maxBoxes) {
+                                maxBoxes = totalBoxes;
+                                bestOrientation = orientation;
+                            }
+                        }
+                    });
+                    
+                    // 计算需要多少个这样的集装箱
+                    const containersNeeded = Math.ceil(boxQuantity / maxBoxes);
+                    
+                    // 计算总体积利用率
+                    const totalBoxVolume = boxVolume * boxQuantity;
+                    const totalContainerVolume = container.maxVolume * containersNeeded;
+                    const volumeUtilization = (totalBoxVolume / totalContainerVolume) * 100;
+                    
+                    return {
+                        container,
+                        maxBoxesPerContainer: maxBoxes,
+                        containersNeeded,
+                        volumeUtilization,
+                        bestOrientation
+                    };
+                });
+                
+                // 按体积利用率排序，选择最佳推荐
+                containerRecommendations.sort((a, b) => b.volumeUtilization - a.volumeUtilization);
+                
+                // 显示推荐结果
+                displayContainerRecommendations(containerRecommendations);
+            }
+            
+            // 显示集装箱推荐结果
+            function displayContainerRecommendations(recommendations) {
+                const containerResultsElement = document.getElementById('containerResults');
+                containerResultsElement.innerHTML = '';
+                
+                // 显示前两个最佳推荐
+                const topRecommendations = recommendations.slice(0, 2);
+                
+                topRecommendations.forEach((rec, index) => {
+                    if (rec.maxBoxesPerContainer === 0) {
+                        return; // 跳过无法装下的集装箱类型
+                    }
+                    
+                    const containerDiv = document.createElement('div');
+                    containerDiv.className = 'result-item bg-white border border-gray-200 rounded-lg p-4 shadow-sm';
+                    containerDiv.style.animationDelay = (0.5 + index * 0.1) + 's';
+                    
+                    const isBest = index === 0;
+                    
+                    containerDiv.innerHTML = `
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-lg font-medium text-gray-700 flex items-center">
+                                <i class="fa fa-ship mr-2 text-secondary"></i> 
+                                ${rec.container.type} ${isBest ? '<span class="ml-2 bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full">推荐</span>' : ''}
+                            </h3>
+                            <span class="text-sm text-gray-500">${rec.container.code}</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 mt-3">
+                            <div>
+                                <p class="text-sm text-neutral-dark">集装箱尺寸</p>
+                                <p class="font-medium">${rec.container.internalLength} × ${rec.container.internalWidth} × ${rec.container.internalHeight} m</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-neutral-dark">最大容积</p>
+                                <p class="font-medium">${rec.container.maxVolume} m³</p>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-3 gap-4 mt-3">
+                            <div>
+                                <p class="text-sm text-neutral-dark">每箱装</p>
+                                <p class="font-medium">${rec.maxBoxesPerContainer} 个</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-neutral-dark">需集装箱</p>
+                                <p class="font-medium">${rec.containersNeeded} 个</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-neutral-dark">空间利用率</p>
+                                <p class="font-medium ${rec.volumeUtilization > 80 ? 'text-green-600' : rec.volumeUtilization > 60 ? 'text-blue-600' : 'text-yellow-600'}">
+                                    ${rec.volumeUtilization.toFixed(1)}%
+                                </p>
+                            </div>
+                        </div>
+                        ${rec.bestOrientation ? `
+                        <div class="mt-3 p-3 bg-neutral rounded-lg">
+                            <p class="text-sm font-medium text-gray-700 mb-1">最佳摆放方式</p>
+                            <p class="text-sm">长: ${rec.bestOrientation.length.toFixed(3)}m × 宽: ${rec.bestOrientation.width.toFixed(3)}m × 高: ${rec.bestOrientation.height.toFixed(3)}m</p>
+                        </div>
+                        ` : ''}
+                    `;
+                    
+                    containerResultsElement.appendChild(containerDiv);
+                });
+                
+                // 如果没有找到合适的集装箱
+                if (topRecommendations.filter(rec => rec.maxBoxesPerContainer > 0).length === 0) {
+                    containerResultsElement.innerHTML = `
+                        <div class="result-item bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                            <div class="flex items-center justify-center py-4">
+                                <div class="text-center">
+                                    <i class="fa fa-exclamation-triangle text-yellow-500 text-2xl mb-2"></i>
+                                    <p class="text-gray-700">没有找到合适的集装箱类型</p>
+                                    <p class="text-sm text-neutral-dark mt-1">木箱尺寸过大，请检查输入参数</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+            
+            // 保存计算结果到本地存储
+            function saveResult() {
+                // 获取当前计算结果
+                const resultData = {
+                    id: Date.now(),
+                    timestamp: new Date().toLocaleString(),
+                    input: {
+                        length: lengthInput.value,
+                        width: widthInput.value,
+                        height: heightInput.value,
+                        boardThickness: boardThicknessInput.value,
+                        palletHeight: palletHeightInput.value,
+                        boxQuantity: boxQuantityInput.value,
+                        pricePerSqm: pricePerSqmInput.value
+                    },
+                    output: {
+                        innerVolume: innerVolume.textContent,
+                        outerVolume: outerVolume.textContent,
+                        totalVolume: totalVolume.textContent,
+                        surfaceArea: surfaceArea.textContent,
+                        totalPrice: totalPrice.textContent
+                    }
+                };
+                
+                // 获取已保存的结果
+                let savedResults = JSON.parse(localStorage.getItem('woodenBoxCalculatorResults') || '[]');
+                
+                // 添加新结果
+                savedResults.unshift(resultData); // 添加到开头
+                
+                // 限制保存的结果数量
+                if (savedResults.length > 10) {
+                    savedResults = savedResults.slice(0, 10);
+                }
+                
+                // 保存回本地存储
+                localStorage.setItem('woodenBoxCalculatorResults', JSON.stringify(savedResults));
+                
+                // 显示保存成功提示
+                showNotification('结果已保存');
+                
+                // 更新历史记录列表
+                updateHistoryList();
+                
+                // 启用导出按钮
+                exportBtn.disabled = false;
+                exportBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+            
+            // 显示通知
+            function showNotification(message) {
+                const notification = document.createElement('div');
+                notification.className = 'fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-fadeIn';
+                notification.textContent = message;
+                
+                document.body.appendChild(notification);
+                
+                setTimeout(() => {
+                    notification.style.opacity = '0';
+                    setTimeout(() => {
+                        document.body.removeChild(notification);
+                    }, 300);
+                }, 3000);
+            }
+            
+            // 更新历史记录列表
+            function updateHistoryList() {
+                const historyListElement = document.getElementById('historyList');
+                
+                // 获取已保存的结果
+                const savedResults = JSON.parse(localStorage.getItem('woodenBoxCalculatorResults') || '[]');
+                
+                if (savedResults.length === 0) {
+                    historyListElement.innerHTML = `
+                        <div class="text-center py-8 text-neutral-dark">
+                            <i class="fa fa-history text-3xl mb-3"></i>
+                            <p>暂无保存的计算记录</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // 清空列表
+                historyListElement.innerHTML = '';
+                
+                // 添加历史记录
+                savedResults.forEach((result, index) => {
+                    const historyItem = document.createElement('div');
+                    historyItem.className = 'bg-white border border-gray-200 rounded-lg p-4 mb-3 hover:shadow-md transition-all-300';
+                    
+                    historyItem.innerHTML = `
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h4 class="font-medium text-primary">记录 #${index + 1}</h4>
+                                <p class="text-sm text-neutral-dark">${result.timestamp}</p>
+                            </div>
+                            <div class="flex gap-2">
+                                <button class="load-history-btn text-blue-600 hover:text-blue-800" data-id="${result.id}">
+                                    <i class="fa fa-refresh"></i> 加载
+                                </button>
+                                <button class="delete-history-btn text-red-600 hover:text-red-800" data-id="${result.id}">
+                                    <i class="fa fa-trash"></i> 删除
+                                </button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 mt-3 text-sm">
+                            <div>
+                                <p class="text-neutral-dark">尺寸 (内): ${result.input.length} × ${result.input.width} × ${result.input.height} m</p>
+                                <p class="text-neutral-dark">板厚: ${result.input.boardThickness} mm</p>
+                                <p class="text-neutral-dark">托盘高度: ${result.input.palletHeight} m</p>
+                            </div>
+                            <div>
+                                <p class="text-neutral-dark">数量: ${result.input.boxQuantity} 个</p>
+                                <p class="text-neutral-dark">单价: ${result.input.pricePerSqm} 元/㎡</p>
+                                <p class="text-neutral-dark">总价: ${result.output.totalPrice}</p>
+                            </div>
+                        </div>
+                    `;
+                    
+                    historyListElement.appendChild(historyItem);
+                });
+                
+                // 添加事件监听器
+                document.querySelectorAll('.load-history-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const resultId = parseInt(this.getAttribute('data-id'));
+                        loadHistoryResult(resultId);
+                        historyModal.classList.add('hidden');
+                    });
+                });
+                
+                document.querySelectorAll('.delete-history-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const resultId = parseInt(this.getAttribute('data-id'));
+                        deleteHistoryResult(resultId);
+                    });
+                });
+            }
+            
+            // 加载历史记录
+            function loadHistoryResult(resultId) {
+                const savedResults = JSON.parse(localStorage.getItem('woodenBoxCalculatorResults') || '[]');
+                const result = savedResults.find(r => r.id === resultId);
+                
+                if (result) {
+                    // 填充表单
+                    lengthInput.value = result.input.length;
+                    widthInput.value = result.input.width;
+                    heightInput.value = result.input.height;
+                    boardThicknessInput.value = result.input.boardThickness;
+                    palletHeightInput.value = result.input.palletHeight;
+                    boxQuantityInput.value = result.input.boxQuantity;
+                    pricePerSqmInput.value = result.input.pricePerSqm;
+                    
+                    // 触发计算
+                    calculate();
+                    
+                    // 显示通知
+                    showNotification('已加载历史记录');
+                }
+            }
+            
+            // 删除历史记录
+            function deleteHistoryResult(resultId) {
+                let savedResults = JSON.parse(localStorage.getItem('woodenBoxCalculatorResults') || '[]');
+                savedResults = savedResults.filter(r => r.id !== resultId);
+                
+                localStorage.setItem('woodenBoxCalculatorResults', JSON.stringify(savedResults));
+                
+                // 更新历史记录列表
+                updateHistoryList();
+                
+                // 显示通知
+                showNotification('已删除历史记录');
+                
+                // 检查是否有历史记录，启用或禁用导出按钮
+                checkExportButtonStatus();
+            }
+            
+            // 导出结果为CSV
+            function exportResultsToCSV() {
+                const savedResults = JSON.parse(localStorage.getItem('woodenBoxCalculatorResults') || '[]');
+                
+                if (savedResults.length === 0) {
+                    showNotification('没有可导出的记录');
+                    return;
+                }
+                
+                // CSV头部
+                let csvContent = "数据类型,记录编号,时间戳,长度(m),宽度(m),高度(m),板厚(mm),托盘高度(m),数量,单价(元/㎡),内体积(m³),外体积(m³),总体积(m³),表面积(㎡),总价(元)\n";
+                
+                // 添加数据行
+                savedResults.forEach((result, index) => {
+                    csvContent += `历史记录,${index + 1},${result.timestamp},${result.input.length},${result.input.width},${result.input.height},${result.input.boardThickness},${result.input.palletHeight},${result.input.boxQuantity},${result.input.pricePerSqm},${result.output.innerVolume},${result.output.outerVolume},${result.output.totalVolume},${result.output.surfaceArea},${result.output.totalPrice}\n`;
+                });
+                
+                // 创建下载链接
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.setAttribute('href', url);
+                link.setAttribute('download', `木箱计算器_历史记录_${new Date().toLocaleDateString()}.csv`);
+                link.style.visibility = 'hidden';
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                showNotification('已导出CSV文件');
+            }
+            
+            // 检查是否有历史记录，启用或禁用导出按钮
+            function checkExportButtonStatus() {
+                const savedResults = JSON.parse(localStorage.getItem('woodenBoxCalculatorResults') || '[]');
+                if (savedResults.length > 0) {
+                    exportBtn.disabled = false;
+                    exportBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                } else {
+                    exportBtn.disabled = true;
+                    exportBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+            }
+            
+            // 监听表单提交事件
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                calculate();
+            });
+            
+            // 方底袋子计算函数
+            function calculateBag() {
+                // 获取输入值
+                const length = parseFloat(bagLengthInput.value) || 0; // 厘米
+                const width = parseFloat(bagWidthInput.value) || 0;   // 厘米
+                const height = parseFloat(bagHeightInput.value) || 0; // 厘米
+                const quantity = parseInt(bagQuantityInput.value) || 1;
+                
+                // 获取材料克重
+                const gsm = parseInt(document.querySelector('input[name="gsm"]:checked').value) || 120;
+                
+                // 获取用户输入的价格
+                const priceBelow6 = parseFloat(document.getElementById('priceBelow6').value) || 9;
+                const priceAbove6 = parseFloat(document.getElementById('priceAbove6').value) || 7;
+                
+                // 计算表面积（转换为平方米）- 长x宽只有一个面，没有顶盖
+                const area = (length * width + 2 * length * height + 2 * width * height) / 10000;
+                
+                // 计算总表面积
+                const totalArea = area * quantity;
+                
+                // 计算单袋重量（克转换为公斤）
+                const weightPerBag = area * gsm / 1000;
+                
+                // 计算总重量
+                const totalWeight = weightPerBag * quantity;
+                
+                // 计算单价（根据表面积大小和用户输入的价格）
+                let unitPricePerSqm;
+                if (totalArea < 6) {
+                    unitPricePerSqm = priceBelow6;
+                } else {
+                    unitPricePerSqm = priceAbove6;
+                }
+                
+                // 计算总价
+                const totalPrice = totalArea * unitPricePerSqm;
+                
+                // 计算单袋单价
+                const unitPrice = totalPrice / quantity;
+                
+                // 更新结果显示
+                resultBagLength.textContent = length.toFixed(1) + ' cm';
+                resultBagWidth.textContent = width.toFixed(1) + ' cm';
+                resultBagHeight.textContent = height.toFixed(1) + ' cm';
+                bagSurfaceArea.textContent = totalArea.toFixed(4) + ' ㎡';
+                bagWeight.textContent = totalWeight.toFixed(4) + ' kg';
+                bagTotalPrice.textContent = totalPrice.toFixed(2) + ' 元';
+                bagUnitPrice.textContent = unitPrice.toFixed(2) + ' 元';
+                
+                // 显示结果区域，隐藏初始提示
+                initialPrompt.classList.add('hidden');
+                squareBagResults.classList.remove('hidden');
+                
+                // 添加动画效果
+                const resultItems = squareBagResults.querySelectorAll('.result-item');
+                resultItems.forEach((item, index) => {
+                    item.style.opacity = '0';
+                    setTimeout(() => {
+                        item.style.opacity = '1';
+                    }, 100 * (index + 1));
+                });
+            }
+            
+            // 监听方底袋子表单提交事件
+            bagForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                calculateBag();
+            });
+            
+            // 实时计算 - 木箱计算器输入变化时自动计算
+            const woodenBoxInputFields = [lengthInput, widthInput, heightInput, boardThicknessInput, palletHeightInput, boxQuantityInput, pricePerSqmInput];
+            woodenBoxInputFields.forEach(input => {
+                input.addEventListener('input', function() {
+                    // 只有当所有字段都有值时才计算
+                    const allFilled = woodenBoxInputFields.every(field => field.value.trim() !== '');
+                    if (allFilled) {
+                        calculate();
+                    }
+                });
+            });
+            
+            // 实时计算 - 方底袋子计算器输入变化时自动计算
+            const bagInputFields = [bagLengthInput, bagWidthInput, bagHeightInput, bagQuantityInput];
+            bagInputFields.forEach(input => {
+                input.addEventListener('input', function() {
+                    // 只有当所有字段都有值时才计算
+                    const allFilled = bagInputFields.every(field => field.value.trim() !== '');
+                    if (allFilled) {
+                        calculateBag();
+                    }
+                });
+            });
+            
+            // 价格输入框变化时触发计算
+            const priceBelow6Input = document.getElementById('priceBelow6');
+            const priceAbove6Input = document.getElementById('priceAbove6');
+            
+            [priceBelow6Input, priceAbove6Input].forEach(input => {
+                input.addEventListener('input', function() {
+                    // 只有当所有字段都有值时才计算
+                    const allFilled = bagInputFields.every(field => field.value.trim() !== '');
+                    if (allFilled) {
+                        calculateBag();
+                    }
+                });
+            });
+            
+            // 更新价格说明
+            function updatePriceInfo() {
+                const gsm = parseInt(document.querySelector('input[name="gsm"]:checked').value) || 120;
+                const priceBelow6Input = document.getElementById('priceBelow6');
+                const priceAbove6Input = document.getElementById('priceAbove6');
+                
+                let priceBelow6, priceAbove6;
+                
+                switch(gsm) {
+                    case 120:
+                        priceBelow6 = 8;
+                        priceAbove6 = 6;
+                        break;
+                    case 140:
+                        priceBelow6 = 9;
+                        priceAbove6 = 7;
+                        break;
+                    case 180:
+                        priceBelow6 = 11;
+                        priceAbove6 = 9;
+                        break;
+                    default:
+                        priceBelow6 = 8;
+                        priceAbove6 = 6;
+                }
+                
+                priceBelow6Input.value = priceBelow6;
+                priceAbove6Input.value = priceAbove6;
+            }
+            
+            // 材料克重变化时更新价格说明并触发计算
+            const gsmInputs = document.querySelectorAll('input[name="gsm"]');
+            gsmInputs.forEach(input => {
+                input.addEventListener('change', function() {
+                    updatePriceInfo();
+                    // 只有当所有字段都有值时才计算
+                    const allFilled = bagInputFields.every(field => field.value.trim() !== '');
+                    if (allFilled) {
+                        calculateBag();
+                    }
+                });
+            });
+            
+            // 初始化价格说明
+            updatePriceInfo();
+            
+            // 复制袋子尺寸功能
+            const copyBagDimensionsBtn = document.getElementById('copyBagDimensionsBtn');
+            copyBagDimensionsBtn.addEventListener('click', function(e) {
+                e.preventDefault(); // 阻止表单提交
+                const length = parseFloat(bagLengthInput.value) || 0;
+                const width = parseFloat(bagWidthInput.value) || 0;
+                const height = parseFloat(bagHeightInput.value) || 0;
+                const gsm = parseInt(document.querySelector('input[name="gsm"]:checked').value) || 140;
+                
+                // 组合尺寸为 "length*width*height,gsm克" 格式
+                const dimensions = `${length.toFixed(1)}*${width.toFixed(1)}*${height.toFixed(1)},${gsm}克`;
+                
+                // 复制到剪贴板
+                navigator.clipboard.writeText(dimensions).then(() => {
+                    // 临时更改按钮文本以提供反馈
+                    const originalText = copyBagDimensionsBtn.innerHTML;
+                    copyBagDimensionsBtn.innerHTML = '<i class="fa fa-check mr-1"></i> 已复制';
+                    copyBagDimensionsBtn.classList.add('text-green-600');
+                    
+                    // 2秒后恢复原始文本
+                    setTimeout(() => {
+                        copyBagDimensionsBtn.innerHTML = originalText;
+                        copyBagDimensionsBtn.classList.remove('text-green-600');
+                    }, 2000);
+                }).catch(err => {
+                    console.error('复制失败:', err);
+                    // 如果剪贴板API不可用，使用传统方法
+                    fallbackCopyBagTextToClipboard(dimensions);
+                });
+            });
+            
+            // 备用复制方法
+            function fallbackCopyBagTextToClipboard(text) {
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                textArea.style.position = 'fixed';
+                textArea.style.left = '-999999px';
+                textArea.style.top = '-999999px';
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                
+                try {
+                    document.execCommand('copy');
+                    // 临时更改按钮文本以提供反馈
+                    const originalText = copyBagDimensionsBtn.innerHTML;
+                    copyBagDimensionsBtn.innerHTML = '<i class="fa fa-check mr-1"></i> 已复制';
+                    copyBagDimensionsBtn.classList.add('text-green-600');
+                    
+                    // 2秒后恢复原始文本
+                    setTimeout(() => {
+                        copyBagDimensionsBtn.innerHTML = originalText;
+                        copyBagDimensionsBtn.classList.remove('text-green-600');
+                    }, 2000);
+                } catch (err) {
+                    console.error('备用复制方法也失败:', err);
+                }
+            }
+            
+            // 重置按钮事件
+            form.addEventListener('reset', function() {
+                // 重置结果显示
+                initialPrompt.classList.remove('hidden');
+                woodenBoxResults.classList.add('hidden');
+                squareBagResults.classList.add('hidden');
+                
+                // 重置输入字段的焦点状态
+                woodenBoxInputFields.forEach(input => {
+                    input.classList.remove('ring-2', 'ring-primary', 'border-primary');
+                });
+                
+                // 禁用保存按钮
+                saveResultBtn.disabled = true;
+                saveResultBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            });
+            
+            // 方底袋子计算器重置按钮事件
+            bagForm.addEventListener('reset', function() {
+                // 重置结果显示
+                initialPrompt.classList.remove('hidden');
+                squareBagResults.classList.add('hidden');
+                
+                // 重置输入字段的焦点状态
+                bagInputFields.forEach(input => {
+                    input.classList.remove('ring-2', 'ring-primary', 'border-primary');
+                });
+            });
+            
+            // 添加木箱计算器输入字段的焦点效果
+            woodenBoxInputFields.forEach(input => {
+                input.addEventListener('focus', function() {
+                    this.classList.add('ring-2', 'ring-primary', 'border-primary');
+                });
+                
+                input.addEventListener('blur', function() {
+                    if (!this.value.trim()) {
+                        this.classList.remove('ring-2', 'ring-primary', 'border-primary');
+                    }
+                });
+            });
+            
+            // 添加方底袋子计算器输入字段的焦点效果
+            bagInputFields.forEach(input => {
+                input.addEventListener('focus', function() {
+                    this.classList.add('ring-2', 'ring-primary', 'border-primary');
+                });
+                
+                input.addEventListener('blur', function() {
+                    if (!this.value.trim()) {
+                        this.classList.remove('ring-2', 'ring-primary', 'border-primary');
+                    }
+                });
+            });
+            
+            // 保存按钮点击事件
+            saveResultBtn.addEventListener('click', saveResult);
+            
+            // 历史记录按钮点击事件
+            historyBtn.addEventListener('click', function() {
+                updateHistoryList();
+                historyModal.classList.remove('hidden');
+            });
+            
+            // 导出按钮点击事件
+            exportBtn.addEventListener('click', exportResultsToCSV);
+            
+            // 关闭历史记录模态框
+            closeHistoryModal.addEventListener('click', function() {
+                historyModal.classList.add('hidden');
+            });
+            
+            closeHistoryBtn.addEventListener('click', function() {
+                historyModal.classList.add('hidden');
+            });
+            
+            // 清空历史记录
+            clearHistoryBtn.addEventListener('click', function() {
+                if (confirm('确定要清空所有历史记录吗？')) {
+                    localStorage.removeItem('woodenBoxCalculatorResults');
+                    updateHistoryList();
+                    showNotification('已清空所有历史记录');
+                    
+                    // 禁用导出按钮
+                    exportBtn.disabled = true;
+                    exportBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+            });
+            
+            // 点击模态框外部关闭
+            historyModal.addEventListener('click', function(e) {
+                if (e.target === historyModal) {
+                    historyModal.classList.add('hidden');
+                }
+            });
+            
+            // 检查是否有历史记录，启用或禁用导出按钮
+            checkExportButtonStatus();
+        });
+    </script>
+</body>
+</html>

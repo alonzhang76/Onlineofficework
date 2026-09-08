@@ -1,0 +1,2137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delivery Notice</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.4;
+            color: #333;
+            background-color: white;
+            font-size: 12px;
+        }
+        
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            padding: 15px 20px;
+            min-height: auto;
+            position: relative;
+            padding-bottom: 40px;
+        }
+        
+        h1 {
+            text-align: center;
+            font-size: 20px;
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+        
+        .header-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            font-size: 12px;
+        }
+        
+        .info-section {
+            margin-bottom: 15px;
+        }
+        
+        .info-section h2 {
+            font-size: 14px;
+            margin-bottom: 5px;
+            color: #2c3e50;
+            font-weight: bold;
+        }
+        
+        .info-row {
+            margin-bottom: 3px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .info-label {
+            font-weight: bold;
+            display: inline-block;
+            min-width: 100px;
+            font-size: 12px;
+        }
+        
+        .shipper-consignee {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 15px;
+        }
+        
+        .shipper-info, .consignee-info {
+            flex: 1;
+        }
+        
+        .shipment-details {
+            margin-bottom: 15px;
+        }
+        
+        .shipment-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        
+        .shipment-grid .info-row {
+            display: flex;
+            align-items: center;
+        }
+        
+        .shipment-grid .info-label {
+            min-width: 150px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            font-size: 12px;
+        }
+        
+        .shipment-grid .input-field {
+            flex: 1;
+            min-width: 120px;
+        }
+        
+        .container-section {
+            margin-bottom: 15px;
+        }
+        
+        .container-section h2 {
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: #2c3e50;
+            font-weight: bold;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+        }
+        
+        th, td {
+            border: 1px solid #ddd;
+            padding: 6px 8px;
+            text-align: left;
+            font-size: 12px;
+        }
+        
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        
+        .container-table th, .container-table td {
+            text-align: center;
+            padding: 4px 6px;
+        }
+        
+        .summary-section {
+            margin-bottom: 15px;
+        }
+        
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+        
+        .summary-item {
+            margin-bottom: 5px;
+        }
+        
+        .summary-label {
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        
+        .remarks {
+            margin-bottom: 15px;
+        }
+        
+        .remarks textarea {
+            width: 100%;
+            border: 1px solid #ccc;
+            padding: 6px 8px;
+            border-radius: 4px;
+            resize: vertical;
+            font-size: 12px;
+            background-color: #fffde7;
+        }
+        
+        .remarks textarea:focus {
+            outline: 2px solid #0d6efd;
+            border-color: #0d6efd;
+        }
+        
+        .yellow-bg-input {
+            background-color: #fffde7 !important;
+        }
+        
+        .yellow-bg-input:focus {
+            outline: 2px solid #0d6efd;
+            border-color: #0d6efd;
+        }
+        
+        .gray-bg-input {
+            background-color: #dc3545 !important;
+            color: white !important;
+            border-radius: 4px;
+            display: inline-block;
+            min-width: auto;
+            width: auto;
+            white-space: nowrap;
+        }
+        
+        .gray-bg-input:focus {
+            outline: 2px solid #0d6efd;
+            border-color: #0d6efd;
+        }
+        
+        .remarks ul {
+            margin-left: 20px;
+        }
+        
+        .prepared-by {
+            text-align: left;
+            margin-top: 30px;
+            font-size: 12px;
+        }
+        
+        .prepared-info {
+            margin-bottom: 3px;
+        }
+        
+        .contact-info {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 12px;
+            color: #666;
+        }
+        
+        /* 通用页脚样式 */
+        .page-footer {
+            font-size: 11px;
+            color: #666;
+            text-align: right;
+        }
+        
+        /* 第2页页脚 */
+        .page2-footer {
+            position: absolute;
+            bottom: 10px;
+            right: 20px;
+            background: white;
+            padding: 3px 8px;
+            border: 1px solid #ddd;
+            z-index: 200;
+        }
+        
+        /* 页码和日期在同一行 */
+        .page-footer .page-number,
+        .page-footer .page-date {
+            display: inline;
+            margin-right: 15px;
+        }
+        
+        /* 照片页面样式 */
+        .photo-page {
+            page-break-before: always;
+            padding: 20px 20px 50px 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .photo-page h2 {
+            text-align: center;
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        
+        .photo-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 15px;
+            height: calc(100vh - 120px);
+        }
+        
+        .photo-cell {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            background-color: #f9f9f9;
+        }
+        
+        .photo-cell:hover {
+            border-color: #0d6efd;
+        }
+        
+        .photo-cell img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .photo-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .photo-placeholder:hover {
+            background-color: #f0f0f0;
+        }
+        
+        .photo-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        
+        .photo-text {
+            color: #999;
+            font-size: 14px;
+        }
+        
+        .photo-remove-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+        }
+        
+        .photo-remove-btn:hover {
+            background: rgba(0, 0, 0, 0.7);
+        }
+        
+        /* 打印时隐藏占位符和按钮 */
+        @media print {
+            @page {
+                margin: 0.5cm;
+                size: A4 portrait;
+            }
+            
+            /* 防止额外空白页 */
+            body {
+                height: auto;
+                overflow: visible;
+                margin: 0;
+                padding: 0;
+            }
+            
+            /* 第1页容器 */
+            .page1-container {
+                position: relative;
+                min-height: calc(100vh - 50px);
+                padding-bottom: 50px;
+            }
+            
+            /* 第2页容器 */
+            .page2-container {
+                position: relative;
+                min-height: calc(100vh - 50px);
+                padding-bottom: 50px;
+            }
+            
+            /* 页脚样式 */
+            .page-footer {
+                display: block !important;
+                font-size: 11px;
+                color: #666;
+                text-align: right;
+            }
+            
+            /* 第1页页脚 */
+            .page1-footer {
+                position: absolute;
+                bottom: 10px;
+                right: 20px;
+                background: white;
+                padding: 3px 8px;
+                border: 1px solid #ddd;
+            }
+            
+            /* 第2页页脚 */
+            .page2-footer {
+                position: absolute;
+                bottom: 10px;
+                right: 20px;
+                background: white;
+                padding: 3px 8px;
+                border: 1px solid #ddd;
+            }
+            
+            /* 页码和日期在同一行 */
+            .page-footer .page-number,
+            .page-footer .page-date {
+                display: inline;
+                margin-right: 15px;
+            }
+            
+            /* 照片页面样式 */
+            .photo-page {
+                page-break-before: always;
+                padding: 15px 20px 50px 20px;
+                position: relative;
+                height: calc(100vh - 50px);
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+            }
+            .photo-page h2 {
+                font-size: 16px;
+                margin-bottom: 10px;
+                text-align: center;
+                flex-shrink: 0;
+            }
+            .photo-grid {
+                gap: 8px;
+                flex: 1;
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                grid-template-rows: repeat(2, 1fr);
+                min-height: 0;
+            }
+            .photo-placeholder {
+                display: none !important;
+            }
+            .photo-remove-btn {
+                display: none !important;
+            }
+            .photo-cell {
+                border: 1px solid #ddd;
+            }
+        }
+        
+        .highlight {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        
+        .input-field {
+            border: 1px dashed #ccc;
+            padding: 2px 4px;
+            background-color: #fafafa;
+            min-width: 100px;
+            width: 150px;
+            font-size: 12px;
+        }
+        
+        .input-field:focus {
+            outline: none;
+            border: 1px solid #0d6efd;
+            background-color: #fff;
+        }
+        
+        .input-field[style*="width: 100%"] {
+            width: 100% !important;
+        }
+        
+        .input-field[id="containerLoadingDate"] {
+            width: 120px !important;
+        }
+        
+        .editable-table input {
+            width: 100%;
+            border: none;
+            background: transparent;
+            text-align: center;
+        }
+        
+        .editable-table input:focus {
+            outline: 2px solid #0d6efd;
+            background: #fff;
+        }
+        
+        .editable-table textarea {
+            width: 100%;
+            border: none;
+            background: transparent;
+            resize: none;
+        }
+        
+        .editable-table textarea:focus {
+            outline: 2px solid #0d6efd;
+            background: #fff;
+        }
+        
+        /* 手签体字体样式 */
+        .handwriting-font {
+            font-family: 'Cursive', 'Brush Script MT', 'Lucida Handwriting', cursive;
+            font-size: 18px;
+        }
+        
+        .print-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background-color: #0d6efd;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            z-index: 1000;
+        }
+        
+        .print-btn:hover {
+            background-color: #0b5ed7;
+        }
+        
+        @media print {
+            @page {
+                margin: 0.5cm;
+                size: A4 portrait;
+            }
+            .print-btn {
+                display: none;
+            }
+            body {
+                background-color: white;
+                font-size: 11px;
+            }
+            .container {
+                box-shadow: none;
+                margin: 0;
+                padding: 10px;
+            }
+            h1 {
+                font-size: 18px;
+                margin-bottom: 8px;
+            }
+            .header-info {
+                margin-bottom: 10px;
+            }
+            .info-section {
+                margin-bottom: 10px;
+            }
+            .info-section h2 {
+                font-size: 13px;
+                margin-bottom: 4px;
+            }
+            .info-row {
+                margin-bottom: 2px;
+            }
+            .shipper-consignee {
+                gap: 15px;
+                margin-bottom: 10px;
+            }
+            .shipment-details {
+                margin-bottom: 10px;
+            }
+            .shipment-grid {
+                gap: 8px;
+            }
+            .container-section {
+                margin-bottom: 10px;
+            }
+            .container-section h2 {
+                font-size: 13px;
+                margin-bottom: 5px;
+            }
+            table {
+                margin-bottom: 8px;
+            }
+            th, td {
+                padding: 4px 6px;
+                font-size: 11px;
+            }
+            .summary-section {
+                margin-bottom: 10px;
+            }
+            .summary-grid {
+                gap: 10px;
+            }
+            .remarks {
+                margin-bottom: 10px;
+            }
+            .remarks textarea {
+                padding: 4px 6px;
+                font-size: 11px;
+            }
+            .prepared-by {
+                margin-top: 20px;
+                font-size: 11px;
+            }
+            .prepared-info {
+                margin-bottom: 2px;
+            }
+            .contact-info {
+                margin-top: 15px;
+                font-size: 11px;
+            }
+            .input-field {
+                border: none;
+                background: transparent !important;
+                padding: 0;
+            }
+            
+            /* 确保打印时红色背景输入框的样式正确显示 */
+            .gray-bg-input {
+                background-color: #dc3545 !important;
+                color: white !important;
+                padding: 2px 6px !important;
+                border-radius: 4px !important;
+                display: inline-block !important;
+                min-width: auto !important;
+                width: auto !important;
+                white-space: nowrap !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .input-field[type="date"] {
+                -webkit-appearance: none;
+                -moz-appearance: none;
+                appearance: none;
+            }
+            
+            /* Date print text styling */
+            .date-print-text {
+                display: inline-block;
+                min-width: 100px;
+            }
+            
+            /* 为灰色背景输入框旁边的日期文本添加相同的红色背景样式 */
+            .gray-bg-input + .date-print-text {
+                background-color: #dc3545 !important;
+                color: white !important;
+                padding: 2px 6px !important;
+                border-radius: 4px !important;
+                display: inline-block !important;
+                min-width: auto !important;
+                width: auto !important;
+                white-space: nowrap !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            
+            @media print {
+                .date-print-field {
+                    display: none !important;
+                }
+                .date-print-text {
+                    display: inline-block !important;
+                }
+                
+                /* 确保打印时红色背景正确显示 */
+                .gray-bg-input + .date-print-text {
+                    background-color: #dc3545 !important;
+                    color: white !important;
+                    padding: 2px 6px !important;
+                    border-radius: 4px !important;
+                    display: inline-block !important;
+                    min-width: auto !important;
+                    width: auto !important;
+                    white-space: nowrap !important;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                }
+            }
+            .input-field[type="date"]::-webkit-calendar-picker-indicator {
+                display: none !important;
+            }
+            .input-field[type="date"]::-webkit-clear-button {
+                display: none !important;
+            }
+            .input-field[type="date"]::-webkit-inner-spin-button {
+                display: none !important;
+            }
+            .input-field[type="date"]::-moz-calendar-picker-indicator {
+                display: none !important;
+            }
+            .input-field[type="date"]:-moz-ui-calendar {
+                display: none !important;
+            }
+            .input-field[type="date"]::-webkit-clear-button {
+                display: none !important;
+            }
+            .input-field[type="date"]::-webkit-inner-spin-button {
+                display: none !important;
+            }
+            .input-field[type="date"]::-moz-calendar-picker-indicator {
+                display: none !important;
+            }
+            .input-field[type="date"]:-moz-ui-calendar {
+                display: none !important;
+            }
+            .input-field::-webkit-input-placeholder {
+                color: transparent !important;
+            }
+            .input-field:-moz-placeholder {
+                color: transparent !important;
+            }
+            .input-field::-moz-placeholder {
+                color: transparent !important;
+            }
+            .input-field:-ms-input-placeholder {
+                color: transparent !important;
+            }
+            .input-field:focus {
+                outline: none;
+                border: none;
+            }
+            .editable-table input,
+            .editable-table textarea {
+                border: none;
+                background: transparent !important;
+            }
+            
+            /* 确保表格中的红色背景输入框样式正确 */
+            .editable-table .gray-bg-input {
+                background-color: #dc3545 !important;
+                color: white !important;
+                padding: 2px 6px !important;
+                border-radius: 4px !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .editable-table input::-webkit-input-placeholder,
+            .editable-table textarea::-webkit-input-placeholder {
+                color: transparent !important;
+            }
+            .editable-table input:-moz-placeholder,
+            .editable-table textarea:-moz-placeholder {
+                color: transparent !important;
+            }
+            .editable-table input::-moz-placeholder,
+            .editable-table textarea::-moz-placeholder {
+                color: transparent !important;
+            }
+            .editable-table input:-ms-input-placeholder,
+            .editable-table textarea:-ms-input-placeholder {
+                color: transparent !important;
+            }
+            .editable-table input:focus,
+            .editable-table textarea:focus {
+                outline: none;
+            }
+            tr:nth-child(even) {
+                background-color: transparent !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            table {
+                border-color: #333;
+            }
+            th {
+                background-color: #f2f2f2 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            td {
+                background-color: transparent !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            td button {
+                display: none !important;
+            }
+            button[type="button"][onclick="addCargoRow()"] {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <button class="print-btn" onclick="window.print()">
+        <span class="mr-1">🖨️</span>Print
+    </button>
+    
+    <!-- 第1页：Delivery Notice -->
+    <div class="container page1-container">
+        <h1>DELIVERY NOTICE</h1>
+        
+        <div class="header-info">
+            <div>
+                <div class="info-row">
+                    <span class="info-label">No.:</span>
+                    <input type="text" class="input-field" id="deliveryNoteNo" placeholder="Enter DN No.">
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Inv. No.:</span>
+                    <input type="text" class="input-field gray-bg-input" id="invoiceNo" placeholder="Enter Invoice No.">
+                </div>
+            </div>
+        </div>
+        
+        <div class="shipper-consignee">
+            <div class="shipper-info info-section">
+                <h2>1. Shipper / Exporter</h2>
+                <div class="info-row">
+                    <input type="text" class="input-field" id="shipperName" placeholder="Company Name" title="Shipper Company Name" style="width: 100%;">
+                </div>
+                <div class="info-row">
+                    <input type="text" class="input-field" id="shipperAddress" placeholder="Full Address" title="Shipper Full Address" style="width: 100%;">
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Email:</span>
+                    <select class="input-field" id="shipperEmail" title="Shipper Email" style="width: 250px;">
+                        <option value="anny@rhssjx.com">anny@rhssjx.com</option>
+                        <option value="alonzhang76@outlook.com">alonzhang76@outlook.com</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="consignee-info info-section">
+                <h2>2. Consignee</h2>
+                <div class="info-row">
+                    <input type="text" class="input-field" id="consigneeName" placeholder="Company Name" title="Consignee Company Name" style="width: 100%;">
+                </div>
+            </div>
+        </div>
+        
+        <div class="shipment-details info-section">
+            <h2>3. Shipment Details</h2>
+            <div class="shipment-grid">
+                <div class="info-row">
+                    <span class="info-label">Mode of Transport:</span>
+                    <select class="input-field" id="transportMode" title="Mode of Transport">
+                        <option value="By sea" selected>By sea</option>
+                        <option value="By air">By air</option>
+                    </select>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Container Type:</span>
+                    <input type="text" class="input-field gray-bg-input" id="containerType" placeholder="e.g., 40HC×2" title="Container Type">
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Port of Loading (POL):</span>
+                    <input type="text" class="input-field" id="pol" placeholder="Port of Loading" title="Port of Loading">
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Port of Discharge (POD):</span>
+                    <input type="text" class="input-field yellow-bg-input" id="pod" placeholder="Port of Discharge" title="Port of Discharge">
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Vessel / Voyage:</span>
+                    <input type="text" class="input-field gray-bg-input" id="vesselVoyage" placeholder="Vessel Name / Voyage No." title="Vessel Name / Voyage No.">
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Container No. & Seal No:</span>
+                    <input type="text" class="input-field" id="containerNo" placeholder="Container Numbers" title="Container Numbers">
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Bill of Lading No.:</span>
+                    <input type="text" class="input-field gray-bg-input" id="billNo" placeholder="BL Number" title="Bill of Lading Number">
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Wickets ready:</span>
+                    <input type="date" class="input-field date-print-field yellow-bg-input" id="wicketsReady" title="Wickets Ready Date" data-print-text="">
+                    <span class="date-print-text" id="wicketsReadyText" style="display:none;"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Booking form:</span>
+                    <input type="date" class="input-field date-print-field yellow-bg-input" id="bookingDate" title="Booking Form Date" data-print-text="">
+                    <span class="date-print-text" id="bookingDateText" style="display:none;"></span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="container-section">
+            <h2>Container Loading: <input type="date" class="input-field date-print-field gray-bg-input" id="containerLoadingDate" style="width: 150px;" title="Container Loading Date" data-print-text=""><span class="date-print-text" id="containerLoadingDateText" style="display:none;"></span></h2>
+            
+            <h3 style="margin-bottom: 15px; font-size: 1em;">Cargo Description & Quantities</h3>
+            <table class="container-table editable-table">
+                <thead>
+                    <tr>
+                        <th>Container</th>
+                        <th>PO</th>
+                        <th>Art. No.</th>
+                        <th>Total(TTL)</th>
+                        <th>Total Boxes</th>
+                        <th>QTY</th>
+                    </tr>
+                </thead>
+                <tbody id="cargoTableBody">
+                    <tr>
+                        <td><input type="text" name="container" placeholder="40HC" title="Container Type"></td>
+                        <td><input type="text" name="po" placeholder="PO No." title="Purchase Order Number"></td>
+                        <td><input type="text" name="wicker" placeholder="Wicker No." title="Wicker Number"></td>
+                        <td><input type="number" name="qty" placeholder="0" title="Quantity"></td>
+                        <td><input type="number" name="crates" placeholder="0" title="Number of Crates"></td>
+                        <td><input type="number" name="qtyPerCtn" placeholder="0" title="Quantity per Carton"></td>
+                        <td><button type="button" onclick="deleteRow(this)" style="background: #dc3545; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px;">×</button></td>
+                    </tr>
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="3" style="text-align: right; font-weight: bold;">Total:</td>
+                        <td><input type="number" id="totalQty" placeholder="0" readonly style="font-weight: bold;"></td>
+                        <td><input type="number" id="totalCrates" placeholder="0" readonly style="font-weight: bold;"></td>
+                        <td></td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+            <button type="button" onclick="addCargoRow()" style="background: #28a745; color: white; border: none; padding: 8px 16px; cursor: pointer; border-radius: 3px; margin-top: 10px;">
+                <span class="mr-1">+</span>Add Row
+            </button>
+        </div>
+        
+        <div class="summary-section">
+            <div class="summary-grid">
+                <div>
+                    <h2>4. Packing Summary</h2>
+                    <div class="summary-item">
+                        <input type="text" class="input-field" id="packingSummary" placeholder="e.g., 2 containers, 40 crates" style="width: 100%;">
+                    </div>
+                </div>
+                <div>
+                    <h2>5. HS Code & Country of Origin</h2>
+                    <div class="summary-item">
+                        <input type="text" class="input-field" id="hsCodeOrigin" placeholder="e.g., 8417.9090 – China" style="width: 100%;">
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="remarks info-section">
+            <h2>6. Remarks</h2>
+            <textarea class="editable-table" rows="4" id="remarks" placeholder="Enter remarks here..." style="font-family: Arial;"></textarea>
+        </div>
+        
+        <div class="prepared-by">
+            <div class="prepared-info">
+                <span class="info-label">Prepared by:</span>
+                <input type="text" class="input-field" id="preparedBy" placeholder="Name">
+            </div>
+            <div class="prepared-info">
+                <span class="info-label">Title:</span>
+                <input type="text" class="input-field" id="preparedTitle" placeholder="Job Title">
+            </div>
+            <div class="prepared-info">
+                <span class="info-label">Date:</span>
+                <input type="date" class="input-field date-print-field" id="preparedDate" data-print-text="">
+                <span class="date-print-text" id="preparedDateText" style="display:none;"></span>
+            </div>
+        </div>
+        
+        <div class="contact-info">
+            For any discrepancies or questions, contact: 
+            <span class="input-field" id="contactEmail" style="width: 200px; display: inline-block;">anny@rhssjx.com</span>
+        </div>
+        
+        <!-- 第1页页脚 -->
+        <div class="page-footer page1-footer">
+            <span class="page-number">Page 1 of 2</span>
+            <span class="page-date"></span>
+        </div>
+    </div>
+    
+    <!-- 分页符 -->
+    <div style="page-break-after: always;"></div>
+    
+    <!-- 第2页：照片展示 -->
+    <div class="container page2-container">
+        <h2>Container Loading Photos</h2>
+        <div class="photo-grid">
+                <div class="photo-cell" id="photoCell1" ondrop="drop(event)" ondragover="allowDrop(event)">
+                    <div class="photo-placeholder" onclick="triggerFileInput('photoCell1')">
+                        <span class="photo-icon">📷</span>
+                        <span class="photo-text">拖放照片到这里</span>
+                    </div>
+                    <input type="file" class="photo-input" id="photoInput1" accept="image/*" onchange="handleFileSelect(event, 'photoCell1')" style="display: none;">
+                    <button type="button" class="photo-remove-btn" onclick="removePhoto('photoCell1')" style="display: none;">×</button>
+                </div>
+                <div class="photo-cell" id="photoCell2" ondrop="drop(event)" ondragover="allowDrop(event)">
+                    <div class="photo-placeholder" onclick="triggerFileInput('photoCell2')">
+                        <span class="photo-icon">📷</span>
+                        <span class="photo-text">拖放照片到这里</span>
+                    </div>
+                    <input type="file" class="photo-input" id="photoInput2" accept="image/*" onchange="handleFileSelect(event, 'photoCell2')" style="display: none;">
+                    <button type="button" class="photo-remove-btn" onclick="removePhoto('photoCell2')" style="display: none;">×</button>
+                </div>
+                <div class="photo-cell" id="photoCell3" ondrop="drop(event)" ondragover="allowDrop(event)">
+                    <div class="photo-placeholder" onclick="triggerFileInput('photoCell3')">
+                        <span class="photo-icon">📷</span>
+                        <span class="photo-text">拖放照片到这里</span>
+                    </div>
+                    <input type="file" class="photo-input" id="photoInput3" accept="image/*" onchange="handleFileSelect(event, 'photoCell3')" style="display: none;">
+                    <button type="button" class="photo-remove-btn" onclick="removePhoto('photoCell3')" style="display: none;">×</button>
+                </div>
+                <div class="photo-cell" id="photoCell4" ondrop="drop(event)" ondragover="allowDrop(event)">
+                    <div class="photo-placeholder" onclick="triggerFileInput('photoCell4')">
+                        <span class="photo-icon">📷</span>
+                        <span class="photo-text">拖放照片到这里</span>
+                    </div>
+                    <input type="file" class="photo-input" id="photoInput4" accept="image/*" onchange="handleFileSelect(event, 'photoCell4')" style="display: none;">
+                    <button type="button" class="photo-remove-btn" onclick="removePhoto('photoCell4')" style="display: none;">×</button>
+                </div>
+            </div>
+            <!-- 第2页页脚 -->
+            <div class="page-footer page2-footer" style="position: absolute; bottom: 10px; right: 20px; background: white; padding: 3px 8px; border: 1px solid #ddd;">
+                <span class="page-number">Page 2 of 2</span>
+                <span class="page-date"></span>
+            </div>
+            <!-- 照片页面操作按钮 -->
+            <div style="position: absolute; bottom: 10px; left: 20px; display: flex; gap: 8px;">
+                <button type="button" onclick="addPhotoPage()" style="background: #198754; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px; font-size: 12px;">
+                    + Add Photo Page
+                </button>
+                <button type="button" onclick="removePhotoPage()" style="background: #dc3545; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px; font-size: 12px;">
+                    - Remove Photo Page
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function addCargoRow() {
+            const tbody = document.getElementById('cargoTableBody');
+            const newRow = document.createElement('tr');
+            newRow.innerHTML = `
+                <td><input type="text" name="container" placeholder="40HC"></td>
+                <td><input type="text" name="po" placeholder="PO No."></td>
+                <td><input type="text" name="wicker" placeholder="Wicker No."></td>
+                <td><input type="number" name="qty" placeholder="0" onchange="calculateTotals()"></td>
+                <td><input type="number" name="crates" placeholder="0" onchange="calculateTotals()"></td>
+                <td><input type="number" name="qtyPerCtn" placeholder="0"></td>
+                <td><button type="button" onclick="deleteRow(this)" style="background: #dc3545; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px;">×</button></td>
+            `;
+            tbody.appendChild(newRow);
+        }
+        
+        function deleteRow(btn) {
+            const row = btn.closest('tr');
+            const tbody = document.getElementById('cargoTableBody');
+            if (tbody.rows.length > 1) {
+                row.remove();
+                calculateTotals();
+            }
+        }
+        
+        // 更新Wickets ready日期（比Container Loading日期早1周）
+        function updateWicketsReadyDate() {
+            const containerLoadingDate = document.getElementById('containerLoadingDate').value;
+            const wicketsReadyInput = document.getElementById('wicketsReady');
+            
+            if (containerLoadingDate && wicketsReadyInput) {
+                const date = new Date(containerLoadingDate);
+                date.setDate(date.getDate() - 7); // 减去7天（1周）
+                
+                const yyyy = date.getFullYear();
+                const mm = String(date.getMonth() + 1).padStart(2, '0');
+                const dd = String(date.getDate()).padStart(2, '0');
+                
+                wicketsReadyInput.value = `${yyyy}-${mm}-${dd}`;
+            }
+        }
+        
+        function calculateTotals() {
+            const qtyInputs = document.querySelectorAll('#cargoTableBody input[name="qty"]');
+            const cratesInputs = document.querySelectorAll('#cargoTableBody input[name="crates"]');
+            
+            let totalQty = 0;
+            let totalCrates = 0;
+            
+            qtyInputs.forEach(input => {
+                if (input.value && input.value !== '0') totalQty += parseInt(input.value) || 0;
+            });
+            
+            cratesInputs.forEach(input => {
+                if (input.value && input.value !== '0') totalCrates += parseInt(input.value) || 0;
+            });
+            
+            document.getElementById('totalQty').value = totalQty;
+            document.getElementById('totalCrates').value = totalCrates;
+            
+            // 将编号28的值加上后缀写入编号29
+            if (totalCrates > 0) {
+                document.getElementById('packingSummary').value = `${totalCrates} PLY BOXES`;
+            } else {
+                document.getElementById('packingSummary').value = '';
+            }
+        }
+        
+        function parseURLParams() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const dataParam = urlParams.get('data');
+            
+            console.log('URL data param:', dataParam);
+            
+            if (dataParam) {
+                try {
+                    const decodedData = decodeURIComponent(atob(dataParam));
+                    console.log('Decoded data:', decodedData);
+                    return JSON.parse(decodedData);
+                } catch (e) {
+                    console.error('Failed to parse URL data:', e);
+                    return null;
+                }
+            }
+            return null;
+        }
+        
+        function fillFormFromData(data) {
+            console.log('========== fillFormFromData 开始执行 ==========');
+            console.log('完整参数 data:', data);
+            if (!data) {
+                console.error('错误: data 为空');
+                return;
+            }
+            
+            console.log('selectedExportRecords:', data.selectedExportRecords);
+            console.log('selectedExportRecords 长度:', data.selectedExportRecords ? data.selectedExportRecords.length : 0);
+            
+            if (data.selectedExportRecords && data.selectedExportRecords.length > 0) {
+                const exportRecord = data.selectedExportRecords[0];
+                console.log('========== 选中的出口记录 ==========');
+                console.log('exportRecord 完整内容:', JSON.stringify(exportRecord, null, 2));
+                console.log('exportRecord.remark:', exportRecord.remark);
+                console.log('exportRecord.remark 类型:', typeof exportRecord.remark);
+                console.log('exportRecord 所有键:', Object.keys(exportRecord));
+                
+                if (exportRecord.shipper) {
+                    document.getElementById('shipperName').value = exportRecord.shipper || '';
+                }
+                if (exportRecord.shipperAddress) {
+                    document.getElementById('shipperAddress').value = exportRecord.shipperAddress || '';
+                }
+                if (exportRecord.customer) {
+                    document.getElementById('consigneeName').value = exportRecord.customer || '';
+                }
+                if (exportRecord.customerAddress) {
+                    document.getElementById('consigneeAddress').value = exportRecord.customerAddress || '';
+                }
+                if (exportRecord.shippingNo) {
+                    document.getElementById('invoiceNo').value = exportRecord.shippingNo || '';
+                }
+                if (exportRecord.transportMethod) {
+                    const translated = transportMethodTranslations[exportRecord.transportMethod];
+                    document.getElementById('transportMode').value = translated || exportRecord.transportMethod || 'By sea';
+                } else {
+                    // 如果没有transportMethod，保持默认值 By sea
+                    document.getElementById('transportMode').value = 'By sea';
+                }
+                if (exportRecord.shipName) {
+                    document.getElementById('vesselVoyage').value = exportRecord.shipName || '';
+                }
+                if (exportRecord.containerNo) {
+                    document.getElementById('containerNo').value = exportRecord.containerNo || '';
+                }
+                if (exportRecord.containerType) {
+                    document.getElementById('containerType').value = exportRecord.containerType || '';
+                }
+                if (exportRecord.sealNo) {
+                    document.getElementById('sealNo').value = exportRecord.sealNo || '';
+                }
+                if (exportRecord.billNo) {
+                    document.getElementById('billNo').value = exportRecord.billNo || '';
+                }
+                if (exportRecord.pol) {
+                    document.getElementById('pol').value = exportRecord.pol || '';
+                }
+                if (exportRecord.pod) {
+                    document.getElementById('pod').value = exportRecord.pod || '';
+                }
+                if (exportRecord.exportDate) {
+                    document.getElementById('containerLoadingDate').value = exportRecord.exportDate || '';
+                }
+                
+                console.log('========== 处理备注字段 ==========');
+                console.log('检查 exportRecord.remark 是否存在:', 'remark' in exportRecord);
+                console.log('exportRecord.remark 值:', exportRecord.remark);
+                console.log('exportRecord.remark 是否为真值:', !!exportRecord.remark);
+                
+                if (exportRecord.remark) {
+                    console.log('设置remarks输入框的值:', exportRecord.remark);
+                    document.getElementById('remarks').value = exportRecord.remark || '';
+                    console.log('设置后的remarks输入框值:', document.getElementById('remarks').value);
+                } else {
+                    console.warn('警告: exportRecord.remark 为空或不存在!');
+                }
+            } else {
+                console.error('错误: selectedExportRecords 为空或不存在');
+            }
+            console.log('========== fillFormFromData 执行完成 ==========');
+            
+            const tbody = document.getElementById('cargoTableBody');
+            tbody.innerHTML = '';
+            
+            // 优先从订单记录获取完整数据
+            const orderNos = data.orderNo.split(',').map(s => s.trim()).filter(s => s);
+            const orderRecords = JSON.parse(localStorage.orderRecords || '[]');
+            const orderLabelsData = JSON.parse(localStorage.orderLabelsData || '[]');
+            
+            console.log('订单号列表:', orderNos);
+            console.log('订单记录总数:', orderRecords.length);
+            
+            // 收集所有匹配的订单记录
+            const matchedOrderRecords = [];
+            orderNos.forEach(orderNo => {
+                const records = orderRecords.filter(o => o.orderNo === orderNo);
+                console.log(`订单号 ${orderNo} 找到 ${records.length} 条记录`);
+                matchedOrderRecords.push(...records);
+            });
+            
+            console.log('匹配的订单记录总数:', matchedOrderRecords.length);
+            
+            // 收集所有匹配的orderLabelsData记录
+            const matchedLabels = [];
+            orderNos.forEach(orderNo => {
+                orderLabelsData.forEach(label => {
+                    if (label.po && (label.po === orderNo || label.po.includes(orderNo) || orderNo.includes(label.po))) {
+                        matchedLabels.push(label);
+                    }
+                });
+            });
+            
+            console.log('匹配的标签记录:', matchedLabels);
+            
+            if (matchedOrderRecords.length > 0) {
+                // 按产品分组
+                const productsByKey = {};
+                
+                matchedOrderRecords.forEach(record => {
+                    // 使用 drawingNo + spec 作为唯一键，确保相同规格的产品合并
+                    const key = (record.drawingNo || '') + '|' + (record.spec || '') + '|' + (record.productName || '');
+                    const artNo = record.drawingNo || record.spec || record.productName || 'Unknown';
+                    const quantity = parseFloat(record.quantity) || 0;
+                    
+                    if (!productsByKey[key]) {
+                        productsByKey[key] = {
+                            artNo: artNo,
+                            qty: 0,
+                            productName: record.productName,
+                            spec: record.spec,
+                            drawingNo: record.drawingNo,
+                            totalBoxes: '',
+                            qtyPerCtn: '',
+                            po: '' // 存储对应的PO号
+                        };
+                    }
+                    productsByKey[key].qty += quantity;
+                });
+                
+                console.log('分组后的产品数量:', Object.keys(productsByKey).length);
+                
+                // 为每个产品匹配标签数据
+                Object.keys(productsByKey).forEach(productKey => {
+                    const product = productsByKey[productKey];
+                    
+                    // 查找匹配的标签
+                    let matchedLabel = null;
+                    matchedLabels.forEach(label => {
+                        // 首先尝试artNo匹配
+                        const artNoMatch = label.artNo && product.artNo && 
+                            (product.artNo === label.artNo || 
+                             product.artNo.includes(label.artNo) || 
+                             label.artNo.includes(product.artNo));
+                        
+                        if (artNoMatch) {
+                            matchedLabel = label;
+                        }
+                    });
+                    
+                    // 如果没有找到artNo匹配，尝试使用第一个匹配该PO的标签
+                    if (!matchedLabel && matchedLabels.length > 0) {
+                        matchedLabel = matchedLabels[0];
+                    }
+                    
+                    // 如果找到了匹配的标签
+                    if (matchedLabel) {
+                        const qtyPerCtn = parseFloat(matchedLabel.qty) || 0;
+                        const labelTotalBoxes = parseInt(matchedLabel.totalBoxes) || 0;
+                        const labelTotalQty = parseInt(matchedLabel.totalQty) || 0;
+                        
+                        // 设置PO号
+                        product.po = matchedLabel.po || '';
+                        
+                        // 如果标签数据中有totalBoxes，直接使用
+                        if (labelTotalBoxes > 0) {
+                            product.totalBoxes = labelTotalBoxes;
+                        } else if (qtyPerCtn > 0 && product.qty > 0) {
+                            // 计算Total Boxes：向下取整（不额外加1）
+                            const fullCrates = Math.floor(product.qty / qtyPerCtn);
+                            product.totalBoxes = fullCrates;
+                        }
+                        
+                        // 如果标签数据中有totalQty，使用标签数据
+                        if (labelTotalQty > 0) {
+                            product.qty = labelTotalQty;
+                        }
+                        
+                        // 计算QTY显示：
+                        if (qtyPerCtn > 0) {
+                            const currentQty = product.qty;
+                            const remainder = currentQty % qtyPerCtn;
+                            
+                            if (remainder === 0) {
+                                product.qtyPerCtn = qtyPerCtn;
+                            } else {
+                                const fullCrates = Math.floor(currentQty / qtyPerCtn);
+                                const lastBoxQty = qtyPerCtn + remainder;
+                                const normalBoxes = fullCrates - 1;
+                                product.qtyPerCtn = `${qtyPerCtn}*${normalBoxes}/${lastBoxQty}*1`;
+                            }
+                        }
+                    }
+                });
+                
+                // 为每个产品创建一行
+                Object.keys(productsByKey).forEach(key => {
+                    const product = productsByKey[key];
+                    
+                    // 使用产品自己的PO号，如果没有则使用第一个订单号
+                    const poValue = product.po || orderNos[0];
+                    
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td><input type="text" name="container" placeholder="40HC" title="Container Type"></td>
+                        <td><input type="text" name="po" placeholder="PO No." title="Purchase Order Number" value="${poValue}"></td>
+                        <td><input type="text" name="wicker" placeholder="Wicker No." title="Wicker Number" value="${product.artNo}"></td>
+                        <td><input type="number" name="qty" placeholder="0" title="Quantity" value="${product.qty}" onchange="calculateTotals()"></td>
+                        <td><input type="number" name="crates" placeholder="0" title="Number of Crates" onchange="calculateTotals()" value="${product.totalBoxes || ''}"></td>
+                        <td><input type="text" name="qtyPerCtn" placeholder="" title="Quantity per Carton" value="${product.qtyPerCtn || ''}"></td>
+                        <td><button type="button" onclick="deleteRow(this)" style="background: #dc3545; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px;">×</button></td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                
+                setTimeout(calculateTotals, 0);
+            }
+            // 如果没有订单记录，尝试使用orderLabelRecords
+            else if (data.orderLabelRecords && data.orderLabelRecords.length > 0) {
+                console.log('Using orderLabelRecords:', data.orderLabelRecords);
+                
+                data.orderLabelRecords.forEach(label => {
+                    const qty = label.totalQty || 0;
+                    const crates = label.totalBoxes || 0;
+                    const qtyPerCtn = label.qty || 0;
+                    
+                    const remainder = qty % qtyPerCtn;
+                    let displayQtyPerCtn;
+                    if (remainder === 0) {
+                        displayQtyPerCtn = qtyPerCtn;
+                    } else {
+                        const fullCrates = Math.floor(qty / qtyPerCtn);
+                        const remainderCrates = 1;
+                        displayQtyPerCtn = `${qtyPerCtn}*${fullCrates}/${remainder}*${remainderCrates}`;
+                    }
+                    
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td><input type="text" name="container" placeholder="40HC" title="Container Type"></td>
+                        <td><input type="text" name="po" placeholder="PO No." title="Purchase Order Number" value="${label.po || ''}"></td>
+                        <td><input type="text" name="wicker" placeholder="Wicker No." title="Wicker Number" value="${label.artNo || ''}"></td>
+                        <td><input type="number" name="qty" placeholder="0" title="Quantity" value="${qty}" onchange="calculateTotals()"></td>
+                        <td><input type="number" name="crates" placeholder="0" title="Number of Crates" value="${crates}" onchange="calculateTotals()"></td>
+                        <td><input type="text" name="qtyPerCtn" placeholder="0" title="Quantity per Carton" value="${displayQtyPerCtn}"></td>
+                        <td><button type="button" onclick="deleteRow(this)" style="background: #dc3545; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px;">×</button></td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                
+                setTimeout(calculateTotals, 0);
+            }
+            // 如果没有找到订单记录且没有标签记录，为每个订单号创建空行
+            else if (data.orderNo) {
+                console.log('No matching records found, creating empty rows for orderNo:', data.orderNo);
+                const orderNos = data.orderNo.split(',').map(s => s.trim()).filter(s => s);
+                
+                // 为每个订单号创建一行
+                orderNos.forEach((orderNo, index) => {
+                    console.log(`Creating row ${index + 1} for orderNo:`, orderNo);
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td><input type="text" name="container" placeholder="40HC" title="Container Type"></td>
+                        <td><input type="text" name="po" placeholder="PO No." title="Purchase Order Number" value="${orderNo}"></td>
+                        <td><input type="text" name="wicker" placeholder="Wicker No." title="Wicker Number"></td>
+                        <td><input type="number" name="qty" placeholder="0" title="Quantity" onchange="calculateTotals()"></td>
+                        <td><input type="number" name="crates" placeholder="0" title="Number of Crates" onchange="calculateTotals()"></td>
+                        <td><input type="number" name="qtyPerCtn" placeholder="0" title="Quantity per Carton"></td>
+                        <td><button type="button" onclick="deleteRow(this)" style="background: #dc3545; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px;">×</button></td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                console.log('Final tbody rows:', tbody.children.length);
+            }
+            
+            if (data.orderNo) {
+                document.getElementById('deliveryNoteNo').value = `DN-${data.orderNo.split(',')[0].trim()}`;
+            }
+            
+            setTimeout(autoFillTransportMode, 50);
+        }
+        
+        function loadDataFromStorage() {
+            const urlData = parseURLParams();
+            if (urlData) {
+                fillFormFromData(urlData);
+                return;
+            }
+            
+            const orderLabelsData = localStorage.getItem('orderLabelsData');
+            if (orderLabelsData) {
+                const data = JSON.parse(orderLabelsData);
+                if (data.length > 0) {
+                    const latestOrder = data[0];
+                    
+                    const shipperNameEl = document.getElementById('shipperName');
+                    if (shipperNameEl && latestOrder.company) shipperNameEl.value = latestOrder.company;
+                    
+                    const poEl = document.querySelector('input[name="po"]');
+                    if (poEl && latestOrder.po) poEl.value = latestOrder.po;
+                    
+                    const consigneeNameEl = document.getElementById('consigneeName');
+                    if (consigneeNameEl && latestOrder.customer) consigneeNameEl.value = latestOrder.customer;
+                    
+                    const wickerEl = document.querySelector('input[name="wicker"]');
+                    if (wickerEl && latestOrder.artNo) wickerEl.value = latestOrder.artNo;
+                }
+            }
+            
+            const exportData = localStorage.getItem('exportRecords');
+            if (exportData) {
+                const data = JSON.parse(exportData);
+                if (data.length > 0) {
+                    const latestExport = data[0];
+                    
+                    const consigneeNameEl = document.getElementById('consigneeName');
+                    if (consigneeNameEl && latestExport.customer) consigneeNameEl.value = latestExport.customer;
+                    
+                    const invoiceNoEl = document.getElementById('invoiceNo');
+                    if (invoiceNoEl && latestExport.shippingNo) invoiceNoEl.value = latestExport.shippingNo;
+                    
+                    const transportModeEl = document.getElementById('transportMode');
+                    if (transportModeEl && latestExport.transportMethod) {
+                        const translated = transportMethodTranslations[latestExport.transportMethod];
+                        transportModeEl.value = translated || latestExport.transportMethod;
+                    }
+                    
+                    const vesselVoyageEl = document.getElementById('vesselVoyage');
+                    if (vesselVoyageEl && latestExport.shipName) vesselVoyageEl.value = latestExport.shipName;
+                    
+                    const containerNoEl = document.getElementById('containerNo');
+                    if (containerNoEl && latestExport.containerNo) containerNoEl.value = latestExport.containerNo;
+                    
+                    const billNoEl = document.getElementById('billNo');
+                    if (billNoEl && latestExport.billNo) billNoEl.value = latestExport.billNo;
+                    
+                    const containerLoadingDateEl = document.getElementById('containerLoadingDate');
+                    if (containerLoadingDateEl && latestExport.exportDate) containerLoadingDateEl.value = latestExport.exportDate;
+                    
+                    const polEl = document.getElementById('pol');
+                    if (polEl && latestExport.pol) polEl.value = latestExport.pol;
+                    
+                    const podEl = document.getElementById('pod');
+                    if (podEl && latestExport.pod) podEl.value = latestExport.pod;
+                }
+            }
+        }
+        
+        function saveDataToStorage() {
+            const formData = {
+                deliveryNoteNo: document.getElementById('deliveryNoteNo').value,
+                invoiceNo: document.getElementById('invoiceNo').value,
+                shipperName: document.getElementById('shipperName').value,
+                shipperAddress: document.getElementById('shipperAddress').value,
+                shipperEmail: document.getElementById('shipperEmail').value,
+                consigneeName: document.getElementById('consigneeName').value,
+                consigneeAddress: document.getElementById('consigneeAddress').value,
+                consigneeAttn: document.getElementById('consigneeAttn').value,
+                consigneePhone: document.getElementById('consigneePhone').value,
+                consigneeEmail: document.getElementById('consigneeEmail').value,
+                transportMode: document.getElementById('transportMode').value,
+                containerType: document.getElementById('containerType').value,
+                pol: document.getElementById('pol').value,
+                pod: document.getElementById('pod').value,
+                vesselVoyage: document.getElementById('vesselVoyage').value,
+                containerNo: document.getElementById('containerNo').value,
+                sealNo: document.getElementById('sealNo').value,
+                billNo: document.getElementById('billNo').value,
+                remarks: document.getElementById('remarks').value,
+                preparedBy: document.getElementById('preparedBy').value,
+                preparedTitle: document.getElementById('preparedTitle').value,
+                preparedDate: document.getElementById('preparedDate').value,
+                contactEmail: document.getElementById('contactEmail').textContent || '',
+                updateDate: new Date().toISOString()
+            };
+            
+            let savedRecords = JSON.parse(localStorage.getItem('deliveryNoticeRecords') || '[]');
+            savedRecords.unshift(formData);
+            savedRecords = savedRecords.slice(0, 100);
+            localStorage.setItem('deliveryNoticeRecords', JSON.stringify(savedRecords));
+            
+            alert('Delivery Notice saved successfully!');
+        }
+        
+        function clearAllFields() {
+            // 保存自动设置的值
+            const deliveryNoteNo = document.getElementById('deliveryNoteNo')?.value;
+            const shipperName = document.getElementById('shipperName')?.value;
+            const shipperAddress = document.getElementById('shipperAddress')?.value;
+            const shipperEmail = document.getElementById('shipperEmail')?.value;
+            const pol = document.getElementById('pol')?.value;
+            const preparedBy = document.getElementById('preparedBy')?.value;
+            const transportMode = document.getElementById('transportMode')?.value || 'By sea'; // 保存运输方式，默认By sea
+            
+            document.querySelectorAll('.input-field').forEach(input => {
+                input.value = '';
+            });
+            
+            document.querySelectorAll('#cargoTableBody input').forEach(input => {
+                input.value = '';
+            });
+            
+            document.getElementById('remarks').value = '';
+            
+            document.getElementById('totalQty').value = '';
+            document.getElementById('totalCrates').value = '';
+            
+            // 恢复自动设置的值
+            if (deliveryNoteNo) {
+                document.getElementById('deliveryNoteNo').value = deliveryNoteNo;
+            }
+            if (shipperName) {
+                document.getElementById('shipperName').value = shipperName;
+            }
+            if (shipperAddress) {
+                document.getElementById('shipperAddress').value = shipperAddress;
+            }
+            if (shipperEmail) {
+                document.getElementById('shipperEmail').value = shipperEmail;
+            }
+            if (pol) {
+                document.getElementById('pol').value = pol;
+            }
+            if (preparedBy) {
+                const preparedByInput = document.getElementById('preparedBy');
+                preparedByInput.value = preparedBy;
+                preparedByInput.classList.add('handwriting-font');
+            }
+            // 恢复运输方式
+            document.getElementById('transportMode').value = transportMode;
+        }
+        
+        function generateDeliveryNoteNo() {
+            const now = new Date();
+            const dateStr = now.getFullYear() + 
+                          String(now.getMonth() + 1).padStart(2, '0') + 
+                          String(now.getDate()).padStart(2, '0');
+            const random3Digit = Math.floor(100 + Math.random() * 900);
+            return `LORI-DN-${dateStr}-${random3Digit}`;
+        }
+        
+        function prepareDateFieldsForPrint() {
+            const dateFields = document.querySelectorAll('.date-print-field');
+            dateFields.forEach(field => {
+                const textSpan = field.nextElementSibling;
+                if (textSpan && textSpan.classList.contains('date-print-text')) {
+                    if (field.value) {
+                        const dateValue = new Date(field.value);
+                        const formattedDate = formatDateForPrint(dateValue);
+                        textSpan.textContent = formattedDate;
+                    } else {
+                        textSpan.textContent = '';
+                    }
+                }
+            });
+        }
+        
+        function formatDateForPrint(date) {
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const day = date.getDate();
+            const month = months[date.getMonth()];
+            const year = date.getFullYear();
+            return `${day} ${month} ${year}`;
+        }
+        
+        function restoreDateFieldsAfterPrint() {
+            const textSpans = document.querySelectorAll('.date-print-text');
+            textSpans.forEach(span => {
+                span.textContent = '';
+            });
+        }
+        
+        // Override window.print to prepare and restore date fields
+        const originalPrint = window.print;
+        window.print = function() {
+            prepareDateFieldsForPrint();
+            originalPrint.call(window, window);
+            // Restore after print dialog closes (timeout handles both print and cancel)
+            setTimeout(restoreDateFieldsAfterPrint, 100);
+        };
+        
+        // Also handle afterprint event for better compatibility
+        window.addEventListener('afterprint', restoreDateFieldsAfterPrint);
+        
+        const transportMethodTranslations = {
+            '海运': 'By sea',
+            '空运': 'By air',
+            '陆运': 'By sea',
+            '海运整柜': 'By sea',
+            '海运拼箱': 'By sea',
+            '快递': 'By air',
+            '铁路': 'Rail Transport'
+        };
+        
+        function getTransportModeFromOrderRecords(orderNo) {
+            if (!orderNo) return '';
+            
+            const orderRecords = JSON.parse(localStorage.orderRecords || '[]');
+            console.log('Searching for orderNo:', orderNo, 'Total records:', orderRecords.length);
+            
+            const record = orderRecords.find(r => {
+                const recordOrderNo = r.orderNo ? String(r.orderNo) : '';
+                return recordOrderNo.includes(String(orderNo));
+            });
+            
+            if (record) {
+                console.log('Found record:', record);
+            } else {
+                console.log('No record found for orderNo:', orderNo);
+                console.log('Available orderNos:', orderRecords.map(r => r.orderNo).slice(0, 10));
+            }
+            
+            if (record && record.transportMethod) {
+                const translated = transportMethodTranslations[record.transportMethod];
+                console.log('Transport method:', record.transportMethod, '-> Translated:', translated);
+                return translated || record.transportMethod;
+            }
+            return '';
+        }
+        
+        function autoFillTransportMode() {
+            const poInputs = document.querySelectorAll('input[name="po"]');
+            const transportModeInput = document.getElementById('transportMode');
+            
+            console.log('autoFillTransportMode called, transportModeInput:', transportModeInput);
+            
+            if (!transportModeInput) {
+                console.error('transportModeInput not found');
+                return;
+            }
+            
+            if (transportModeInput.dataset.manualModified === 'true') {
+                console.log('Manual modified, skipping auto fill');
+                return;
+            }
+            
+            let allOrderNos = [];
+            poInputs.forEach(input => {
+                const value = input.value.trim();
+                console.log('PO input value:', value);
+                if (value) {
+                    const orderNos = value.split(',').map(no => no.trim()).filter(no => no);
+                    allOrderNos = allOrderNos.concat(orderNos);
+                }
+            });
+            
+            console.log('All order numbers:', allOrderNos);
+            
+            if (allOrderNos.length === 0) {
+                console.log('No order numbers found');
+                return;
+            }
+            
+            let transportMode = '';
+            for (const orderNo of allOrderNos) {
+                transportMode = getTransportModeFromOrderRecords(orderNo);
+                if (transportMode) {
+                    break;
+                }
+            }
+            
+            if (transportMode) {
+                console.log('Setting transportMode to:', transportMode);
+                transportModeInput.value = transportMode;
+            } else {
+                console.log('No transport mode found for any order number');
+            }
+        }
+        
+        function setupTransportModeAutoFill() {
+            const poInputs = document.querySelectorAll('input[name="po"]');
+            const transportModeInput = document.getElementById('transportMode');
+            
+            poInputs.forEach(input => {
+                input.addEventListener('input', function() {
+                    if (transportModeInput.dataset.manualModified !== 'true') {
+                        autoFillTransportMode();
+                    }
+                });
+            });
+            
+            transportModeInput.addEventListener('input', function() {
+                this.dataset.manualModified = 'true';
+            });
+            
+            const cargoTableBody = document.getElementById('cargoTableBody');
+            if (cargoTableBody) {
+                cargoTableBody.addEventListener('input', function(e) {
+                    if (e.target.name === 'po') {
+                        if (transportModeInput.dataset.manualModified !== 'true') {
+                            autoFillTransportMode();
+                        }
+                    }
+                });
+            }
+        }
+        
+        // 照片处理函数
+        function allowDrop(ev) {
+            ev.preventDefault();
+        }
+        
+        function drop(ev) {
+            ev.preventDefault();
+            const cellId = ev.target.closest('.photo-cell').id;
+            const files = ev.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelect({ target: { files: files } }, cellId);
+            }
+        }
+        
+        function triggerFileInput(cellId) {
+            const inputId = cellId.replace('Cell', 'Input');
+            document.getElementById(inputId).click();
+        }
+        
+        function handleFileSelect(event, cellId) {
+            const file = event.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    displayPhoto(cellId, e.target.result);
+                    savePhotoToStorage(cellId, e.target.result);
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+        
+        function displayPhoto(cellId, imageSrc) {
+            const cell = document.getElementById(cellId);
+            const placeholder = cell.querySelector('.photo-placeholder');
+            const removeBtn = cell.querySelector('.photo-remove-btn');
+            
+            // 移除旧的图片
+            const existingImg = cell.querySelector('img');
+            if (existingImg) {
+                existingImg.remove();
+            }
+            
+            // 添加新图片
+            const img = document.createElement('img');
+            img.src = imageSrc;
+            cell.insertBefore(img, placeholder);
+            
+            // 隐藏占位符，显示删除按钮
+            placeholder.style.display = 'none';
+            removeBtn.style.display = 'block';
+        }
+        
+        function removePhoto(cellId) {
+            const cell = document.getElementById(cellId);
+            const placeholder = cell.querySelector('.photo-placeholder');
+            const removeBtn = cell.querySelector('.photo-remove-btn');
+            const inputId = cellId.replace('Cell', 'Input');
+            const input = document.getElementById(inputId);
+            
+            // 移除图片
+            const img = cell.querySelector('img');
+            if (img) {
+                img.remove();
+            }
+            
+            // 显示占位符，隐藏删除按钮
+            placeholder.style.display = 'flex';
+            removeBtn.style.display = 'none';
+            
+            // 清空输入框
+            input.value = '';
+            
+            // 从存储中删除
+            removePhotoFromStorage(cellId);
+        }
+        
+        function savePhotoToStorage(cellId, imageSrc) {
+            const photos = JSON.parse(localStorage.getItem('deliveryNoticePhotos') || '{}');
+            photos[cellId] = imageSrc;
+            localStorage.setItem('deliveryNoticePhotos', JSON.stringify(photos));
+        }
+        
+        function removePhotoFromStorage(cellId) {
+            const photos = JSON.parse(localStorage.getItem('deliveryNoticePhotos') || '{}');
+            delete photos[cellId];
+            localStorage.setItem('deliveryNoticePhotos', JSON.stringify(photos));
+        }
+        
+        function loadPhotosFromStorage() {
+            const photos = JSON.parse(localStorage.getItem('deliveryNoticePhotos') || '{}');
+            for (const cellId in photos) {
+                if (photos.hasOwnProperty(cellId)) {
+                    displayPhoto(cellId, photos[cellId]);
+                }
+            }
+        }
+        
+        function clearPhotos() {
+            localStorage.removeItem('deliveryNoticePhotos');
+            for (let i = 1; i <= 4; i++) {
+                removePhoto('photoCell' + i);
+            }
+        }
+        
+        // 修改clearAllFields函数，添加清除照片
+        function clearAllFields() {
+            // 保存运输方式的值
+            const transportMode = document.getElementById('transportMode')?.value || 'By sea';
+            
+            const inputs = document.querySelectorAll('input, textarea');
+            inputs.forEach(input => {
+                if (input.type !== 'file' && !input.readOnly) {
+                    input.value = '';
+                }
+            });
+            
+            // 清除照片
+            clearPhotos();
+            
+            // 清除localStorage数据
+            localStorage.removeItem('deliveryNoticeData');
+            
+            // 恢复运输方式默认值
+            document.getElementById('transportMode').value = transportMode;
+        }
+        
+        // 设置页脚日期
+        function setPageFooter() {
+            const now = new Date();
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const day = now.getDate();
+            const month = months[now.getMonth()];
+            const year = now.getFullYear();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            
+            const formattedDate = `${day} ${month} ${year} ${hours}:${minutes}`;
+            
+            // 设置日期到页脚元素
+            document.querySelectorAll('.page-date').forEach(el => {
+                el.textContent = formattedDate;
+            });
+            
+            // 添加调试日志
+            console.log('=== 页脚调试信息 ===');
+            console.log('打印日期:', formattedDate);
+            console.log('页脚元素数量:', document.querySelectorAll('.page-footer').length);
+            
+            // 调试每个页脚的位置
+            document.querySelectorAll('.page-footer').forEach((footer, index) => {
+                const parent = footer.parentElement;
+                console.log(`第${index + 1}页页脚: 父元素=${parent.className}, 父元素position=${window.getComputedStyle(parent).position}`);
+                console.log(`第${index + 1}页页脚: position=${window.getComputedStyle(footer).position}, bottom=${window.getComputedStyle(footer).bottom}`);
+            });
+        }
+        
+        // 添加更多照片页面
+        function addPhotoPage() {
+            // 计算当前总页数
+            const allFooters = document.querySelectorAll('.page-footer');
+            const totalPages = allFooters.length;
+            const newPageNumber = totalPages + 1;
+            
+            // 创建新的页面容器
+            const newPage = document.createElement('div');
+            newPage.style.cssText = 'page-break-before: always;';
+            
+            // 创建新的页脚
+            const newFooter = document.createElement('div');
+            newFooter.className = 'page-footer';
+            newFooter.style.cssText = 'position: absolute; bottom: 10px; right: 20px; background: white; padding: 3px 8px; border: 1px solid #ddd;';
+            newFooter.innerHTML = `
+                <span class="page-number">Page ${newPageNumber} of ${newPageNumber}</span>
+                <span class="page-date">${document.querySelector('.page-date')?.textContent || ''}</span>
+            `;
+            
+            // 创建新的按钮
+            const newButton = document.createElement('button');
+            newButton.type = 'button';
+            newButton.onclick = addPhotoPage;
+            newButton.style.cssText = 'position: absolute; bottom: 10px; left: 20px; background: #198754; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px; font-size: 12px;';
+            newButton.textContent = '+ Add Photo Page';
+            
+            // 创建新的容器
+            const newContainer = document.createElement('div');
+            newContainer.className = 'container page' + newPageNumber + '-container';
+            newContainer.style.cssText = 'position: relative; min-height: calc(100vh - 50px); padding-bottom: 50px;';
+            
+            // 创建标题
+            const newTitle = document.createElement('h2');
+            newTitle.style.cssText = 'text-align: center; font-size: 16px; margin-bottom: 10px; color: #2c3e50;';
+            newTitle.textContent = 'Container Loading Photos (Page ' + newPageNumber + ')';
+            
+            // 创建照片网格
+            const newGrid = document.createElement('div');
+            newGrid.className = 'photo-grid';
+            newGrid.style.cssText = 'gap: 8px; display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); flex: 1;';
+            
+            // 创建4个照片单元格
+            for (let i = 1; i <= 4; i++) {
+                const photoCell = document.createElement('div');
+                photoCell.className = 'photo-cell';
+                photoCell.id = 'photoCell' + newPageNumber + '_' + i;
+                photoCell.ondrop = drop;
+                photoCell.ondragover = allowDrop;
+                photoCell.style.cssText = 'border: 1px dashed #ccc; display: flex; align-items: center; justify-content: center; background-color: #fafafa; min-height: 150px;';
+                
+                const placeholder = document.createElement('div');
+                placeholder.className = 'photo-placeholder';
+                placeholder.onclick = function() { triggerFileInput(photoCell.id); };
+                placeholder.style.cssText = 'text-align: center; cursor: pointer; padding: 10px;';
+                
+                const icon = document.createElement('span');
+                icon.className = 'photo-icon';
+                icon.style.cssText = 'font-size: 24px; display: block; margin-bottom: 5px;';
+                icon.textContent = '📷';
+                
+                const text = document.createElement('span');
+                text.className = 'photo-text';
+                text.style.cssText = 'font-size: 11px; color: #666;';
+                text.textContent = 'Drag photo here';
+                
+                placeholder.appendChild(icon);
+                placeholder.appendChild(text);
+                photoCell.appendChild(placeholder);
+                
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.className = 'photo-input';
+                fileInput.accept = 'image/*';
+                fileInput.id = 'photoInput' + newPageNumber + '_' + i;
+                fileInput.style.display = 'none';
+                fileInput.onchange = function(event) { handleFileSelect(event, photoCell.id); };
+                photoCell.appendChild(fileInput);
+                
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'photo-remove-btn';
+                removeBtn.onclick = function() { removePhoto(photoCell.id); };
+                removeBtn.textContent = '×';
+                removeBtn.style.cssText = 'position: absolute; top: 5px; right: 5px; background: rgba(255, 0, 0, 0.7); color: white; border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; display: none;';
+                photoCell.appendChild(removeBtn);
+                
+                newGrid.appendChild(photoCell);
+            }
+            
+            // 组装页面
+            newContainer.appendChild(newTitle);
+            newContainer.appendChild(newGrid);
+            newContainer.appendChild(newFooter);
+            newContainer.appendChild(newButton);
+            newPage.appendChild(newContainer);
+            
+            // 插入到body的最后（在script标签之前）
+            const scriptTag = document.querySelector('script');
+            if (scriptTag) {
+                scriptTag.parentNode.insertBefore(newPage, scriptTag);
+            }
+            
+            // 更新所有页面的页码
+            updatePageNumbers();
+            
+            // 重新绑定拖放事件
+            setupDragAndDrop();
+        }
+        
+        // 更新所有页面的页码
+        function updatePageNumbers() {
+            const allFooters = document.querySelectorAll('.page-footer');
+            const totalPages = allFooters.length;
+            
+            allFooters.forEach((footer, index) => {
+                const pageNumSpan = footer.querySelector('.page-number');
+                if (pageNumSpan) {
+                    pageNumSpan.textContent = 'Page ' + (index + 1) + ' of ' + totalPages;
+                }
+                // 更新日期（如果有）
+                const dateSpan = footer.querySelector('.page-date');
+                if (dateSpan && dateSpan.textContent === '') {
+                    const firstDate = document.querySelector('.page-date');
+                    if (firstDate) {
+                        dateSpan.textContent = firstDate.textContent;
+                    }
+                }
+            });
+        }
+        
+        // 删除最后一个照片页面
+        function removePhotoPage() {
+            // 获取所有页面容器
+            const pageContainers = document.querySelectorAll('[style*="page-break-before: always"]');
+            
+            // 计算当前照片页数量（第1页是Delivery Notice，所以从第2个开始算照片页）
+            const photoPages = pageContainers.length;
+            
+            if (photoPages === 0) {
+                alert('No photo page to remove.');
+                return;
+            }
+            
+            // 确认删除
+            if (!confirm('Remove the last photo page?')) {
+                return;
+            }
+            
+            // 删除最后一个照片页面
+            const lastPhotoPage = pageContainers[pageContainers.length - 1];
+            lastPhotoPage.remove();
+            
+            // 更新页码
+            updatePageNumbers();
+        }
+        
+        window.onload = function() {
+            clearAllFields();
+            
+            // 设置编号1的输入框为自动生成的格式
+            const deliveryNoteNoInput = document.getElementById('deliveryNoteNo');
+            deliveryNoteNoInput.value = generateDeliveryNoteNo();
+            
+            // 设置编号3的输入框值
+            const shipperNameInput = document.getElementById('shipperName');
+            shipperNameInput.value = 'WUXI TIANLIANG FOREIGN TRADE CO.,LTD';
+            
+            // 设置编号4的输入框值
+            const shipperAddressInput = document.getElementById('shipperAddress');
+            shipperAddressInput.value = 'ROOM 605,XINGSHENG BUILDING\nNO 900,JIEFANG EAST ROAD,WUXI JIANGSU CHINA';
+            
+            // 设置编号5的输入框值
+            const shipperEmailInput = document.getElementById('shipperEmail');
+            shipperEmailInput.value = 'anny@rhssjx.com';
+            
+            // 设置编号13的输入框值 (Port of Loading)
+            const polInput = document.getElementById('pol');
+            polInput.value = 'Shanghai, China';
+            
+            // 设置运输方式默认值为 By sea
+            const transportModeInput = document.getElementById('transportMode');
+            transportModeInput.value = 'By sea';
+            
+            // 设置Prepared by输入框值并使用手签体
+            const preparedByInput = document.getElementById('preparedBy');
+            preparedByInput.value = 'Alonzhang';
+            preparedByInput.classList.add('handwriting-font');
+            
+            // 设置Title输入框值
+            const preparedTitleInput = document.getElementById('preparedTitle');
+            preparedTitleInput.value = 'Logistics manager';
+            
+            // 设置Date输入框值为动态今日日期
+            const preparedDateInput = document.getElementById('preparedDate');
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            preparedDateInput.value = `${yyyy}-${mm}-${dd}`;
+            
+            // 设置Container Loading日期为今天
+            const containerLoadingDateInput = document.getElementById('containerLoadingDate');
+            containerLoadingDateInput.value = `${yyyy}-${mm}-${dd}`;
+            
+            // 设置Wickets ready日期为Container Loading日期早1周
+            updateWicketsReadyDate();
+            
+            // 监听Container Loading日期变化，自动更新Wickets ready日期
+            containerLoadingDateInput.addEventListener('change', updateWicketsReadyDate);
+            
+            // Update the print text immediately
+            const preparedDateText = document.getElementById('preparedDateText');
+            if (preparedDateText && preparedDateInput.value) {
+                const dateValue = new Date(preparedDateInput.value);
+                const formattedDate = formatDateForPrint(dateValue);
+                preparedDateText.textContent = formattedDate;
+            }
+            
+            // 设置Contact Email输入框值
+            const contactEmailInput = document.getElementById('contactEmail');
+            contactEmailInput.value = 'anny@rhssjx.com';
+            
+            // 设置HS Code & Country of Origin输入框值
+            const hsCodeOriginInput = document.getElementById('hsCodeOrigin');
+            hsCodeOriginInput.value = '8417.9090.90(Chinese HSCODE) MADE IN CHINA';
+            
+            document.querySelectorAll('.input-field').forEach(input => {
+                input.addEventListener('change', function() {
+                    // Update print text for date fields
+                    if (this.classList.contains('date-print-field')) {
+                        const textSpan = this.nextElementSibling;
+                        if (textSpan && textSpan.classList.contains('date-print-text')) {
+                            if (this.value) {
+                                const dateValue = new Date(this.value);
+                                const formattedDate = formatDateForPrint(dateValue);
+                                textSpan.textContent = formattedDate;
+                            } else {
+                                textSpan.textContent = '';
+                            }
+                        }
+                    }
+                    saveDataToStorage();
+                });
+            });
+            
+            // 邮箱同步：当Shipper Email改变时，自动更新Contact Email
+            document.getElementById('shipperEmail').addEventListener('change', function() {
+                document.getElementById('contactEmail').textContent = this.value;
+                saveDataToStorage();
+            });
+            
+            document.querySelectorAll('input[name="qty"], input[name="crates"]').forEach(input => {
+                input.addEventListener('change', saveDataToStorage);
+            });
+            
+            document.getElementById('remarks').addEventListener('change', saveDataToStorage);
+            
+            // 加载URL参数或本地存储的数据
+            loadDataFromStorage();   
+
+            // 加载照片
+            loadPhotosFromStorage();
+            
+            // 设置运输方式自动填充
+            setupTransportModeAutoFill();
+            
+            // 如果有订单号，自动填充运输方式
+            setTimeout(autoFillTransportMode, 100);
+            
+            // 设置页脚日期
+            setPageFooter();
+        };
+    </script>
+</body>
+</html>

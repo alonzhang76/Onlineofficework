@@ -23,7 +23,7 @@
     {
       "id": "clothing",
       "name": "服装管理",
-      "description": "服装业务管理系统",
+      "description": "服装全流程系统",
       "url": "apps/clothing/index.html",
       "icon": "👕",
       "color": "#ec4899",
@@ -41,20 +41,20 @@
       "sort_order": 1
     },
     {
-      "id": "app3",
-      "name": "应用三",
-      "description": "炉架业务应用三",
-      "url": "apps/app3/index.html",
+      "id": "wicketorders",
+      "name": "炉架订单管理",
+      "description": "炉架订单全流程系统",
+      "url": "apps/wicketorders/index.html",
       "icon": "📈",
       "color": "#10b981",
       "category": "furnace",
       "sort_order": 2
     },
     {
-      "id": "app4",
-      "name": "应用四",
-      "description": "炉架业务应用四",
-      "url": "apps/app4/index.html",
+      "id": "purchase",
+      "name": "采购管理",
+      "description": "采购合同发票付款系统",
+      "url": "apps/purchase/index.html",
       "icon": "🎯",
       "color": "#ef4444",
       "category": "furnace",

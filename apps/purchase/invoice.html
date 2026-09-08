@@ -1,0 +1,2958 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>发票管理系统</title>
+    <style>
+        /* 全局样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Microsoft YaHei', sans-serif;
+        }
+
+        body {
+            background: #ffffff;
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* 头部样式 */
+        .header {
+            background: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 15px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+        }
+
+        .header .title {
+            font-size: 22px;
+            font-weight: bold;
+            color: #333333;
+            letter-spacing: 1px;
+        }
+
+        .header .company-select {
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.9);
+            font-size: 14px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .header .company-select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .header .current-company {
+            color: white;
+            background-color: #2567E9;
+            padding: 8px 15px;
+            border-radius: 20px;
+            margin-left: 15px;
+            display: inline-block;
+            font-weight: bold;
+            box-shadow: 0 3px 10px rgba(7, 207, 204, 0.3);
+            animation: pulse 2s infinite;
+        }
+
+        .edit-btn {
+            color: #2567E9;
+            background-color: transparent;
+            padding: 6px 10px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-right: 8px;
+            font-weight: 500;
+            box-shadow: none;
+            transition: all 0.3s ease;
+        }
+
+        .edit-btn:hover {
+            background-color: rgba(103, 194, 58, 0.1);
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(103, 194, 58, 0.2);
+        }
+
+        .edit-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 1px 3px rgba(103, 194, 58, 0.3);
+        }
+
+        .backup-btn {
+            color: white;
+            background-color: #2567E9;
+            padding: 6px 14px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-right: 8px;
+            font-weight: 500;
+            box-shadow: 0 2px 8px rgba(7, 207, 204, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .backup-btn:hover {
+            background-color: #2567E9;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(7, 207, 204, 0.5);
+        }
+
+        .backup-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 5px rgba(7, 207, 204, 0.3);
+        }
+
+        .restore-btn {
+            color: white;
+            background-color: #FF9800;
+            padding: 6px 14px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-right: 8px;
+            font-weight: 500;
+            box-shadow: 0 2px 8px rgba(255, 152, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .restore-btn:hover {
+            background-color: #ffb74d;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(255, 152, 0, 0.5);
+        }
+
+        .restore-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 5px rgba(255, 152, 0, 0.3);
+        }
+
+        /* 下拉菜单样式 */
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .dropdown-btn {
+            color: white;
+            background-color: #6c757d;
+            padding: 6px 14px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            box-shadow: 0 2px 8px rgba(108, 117, 125, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .dropdown-btn:hover {
+            background-color: #5a6268;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(108, 117, 125, 0.5);
+        }
+
+        .dropdown-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 5px rgba(108, 117, 125, 0.3);
+        }
+
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            right: 0;
+            background-color: white;
+            min-width: 150px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            z-index: 1000;
+            overflow: hidden;
+        }
+
+        .dropdown-item {
+            color: #333;
+            background-color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 0;
+            cursor: pointer;
+            width: 100%;
+            text-align: left;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .dropdown-item:hover {
+            background-color: #f5f5f5;
+        }
+
+        .dropdown-item:active {
+            background-color: #e0e0e0;
+        }
+
+        .delete-btn {
+            color: #333;
+            background-color: transparent;
+            padding: 6px 10px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            box-shadow: none;
+            transition: all 0.3s ease;
+        }
+
+        .delete-btn:hover {
+            background-color: rgba(245, 108, 108, 0.1);
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(245, 108, 108, 0.2);
+        }
+
+        .delete-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 1px 3px rgba(245, 108, 108, 0.3);
+        }
+
+        /* 状态徽章样式 */
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .status-badge:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        /* 待认证状态 */
+        .status-pending {
+            background-color: orange;
+        }
+
+        /* 已认证状态 */
+        .status-approved {
+            background-color: #67c23a;
+        }
+
+        /* 已驳回状态 */
+        .status-rejected {
+            background-color: #ff4444;
+        }
+
+        /* 已完成状态 */
+        .status-completed {
+            background-color: green;
+        }
+
+        /* 已开具状态 */
+        .status-issued {
+            background-color: #67c23a;
+        }
+
+        /* 记事本样式 */
+        .notepad-container {
+            margin-top: 20px;
+            background-color: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .notepad-container:hover {
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        #notepadContent {
+            width: 100%;
+            height: 400px;
+            padding: 20px;
+            font-size: 15px;
+            border: 2px solid #e4e7ed;
+            border-radius: 8px;
+            resize: vertical;
+            font-family: 'Microsoft Yahei', Arial, sans-serif;
+            line-height: 1.8;
+            background-color: #fafafa;
+            transition: all 0.3s ease;
+        }
+
+        #notepadContent:focus {
+            outline: none;
+            border-color: #667eea;
+            background-color: white;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .notepad-buttons {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        /* 已作废状态 */
+        .status-cancelled {
+            background-color: #ff4444;
+            color: white;
+        }
+
+        /* 合计行样式 */
+        .total-row {
+            background-color: #303133;
+            font-weight: bold;
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        /* 表格行悬停效果 */
+        table tr:hover {
+            background-color: rgba(102, 126, 234, 0.1);
+            transition: background-color 0.3s ease;
+        }
+
+        /* 搜索结果动画 */
+        .search-result-item:hover {
+            background-color: #2567E9;
+            color: white;
+        }
+
+        /* 脉冲动画 */
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(7, 207, 204, 0.4);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(7, 207, 204, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(7, 207, 204, 0);
+            }
+        }
+
+        /* 税差正负样式 */
+        .tax-positive {
+            background-color: #ff4444;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 15px;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(255, 68, 68, 0.3);
+        }
+        
+        .tax-negative {
+            background-color: #67c23a;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 15px;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(103, 194, 58, 0.3);
+        }
+
+        /* 抖动动画 */
+        @keyframes shake {
+            0%, 100% {
+                transform: translateX(0);
+            }
+            10%, 30%, 50%, 70%, 90% {
+                transform: translateX(-5px);
+            }
+            20%, 40%, 60%, 80% {
+                transform: translateX(5px);
+            }
+        }
+        
+        /* 模糊搜索样式 */
+        .search-container {
+            position: relative;
+            margin-bottom: 20px;
+        }
+        
+        .search-container input {
+            width: 100%;
+            padding: 10px 16px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            font-size: 14px;
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .search-container input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .search-results {
+            position: absolute;
+            top: 110%;
+            left: 0;
+            right: 0;
+            background-color: white;
+            border: 1px solid #e4e7ed;
+            max-height: 250px;
+            overflow-y: auto;
+            z-index: 1000;
+            border-radius: 10px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+        }
+        
+        .search-result-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
+        
+        .search-result-item:hover {
+            background-color: #f5f5f5;
+        }
+
+        .header .notifications {
+            display: flex;
+            gap: 15px;
+        }
+
+        /* 主体容器 */
+        .container {
+            display: flex;
+            height: calc(100vh - 75px);
+            background-color: rgba(255, 255, 255, 0.95);
+            margin: 0 10px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            animation: slideUp 0.5s ease-out;
+        }
+
+        /* 页面容器动画 */
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* 左侧导航栏 */
+        .sidebar {
+            width: 200px;
+            background-color: #303133;
+            border-right: 1px solid #4f5962;
+            padding: 20px;
+        }
+
+        .sidebar .nav-item {
+            display: block;
+            padding: 12px 18px;
+            margin-bottom: 8px;
+            border: none;
+            background-color: #40444a;
+            color: #c0c4cc;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
+            text-align: left;
+            transition: all 0.3s ease;
+            transform: translateX(0);
+        }
+
+        .sidebar .nav-item:hover {
+            background-color: #2567E9;
+            color: #fff;
+            transform: translateX(8px);
+            box-shadow: 0 4px 12px rgba(7, 207, 204, 0.3);
+        }
+
+        .sidebar .nav-item.active {
+            background-color: #2567E9;
+            color: #fff;
+            transform: translateX(12px);
+            box-shadow: 0 5px 15px rgba(7, 207, 204, 0.4);
+            border-left: 4px solid #fff;
+        }
+
+        /* 右侧内容区 */
+        .main-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        /* 页面样式 */
+        .page {
+            display: none;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        /* 页面淡入动画 */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* 激活页面显示 */
+        .page.active {
+            display: block;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        /* 页面标题 */
+        .page-title {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+
+        /* 搜索区域 */
+        .search-area {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1);
+        }
+
+        /* 表格容器 */
+        .table-container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1);
+            overflow-x: auto;
+            min-width: 1000px;
+        }
+
+        /* 表格样式 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            table-layout: auto;
+        }
+
+        table th,
+        table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #e4e7ed;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+
+        /* 税差计算表格样式 */
+        #taxCalcTable th,
+        #taxCalcTable td {
+            padding: 10px;
+            line-height: 1.8;
+        }
+        
+        /* 发票交接清单按钮样式 */
+        #taxCalcTable .btn-primary {
+            padding: 6px 12px;
+            font-size: 13px;
+            line-height: 1.5;
+            height: auto;
+            white-space: nowrap;
+        }
+
+        table th {
+            background-color: #f5f7fa;
+            font-weight: bold;
+        }
+
+        /* 按钮样式 */
+        button {
+            padding: 10px 20px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background: white;
+            border-color: rgba(255, 255, 255, 0.4);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transform: translateY(-1px);
+        }
+
+        /* 模态框中的按钮样式 */
+        .modal-content button {
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .modal-content .btn-primary {
+            background: #2567E9;
+            color: white;
+            border: none;
+            box-shadow: 0 4px 12px rgba(7, 207, 204, 0.2);
+        }
+        
+        .modal-content .btn-primary:hover {
+            background: #2567E9;
+            color: white;
+            box-shadow: 0 6px 20px rgba(37, 103, 233, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .modal-content button:not(.btn-primary) {
+            background: #2567E9;
+            color: white;
+            border: 2px solid #2567E9;
+        }
+        
+        .modal-content button:not(.btn-primary):hover {
+            background: #2567E9;
+            border-color: #2567E9;
+            color: white;
+            box-shadow: 0 6px 20px rgba(37, 103, 233, 0.3);
+            transform: translateY(-2px);
+        }
+
+        /* 页面中的主要按钮样式 */
+        .btn-primary {
+            background-color: transparent;
+            color: #2567E9;
+            border: 2px solid #2567E9;
+        }
+
+        .btn-primary:hover {
+            background-color: rgba(7, 207, 204, 0.1);
+            border-color: #2567E9;
+        }
+
+        /* 新增发票按钮的绿色样式 */
+        .btn-primary.btn-add {
+            background-color: #67c23a;
+            border-color: #67c23a;
+            color: white;
+        }
+
+        .btn-primary.btn-add:hover {
+            background-color: #85ce61;
+            border-color: #85ce61;
+            color: white;
+        }
+
+        .btn-danger {
+            background-color: #ff4444;
+            color: #fff;
+            border-color: #ff4444;
+        }
+
+        .btn-danger:hover {
+            background-color: #ff6666;
+        }
+
+        /* 模态框样式 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+
+        .modal.active {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 16px;
+            width: 80%;
+            max-width: 800px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            color: #333;
+            transition: all 0.3s ease;
+        }
+        
+        .modal-content h3 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            text-align: center;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            letter-spacing: 0.5px;
+        }
+        
+        .modal-content:hover {
+            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px);
+        }
+
+        /* 表单样式 */
+        form label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            opacity: 0.95;
+        }
+
+        form input,
+        form select {
+            width: 100%;
+            padding: 10px 16px;
+            margin-bottom: 15px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            font-size: 14px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        form input:focus, 
+        form select:focus {
+            outline: none;
+            border-color: rgba(7, 207, 204, 0.8);
+            background: white;
+            box-shadow: 0 0 0 3px rgba(7, 207, 204, 0.15);
+        }
+        
+        /* 表单行布局 - 确保三个字段在同一行 */
+        .form-row {
+            display: flex !important;
+            flex-direction: row !important;
+            justify-content: space-between !important;
+            gap: 15px !important;
+            margin-bottom: 25px !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+            flex-wrap: nowrap !important;
+        }
+        
+        .form-group {
+            flex: 0 0 32% !important;
+            max-width: 32% !important;
+            min-width: 32% !important;
+            box-sizing: border-box !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        
+        /* 确保表单行内的元素不会因为margin导致换行 */
+        #purchaseForm .form-row > .form-group,
+        #salesForm .form-row > .form-group {
+            margin-bottom: 0;
+        }
+        
+        #purchaseForm .form-row > .form-group > label,
+        #salesForm .form-row > .form-group > label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        #purchaseForm .form-row > .form-group > input,
+        #purchaseForm .form-row > .form-group > select,
+        #salesForm .form-row > .form-group > input,
+        #salesForm .form-row > .form-group > select {
+            margin-bottom: 0;
+        }
+        
+        /* 在表单行底部添加统一的间距 */
+        #purchaseForm .form-row,
+        #salesForm .form-row {
+            margin-bottom: 25px;
+            width: 100%;
+            overflow: hidden;
+        }
+        
+        /* 确保表单元素在所有容器中都能正确显示 */
+        .form-group input,
+        .form-group select,
+        .form-group label {
+            box-sizing: border-box;
+            width: 100%;
+        }
+        
+        /* 调整搜索容器和备注的样式 */
+        .search-container {
+            margin-bottom: 15px;
+            position: relative;
+        }
+        
+        .search-container input {
+            padding-right: 40px;
+        }
+        
+        textarea {
+            width: 100%;
+            padding: 10px 16px;
+            margin-bottom: 15px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            font-size: 14px;
+            resize: vertical;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        /* 基础输入控件样式 */
+        input,
+        select {
+            padding: 10px 16px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            font-size: 14px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        /* 所有输入控件的悬停效果 */
+        input:hover,
+        select:hover,
+        textarea:hover {
+            background: white;
+            border-color: rgba(255, 255, 255, 0.4);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            transform: translateY(-1px);
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: rgba(255, 255, 255, 0.5);
+            background: white;
+            box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+        }
+
+        /* 分页样式 */
+        .pagination {
+            margin-top: 20px;
+            display: flex;
+            justify-content: right;
+            gap: 5px;
+        }
+
+        .pagination button {
+            padding: 5px 10px;
+            border: 1px solid #dcdfe6;
+            border-radius: 4px;
+            cursor: pointer;
+            background-color: #fff;
+        }
+
+        .pagination button.active {
+            background-color: #2567E9;
+            color: white;
+        }
+
+        /* 统计信息 */
+        .statistics {
+            margin-bottom: 10px;
+            font-size: 14px;
+            color: #333;
+            background-color: #f0f2f5;
+            padding: 5px 10px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 头部 -->
+    <div class="header">
+            <div class="title">发票管理系统</div>
+            <div>
+                <select id="companySelect">
+                    <option value="company1">无锡龙力印铁设备制造有限公司</option>
+                    <option value="company2" selected>普利美（常州）环境工程科技有限公司</option>
+                </select>
+                <div id="currentCompany" class="current-company"></div>
+                <!-- 下拉菜单容器 -->
+                <div class="dropdown">
+                    <button class="dropdown-btn" onclick="toggleDropdown()"><i class="fa fa-database"></i> 数据管理</button>
+                    <div class="dropdown-content" id="dataDropdown">
+                        <button class="dropdown-item" onclick="backupData()"><i class="fa fa-download"></i> 备份数据</button>
+                        <button class="dropdown-item" onclick="restoreData()"><i class="fa fa-upload"></i> 恢复数据</button>
+                    </div>
+                </div>
+             </div>
+        </div>
+
+    <!-- 主体容器 -->
+    <div class="container">
+        <!-- 左侧导航栏 -->
+        <div class="sidebar">
+            <button class="nav-item active" data-page="purchase">进项发票</button>
+            <button class="nav-item" data-page="sales">销项发票</button>
+            <button class="nav-item" data-page="tax-calc">税差计算</button>
+            <button class="nav-item" data-page="todo">待办事项</button>
+            <button class="nav-item" data-page="notepad">记事本</button>
+            
+            <!-- 粗一点的白色凹进去的线条 -->
+            <div style="border-top: 3px solid #ffffff; box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.3); margin-top: 24px; margin-bottom: 8px;"></div>
+            
+            <!-- 快速链接文本 -->
+            <div style="color: #ffffff; font-size: 14px; font-weight: 500; padding: 4px 16px;">快速链接</div>
+            
+            <!-- 合同管理按钮 -->
+            <button class="nav-item" onclick="openIndexWindow()">合同管理</button>
+            
+            <script>
+            // 下拉菜单切换函数
+            function toggleDropdown() {
+                const dropdownContent = document.getElementById('dataDropdown');
+                dropdownContent.style.display = dropdownContent.style.display === 'block' ? 'none' : 'block';
+            }
+            
+            // 点击页面其他地方关闭下拉菜单
+            window.onclick = function(event) {
+                if (!event.target.matches('.dropdown-btn')) {
+                    const dropdowns = document.getElementsByClassName('dropdown-content');
+                    for (let i = 0; i < dropdowns.length; i++) {
+                        const openDropdown = dropdowns[i];
+                        if (openDropdown.style.display === 'block') {
+                            openDropdown.style.display = 'none';
+                        }
+                    }
+                }
+            }
+            
+            function openIndexWindow() {
+                // 尝试打开或聚焦到已存在的窗口
+                let indexWindow = window.open('index.html', 'index_window', 'noopener,noreferrer');
+                
+                // 如果窗口不存在（可能被阻止），则重新打开
+                if (!indexWindow || indexWindow.closed) {
+                    indexWindow = window.open('index.html', 'index_window', 'noopener,noreferrer');
+                } else {
+                    // 聚焦到已存在的窗口
+                    indexWindow.focus();
+                }
+            }
+            </script>
+        </div>
+
+        <!-- 右侧内容区 -->
+        <div class="main-content">
+            <!-- 进项发票页面 -->
+            <div id="purchasePage" class="page active">
+                <div class="page-title">
+                    进项发票管理
+                    <button class="btn-success" onclick="exportPurchaseExcel()" style="margin-left: 20px;"><i class="fa fa-file-excel-o"></i> 导出EXCEL</button>
+                <button class="btn-success" onclick="importPurchaseExcel()"><i class="fa fa-file-excel-o"></i> 导入EXCEL</button>
+                </div>
+                <div class="search-area">
+                    <div>
+                        <input type="text" id="purchaseSearch" placeholder="搜索发票信息..." oninput="searchPurchaseInvoices()">
+                        <input type="date" id="purchaseStartDate">
+                        <input type="date" id="purchaseEndDate">
+                        <select id="purchaseStatus">
+                            <option value="all">全部状态</option>
+                            <option value="pending">待认证</option>
+                            <option value="approved">已认证</option>
+                            <option value="rejected">已驳回</option>
+                        </select>
+                        <button class="btn-primary" onclick="resetPurchaseFilters()">重置</button>
+                        <button class="btn-primary" onclick="searchPurchaseInvoices()"><i class="fa fa-search"></i> 查询</button>
+                        <button class="btn-primary btn-add" onclick="openModal('purchaseModal')">+ 新增进项发票</button>
+                        <input type="file" id="purchaseExcelFile" accept=".xlsx,.xls" style="display: none;">
+                        <button class="btn-danger" onclick="clearPurchaseInvoices()">清空</button>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <div class="statistics">
+                        <span>记录条数：<span id="purchaseRecordCount">0</span></span>
+                        <span id="purchaseTaxDifference" style="margin-left: 20px;"></span>
+                    </div>
+                    <table id="purchaseTable">
+                        <thead>
+                            <tr>
+                                <th>录入日期</th>
+                                <th>发票日期</th>
+                                <th>发票号码</th>
+                                <th>供应商</th>
+                                <th>金额(含税)</th>
+                                <th>税率</th>
+                                <th>税额</th>
+                                <th>状态</th>
+                                <th>备注</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="purchaseTableBody">
+                            <!-- 数据将通过JavaScript填充 -->
+                        </tbody>
+                        <tfoot id="purchaseTableFooter">
+                            <!-- 合计行将通过JavaScript填充 -->
+                        </tfoot>
+                    </table>
+                    <div class="pagination">
+                        <button onclick="changePage('purchase', 'prev')">?</button>
+                        <button class="active" onclick="changePage('purchase', 1)">1</button>
+                        <button onclick="changePage('purchase', 'next')">?</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 销项发票页面 -->
+            <div id="salesPage" class="page">
+                <div class="page-title">
+                    销项发票管理
+                    <button class="btn-success" onclick="exportSalesExcel()" style="margin-left: 20px;"><i class="fa fa-file-excel-o"></i> 导出EXCEL</button>
+                <button class="btn-success" onclick="importSalesExcel()"><i class="fa fa-file-excel-o"></i> 导入EXCEL</button>
+                </div>
+                <div class="search-area">
+                    <div>
+                        <input type="text" id="salesSearch" placeholder="搜索发票信息..." oninput="searchSalesInvoices()">
+                        <input type="date" id="salesStartDate">
+                        <input type="date" id="salesEndDate">
+                        <select id="salesStatus">
+                            <option value="all">全部状态</option>
+                            <option value="issued">已开具</option>
+                            <option value="cancelled">已作废</option>
+                        </select>
+                        <button class="btn-primary" onclick="resetSalesFilters()">重置</button>
+                          <button class="btn-primary" onclick="searchSalesInvoices()"><i class="fa fa-search"></i> 查询</button>
+                       <button class="btn-primary btn-add" onclick="openModal('salesModal')">+ 新增销项发票</button>
+                        <input type="file" id="salesExcelFile" accept=".xlsx,.xls" style="display: none;">
+                        <button class="btn-danger" onclick="clearSalesInvoices()">清空</button>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <div class="statistics">
+                        <span>记录条数：<span id="salesRecordCount">0</span></span>
+                        <span id="salesTaxDifference" style="margin-left: 20px;"></span>
+                    </div>
+                    <table id="salesTable">
+                        <thead>
+                            <tr>
+                                <th>录入日期</th>
+                                <th>发票日期</th>
+                                <th>发票号码</th>
+                                <th>客户</th>
+                                <th>金额(含税)</th>
+                                <th>税率</th>
+                                <th>税额</th>
+                                <th>状态</th>
+                                <th>备注</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="salesTableBody">
+                            <!-- 数据将通过JavaScript填充 -->
+                        </tbody>
+                        <tfoot id="salesTableFooter">
+                            <!-- 合计行将通过JavaScript填充 -->
+                        </tfoot>
+                    </table>
+                    <div class="pagination">
+                        <button onclick="changePage('sales', 'prev')">?</button>
+                        <button class="active" onclick="changePage('sales', 1)">1</button>
+                        <button onclick="changePage('sales', 'next')">?</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 税差计算页面 -->
+            <div id="taxCalcPage" class="page">
+                <div class="page-title">税差计算</div>
+                <div class="search-area">
+                    <select id="taxYear">
+                        <!-- 年份选项将通过JavaScript填充 -->
+                    </select>
+                    <button class="btn-primary" onclick="calculateTaxDifference()">计算税差</button>
+                </div>
+
+                <div class="table-container">
+                    <div class="statistics">
+                        <span id="taxDifferenceResult">
+                            <!-- 税差计算结果将通过JavaScript填充 -->
+                        </span>
+                    </div>
+                    <table id="taxCalcTable">
+                        <thead>
+                            <tr>
+                                <th>月份</th>
+                                <th>进项税额</th>
+                                <th>销项税额</th>
+                                <th>税差</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="taxCalcTableBody">
+                            <!-- 数据将通过JavaScript填充 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 待办事项页面 -->
+            <div id="todoPage" class="page">
+                <div class="page-title">待办事项</div>
+                <div class="search-area">
+                    <input type="text" id="todoInput" placeholder="输入新的待办事项">
+                    <button class="btn-primary" onclick="addTodo()">+ 新增</button>
+                    <button class="btn-success" onclick="exportTodoExcel()"><i class="fa fa-file-excel-o"></i> 导出EXCEL</button>
+                </div>
+
+                <div class="table-container">
+                    <table id="todoTable">
+                        <thead>
+                            <tr>
+                                <th>序号</th>
+                                <th>事项内容</th>
+                                <th>状态</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="todoTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 记事本页面 -->
+            <div id="notepadPage" class="page">
+                <div class="page-title">记事本</div>
+                <div class="notepad-container">
+                    <textarea id="notepadContent" placeholder="在此输入您的笔记..."></textarea>
+                    <div class="notepad-buttons">
+                        <button class="btn-primary" onclick="saveNotepad()"><i class="fa fa-save"></i> 保存</button>
+                        <button class="btn-success" onclick="exportNotepad()"><i class="fa fa-file-text-o"></i> 导出</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 进项发票模态框 -->
+    <div id="purchaseModal" class="modal">
+        <div class="modal-content">
+            <h3>新增进项发票</h3>
+            <form id="purchaseForm">
+                <!-- 第一行：录入日期、发票日期、发票号码 -->
+                <div class="form-row" style="display: flex; flex-direction: row; justify-content: space-between; gap: 15px; width: 100%; box-sizing: border-box; flex-wrap: nowrap;">
+                    <div class="form-group">
+                        <label for="purchaseEntryDate">录入日期</label>
+                        <input type="date" id="purchaseEntryDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="purchaseInvoiceDate">发票日期</label>
+                        <input type="date" id="purchaseInvoiceDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="purchaseInvoiceNo">发票号码</label>
+                        <input type="text" id="purchaseInvoiceNo" required>
+                    </div>
+                </div>
+                
+                <label for="purchaseSupplierName">供应商</label>
+                <div class="search-container" id="purchaseSupplierContainer">
+                    <input type="text" id="purchaseSupplierName" required>
+                    <div id="purchaseSupplierResults" class="search-results"></div>
+                </div>
+                
+                <!-- 第二行：金额、税率、状态 -->
+                <div class="form-row" style="display: flex; flex-direction: row; justify-content: space-between; gap: 15px; width: 100%; box-sizing: border-box; flex-wrap: nowrap;">
+                    <div class="form-group">
+                        <label for="purchaseAmount">金额(含税)</label>
+                        <input type="number" id="purchaseAmount" step="0.01" min="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="purchaseTaxRate">税率</label>
+                        <select id="purchaseTaxRate" required>
+                            <option value="0">0</option>
+                            <option value="1">1%</option>
+                            <option value="6">6%</option>
+                            <option value="11">11%</option>
+                            <option value="13">13%</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="purchaseInvoiceStatus">状态</label>
+                        <select id="purchaseInvoiceStatus">
+                            <option value="pending">待认证</option>
+                            <option value="approved">已认证</option>
+                            <option value="rejected">已驳回</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <label for="purchaseRemark">备注</label>
+                <textarea id="purchaseRemark" rows="3"></textarea>
+                
+                <div style="text-align: right; margin-top: 20px;">
+                    <button type="button" class="btn-primary" onclick="savePurchaseInvoice()">保存</button>
+                    <button type="button" onclick="closeModal('purchaseModal')">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 销项发票模态框 -->
+    <div id="salesModal" class="modal">
+        <div class="modal-content">
+            <h3>新增销项发票</h3>
+            <form id="salesForm">
+                <!-- 第一行：录入日期、发票日期、发票号码 -->
+                <div class="form-row" style="display: flex; flex-direction: row; justify-content: space-between; gap: 15px; width: 100%; box-sizing: border-box; flex-wrap: nowrap;">
+                    <div class="form-group">
+                        <label for="salesEntryDate">录入日期</label>
+                        <input type="date" id="salesEntryDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="salesInvoiceDate">发票日期</label>
+                        <input type="date" id="salesInvoiceDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="salesInvoiceNo">发票号码</label>
+                        <input type="text" id="salesInvoiceNo" required>
+                    </div>
+                </div>
+                
+                <label for="salesCustomerName">客户</label>
+                <div class="search-container" id="salesCustomerContainer">
+                    <input type="text" id="salesCustomerName" required>
+                    <div id="salesCustomerResults" class="search-results"></div>
+                </div>
+                
+                <!-- 第二行：金额、税率、状态 -->
+                <div class="form-row" style="display: flex; flex-direction: row; justify-content: space-between; gap: 15px; width: 100%; box-sizing: border-box; flex-wrap: nowrap;">
+                    <div class="form-group">
+                        <label for="salesAmount">金额(含税)</label>
+                        <input type="number" id="salesAmount" step="0.01" min="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="salesTaxRate">税率</label>
+                        <select id="salesTaxRate" required>
+                            <option value="0">0</option>
+                            <option value="1">1%</option>
+                            <option value="6">6%</option>
+                            <option value="11">11%</option>
+                            <option value="13">13%</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="salesInvoiceStatus">状态</label>
+                        <select id="salesInvoiceStatus">
+                            <option value="issued">已开具</option>
+                            <option value="cancelled">已作废</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <label for="salesRemark">备注</label>
+                <textarea id="salesRemark" rows="3"></textarea>
+                
+                <div style="text-align: right; margin-top: 20px;">
+                    <button type="button" class="btn-primary" onclick="saveSalesInvoice()">保存</button>
+                    <button type="button" onclick="closeModal('salesModal')">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script>
+        // 从localStorage更新公司选择器
+        function updateCompanySelectors() {
+            const companySelect = document.getElementById('companySelect');
+            const companies = JSON.parse(localStorage.getItem('companyNames')) || {
+                'companyA': '普利美（常州）环境工程科技有限公司',
+                'companyB': '无锡龙力印铁设备制造有限公司'
+            };
+            
+            if (companySelect) {
+                // 保存当前选中的值
+                const currentValue = companySelect.value;
+                
+                // 清空现有选项
+                companySelect.innerHTML = '';
+                
+                // 添加新选项
+                Object.entries(companies).forEach(([id, name]) => {
+                    // 转换ID格式以匹配invoice.html的格式
+                    const invoiceId = id === 'companyA' ? 'company2' : 'company1';
+                    const option = document.createElement('option');
+                    option.value = invoiceId;
+                    option.textContent = name;
+                    companySelect.appendChild(option);
+                });
+                
+                // 恢复选中值
+                companySelect.value = currentValue;
+            }
+        }
+        
+        // 全局变量
+        let currentPages = { purchase: 1, sales: 1 };
+        const itemsPerPage = 10;
+        let currentEditId = null;
+        let currentEditType = null;
+        // 筛选条件
+        let purchaseFilters = { startDate: '', endDate: '', status: 'all', search: '' };
+    let salesFilters = { startDate: '', endDate: '', status: 'all', search: '' };
+
+        // 千分位格式化函数
+        function formatNumber(num) {
+            return num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        }
+
+        // 页面加载完成后执行
+        document.addEventListener('DOMContentLoaded', function() {
+            // 调试：检查localStorage中的数据
+            console.log('localStorage中的invoices数据:', localStorage.getItem('invoice_management_invoices'));
+            
+            // 更新公司选择器
+            updateCompanySelectors();
+            
+            // 初始化年份选项
+            initYearOptions();
+            
+            // 加载发票数据
+            loadPurchaseInvoices();
+            loadSalesInvoices();
+            
+            // 初始化页面
+            initPages();
+            
+            // 初始化税差统计
+            updateMonthlyTaxDifference();
+            
+            // 确保默认显示采购管理页面
+            document.getElementById('purchasePage').classList.add('active');
+            document.querySelector('.nav-item[data-page="purchase"]').classList.add('active');
+        });
+
+        // 初始化页面
+        function initPages() {
+            const navItems = document.querySelectorAll('.nav-item');
+            navItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    // 移除所有导航项的active类
+                    navItems.forEach(nav => nav.classList.remove('active'));
+                    // 添加当前点击导航项的active类
+                    this.classList.add('active');
+                    // 获取目标页面ID
+                    const pageId = this.dataset.page === 'tax-calc' ? 'taxCalcPage' : this.dataset.page + 'Page';
+                    // 隐藏所有页面
+                    const pages = document.querySelectorAll('.page');
+                    pages.forEach(page => page.classList.remove('active'));
+                    // 显示目标页面
+                    const targetPage = document.getElementById(pageId);
+                    if (targetPage) {
+                        targetPage.classList.add('active');
+                    }
+                });
+            });
+        }
+
+        // 打开模态框
+        function openModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.add('active');
+                
+                // 设置录入日期默认值为今天
+                const today = new Date().toISOString().split('T')[0];
+                if (modalId === 'purchaseModal') {
+                    document.getElementById('purchaseEntryDate').value = today;
+                } else if (modalId === 'salesModal') {
+                    document.getElementById('salesEntryDate').value = today;
+                }
+            }
+        }
+
+        // 关闭模态框
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.remove('active');
+                // 重置表单
+                const form = modal.querySelector('form');
+                if (form) {
+                    form.reset();
+                }
+                // 重置编辑状态
+                currentEditId = null;
+                currentEditType = null;
+                // 恢复模态框标题
+                if (modalId === 'purchaseModal') {
+                    document.querySelector('#purchaseModal h3').textContent = '新增进项发票';
+                } else if (modalId === 'salesModal') {
+                    document.querySelector('#salesModal h3').textContent = '新增销项发票';
+                }
+            }
+        }
+
+        // 保存进项发票
+        function savePurchaseInvoice() {
+            const invoice = {
+                id: currentEditId || Date.now(),
+                entryDate: document.getElementById('purchaseEntryDate').value,
+                date: document.getElementById('purchaseInvoiceDate').value,
+                invoiceNo: document.getElementById('purchaseInvoiceNo').value,
+                supplier: document.getElementById('purchaseSupplierName').value,
+                amount: parseFloat(document.getElementById('purchaseAmount').value),
+                taxRate: parseFloat(document.getElementById('purchaseTaxRate').value),
+                taxAmount: parseFloat(document.getElementById('purchaseAmount').value) * parseFloat(document.getElementById('purchaseTaxRate').value) / (100 + parseFloat(document.getElementById('purchaseTaxRate').value)),
+                status: document.getElementById('purchaseInvoiceStatus').value,
+                remark: document.getElementById('purchaseRemark').value,
+                type: 'purchase',
+                company: document.getElementById('companySelect').value
+            };
+
+            // 从localStorage获取数据
+            const invoices = JSON.parse(localStorage.getItem('invoice_management_invoices')) || [];
+            
+            if (currentEditId) {
+                // 更新现有发票
+                const index = invoices.findIndex(inv => inv.id === currentEditId);
+                if (index !== -1) {
+                    invoices[index] = invoice;
+                }
+            } else {
+                // 新增发票
+                invoices.push(invoice);
+            }
+            
+            localStorage.setItem('invoice_management_invoices', JSON.stringify(invoices));
+            
+            // 关闭模态框并刷新数据
+            closeModal('purchaseModal');
+            loadPurchaseInvoices();
+            updateMonthlyTaxDifference();
+        }
+
+        // 编辑发票
+        function editInvoice(id, type) {
+            // 从localStorage获取数据
+            const invoices = JSON.parse(localStorage.getItem('invoice_management_invoices')) || [];
+            const invoice = invoices.find(inv => inv.id === id);
+            if (!invoice) return;
+
+            // 设置编辑状态
+            currentEditId = id;
+            currentEditType = type;
+
+            if (type === 'purchase') {
+                // 填充进项发票表单
+                document.getElementById('purchaseEntryDate').value = invoice.entryDate;
+                document.getElementById('purchaseInvoiceDate').value = invoice.date;
+                document.getElementById('purchaseInvoiceNo').value = invoice.invoiceNo;
+                document.getElementById('purchaseSupplierName').value = invoice.supplier;
+                document.getElementById('purchaseAmount').value = invoice.amount;
+                document.getElementById('purchaseTaxRate').value = invoice.taxRate;
+                document.getElementById('purchaseInvoiceStatus').value = invoice.status;
+                document.getElementById('purchaseRemark').value = invoice.remark;
+                document.getElementById('companySelect').value = invoice.company;
+
+                // 修改模态框标题
+                document.querySelector('#purchaseModal h3').textContent = '编辑进项发票';
+                // 打开模态框
+                openModal('purchaseModal');
+            } else if (type === 'sales') {
+                // 填充销项发票表单
+                document.getElementById('salesEntryDate').value = invoice.entryDate;
+                document.getElementById('salesInvoiceDate').value = invoice.date;
+                document.getElementById('salesInvoiceNo').value = invoice.invoiceNo;
+                document.getElementById('salesCustomerName').value = invoice.customer;
+                document.getElementById('salesAmount').value = invoice.amount;
+                document.getElementById('salesTaxRate').value = invoice.taxRate;
+                document.getElementById('salesInvoiceStatus').value = invoice.status;
+                document.getElementById('salesRemark').value = invoice.remark;
+                document.getElementById('companySelect').value = invoice.company;
+
+                // 修改模态框标题
+                document.querySelector('#salesModal h3').textContent = '编辑销项发票';
+                // 打开模态框
+                openModal('salesModal');
+            }
+        }
+
+        // 保存销项发票
+        function saveSalesInvoice() {
+            const invoice = {
+                id: currentEditId || Date.now(),
+                entryDate: document.getElementById('salesEntryDate').value,
+                date: document.getElementById('salesInvoiceDate').value,
+                invoiceNo: document.getElementById('salesInvoiceNo').value,
+                customer: document.getElementById('salesCustomerName').value,
+                amount: parseFloat(document.getElementById('salesAmount').value),
+                taxRate: parseFloat(document.getElementById('salesTaxRate').value),
+                taxAmount: parseFloat(document.getElementById('salesAmount').value) * parseFloat(document.getElementById('salesTaxRate').value) / (100 + parseFloat(document.getElementById('salesTaxRate').value)),
+                status: document.getElementById('salesInvoiceStatus').value,
+                remark: document.getElementById('salesRemark').value,
+                type: 'sales',
+                company: document.getElementById('companySelect').value
+            };
+
+            // 从localStorage获取数据
+            const invoices = JSON.parse(localStorage.getItem('invoice_management_invoices')) || [];
+            
+            if (currentEditId) {
+                // 更新现有发票
+                const index = invoices.findIndex(inv => inv.id === currentEditId);
+                if (index !== -1) {
+                    invoices[index] = invoice;
+                }
+            } else {
+                // 新增发票
+                invoices.push(invoice);
+            }
+            
+            localStorage.setItem('invoice_management_invoices', JSON.stringify(invoices));
+            
+            // 关闭模态框并刷新数据
+            closeModal('salesModal');
+            loadSalesInvoices();
+            updateMonthlyTaxDifference();
+        }
+
+        // 加载进项发票
+        function loadPurchaseInvoices(page = 1) {
+            const invoices = JSON.parse(localStorage.getItem('invoice_management_invoices')) || [];
+            const filtered = invoices.filter(inv => {
+                const typeFilter = inv.type === 'purchase';
+                const selectedCompany = document.getElementById('companySelect').value;
+                const companyFilter = !selectedCompany || inv.company === selectedCompany;
+                const dateFilter = 
+                    (!purchaseFilters.startDate || inv.date >= purchaseFilters.startDate) && 
+                    (!purchaseFilters.endDate || inv.date <= purchaseFilters.endDate);
+                const statusFilter = 
+                    purchaseFilters.status === 'all' || inv.status === purchaseFilters.status;
+                const searchFilter = !purchaseFilters.search || 
+                    (String(inv.entryDate || '') + String(inv.date || '') + String(inv.invoiceNo || '') + String(inv.supplier || '') + String(inv.amount || '') + String(inv.taxRate || '') + String(inv.taxAmount || '') + String(inv.remark || '')).toLowerCase().includes(purchaseFilters.search.toLowerCase());
+                return typeFilter && companyFilter && dateFilter && statusFilter && searchFilter;
+            }).sort((a, b) => {
+                // 按录入日期倒序排列
+                return new Date(b.entryDate) - new Date(a.entryDate);
+            });
+            const tbody = document.getElementById('purchaseTableBody');
+            const footer = document.getElementById('purchaseTableFooter');
+            const recordCount = document.getElementById('purchaseRecordCount');
+            const pagination = document.querySelector('#purchasePage .pagination');
+            
+            // 计算分页
+            const totalPages = Math.ceil(filtered.length / itemsPerPage);
+            const startIndex = (page - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const paginatedInvoices = filtered.slice(startIndex, endIndex);
+            
+            // 更新当前页
+            currentPages.purchase = page;
+            
+            // 更新记录条数
+            recordCount.textContent = filtered.length;
+            
+            // 清空表格
+            tbody.innerHTML = '';
+            footer.innerHTML = '';
+            
+            // 填充数据
+            paginatedInvoices.forEach(inv => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${inv.entryDate}</td>
+                    <td>${inv.date}</td>
+                    <td>${inv.invoiceNo}</td>
+                    <td>${inv.supplier}</td>
+                    <td>￥${formatNumber(inv.amount)}</td>
+                    <td>${inv.taxRate.toFixed(2)}%</td>
+                    <td>￥${formatNumber(inv.taxAmount)}</td>
+                    <td><span class="status-badge status-${inv.status}" onclick="toggleInvoiceStatus(${inv.id}, 'purchase')">${getStatusText(inv.status)}</span></td>
+                    <td>${inv.remark || ''}</td>
+                    <td><button class="edit-btn" onclick="editInvoice(${inv.id}, 'purchase')" title="编辑"><i class="fa fa-pencil"></i></button><button class="delete-btn" onclick="deleteInvoice(${inv.id})" title="删除"><i class="fa fa-trash"></i></button></td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            // 添加合计行
+            const totalAmount = filtered.reduce((sum, inv) => inv.status !== 'cancelled' ? sum + inv.amount : sum, 0);
+            const totalTaxAmount = filtered.reduce((sum, inv) => inv.status !== 'cancelled' ? sum + inv.taxAmount : sum, 0);
+            footer.innerHTML = `
+                <tr class="total-row">
+                    <td colspan="4">合计</td>
+                    <td>￥${formatNumber(totalAmount)}</td>
+                    <td></td>
+                    <td>￥${formatNumber(totalTaxAmount)}</td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                </tr>
+            `;
+            
+            // 更新分页按钮
+            updatePagination(pagination, page, totalPages, 'purchase');
+            updateMonthlyTaxDifference();
+        }
+
+        // 加载销项发票
+        function loadSalesInvoices(page = 1) {
+            const invoices = JSON.parse(localStorage.getItem('invoice_management_invoices')) || [];
+            const filtered = invoices.filter(inv => {
+                const typeFilter = inv.type === 'sales';
+                const selectedCompany = document.getElementById('companySelect').value;
+                const companyFilter = !selectedCompany || inv.company === selectedCompany;
+                const dateFilter = 
+                    (!salesFilters.startDate || inv.date >= salesFilters.startDate) && 
+                    (!salesFilters.endDate || inv.date <= salesFilters.endDate);
+                const statusFilter = 
+                    salesFilters.status === 'all' || inv.status === salesFilters.status;
+                const searchFilter = !salesFilters.search || 
+                    (String(inv.entryDate || '') + String(inv.date || '') + String(inv.invoiceNo || '') + String(inv.customer || '') + String(inv.amount || '') + String(inv.taxRate || '') + String(inv.taxAmount || '') + String(inv.remark || '')).toLowerCase().includes(salesFilters.search.toLowerCase());
+                return typeFilter && companyFilter && dateFilter && statusFilter && searchFilter;
+            }).sort((a, b) => {
+                // 按录入日期倒序排列
+                return new Date(b.entryDate) - new Date(a.entryDate);
+            });
+            const tbody = document.getElementById('salesTableBody');
+            const footer = document.getElementById('salesTableFooter');
+            const recordCount = document.getElementById('salesRecordCount');
+            const pagination = document.querySelector('#salesPage .pagination');
+            
+            // 计算分页
+            const totalPages = Math.ceil(filtered.length / itemsPerPage);
+            const startIndex = (page - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const paginatedInvoices = filtered.slice(startIndex, endIndex);
+            
+            // 更新当前页
+            currentPages.sales = page;
+            
+            // 更新记录条数
+            recordCount.textContent = filtered.length;
+            
+            // 清空表格
+            tbody.innerHTML = '';
+            footer.innerHTML = '';
+            
+            // 填充数据
+            paginatedInvoices.forEach(inv => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${inv.entryDate}</td>
+                    <td>${inv.date}</td>
+                    <td>${inv.invoiceNo}</td>
+                    <td>${inv.customer}</td>
+                    <td>￥${formatNumber(inv.amount)}</td>
+                    <td>${inv.taxRate.toFixed(2)}%</td>
+                    <td>￥${formatNumber(inv.taxAmount)}</td>
+                    <td><span class="status-badge status-${inv.status}" onclick="toggleInvoiceStatus(${inv.id}, 'sales')">${getStatusText(inv.status)}</span></td>
+                    <td>${inv.remark || ''}</td>
+                    <td><button class="edit-btn" onclick="editInvoice(${inv.id}, 'sales')" title="编辑"><i class="fa fa-pencil"></i></button><button class="delete-btn" onclick="deleteInvoice(${inv.id})" title="删除"><i class="fa fa-trash"></i></button></td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            // 添加合计行
+            const totalAmount = filtered.reduce((sum, inv) => inv.status !== 'cancelled' ? sum + inv.amount : sum, 0);
+            const totalTaxAmount = filtered.reduce((sum, inv) => inv.status !== 'cancelled' ? sum + inv.taxAmount : sum, 0);
+            footer.innerHTML = `
+                <tr class="total-row">
+                    <td colspan="4">合计</td>
+                    <td>￥${formatNumber(totalAmount)}</td>
+                    <td></td>
+                    <td>￥${formatNumber(totalTaxAmount)}</td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                </tr>
+            `;
+            
+            // 更新分页按钮
+            updatePagination(pagination, page, totalPages, 'sales');
+            updateMonthlyTaxDifference();
+        }
+
+        // 删除发票
+        function deleteInvoice(id) {
+            if (confirm('确定要删除这张发票吗？')) {
+                let invoices = JSON.parse(localStorage.getItem('invoice_management_invoices')) || [];
+                invoices = invoices.filter(inv => inv.id !== id);
+                localStorage.setItem('invoice_management_invoices', JSON.stringify(invoices));
+                loadPurchaseInvoices(currentPages.purchase);
+                loadSalesInvoices(currentPages.sales);
+                updateMonthlyTaxDifference();
+            }
+        }
+
+        // 搜索进项发票
+        function searchPurchaseInvoices() {
+            // 获取筛选条件
+            const startDate = document.getElementById('purchaseStartDate').value;
+            const endDate = document.getElementById('purchaseEndDate').value;
+            const status = document.getElementById('purchaseStatus').value;
+            const search = document.getElementById('purchaseSearch').value;
+            
+            console.log('searchPurchaseInvoices called with search:', search);
+            console.log('purchaseFilters before update:', purchaseFilters);
+            
+            // 更新筛选条件
+            purchaseFilters = { startDate, endDate, status, search };
+            
+            console.log('purchaseFilters after update:', purchaseFilters);
+            
+            // 重新加载第一页数据
+            loadPurchaseInvoices(1);
+        }
+
+        // 重置进项发票筛选条件
+        function resetPurchaseFilters() {
+            // 清空日期输入框
+            document.getElementById('purchaseStartDate').value = '';
+            document.getElementById('purchaseEndDate').value = '';
+            // 重置状态选择
+            document.getElementById('purchaseStatus').value = 'all';
+            // 重置搜索输入框
+            document.getElementById('purchaseSearch').value = '';
+            // 重置筛选条件
+            purchaseFilters = { startDate: '', endDate: '', status: 'all', search: '' };
+            // 重新加载第一页数据
+            loadPurchaseInvoices(1);
+        }
+
+        // 搜索销项发票
+        function searchSalesInvoices() {
+            // 获取筛选条件
+            const startDate = document.getElementById('salesStartDate').value;
+            const endDate = document.getElementById('salesEndDate').value;
+            const status = document.getElementById('salesStatus').value;
+            const search = document.getElementById('salesSearch').value;
+            
+            console.log('searchSalesInvoices called with search:', search);
+            console.log('salesFilters before update:', salesFilters);
+            
+            // 更新筛选条件
+            salesFilters = { startDate, endDate, status, search };
+            
+            console.log('salesFilters after update:', salesFilters);
+            
+            // 重新加载第一页数据
+            loadSalesInvoices(1);
+        }
+
+        // 重置销项发票筛选条件
+        function resetSalesFilters() {
+            // 清空日期输入框
+            document.getElementById('salesStartDate').value = '';
+            document.getElementById('salesEndDate').value = '';
+            // 重置状态选择
+            document.getElementById('salesStatus').value = 'all';
+            // 重置搜索输入框
+            document.getElementById('salesSearch').value = '';
+            // 重置筛选条件
+            salesFilters = { startDate: '', endDate: '', status: 'all', search: '' };
+            // 重新加载第一页数据
+            loadSalesInvoices(1);
+        }
+
+        // 清空进项发票
+        function clearPurchaseInvoices() {
+            if (confirm('确定要清空所有进项发票吗？')) {
+                let invoices = JSON.parse(localStorage.getItem('invoice_management_invoices')) || [];
+                invoices = invoices.filter(inv => inv.type !== 'purchase' || inv.company !== document.getElementById('companySelect').value);
+                localStorage.setItem('invoice_management_invoices', JSON.stringify(invoices));
+                // 重新加载发票数据
+                loadPurchaseInvoices(1);
+                updateMonthlyTaxDifference();
+            }
+        }
+
+        // 清空销项发票
+        function clearSalesInvoices() {
+            if (confirm('确定要清空所有销项发票吗？')) {
+                let invoices = JSON.parse(localStorage.getItem('invoice_management_invoices')) || [];
+                invoices = invoices.filter(inv => inv.type !== 'sales' || inv.company !== document.getElementById('companySelect').value);
+                localStorage.setItem('invoice_management_invoices', JSON.stringify(invoices));
+                // 重新加载发票数据
+                loadSalesInvoices(1);
+                updateMonthlyTaxDifference();
+            }
+        }
+
+        // 获取状态文本
+        function getStatusText(status) {
+            const statusMap = {
+                pending: '待认证',
+                approved: '已认证',
+                rejected: '已驳回',
+                issued: '已开具',
+                cancelled: '已作废'
+            };
+            return statusMap[status] || status;
+        }
+
+        // 显示发票交接清单
+        function showInvoiceHandoverList(year, month) {
+            // 获取当前公司
+            const company = document.getElementById('companySelect').value;
+            // 跳转到发票交接清单页面并传递参数
+            const params = new URLSearchParams();
+            params.append('year', year);
+            params.append('month', month);
+            params.append('company', company);
+            window.open('invoice list.html?' + params.toString(), '_blank');
+        }
+
+        // 点击状态标签切换发票状态
+        function toggleInvoiceStatus(id, type) {
+            // 状态切换顺序
+            const purchaseStatusOrder = ['pending', 'approved', 'rejected'];
+            const salesStatusOrder = ['issued', 'cancelled'];
+            
+            let invoices = JSON.parse(localStorage.getItem('invoice_management_invoices')) || [];
+            const invoiceIndex = invoices.findIndex(inv => inv.id === id);
+            
+            if (invoiceIndex !== -1) {
+                const invoice = invoices[invoiceIndex];
+                let statusOrder;
+                
+                // 根据发票类型确定状态切换顺序
+                if (type === 'purchase') {
+                    statusOrder = purchaseStatusOrder;
+                } else if (type === 'sales') {
+                    statusOrder = salesStatusOrder;
+                } else {
+                    return;
+                }
+                
+                // 查找当前状态在顺序数组中的位置
+                const currentStatusIndex = statusOrder.indexOf(invoice.status);
+                
+                // 切换到下一个状态
+                let nextStatusIndex = currentStatusIndex + 1;
+                if (nextStatusIndex >= statusOrder.length) {
+                    nextStatusIndex = 0; // 循环切换
+                }
+                
+                invoice.status = statusOrder[nextStatusIndex];
+                
+                // 更新localStorage
+                localStorage.setItem('invoice_management_invoices', JSON.stringify(invoices));
+                
+                // 刷新发票列表
+                if (type === 'purchase') {
+                    loadPurchaseInvoices(currentPages.purchase);
+                } else if (type === 'sales') {
+                    loadSalesInvoices(currentPages.sales);
+                }
+            }
+        }
+
+        // 更新当月税差显示
+        function updateMonthlyTaxDifference() {
+            const invoices = JSON.parse(localStorage.getItem('invoice_management_invoices')) || [];
+            const company = document.getElementById('companySelect').value;
+            const today = new Date();
+            const currentMonth = today.getMonth() + 1;
+            const currentYear = today.getFullYear();
+            const monthStr = currentMonth.toString().padStart(2, '0');
+            const yearMonth = `${currentYear}-${monthStr}`;
+            
+            // 过滤当月录入的发票
+            const monthlyInvoices = invoices.filter(inv => {
+                const invoiceDate = new Date(inv.entryDate);
+                return !isNaN(invoiceDate.getTime()) &&
+                       invoiceDate.getFullYear() === currentYear &&
+                       invoiceDate.getMonth() + 1 === currentMonth &&
+                       inv.company === company;
+            });
+            
+            const purchaseTaxAmount = monthlyInvoices.filter(inv => inv.type === 'purchase').reduce((sum, inv) => sum + inv.taxAmount, 0);
+            const salesTaxAmount = monthlyInvoices.filter(inv => inv.type === 'sales' && inv.status !== 'cancelled').reduce((sum, inv) => sum + inv.taxAmount, 0);
+            const taxDifference = salesTaxAmount - purchaseTaxAmount;
+            
+            // 更新进项发票页面的税差显示
+            const purchaseTaxDiffElement = document.getElementById('purchaseTaxDifference');
+            if (purchaseTaxDiffElement) {
+                const taxDiffClass = taxDifference > 0 ? 'tax-positive' : (taxDifference < 0 ? 'tax-negative' : '');
+                purchaseTaxDiffElement.innerHTML = `当月进项税额：￥${formatNumber(purchaseTaxAmount)} | 当月销项税额：￥${formatNumber(salesTaxAmount)} | 当月税差：<span class="${taxDiffClass}">￥${formatNumber(taxDifference)}</span>（正数为应缴税额，负数为留抵税额）`;
+            }
+            
+            // 更新销项发票页面的税差显示
+            const salesTaxDiffElement = document.getElementById('salesTaxDifference');
+            if (salesTaxDiffElement) {
+                const taxDiffClass = taxDifference > 0 ? 'tax-positive' : (taxDifference < 0 ? 'tax-negative' : '');
+                salesTaxDiffElement.innerHTML = `当月进项税额：￥${formatNumber(purchaseTaxAmount)} | 当月销项税额：￥${formatNumber(salesTaxAmount)} | 当月税差：<span class="${taxDiffClass}">￥${formatNumber(taxDifference)}</span>（正数为应缴税额，负数为留抵税额）`;
+            }
+        }
+
+        // 初始化年份选项
+        function initYearOptions() {
+            const currentYear = new Date().getFullYear();
+            const select = document.getElementById('taxYear');
+            // 从2025年开始，增加未来5年
+            const startYear = 2025;
+            const endYear = currentYear + 5;
+            
+            // 生成年份选项
+            for (let year = startYear; year <= endYear; year++) {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year;
+                select.appendChild(option);
+            }
+            
+            // 设置默认值为当前年份
+            select.value = currentYear;
+        }
+
+        // 计算税差
+        function calculateTaxDifference() {
+            const selectedYear = document.getElementById('taxYear').value;
+            const invoices = JSON.parse(localStorage.getItem('invoice_management_invoices')) || [];
+            const currentCompany = document.getElementById('companySelect').value;
+            
+            // 填充表格
+            const tbody = document.getElementById('taxCalcTableBody');
+            tbody.innerHTML = '';
+            
+            let totalPurchaseTax = 0;
+            let totalSalesTax = 0;
+            let totalTaxDifference = 0;
+            
+            // 遍历1-12月
+            for (let month = 1; month <= 12; month++) {
+                const monthStr = month.toString().padStart(2, '0');
+                
+                // 按公司、年份和月份筛选发票
+                const filteredInvoices = invoices.filter(inv => 
+                    inv.company === currentCompany &&
+                    inv.entryDate.startsWith(`${selectedYear}-${monthStr}`)
+                );
+                
+                // 计算进项税额和销项税额
+                const purchaseTaxAmount = filteredInvoices.filter(inv => inv.type === 'purchase').reduce((sum, inv) => sum + inv.taxAmount, 0);
+                const salesTaxAmount = filteredInvoices.filter(inv => inv.type === 'sales' && inv.status !== 'cancelled').reduce((sum, inv) => sum + inv.taxAmount, 0);
+                const taxDifference = salesTaxAmount - purchaseTaxAmount;
+                
+                // 累计总计
+                totalPurchaseTax += purchaseTaxAmount;
+                totalSalesTax += salesTaxAmount;
+                totalTaxDifference += taxDifference;
+                
+                // 创建表格行
+                const taxDiffClass = taxDifference > 0 ? 'tax-positive' : (taxDifference < 0 ? 'tax-negative' : '');
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${selectedYear}年${month}月</td>
+                    <td>￥${formatNumber(purchaseTaxAmount)}</td>
+                    <td>￥${formatNumber(salesTaxAmount)}</td>
+                    <td class="${taxDiffClass}">￥${formatNumber(taxDifference)}</td>
+                    <td>
+                        <button class="btn-sm btn-primary" onclick="showInvoiceHandoverList('${selectedYear}', '${month}')">
+                            发票交接清单
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            }
+            
+            // 添加合计行
+            const totalTaxDiffClass = totalTaxDifference > 0 ? 'tax-positive' : (totalTaxDifference < 0 ? 'tax-negative' : '');
+            const totalRow = document.createElement('tr');
+            totalRow.className = 'total-row';
+            totalRow.innerHTML = `
+                <td><strong>合计</strong></td>
+                <td><strong>￥${formatNumber(totalPurchaseTax)}</strong></td>
+                <td><strong>￥${formatNumber(totalSalesTax)}</strong></td>
+                <td class="${totalTaxDiffClass}"><strong>￥${formatNumber(totalTaxDifference)}</strong></td>
+                <td></td>
+            `;
+            tbody.appendChild(totalRow);
+            
+            // 显示结果
+            const resultElement = document.getElementById('taxDifferenceResult');
+            resultElement.innerHTML = `
+                <strong>${selectedYear}年税差计算结果：</strong>
+                总进项税额：￥${formatNumber(totalPurchaseTax)}，
+                总销项税额：￥${formatNumber(totalSalesTax)}，
+                总税差：<span class="${totalTaxDiffClass}">￥${formatNumber(totalTaxDifference)}</span>（正数为应缴税额，负数为留抵税额）
+            `;
+        }
+
+        // 更新分页
+        function updatePagination(pagination, currentPage, totalPages, type) {
+            // 清空现有分页按钮
+            pagination.innerHTML = '';
+            
+            // 添加上一页按钮
+            const prevButton = document.createElement('button');
+            prevButton.innerHTML = '<i class="fa fa-chevron-left"></i> 上一页';
+            prevButton.onclick = () => changePage(type, 'prev');
+            pagination.appendChild(prevButton);
+            
+            // 添加页码按钮
+            for (let i = 1; i <= totalPages; i++) {
+                const pageButton = document.createElement('button');
+                pageButton.textContent = i;
+                if (i === currentPage) {
+                    pageButton.classList.add('active');
+                }
+                pageButton.onclick = () => changePage(type, i);
+                pagination.appendChild(pageButton);
+            }
+            
+            // 添加下一页按钮
+            const nextButton = document.createElement('button');
+            nextButton.innerHTML = '下一页 <i class="fa fa-chevron-right"></i>';
+            nextButton.onclick = () => changePage(type, 'next');
+            pagination.appendChild(nextButton);
+        }
+
+        // 改变页码
+        function changePage(type, page) {
+            // 获取当前页和总页数
+            let currentPage = currentPages[type] || 1;
+            // 计算当前类型下符合条件的所有发票数量
+            const invoices = JSON.parse(localStorage.getItem('invoice_management_invoices')) || [];
+            const filteredInvoices = invoices.filter(inv => {
+                const typeFilter = inv.type === type;
+                const companyFilter = inv.company === document.getElementById('companySelect').value;
+                return typeFilter && companyFilter;
+            });
+            let totalPages = Math.ceil(filteredInvoices.length / itemsPerPage);
+            
+            // 计算新页码
+            let newPage = currentPage;
+            if (page === 'prev') {
+                newPage = Math.max(1, currentPage - 1);
+            } else if (page === 'next') {
+                newPage = Math.min(totalPages, currentPage + 1);
+            } else {
+                newPage = parseInt(page) || 1;
+            }
+            
+            // 加载新页面数据
+            if (type === 'purchase') {
+                loadPurchaseInvoices(newPage);
+            } else if (type === 'sales') {
+                loadSalesInvoices(newPage);
+            }
+        }
+
+        // 初始化公司名称显示
+        document.addEventListener('DOMContentLoaded', function() {
+            const companySelect = document.getElementById('companySelect');
+            const currentCompany = document.getElementById('currentCompany');
+            if (companySelect && currentCompany) {
+                currentCompany.textContent = companySelect.options[companySelect.selectedIndex].text;
+            }
+            
+            // 初始化供应商搜索
+            const purchaseSupplierInput = document.getElementById('purchaseSupplierName');
+            const purchaseSupplierResults = document.getElementById('purchaseSupplierResults');
+            if (purchaseSupplierInput && purchaseSupplierResults) {
+                purchaseSupplierInput.addEventListener('input', function() {
+                    showSupplierSearchResults(this.value, purchaseSupplierResults);
+                });
+            }
+            
+            // 初始化客户搜索
+            const salesCustomerInput = document.getElementById('salesCustomerName');
+            const salesCustomerResults = document.getElementById('salesCustomerResults');
+            if (salesCustomerInput && salesCustomerResults) {
+                salesCustomerInput.addEventListener('input', function() {
+                    showCustomerSearchResults(this.value, salesCustomerResults);
+                });
+            }
+            
+            // 初始化待办事项
+            renderTodoList();
+        });
+
+        // 待办事项功能
+        let todoList = JSON.parse(localStorage.getItem('todoList')) || [];
+        let todoIdCounter = parseInt(localStorage.getItem('todoIdCounter')) || 1;
+
+        // 渲染待办事项列表
+        function renderTodoList() {
+            const tbody = document.getElementById('todoTableBody');
+            if (!tbody) return;
+            
+            tbody.innerHTML = '';
+
+            todoList.forEach((todo, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${todo.content}</td>
+                    <td><span class="status-badge status-${todo.status}" onclick="toggleTodoStatus(${todo.id})"><span id="statusText-${todo.id}">${todo.status === 'pending' ? '未完成' : '已完成'}</span></span></td>
+                    <td>
+                        <button class="edit-btn" onclick="editTodo(${todo.id})" title="编辑"><i class="fa fa-pencil"></i></button>
+                <button class="delete-btn" onclick="deleteTodo(${todo.id})" title="删除"><i class="fa fa-trash"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // 新增待办事项
+        function addTodo() {
+            const input = document.getElementById('todoInput');
+            const content = input.value.trim();
+
+            if (content === '') {
+                alert('请输入待办事项内容');
+                return;
+            }
+
+            const newTodo = {
+                id: todoIdCounter++,
+                content: content,
+                status: 'pending',
+                createdAt: new Date().toISOString().split('T')[0]
+            };
+
+            todoList.push(newTodo);
+            saveTodoList();
+            renderTodoList();
+            input.value = '';
+        }
+
+        // 编辑待办事项
+        function editTodo(id) {
+            const todo = todoList.find(item => item.id === id);
+            if (!todo) return;
+
+            const newContent = prompt('修改待办事项:', todo.content);
+            if (newContent !== null && newContent.trim() !== '') {
+                todo.content = newContent.trim();
+                saveTodoList();
+                renderTodoList();
+            }
+        }
+
+        // 切换待办事项状态
+        function toggleTodoStatus(id) {
+            const todo = todoList.find(item => item.id === id);
+            if (!todo) return;
+
+            todo.status = todo.status === 'pending' ? 'completed' : 'pending';
+            saveTodoList();
+            renderTodoList();
+        }
+
+        // 删除待办事项
+        function deleteTodo(id) {
+            if (confirm('确定要删除该待办事项吗？')) {
+                todoList = todoList.filter(item => item.id !== id);
+                saveTodoList();
+                renderTodoList();
+            }
+        }
+
+        // 保存待办事项到localStorage
+        function saveTodoList() {
+            localStorage.setItem('todoList', JSON.stringify(todoList));
+            localStorage.setItem('todoIdCounter', todoIdCounter.toString());
+        }
+
+        // 导出待办事项为Excel
+        function exportTodoExcel() {
+            // 生成Excel数据
+            let excelData = '序号,事项内容,状态,创建日期\n';
+
+            todoList.forEach((todo, index) => {
+                const statusText = todo.status === 'pending' ? '未完成' : '已完成';
+                excelData += `${index + 1},"${todo.content}",${statusText},${todo.createdAt}\n`;
+            });
+
+            // 创建下载链接
+            const blob = new Blob([excelData], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `待办事项_${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    
+        // 显示供应商搜索结果
+        function showSupplierSearchResults(query, resultsElement) {
+            // 清空之前的结果
+            resultsElement.innerHTML = '';
+            
+            if (!query.trim()) {
+                return;
+            }
+            
+            // 获取所有发票数据
+            const invoices = JSON.parse(localStorage.getItem('invoice_management_invoices')) || [];
+            
+            // 提取所有唯一供应商
+            const suppliers = [...new Set(invoices.filter(inv => inv.type === 'purchase').map(inv => inv.supplier))];
+            
+            // 模糊搜索供应商
+            const filteredSuppliers = suppliers.filter(supplier => 
+                supplier.toLowerCase().includes(query.toLowerCase())
+            );
+            
+            // 显示结果
+            filteredSuppliers.forEach(supplier => {
+                const resultItem = document.createElement('div');
+                resultItem.className = 'search-result-item';
+                resultItem.textContent = supplier;
+                
+                // 添加点击事件
+                resultItem.addEventListener('click', () => {
+                    document.getElementById('purchaseSupplierName').value = supplier;
+                    resultsElement.innerHTML = '';
+                });
+                
+                resultsElement.appendChild(resultItem);
+            });
+        }
+        
+        // 显示客户搜索结果
+        function showCustomerSearchResults(query, resultsElement) {
+            // 清空之前的结果
+            resultsElement.innerHTML = '';
+            
+            if (!query.trim()) {
+                return;
+            }
+            
+            // 获取所有发票数据
+            const invoices = JSON.parse(localStorage.getItem('invoice_management_invoices')) || [];
+            
+            // 提取所有唯一客户
+            const customers = [...new Set(invoices.filter(inv => inv.type === 'sales').map(inv => inv.customer))];
+            
+            // 模糊搜索客户
+            const filteredCustomers = customers.filter(customer => 
+                customer.toLowerCase().includes(query.toLowerCase())
+            );
+            
+            // 显示结果
+            filteredCustomers.forEach(customer => {
+                const resultItem = document.createElement('div');
+                resultItem.className = 'search-result-item';
+                resultItem.textContent = customer;
+                
+                // 添加点击事件
+                resultItem.addEventListener('click', () => {
+                    document.getElementById('salesCustomerName').value = customer;
+                    resultsElement.innerHTML = '';
+                });
+                
+                resultsElement.appendChild(resultItem);
+            });
+        }
+
+        // 点击外部关闭搜索结果
+        document.addEventListener('click', function(e) {
+            const purchaseContainer = document.querySelector('.search-container#purchaseSupplierContainer');
+            const salesContainer = document.querySelector('.search-container#salesCustomerContainer');
+            const purchaseResults = document.getElementById('purchaseSupplierResults');
+            const salesResults = document.getElementById('salesCustomerResults');
+            
+            // 检查是否点击了采购搜索容器外部
+            if (purchaseContainer && !purchaseContainer.contains(e.target)) {
+                if (purchaseResults) {
+                    purchaseResults.innerHTML = '';
+                }
+            }
+            
+            // 检查是否点击了销售搜索容器外部
+            if (salesContainer && !salesContainer.contains(e.target)) {
+                if (salesResults) {
+                    salesResults.innerHTML = '';
+                }
+            }
+        });
+        
+        // 公司切换事件
+        document.getElementById('companySelect').addEventListener('change', function() {
+            // 切换公司时重置筛选条件
+            // 重置采购发票筛选
+            purchaseFilters = { startDate: '', endDate: '', status: 'all', search: '' };
+            document.getElementById('purchaseStartDate').value = '';
+            document.getElementById('purchaseEndDate').value = '';
+            document.getElementById('purchaseStatus').value = 'all';
+            document.getElementById('purchaseSearch').value = '';
+            
+            // 重置销售发票筛选
+            salesFilters = { startDate: '', endDate: '', status: 'all', search: '' };
+            document.getElementById('salesStartDate').value = '';
+            document.getElementById('salesEndDate').value = '';
+            document.getElementById('salesStatus').value = 'all';
+            document.getElementById('salesSearch').value = '';
+            
+            // 重新加载发票数据
+            loadPurchaseInvoices(1);
+            loadSalesInvoices(1);
+            
+            // 更新公司名称显示
+            const currentCompany = document.getElementById('currentCompany');
+            currentCompany.textContent = this.options[this.selectedIndex].text;
+        })
+        
+        // 导出进项发票到Excel
+        function exportPurchaseExcel() {
+            const invoices = JSON.parse(localStorage.getItem('invoice_management_invoices')) || [];
+            const company = document.getElementById('companySelect').value;
+            const purchaseInvoices = invoices.filter(inv => inv.type === 'purchase' && inv.company === company);
+            
+            // 转换为Excel工作簿
+            const worksheet = XLSX.utils.json_to_sheet(purchaseInvoices.map(inv => ({
+                '录入日期': inv.entryDate,
+                '发票日期': inv.date,
+                '发票号码': inv.invoiceNo,
+                '供应商': inv.supplier,
+                '金额(含税)': inv.amount.toFixed(2),
+                '税率(%)': inv.taxRate.toFixed(2),
+                '税额': inv.taxAmount.toFixed(2),
+                '状态': inv.status,
+                '备注': inv.remark || ''
+            })));
+            
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, '进项发票');
+            
+            // 下载Excel文件
+            XLSX.writeFile(workbook, `进项发票_${company}_${new Date().toISOString().split('T')[0]}.xlsx`);
+        }
+        
+        // 导出销项发票到Excel
+        function exportSalesExcel() {
+            const invoices = JSON.parse(localStorage.getItem('invoice_management_invoices')) || [];
+            const company = document.getElementById('companySelect').value;
+            const salesInvoices = invoices.filter(inv => inv.type === 'sales' && inv.company === company);
+            
+            // 转换为Excel工作簿
+            const worksheet = XLSX.utils.json_to_sheet(salesInvoices.map(inv => ({
+                '录入日期': inv.entryDate,
+                '发票日期': inv.date,
+                '发票号码': inv.invoiceNo,
+                '客户': inv.customer,
+                '金额(含税)': inv.amount.toFixed(2),
+                '税率(%)': inv.taxRate.toFixed(2),
+                '税额': inv.taxAmount.toFixed(2),
+                '状态': inv.status,
+                '备注': inv.remark || ''
+            })));
+            
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, '销项发票');
+            
+            // 下载Excel文件
+            XLSX.writeFile(workbook, `销项发票_${company}_${new Date().toISOString().split('T')[0]}.xlsx`);
+        }
+        
+        // 导入进项发票
+        function importPurchaseExcel() {
+            document.getElementById('purchaseExcelFile').click();
+        }
+        
+        // 导入销项发票
+        function importSalesExcel() {
+            document.getElementById('salesExcelFile').click();
+        }
+        
+        // 进项发票文件选择事件
+        document.getElementById('purchaseExcelFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const data = new Uint8Array(event.target.result);
+                    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                    console.log('导入数据:', jsonData.length, '条', JSON.stringify(jsonData));
+                    const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    console.log('原始解析数据:', rawData.length, '条', JSON.stringify(rawData));
+                    
+                    // 处理导入的数据
+                    const invoices = JSON.parse(localStorage.getItem('invoice_management_invoices')) || [];
+                    const company = document.getElementById('companySelect').value;
+                    
+                    let importedCount = 0;
+                    let duplicateCount = 0;
+                    
+                    jsonData.forEach(item => {
+                        const invoiceNo = item['发票号码'] || item['发票号'];
+                        const existingInvoice = invoices.find(inv => 
+                            inv.invoiceNo === invoiceNo && 
+                            inv.company === company && 
+                            inv.type === 'purchase'
+                        );
+                        
+                        if (!existingInvoice) {
+                            importedCount++;
+                            const taxRate = parseFloat(item['税率(%)']) || parseFloat(item['税率']) || 0;
+                            const amount = parseFloat(item['金额(含税)']) || parseFloat(item['金额']) || 0;
+                            const taxAmount = amount * taxRate / (100 + taxRate);
+                            
+                            // 处理日期格式
+                        let entryDate = item['录入日期'];
+                        let invoiceDate = item['发票日期'];
+                        
+                        // 处理录入日期
+                        if (entryDate instanceof Date) {
+                            // XLSX.js将Excel日期解析为UTC时间，加一天后提取UTC日期部分
+                            const dateObj = new Date(entryDate);
+                            dateObj.setUTCDate(dateObj.getUTCDate() + 1);
+                            const year = dateObj.getUTCFullYear();
+                            const month = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
+                            const day = String(dateObj.getUTCDate()).padStart(2, '0');
+                            entryDate = `${year}-${month}-${day}`;
+                        } else if (!entryDate) {
+                            entryDate = new Date().toISOString().split('T')[0];
+                        } else if (typeof entryDate === 'string') {
+                            // 处理不同格式的日期字符串
+                            let dateObj;
+                            if (entryDate.includes('/')) {
+                                // 假设格式为 DD/MM/YYYY
+                                const [day, month, year] = entryDate.split('/').map(Number);
+                                dateObj = new Date(year, month - 1, day);
+                            } else if (entryDate.includes('-')) {
+                                // 假设格式为 YYYY-MM-DD 或 MM-DD-YYYY
+                                const parts = entryDate.split('-').map(Number);
+                                if (parts.length === 3) {
+                                    if (parts[0] > 12) {
+                                        // YYYY-MM-DD format
+                                        dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+                                    } else {
+                                        // MM-DD-YYYY format
+                                        dateObj = new Date(parts[2], parts[0] - 1, parts[1]);
+                                    }
+                                }
+                            }
+                            if (dateObj && !isNaN(dateObj.getTime())) {
+                                        // 使用本地时间构建YYYY-MM-DD格式的日期字符串
+                                const year = dateObj.getFullYear();
+                                const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                                const day = String(dateObj.getDate()).padStart(2, '0');
+                                entryDate = `${year}-${month}-${day}`;
+                            } else {
+                                // 如果解析失败，使用当前日期
+                                const now = new Date();
+                                const year = now.getFullYear();
+                                const month = String(now.getMonth() + 1).padStart(2, '0');
+                                const day = String(now.getDate()).padStart(2, '0');
+                                entryDate = `${year}-${month}-${day}`;
+                            }
+                        }
+                        
+                        // 处理发票日期
+                        if (invoiceDate instanceof Date) {
+                            // XLSX.js将Excel日期解析为UTC时间，加一天后提取UTC日期部分
+                            const dateObj = new Date(invoiceDate);
+                            dateObj.setUTCDate(dateObj.getUTCDate() + 1);
+                            const year = dateObj.getUTCFullYear();
+                            const month = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
+                            const day = String(dateObj.getUTCDate()).padStart(2, '0');
+                            invoiceDate = `${year}-${month}-${day}`;
+                        } else if (typeof invoiceDate === 'string') {
+                            // 处理不同格式的发票日期字符串
+                            let dateObj;
+                            if (invoiceDate.includes('/')) {
+                                // 假设格式为 DD/MM/YYYY
+                                const [day, month, year] = invoiceDate.split('/').map(Number);
+                                dateObj = new Date(year, month - 1, day);
+                            } else if (invoiceDate.includes('-')) {
+                                // 假设格式为 YYYY-MM-DD 或 MM-DD-YYYY
+                                const parts = invoiceDate.split('-').map(Number);
+                                if (parts.length === 3) {
+                                    if (parts[0] > 12) {
+                                        // YYYY-MM-DD format
+                                        dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+                                    } else {
+                                        // MM-DD-YYYY format
+                                        dateObj = new Date(parts[2], parts[0] - 1, parts[1]);
+                                    }
+                                }
+                            }
+                            if (dateObj && !isNaN(dateObj.getTime())) {
+                                  // 使用本地时间构建YYYY-MM-DD格式的日期字符串
+                                  const year = dateObj.getFullYear();
+                                  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                                  const day = String(dateObj.getDate()).padStart(2, '0');
+                                  invoiceDate = `${year}-${month}-${day}`;
+                              }
+                        }
+                        
+                        const invoice = {
+                                id: Date.now() + Math.random() * 1000,
+                                entryDate: entryDate,
+                                date: invoiceDate,
+                                invoiceNo: invoiceNo,
+                                supplier: item['供应商'],
+                                amount: amount,
+                                taxRate: taxRate,
+                                taxAmount: taxAmount,
+                                status: item['状态'] || 'pending',
+                                remark: item['备注'] || '',
+                                type: 'purchase',
+                                company: company
+                            };
+                            
+                            invoices.push(invoice);
+                        } else {
+                            duplicateCount++;
+                            console.log('重复发票:', JSON.stringify(item));
+                        }
+                    });
+                    
+                    console.log('导入结果:', importedCount, '条导入成功，', duplicateCount, '条重复');
+                    
+                    // 保存到localStorage
+                    localStorage.setItem('invoice_management_invoices', JSON.stringify(invoices));
+                    
+                    // 重新加载数据
+                    loadPurchaseInvoices();
+                    updateMonthlyTaxDifference();
+                    
+                    // 重置文件输入
+                    e.target.value = '';
+                    alert(`进项发票导入完成！成功导入${importedCount}条，跳过${duplicateCount}条重复记录`);
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        
+
+        });
+        
+        // 销项发票文件选择事件
+        document.getElementById('salesExcelFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const data = new Uint8Array(event.target.result);
+                    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                    console.log('导入数据:', jsonData.length, '条', JSON.stringify(jsonData));
+                    const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    console.log('原始解析数据:', rawData.length, '条', JSON.stringify(rawData));
+                    
+                    // 处理导入的数据
+                    const invoices = JSON.parse(localStorage.getItem('invoice_management_invoices')) || [];
+                    const company = document.getElementById('companySelect').value;
+                    
+                    let importedCount = 0;
+                    let duplicateCount = 0;
+                    
+                    jsonData.forEach(item => {
+                        const invoiceNo = item['发票号码'] || item['发票号'];
+                        const existingInvoice = invoices.find(inv => 
+                            inv.invoiceNo === invoiceNo && 
+                            inv.company === company && 
+                            inv.type === 'sales'
+                        );
+                        
+                        if (!existingInvoice) {
+                            importedCount++;
+                            const taxRate = parseFloat(item['税率(%)']) || parseFloat(item['税率']) || 0;
+                            const amount = parseFloat(item['金额(含税)']) || parseFloat(item['金额']) || 0;
+                            const taxAmount = amount * taxRate / (100 + taxRate);
+                            
+                            // 处理日期格式
+                            let entryDate = item['录入日期'];
+                            let invoiceDate = item['发票日期'];
+                            
+                            // 处理录入日期
+                            if (entryDate instanceof Date) {
+                                // XLSX.js将Excel日期解析为UTC时间，加一天后提取UTC日期部分
+                                const dateObj = new Date(entryDate);
+                                dateObj.setUTCDate(dateObj.getUTCDate() + 1);
+                                const year = dateObj.getUTCFullYear();
+                                const month = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
+                                const day = String(dateObj.getUTCDate()).padStart(2, '0');
+                                entryDate = `${year}-${month}-${day}`;
+                            } else if (!entryDate) {
+                                entryDate = new Date().toISOString().split('T')[0];
+                            } else if (typeof entryDate === 'string') {
+                                // 处理不同格式的日期字符串
+                                let dateObj;
+                                if (entryDate.includes('/')) {
+                                    // 假设格式为 DD/MM/YYYY
+                                    const [day, month, year] = entryDate.split('/').map(Number);
+                                    dateObj = new Date(year, month - 1, day);
+                                } else if (entryDate.includes('-')) {
+                                    // 假设格式为 YYYY-MM-DD 或 MM-DD-YYYY
+                                    const parts = entryDate.split('-').map(Number);
+                                    if (parts.length === 3) {
+                                        if (parts[0] > 12) {
+                                            // YYYY-MM-DD format
+                                            dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+                                        } else {
+                                            // MM-DD-YYYY format
+                                            dateObj = new Date(parts[2], parts[0] - 1, parts[1]);
+                                        }
+                                    }
+                                }
+                                if (dateObj && !isNaN(dateObj.getTime())) {
+                               // 使用本地时间构建YYYY-MM-DD格式的日期字符串
+                                      const year = dateObj.getFullYear();
+                                      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                                      const day = String(dateObj.getDate()).padStart(2, '0');
+                                      entryDate = `${year}-${month}-${day}`;
+                                  } else {
+                                      // 如果解析失败，使用当前日期
+                                      const now = new Date();
+                                      const year = now.getFullYear();
+                                      const month = String(now.getMonth() + 1).padStart(2, '0');
+                                      const day = String(now.getDate()).padStart(2, '0');
+                                      entryDate = `${year}-${month}-${day}`;
+                                  }
+                            }
+                            
+                            // 处理发票日期
+                            if (invoiceDate instanceof Date) {
+                                // XLSX.js将Excel日期解析为UTC时间，加一天后提取UTC日期部分
+                                const dateObj = new Date(invoiceDate);
+                                dateObj.setUTCDate(dateObj.getUTCDate() + 1);
+                                const year = dateObj.getUTCFullYear();
+                                const month = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
+                                const day = String(dateObj.getUTCDate()).padStart(2, '0');
+                                invoiceDate = `${year}-${month}-${day}`;
+                            } else if (typeof invoiceDate === 'string') {
+                                // 处理不同格式的发票日期字符串
+                                let dateObj;
+                                if (invoiceDate.includes('/')) {
+                                    // 假设格式为 DD/MM/YYYY
+                                    const [day, month, year] = invoiceDate.split('/').map(Number);
+                                    dateObj = new Date(year, month - 1, day);
+                                } else if (invoiceDate.includes('-')) {
+                                    // 假设格式为 YYYY-MM-DD 或 MM-DD-YYYY
+                                    const parts = invoiceDate.split('-').map(Number);
+                                    if (parts.length === 3) {
+                                        if (parts[0] > 12) {
+                                            // YYYY-MM-DD format
+                                            dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+                                        } else {
+                                            // MM-DD-YYYY format
+                                            dateObj = new Date(parts[2], parts[0] - 1, parts[1]);
+                                        }
+                                    }
+                                }
+                                if (dateObj && !isNaN(dateObj.getTime())) {
+                                   // 使用本地时间构建YYYY-MM-DD格式的日期字符串
+                                      const year = dateObj.getFullYear();
+                                      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                                      const day = String(dateObj.getDate()).padStart(2, '0');
+                                      invoiceDate = `${year}-${month}-${day}`;
+                                  }
+                            }
+                            
+                            const invoice = {
+                                id: Date.now() + Math.random() * 1000,
+                                entryDate: entryDate,
+                                date: invoiceDate,
+                                invoiceNo: invoiceNo,
+                                customer: item['客户'],
+                                amount: amount,
+                                taxRate: taxRate,
+                                taxAmount: taxAmount,
+                                status: item['状态'] || 'issued',
+                                remark: item['备注'] || '',
+                                type: 'sales',
+                                company: company
+                            };
+                            
+                            invoices.push(invoice);
+                        } else {
+                            duplicateCount++;
+                            console.log('重复发票:', JSON.stringify(item));
+                        }
+                    });
+                    
+                    console.log('导入结果:', importedCount, '条导入成功，', duplicateCount, '条重复');
+                    
+                    // 保存到localStorage
+                    localStorage.setItem('invoice_management_invoices', JSON.stringify(invoices));
+                    
+                    // 重新加载数据
+                    loadSalesInvoices();
+                    updateMonthlyTaxDifference();
+                    
+                    // 重置文件输入
+                    e.target.value = '';
+                    alert(`销项发票导入完成！成功导入${importedCount}条，跳过${duplicateCount}条重复记录`);
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        });
+
+        // 记事本功能
+        function loadNotes() {
+            const savedNotes = localStorage.getItem('notepadContent');
+            if (savedNotes) {
+                document.getElementById('notepadContent').value = savedNotes;
+            }
+        }
+
+        function saveNotepad() {
+            const content = document.getElementById('notepadContent').value;
+            localStorage.setItem('notepadContent', content);
+            alert('笔记已保存！');
+        }
+
+        function exportNotepad() {
+            const content = document.getElementById('notepadContent').value;
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `notepad_${new Date().toISOString().slice(0, 10)}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // 页面加载时加载笔记
+        document.addEventListener('DOMContentLoaded', loadNotes);
+
+        // 备份数据功能
+        function backupData() {
+            try {
+                // 获取当前公司信息
+                const currentCompany = localStorage.getItem('currentCompany') || 'companyA';
+                
+                // 获取所有公司列表
+                const companies = ['companyA', 'companyB'];
+                
+                // 收集所有需要备份的数据
+                const backupData = {
+                    version: '2.0',
+                    exportDate: new Date().toISOString(),
+                    currentCompany: currentCompany,
+                    companies: companies,
+                    data: {
+                        // 待办事项数据
+                        invoiceTodoList: JSON.parse(localStorage.getItem('todoList') || '[]'),
+                        invoiceTodoIdCounter: parseInt(localStorage.getItem('todoIdCounter') || '1'),
+                        // 记事本数据
+                        invoiceNotepadContent: localStorage.getItem('notepadContent') || '',
+                        // 发票数据（全局）
+                        globalInvoices: JSON.parse(localStorage.getItem('invoice_management_invoices') || '[]'),
+                        // 发票列表页面数据
+                        invoiceData: localStorage.getItem('invoiceData') || ''
+                    }
+                };
+                
+                // 创建JSON Blob
+                const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+                a.href = url;
+                a.download = `invoice_backup_${timestamp}.json`;
+                
+                // 触发下载
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error('备份失败:', error);
+                alert('数据备份失败：' + error.message);
+            }
+        }
+
+        // 自动备份函数
+        function autoBackup() {
+            try {
+                // 获取当前公司信息
+                const currentCompany = localStorage.getItem('currentCompany') || 'companyA';
+                
+                // 获取所有公司列表
+                const companies = ['companyA', 'companyB'];
+                
+                // 收集所有需要备份的数据
+                const backupData = {
+                    version: '2.0',
+                    exportDate: new Date().toISOString(),
+                    currentCompany: currentCompany,
+                    companies: companies,
+                    data: {
+                        // 待办事项数据
+                        invoiceTodoList: JSON.parse(localStorage.getItem('todoList') || '[]'),
+                        invoiceTodoIdCounter: parseInt(localStorage.getItem('todoIdCounter') || '1'),
+                        // 记事本数据
+                        invoiceNotepadContent: localStorage.getItem('notepadContent') || '',
+                        // 发票数据（全局）
+                        globalInvoices: JSON.parse(localStorage.getItem('invoice_management_invoices') || '[]'),
+                        // 发票列表页面数据
+                        invoiceData: localStorage.getItem('invoiceData') || '',
+                        backupTime: new Date().toISOString()
+                    }
+                };
+                
+                // 创建JSON Blob
+                const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+                a.href = url;
+                a.download = `invoice_backup_${timestamp}.json`;
+                
+                // 触发下载
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                console.log('数据已自动备份到下载文件夹。');
+            } catch (error) {
+                console.error('自动备份失败:', error);
+            }
+        }
+        
+
+        
+
+
+        // 恢复数据功能
+        function restoreData() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    // 验证文件类型
+                    if (file.type !== 'application/json' && !file.name.endsWith('.json')) {
+                        alert('请选择有效的JSON文件！');
+                        input.value = '';
+                        return;
+                    }
+                    
+                    // 确认导入操作
+                    if (!confirm('导入备份将覆盖当前所有数据！\n请确保您已备份重要数据。\n\n确定要继续导入吗？')) {
+                        input.value = '';
+                        return;
+                    }
+                    
+                    const reader = new FileReader();
+                    
+                    reader.onload = (event) => {
+                        try {
+                            const backupData = JSON.parse(event.target.result);
+                            
+                            // 验证备份数据结构
+                            if (!backupData.version || !backupData.data) {
+                                // 尝试兼容旧格式
+                                localStorage.setItem('invoice_management_invoices', JSON.stringify(backupData.invoices || []));
+                                localStorage.setItem('todoList', JSON.stringify(backupData.todoList || []));
+                                localStorage.setItem('todoIdCounter', (backupData.todoIdCounter || 1).toString());
+                                localStorage.setItem('notepadContent', backupData.notepadContent || '');
+                                localStorage.setItem('invoiceData', backupData.invoiceData || '');
+                                alert('旧格式数据恢复成功！请刷新页面以查看更新。');
+                                return;
+                            }
+                            
+                            // 获取备份中的公司信息
+                            const backupCompany = backupData.currentCompany || 'companyA';
+                            
+                            // 恢复所有数据到LocalStorage
+                            const data = backupData.data;
+                            
+                            // 获取当前公司
+                            const currentCompany = localStorage.getItem('currentCompany') || 'companyA';
+                            
+                            // 询问用户是否要切换公司（如果备份中的公司不同）
+                            let targetCompany = backupCompany;
+                            if (backupCompany !== currentCompany) {
+                                if (confirm(`备份文件是针对公司 "${backupCompany}" 的，但当前正在使用 "${currentCompany}"。\n是否要切换到公司 "${backupCompany}"？\n\n选择"确定"将切换到该公司并恢复其数据。\n选择"取消"将在保持当前公司的情况下恢复数据。`)) {
+                                    localStorage.setItem('currentCompany', backupCompany);
+                                }
+                            }
+                            
+                            // 恢复非空数据
+                            if (data.invoiceTodoList && Array.isArray(data.invoiceTodoList)) {
+                                localStorage.setItem('todoList', JSON.stringify(data.invoiceTodoList));
+                            }
+                            
+                            if (data.invoiceTodoIdCounter) {
+                                localStorage.setItem('todoIdCounter', data.invoiceTodoIdCounter.toString());
+                            }
+                            
+                            if (data.invoiceNotepadContent !== undefined) {
+                                localStorage.setItem('notepadContent', data.invoiceNotepadContent);
+                            }
+                            
+                            if (data.globalInvoices && Array.isArray(data.globalInvoices)) {
+                                localStorage.setItem('invoice_management_invoices', JSON.stringify(data.globalInvoices));
+                            }
+                            
+                            if (data.invoiceData !== undefined) {
+                                localStorage.setItem('invoiceData', data.invoiceData);
+                            }
+                            
+                            alert('数据恢复成功！请刷新页面以查看更新。');
+                        } catch (error) {
+                            console.error('恢复失败:', error);
+                            alert('数据恢复失败：' + error.message);
+                        }
+                    };
+                    
+                    reader.readAsText(file);
+                }
+            };
+            
+            input.click();
+        }
+
+
+    </script>
+</body>
+</html>

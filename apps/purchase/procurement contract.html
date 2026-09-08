@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>采购合同</title>
+    <!-- Tailwind CSS v3 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* A4 纸张样式 */
+        @page {
+            size: A4 portrait;
+            margin: 0.8cm;
+        }
+        
+        /* 打印样式 */
+        @media print {
+            * {
+                box-shadow: none !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            
+            .a4-container {
+                box-shadow: none !important;
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            
+            /* 打印时隐藏打印按钮 */
+            .fixed, #printBtn {
+                display: none !important;
+            }
+
+            /* 打印时去除条款编辑焦点框 */
+            .contract-terms li[contenteditable="true"]:focus {
+                outline: none !important;
+            }
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', 'SimHei', sans-serif;
+            line-height: 1.2;
+            font-size: 12px;
+        }
+        
+        .a4-container {
+            width: 21cm;
+            height: 29.7cm;
+            margin: 0 auto;
+            padding: 0.4cm 0.8cm;
+            background-color: white;
+        }
+        
+        .buyer-header {
+            text-align: justify;
+            margin-bottom: 3px;
+        }
+        
+        .buyer-header h2 {
+            font-size: 17px;
+            font-weight: bold;
+            margin-bottom: 1px;
+            text-align: justify;
+        }
+        
+        .buyer-header h2::after {
+            content: '';
+            display: inline-block;
+            width: 100%;
+        }
+        
+        .buyer-header .underline {
+            width: 100%;
+            margin: 0 auto;
+            height: 2px;
+            background-color: #000;
+        }
+        
+
+        
+        .contract-title {
+            text-align: center;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        
+        .contract-info {
+            margin-bottom: 10px;
+        }
+        
+        .contract-info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+        
+        .contract-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+        }
+        
+        .contract-table th,
+        .contract-table td {
+            border: 1px solid #000;
+            padding: 4px 6px;
+            text-align: center;
+            font-size: 12px;
+            line-height: 1.2;
+        }
+        
+        .contract-table th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+            padding: 5px 6px;
+        }
+        
+        .total-amount {
+            text-align: right;
+            font-size: 13px;
+            font-weight: bold;
+            margin-top: 6px;
+        }
+        
+        .party-info {
+            margin-bottom: 10px;
+        }
+        
+        .party-info h3 {
+            font-weight: bold;
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+        
+        .party-container {
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .party-details {
+            font-size: 12px;
+            flex: 1;
+            margin-right: 20px;
+        }
+        
+        .party-details p {
+            margin-bottom: 3px;
+        }
+        
+        .party-details:last-child {
+            margin-right: 0;
+        }
+        
+        .contract-terms {
+            margin-bottom: 10px;
+        }
+        
+        .contract-terms h3 {
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .contract-terms ol {
+            list-style-type: decimal;
+            margin-left: 18px;
+        }
+        
+        .contract-terms li {
+            margin-bottom: 4px;
+        }
+
+        .contract-terms li[contenteditable="true"] {
+            cursor: text;
+        }
+
+        .contract-terms li[contenteditable="true"]:focus {
+            outline: 1px dashed #9ca3af;
+            outline-offset: 2px;
+        }
+        
+        .sign-section {
+            margin-top: 10px;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .sign-party {
+            text-align: center;
+            min-width: 250px;
+            flex: 1;
+        }
+        
+        .sign-party h4 {
+            font-weight: bold;
+            margin-bottom: 25px;
+        }
+        
+        .sign-party p {
+            margin-bottom: 2px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 打印按钮 -->
+    <div class="fixed top-4 right-4 z-10">
+        <button id="printBtn" onclick="window.print()" class="bg-blue-600 text-white px-6 py-3 rounded-lg shadow-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm3-4v-5a2 2 0 012-2h2a2 2 0 012 2v5"></path>
+            </svg>
+            打印
+        </button>
+    </div>
+    
+    <div class="a4-container">
+        <div class="buyer-header">
+            <h2 id="buyerCompanyHeader"></h2>
+            <div class="underline"></div>
+        </div>
+        <h1 class="contract-title">采购合同</h1>
+        
+        <div class="contract-info" style="text-align: right;">
+            <div style="display: inline-block; text-align: left; width: 250px;">
+                <div style="margin-bottom: 8px;"><strong>合同号：</strong><span id="contractNumber"></span></div>
+                <div style="margin-bottom: 8px;"><strong>签约地：</strong>常州</div>
+                <div><strong>合同日期：</strong><span id="orderDate"></span></div>
+            </div>
+        </div>
+        
+        <div class="party-info">
+            <div class="party-container">
+                <div class="party-details">
+                    <p><strong>买方：</strong><span id="buyerCompanyName"></span></p>
+                    <p>地址：<span id="buyerCompanyAddress"></span></p>
+                    <p>联系人：<span id="buyerContactPerson"></span></p>
+                    <p>联系电话：<span id="buyerPhoneNumber"></span></p>
+                </div>
+                <div class="party-details">
+                    <p><strong>卖方：</strong><span id="supplierName"></span></p>
+                    <p>地址：<span id="companyAddress"></span></p>
+                    <p>联系人：<span id="contactPerson"></span></p>
+                    <p>联系电话：<span id="phoneNumber"></span></p>
+                    <p>邮箱：<span id="email"></span></p>
+                    <p>开户行：<span id="bankName"></span></p>
+                    <p>行号：<span id="bankCode"></span></p>
+                    <p>账号：<span id="bankAccount"></span></p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="contract-terms">
+            <h3>二、产品清单</h3>
+            <table class="contract-table">
+                <thead>
+                    <tr>
+                        <th>产品名称</th>
+                        <th>规格型号</th>
+                        <th>单价</th>
+                        <th>数量</th>
+                        <th>单位</th>
+                        <th>金额</th>
+                        <th>说明</th>
+                    </tr>
+                </thead>
+                <tbody id="productsTableBody">
+                </tbody>
+            </table>
+            
+            <!-- 订单备注区域 -->
+            <div class="mt-2">
+                <p class="font-bold mb-1">订单备注：</p>
+                <textarea id="orderRemark" rows="2" class="w-full border border-gray-300 p-1 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="在此处输入订单备注..."></textarea>
+            </div>
+            
+            <div class="total-amount">
+                <strong>数量合计：</strong><span id="totalQuantity"></span>
+            </div>
+            
+            <div class="total-amount">
+                <strong>总金额（含税）：</strong><span id="totalAmount"></span>
+            </div>
+        </div>
+        
+        <!-- 通用的金额千分位格式化函数 -->
+        <script>
+            function formatCurrency(amount) {
+                const num = parseFloat(amount);
+                if (isNaN(num)) return '¥0.00';
+                const numStr = num.toFixed(2);
+                const parts = numStr.split('.');
+                parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                return `¥${parts.join('.')}`;
+            }
+        </script>
+        
+        <div class="contract-terms">
+            <h3>三、合同条款</h3>
+            <ol>
+                <li contenteditable="true">合同有效期：自合同签订之日起至全部货物交付并验收合格之日止。</li>
+                <li contenteditable="true">交货地点：买方工厂或指定仓库。</li>
+                <li contenteditable="true">交货期：<span id="deliveryDate" class="border-b border-gray-500 px-1" style="display: inline-block; min-width: 80px;"></span>前完成全部货物交付。</li>
+                <li contenteditable="true">交货方式：<span id="deliveryMethod" class="border-b border-gray-500 px-1" style="display: inline-block; min-width: 80px;">卖方安排并承担所有包装和运输费用</span>。</li>
+                <li contenteditable="true">交货技术参数：货物的技术参数以买方订单及技术资料为准，卖方须严格按照双方确认的图纸、样品及技术要求进行生产和交付。</li>
+                <li contenteditable="true">货物验收：买方在收到货物后7个工作日内完成验收，如发现质量问题需及时通知卖方。</li>
+                <li contenteditable="true">付款方式：<span id="paymentMethod" class="border-b border-gray-500 px-1" style="display: inline-block; min-width: 80px;">验收合格后30个工作日内支付全额货款</span>。</li>
+                <li contenteditable="true">违约责任：如一方违约，需承担合同总金额5%的违约金。</li>
+                <li contenteditable="true">争议解决：双方协商解决，协商不成的提交合同签订地法院诉讼解决。</li>
+                <li contenteditable="true">其他：本合同一式两份，买卖双方各执一份，具有同等法律效力。</li>
+            </ol>
+        </div>
+        
+        <div class="sign-section">
+            <div class="sign-party" style="position: relative;">
+                <h4>买方（盖章）：</h4>
+                <!-- 动态选择的印章图片 -->
+                <img id="buyerStampImage" src="" alt="买方签章" style="position: absolute; top: 2mm; left: 10mm; width: 216px; height: 216px; object-fit: cover; border-radius: 50%; z-index: 10; display: none;" />
+                <p>授权代表：</p>
+                <p>日期：______年______月______日</p>
+            </div>
+            <div class="sign-party">
+                <h4>卖方（盖章）：</h4>
+                <p>授权代表：</p>
+                <p>日期：______年______月______日</p>
+            </div>
+        </div>
+        
+        <div class="mt-4">
+            <p class="text-right">合同生成日期：<span id="generateDate"></span></p>
+        </div>
+    </div>
+    
+    <script>
+        // 从URL参数获取合同数据
+        const urlParams = new URLSearchParams(window.location.search);
+        const contractData = JSON.parse(decodeURIComponent(urlParams.get('data')));
+        
+        // 填充合同信息
+        document.getElementById('contractNumber').textContent = contractData.contractNumber;
+        document.getElementById('orderDate').textContent = contractData.orderDate;
+        
+        // 填充买方公司名称
+        document.getElementById('buyerCompanyName').textContent = contractData.companyName || 'XX公司';
+        document.getElementById('buyerCompanyHeader').textContent = contractData.companyName || 'XX公司';
+        
+        // 填充买方公司地址、联系人和电话
+        document.getElementById('buyerCompanyAddress').textContent = contractData.buyerCompanyAddress || 'XX省XX市XX区XX路XX号';
+        document.getElementById('buyerContactPerson').textContent = contractData.buyerContactPerson || 'Alon Zhang';
+        document.getElementById('buyerPhoneNumber').textContent = contractData.buyerPhoneNumber || '136 6511 9291';
+        
+        // 填充供应商信息
+        const supplierInfo = contractData.supplierInfo || {};
+        document.getElementById('supplierName').textContent = supplierInfo.supplierName || contractData.supplier;
+        document.getElementById('companyAddress').textContent = supplierInfo.companyAddress || '';
+        document.getElementById('contactPerson').textContent = supplierInfo.contactPerson || '';
+        document.getElementById('phoneNumber').textContent = supplierInfo.phoneNumber || '';
+        document.getElementById('email').textContent = supplierInfo.email || '';
+        document.getElementById('bankName').textContent = supplierInfo.bankName || '';
+        document.getElementById('bankCode').textContent = supplierInfo.bankCode || '';
+        document.getElementById('bankAccount').textContent = supplierInfo.bankAccount || '';
+        
+        // 填充交货期，现在是span元素而不是input元素
+        const deliveryDateElement = document.getElementById('deliveryDate');
+        if (deliveryDateElement && contractData.deliveryDate) {
+            deliveryDateElement.textContent = contractData.deliveryDate;
+        }
+        
+        // 填充产品列表并计算数量合计
+        const productsTableBody = document.getElementById('productsTableBody');
+        let totalQuantity = 0;
+        
+        contractData.products.forEach(product => {
+            // 累加数量
+            const quantity = parseFloat(product.quantity) || 0;
+            totalQuantity += quantity;
+            
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${product.productName}</td>
+                <td>${product.specification}</td>
+                <td>${formatCurrency(product.unitPrice)}</td>
+                <td>${quantity.toLocaleString()}</td>
+                <td>${product.unit || '只'}</td>
+                <td>${formatCurrency(product.amount)}</td>
+                <td><input type="text" value="${product.remark || ''}" class="border-b border-gray-500 focus:outline-none focus:border-blue-500 px-1 w-full" /></td>
+            `;
+            productsTableBody.appendChild(row);
+        });
+        
+        // 填充数量合计
+        document.getElementById('totalQuantity').textContent = totalQuantity.toLocaleString();
+        
+        // 填充总金额
+        document.getElementById('totalAmount').textContent = formatCurrency(contractData.totalAmount);
+        
+
+        
+        // 设置订单备注
+        document.getElementById('orderRemark').value = contractData.orderRemark || '';
+        
+        // 设置生成日期
+        document.getElementById('generateDate').textContent = new Date().toISOString().split('T')[0];
+        
+        // 根据公司名称设置买方印章图片
+        function setBuyerStampImage(companyName) {
+            const stampImage = document.getElementById('buyerStampImage');
+            if (stampImage) {
+                if (companyName.includes('无锡龙力')) {
+                    stampImage.src = 'llchop.png';
+                    stampImage.style.display = 'block';
+                } else if (companyName.includes('普利美')) {
+                    stampImage.src = 'plmchop.png';
+                    stampImage.style.display = 'block';
+                } else {
+                    stampImage.style.display = 'none';
+                }
+            }
+        }
+        
+        // 设置买方印章图片
+        setBuyerStampImage(contractData.companyName || '');
+        
+
+        
+        // 自动打印
+        // window.print();
+    </script>
+</body>
+</html>

@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Formal Quotation</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* 蓝绿渐变配色方案 */
+        :root {
+            --primary-gradient: linear-gradient(135deg, #2563eb 0%, #10b981 100%);
+            --primary-color: #2563eb;
+            --secondary-color: #10b981;
+            --accent-color: #6366f1;
+            --text-color: #1f2937;
+            --light-text: #6b7280;
+            --border-color: #e5e7eb;
+        }
+
+        /* 全局样式 */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        /* 打印样式 */
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 0.5cm 0.5cm 1.5cm 0.5cm;
+            }
+            
+            body {
+                font-size: 10pt;
+                margin: 0;
+                padding: 0;
+            }
+            
+            .no-print {
+                display: none !important;
+            }
+            
+            /* 确保表格不超出页面宽度 */
+            table {
+                width: 100% !important;
+                table-layout: auto !important;
+            }
+            
+            /* 确保打印时网格布局正常显示 */
+            .grid {
+                display: grid !important;
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+                gap: 0 !important;
+            }
+            
+            /* 移除可能干扰网格布局的样式 */
+            .grid > div {
+                width: auto !important;
+                box-sizing: border-box !important;
+            }
+            
+            /* 确保所有容器不超出页面 */
+            .max-w-4xl {
+                max-width: 100% !important;
+            }
+            
+            /* 调整内边距 */
+            .p-6 {
+                padding: 0.5rem !important;
+            }
+            
+            /* 调整字段容器，确保内容不换行 */
+            .flex.justify-between {
+                display: flex !important;
+                justify-content: space-between !important;
+                white-space: nowrap;
+            }
+            
+            /* 调整字体大小，确保所有内容可见 */
+            .text-sm {
+                font-size: 0.75rem !important;
+            }
+            
+            .text-xs {
+                font-size: 0.65rem !important;
+            }
+        }
+
+        /* 渐变标题 */
+        .gradient-text {
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* 渐变背景 */
+        .gradient-bg {
+            background: var(--primary-gradient);
+        }
+
+        /* 正式表格样式 */
+        .formal-table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 0.75rem;
+            table-layout: fixed;
+        }
+
+        .formal-table th {
+            background: #e3f2fd;
+            color: #0d47a1;
+            text-align: left;
+            padding: 4px 6px;
+            font-weight: 600;
+            font-size: 0.75rem;
+            border: 1px solid var(--border-color);
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        .formal-table td {
+            padding: 3px 6px;
+            border: 1px solid var(--border-color);
+            font-size: 0.75rem;
+            white-space: normal;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .formal-table td input.edit-input {
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        .formal-table tr:nth-child(even) {
+            background-color: #f9fafb;
+        }
+
+        /* 打印时的表格样式 */
+    @media print {
+        .formal-table {
+            font-size: 8pt !important;
+            table-layout: fixed !important;
+            width: 100% !important;
+        }
+        .formal-table th,
+        .formal-table td {
+            padding: 2px 4px !important;
+            font-size: 8pt !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+        }
+        .formal-table th {
+            text-align: center !important;
+        }
+        .formal-table th span {
+            font-size: 7pt !important;
+        }
+        .formal-table td.text-right {
+            text-align: right !important;
+        }
+        
+        /* 优化公司名称和标题的打印样式 */
+        .company-name {
+            font-size: 14pt !important;
+            margin-bottom: 0.5rem !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+        .company-info {
+            font-size: 9pt !important;
+            margin-bottom: 0.5rem !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+        h2.text-lg {
+            font-size: 12pt !important;
+            margin-bottom: 0.5rem !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+        .gradient-text {
+            font-size: 11pt !important;
+            margin-bottom: 0.5rem !important;
+            background: var(--primary-gradient) !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+        
+        /* 确保分隔线在打印时可见 */
+        .divider {
+            height: 2px !important;
+            background: var(--primary-gradient) !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            display: block !important;
+            margin: 1rem 0 !important;
+        }
+        
+        /* 移除打印时的阴影效果 */
+        .shadow-lg, .shadow-md, .shadow-xl, .shadow {
+            box-shadow: none !important;
+        }
+        
+        /* 优化总计信息的打印样式 */
+        #totalInfo {
+            font-size: 10pt !important;
+        }
+        #totalInfo .font-bold {
+            font-size: 11pt !important;
+        }
+        
+        /* 确保表格表头背景色打印 */
+        .formal-table th {
+            background-color: #e3f2fd !important;
+            color: #0d47a1 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+        
+        /* 确保成交条款红色背景打印 */
+        #terms {
+            background-color: #dc2626 !important;
+            color: white !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+        
+        /* 确保印章颜色打印 */
+        .seal {
+            border-color: #2563eb !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+        .seal .seal-text,
+        .seal .seal-text-en,
+        .seal .seal-signature {
+            color: #2563eb !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+        
+        /* 确保所有元素颜色打印 */
+        body * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+    }
+
+        /* 分隔线 */
+        .divider {
+            height: 2px;
+            background: var(--primary-gradient);
+            margin: 1rem 0;
+        }
+        
+        /* 印章样式 */
+        .seal {
+            width: 100mm;
+            height: 20mm;
+            border: 2px solid #2563eb;
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(10deg);
+            opacity: 0.7;
+            background: transparent;
+            z-index: 2;
+        }
+        
+        .seal .seal-text {
+            color: #2563eb;
+            font-weight: bold;
+            text-align: center;
+            font-size: 5mm;
+            line-height: 1.2;
+            white-space: nowrap;
+            margin-bottom: 1mm;
+        }
+        
+        .seal .seal-text-en {
+            color: #2563eb;
+            text-align: center;
+            font-size: 3mm;
+            line-height: 1.2;
+            white-space: nowrap;
+            margin-bottom: 1mm;
+        }
+        
+        .seal .seal-signature {
+            color: #2563eb;
+            font-family: 'Brush Script MT', 'Cursive', 'Arial';
+            text-align: center;
+            font-size: 5mm;
+            line-height: 1.2;
+            white-space: nowrap;
+        }
+        
+        /* 印章容器，用于调整位置 */
+        .seal-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: visible;
+        }
+        
+        /* 条款文字容器 */
+        .terms-container {
+            position: relative;
+            z-index: 1;
+            margin-top: 1rem;
+        }
+        
+        /* 条款和条件容器，设置为相对定位 */
+        .terms-section {
+            position: relative;
+            margin-bottom: 8rem;
+        }
+        
+        /* 可编辑输入框样式 */
+        .edit-input {
+            font-size: 10px;
+            padding: 1px 3px;
+            outline: none;
+            transition: border-color 0.2s;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        .edit-input:focus {
+            border: 1px solid #2563eb !important;
+            border-radius: 2px;
+        }
+        
+        /* 移除number输入框的箭头 */
+        .edit-input::-webkit-outer-spin-button,
+        .edit-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        
+        .edit-input[type="number"] {
+            -moz-appearance: textfield;
+        }
+        
+        /* 打印时隐藏输入框边框 */
+        @media print {
+            .edit-input {
+                border: none !important;
+                outline: none !important;
+                background: transparent !important;
+                -webkit-appearance: none;
+                -moz-appearance: textfield;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- 打印控制按钮 -->
+    <div class="fixed top-4 right-4 no-print">
+        <button id="printBtn" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center shadow-lg">
+            <i class="fa fa-print mr-2"></i>Print
+        </button>
+    </div>
+
+    <!-- 报价单容器 -->
+    <div class="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg">
+        <!-- 顶部公司名称 -->
+        <div class="text-center mb-8">
+            <div class="text-2xl font-bold mb-4" id="companyName"></div>
+            
+            <!-- 顶部标题区域 -->
+            <div class="gradient-text text-xl font-bold mb-4">报价单 QUOTATION</div>
+            <div class="divider mt-4"></div>
+        </div>
+
+        <!-- 报价信息和客户信息 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-0 mb-4 print:gap-0">
+            <!-- 报价信息 -->
+            <div class="text-nowrap">
+                <div class="space-y-1">
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-32">报价单号 Quote No:</span>
+                        <span id="quoteNo" class="text-xs ml-2"></span>
+                    </div>
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-32">报价日期 Quote Date:</span>
+                        <span id="quoteDate" class="text-xs ml-2"></span>
+                    </div>
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-32">有效期至 Valid Until:</span>
+                        <span id="validUntil" class="text-xs ml-2"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 客户信息 -->
+            <div class="text-nowrap">
+                <div class="space-y-1">
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-32">公司名称 Company:</span>
+                        <span id="customerCompany" class="text-xs ml-2"></span>
+                    </div>
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-32">联系人 Contact:</span>
+                        <span id="customerContact" class="text-xs ml-2"></span>
+                    </div>
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-32">电话 Phone:</span>
+                        <span id="customerTel" class="text-xs ml-2"></span>
+                    </div>
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-32">邮箱 Email:</span>
+                        <span id="customerEmail" class="text-xs ml-2"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 交货信息和付款信息 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-0 mb-6 print:gap-0">
+            <!-- 交货信息 -->
+            <div class="text-nowrap">
+                <div class="space-y-1">
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-36">交货方式 Delivery Method:</span>
+                        <span id="deliveryMethod" class="text-xs ml-2"></span>
+                    </div>
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-36">交货港口/地点 Delivery Port:</span>
+                        <span id="deliveryLocation" class="text-xs ml-2"></span>
+                    </div>
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-36">交货日期 Delivery Date:</span>
+                        <span id="deliveryDate" class="text-xs ml-2"></span>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- 付款信息 -->
+            <div class="text-nowrap">
+                <div class="space-y-1">
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-32">成交条款 Terms:</span>
+                        <span id="terms" class="text-xs ml-2 px-2 py-0.5 bg-red-600 text-white rounded"></span>
+                    </div>
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-36">付款方式 Payment Method:</span>
+                        <span id="paymentMethod" class="text-xs ml-2"></span>
+                    </div>
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-32">付款比例 Payment Ratio:</span>
+                        <span id="paymentRatio" class="text-xs ml-2"></span>
+                    </div>
+                    <div class="flex">
+                        <span class="font-semibold text-xs w-32">税率 Tax Rate:</span>
+                        <span id="taxRate" class="text-xs ml-2"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 产品明细表格 -->
+        <div class="mb-0">
+            <h3 class="text-sm font-bold mb-4 gradient-text">产品明细 Product Details</h3>
+            <div class="overflow-x-auto">
+                <table class="formal-table">
+                    <colgroup>
+                        <col style="width: 4%">
+                        <col style="width: 7%">
+                        <col style="width: 14%">
+                        <col style="width: 11%">
+                        <col style="width: 12%">
+                        <col style="width: 5%">
+                        <col style="width: 6%">
+                        <col style="width: 8%">
+                        <col style="width: 8%">
+                        <col style="width: 17%">
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th class="text-sm">序号<br><span class="text-xs">No.</span></th>
+                            <th class="text-sm">产品编号<br><span class="text-xs">Product No.</span></th>
+                            <th class="text-sm">产品名称<br><span class="text-xs">Product Name</span></th>
+                            <th class="text-sm">图号<br><span class="text-xs">Drawing No.</span></th>
+                            <th class="text-sm">规格型号<br><span class="text-xs">Specifications</span></th>
+                            <th class="text-sm">单位<br><span class="text-xs">Unit</span></th>
+                            <th class="text-sm">数量<br><span class="text-xs">Qty</span></th>
+                            <th class="text-sm">单价<br><span class="text-xs">Unit Price</span></th>
+                            <th class="text-sm">金额<br><span class="text-xs">Amount</span></th>
+                            <th class="text-sm">备注<br><span class="text-xs">Remark</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="productTableBody">
+                        <!-- 产品数据将通过JavaScript动态填充 -->
+                    </tbody>
+                </table>
+            </div>
+            
+        </div>
+
+        <!-- 总计信息 -->
+        <div class="flex flex-col items-end mb-4">
+            <div class="w-72">
+                <div class="flex justify-between mb-2 text-xs">
+                    <span class="font-semibold">小计 Subtotal:</span>
+                    <span id="subtotal"></span>
+                </div>
+                <div class="flex justify-between mb-2 text-xs">
+                    <span class="font-semibold">税费 Tax:</span>
+                    <span id="tax"></span>
+                </div>
+                <div class="flex justify-between font-bold text-sm pt-3 border-t-2 border-gray-300">
+                    <span class="gradient-text">总计 Total:</span>
+                    <span id="total"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 交货备注 -->
+        <div class="p-4 border border-gray-200 rounded-lg mb-8">
+            <div class="flex">
+                <span class="font-semibold text-xs w-36">交货备注<br><span class="text-xs">Delivery Remarks:</span></span>
+                <span id="deliveryRemarksTable" class="text-xs ml-2"></span>
+            </div>
+        </div>
+
+        <!-- 条款和条件 -->
+        <div class="terms-section">
+            <h3 class="text-sm font-bold mb-3 gradient-text">条款和条件 Terms & Conditions</h3>
+            <!-- 印章容器 -->
+            <div class="seal-container">
+                <div class="seal">
+                    <div class="seal-text" id="sealCompanyName"></div>
+                    <div class="seal-text-en" id="sealCompanyNameEn"></div>
+                    <div class="seal-signature">AlonZhang</div>
+                </div>
+            </div>
+            <!-- 条款文字容器 -->
+            <div class="terms-container space-y-2 text-xs text-gray-600">
+                <p>1. 价格如有变动，恕不另行通知。 Prices are subject to change without prior notice.</p>
+                <p>2. 交货时间为估算，需确认。 Delivery times are approximate and subject to confirmation.</p>
+                <p>3. 付款条款必须在订单确认前达成一致。 Payment terms must be agreed upon before order confirmation.</p>
+                <p>4. 所有产品均受我们的标准保修条件约束。 All products are subject to our standard warranty conditions.</p>
+            </div>
+        </div>
+
+    <script>
+        // 格式化数字为千分位格式
+        function formatNumber(num) {
+            return num.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        }
+
+        // 从URL参数中获取报价数据
+        function getQueryParams() {
+            const params = new URLSearchParams(window.location.search);
+            const data = {};
+            
+            // 获取基本信息
+            data.companyName = params.get('companyName') || 'N/A';
+            data.quoteNo = params.get('quoteNo') || 'N/A';
+            data.quoteDate = params.get('quoteDate') || 'N/A';
+            data.validUntil = params.get('validUntil') || 'N/A';
+            
+            // 获取客户信息
+            data.customerCompany = params.get('customerCompany') || 'N/A';
+            data.customerContact = params.get('customerContact') || 'N/A';
+            data.customerTel = params.get('customerTel') || 'N/A';
+            data.customerEmail = params.get('customerEmail') || 'N/A';
+            
+            // 获取交货信息
+            data.deliveryMethod = params.get('deliveryMethod') || 'N/A';
+            data.deliveryLocation = params.get('deliveryLocation') || 'N/A';
+            data.deliveryDate = params.get('deliveryDate') || 'N/A';
+            data.deliveryRemarks = params.get('deliveryRemarks') || 'N/A';
+            
+            // 获取付款信息
+            data.terms = params.get('terms') || 'N/A';
+            data.paymentMethod = params.get('paymentMethod') || 'N/A';
+            data.paymentRatio = params.get('paymentRatio') || 'N/A';
+            data.taxRate = params.get('taxRate') || 'N/A';
+            
+            // 获取产品明细（优先从sessionStorage读取，避免URL长度限制）
+            try {
+                const productsKey = params.get('productsKey');
+                if (productsKey) {
+                    const productsJson = sessionStorage.getItem('quotation_products_' + productsKey);
+                    if (productsJson) {
+                        data.products = JSON.parse(productsJson);
+                        sessionStorage.removeItem('quotation_products_' + productsKey);
+                    } else {
+                        data.products = [];
+                    }
+                } else {
+                    // 兼容旧方式：从URL参数读取
+                    const productsJson = params.get('products');
+                    data.products = productsJson ? JSON.parse(productsJson) : [];
+                }
+            } catch (error) {
+                console.error('解析产品明细失败:', error);
+                data.products = [];
+            }
+            
+            // 计算总计信息
+            data.subtotal = 0;
+            data.tax = 0;
+            data.total = 0;
+            
+            if (data.products.length > 0) {
+                // 假设所有产品使用相同的货币
+                data.currency = data.products[0].currency || 'USD';
+                
+                // 计算小计
+                data.subtotal = data.products.reduce((sum, product) => sum + (product.unitPrice * product.quantity), 0);
+                
+                // 计算税费
+                const taxRate = parseFloat(data.taxRate) || 0;
+                data.tax = data.subtotal * (taxRate / 100);
+                
+                // 计算总计
+            data.total = data.subtotal;
+            } else {
+                data.currency = 'USD';
+            }
+            
+            return data;
+        }
+
+        // 填充报价数据到页面
+        function populateQuotationData() {
+            const data = getQueryParams();
+            
+            // 填充公司名称，将中英文名称分开显示
+            const companyName = data.companyName;
+            const nameParts = companyName.split(' | ');
+            const companyNameElement = document.getElementById('companyName');
+            
+            // 根据公司名称添加地址
+            let address = '';
+            const chineseName = nameParts[0];
+            
+            if (chineseName === '普利美(常州)环境工程科技有限公司') {
+                address = '6-1, zhongnan gaoke industrial park, #8 zhounan road, xueyan town, wujin district, Changzhou City, Jiangsu Province, China.P.C.213169';
+            } else if (chineseName === '无锡龙力印铁设备制造有限公司') {
+                address = 'Room 606, Buliding C ,No.4 Longshan Road, Wangzhuang, New district , Wuxi City , Jiangsu Province, China';
+            } else if (chineseName === '无锡市天梁对外贸易有限公司') {
+                address = 'ROOM605,XINGSHENG BUILDING, NO.900 JIEFANG EAST STREET,WUXI,JIANGSU,CHINA';
+            }
+            
+            if (nameParts.length > 1) {
+                if (address) {
+                    companyNameElement.innerHTML = `${nameParts[0]}<br><span class="text-lg font-normal">${nameParts[1]}</span><br><span class="text-sm font-normal">${address}</span>`;
+                } else {
+                    companyNameElement.innerHTML = `${nameParts[0]}<br><span class="text-lg font-normal">${nameParts[1]}</span>`;
+                }
+                // 填充印章中的公司名称（只显示中文部分，因为SVG空间有限）
+                document.getElementById('sealCompanyName').textContent = nameParts[0];
+            } else {
+                if (address) {
+                    companyNameElement.innerHTML = `${companyName}<br><span class="text-sm font-normal">${address}</span>`;
+                } else {
+                    companyNameElement.textContent = companyName;
+                }
+                // 填充印章中的公司名称
+                document.getElementById('sealCompanyName').textContent = companyName;
+            }
+            
+            // 填充基本信息
+            document.getElementById('quoteNo').textContent = data.quoteNo;
+            document.getElementById('quoteDate').textContent = data.quoteDate;
+            document.getElementById('validUntil').textContent = data.validUntil;
+            
+            // 填充客户信息
+            document.getElementById('customerCompany').textContent = data.customerCompany;
+            document.getElementById('customerContact').textContent = data.customerContact;
+            document.getElementById('customerTel').textContent = data.customerTel;
+            document.getElementById('customerEmail').textContent = data.customerEmail;
+            
+            // 填充交货信息
+            document.getElementById('deliveryMethod').textContent = data.deliveryMethod;
+            document.getElementById('deliveryLocation').textContent = data.deliveryLocation;
+            document.getElementById('deliveryDate').textContent = data.deliveryDate;
+            // 只填充产品明细表格下方的交货备注
+            document.getElementById('deliveryRemarksTable').textContent = data.deliveryRemarks;
+            
+            // 填充付款信息
+            document.getElementById('terms').textContent = data.terms;
+            document.getElementById('paymentMethod').textContent = data.paymentMethod;
+            document.getElementById('paymentRatio').textContent = data.paymentRatio;
+            document.getElementById('taxRate').textContent = data.taxRate;
+            
+            // 填充总计信息
+            document.getElementById('subtotal').textContent = `${data.currency} ${formatNumber(data.subtotal)}`;
+            document.getElementById('tax').textContent = `${data.currency} ${formatNumber(data.tax)}`;
+            document.getElementById('total').textContent = `${data.currency} ${formatNumber(data.total)}`;
+            
+            // 填充产品明细
+            const tbody = document.getElementById('productTableBody');
+            tbody.innerHTML = '';
+            
+            data.products.forEach((product, index) => {
+                const row = document.createElement('tr');
+                row.setAttribute('data-index', index);
+                const amount = product.unitPrice * product.quantity;
+                row.innerHTML = `
+                    <td><input type="text" class="edit-input w-full text-center border-none bg-transparent" value="${product.serialNo || index + 1}" onchange="updateTotal()"></td>
+                    <td><input type="text" class="edit-input w-full border-none bg-transparent" value="${product.productNo || ''}" onchange="updateTotal()"></td>
+                    <td><input type="text" class="edit-input w-full border-none bg-transparent" value="${product.productName || ''}" onchange="updateTotal()"></td>
+                    <td><input type="text" class="edit-input w-full border-none bg-transparent" value="${product.drawingNumber || ''}" onchange="updateTotal()"></td>
+                    <td><input type="text" class="edit-input w-full border-none bg-transparent" value="${product.specification || ''}" onchange="updateTotal()"></td>
+                    <td><input type="text" class="edit-input w-full text-center border-none bg-transparent" value="${product.unit || ''}" onchange="updateTotal()"></td>
+                    <td class="text-right"><input type="number" class="edit-input w-full text-right border-none bg-transparent quantity-input" value="${product.quantity || 0}" step="0.01" onchange="updateTotal()" onkeyup="updateTotal()"></td>
+                    <td class="text-right">${data.currency} <input type="number" class="edit-input w-full text-right border-none bg-transparent unitprice-input" value="${product.unitPrice || 0}" step="0.01" onchange="updateTotal()" onkeyup="updateTotal()"></td>
+                    <td class="text-right font-semibold amount-cell">${data.currency} ${formatNumber(amount)}</td>
+                    <td><input type="text" class="edit-input w-full border-none bg-transparent" value="${product.remark || ''}" onchange="updateTotal()"></td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+        
+        // 更新总计信息
+        function updateTotal() {
+            const rows = document.querySelectorAll('#productTableBody tr');
+            let subtotal = 0;
+            const currency = document.getElementById('subtotal').textContent.split(' ')[0] || 'USD';
+            
+            rows.forEach(row => {
+                const quantityInput = row.querySelector('.quantity-input');
+                const unitpriceInput = row.querySelector('.unitprice-input');
+                const amountCell = row.querySelector('.amount-cell');
+                
+                const quantity = parseFloat(quantityInput.value) || 0;
+                const unitPrice = parseFloat(unitpriceInput.value) || 0;
+                const amount = quantity * unitPrice;
+                
+                // 更新金额单元格
+                amountCell.textContent = `${currency} ${formatNumber(amount)}`;
+                
+                // 累加小计
+                subtotal += amount;
+            });
+            
+            // 更新页面上的总计信息
+            const taxRate = parseFloat(document.getElementById('taxRate').textContent) || 0;
+            const tax = subtotal * (taxRate / 100);
+            
+            document.getElementById('subtotal').textContent = `${currency} ${formatNumber(subtotal)}`;
+            document.getElementById('tax').textContent = `${currency} ${formatNumber(tax)}`;
+            document.getElementById('total').textContent = `${currency} ${formatNumber(subtotal)}`;
+        }
+
+        // 打印按钮事件
+        document.getElementById('printBtn').addEventListener('click', () => {
+            window.print();
+        });
+
+        // 页面加载时填充数据
+        document.addEventListener('DOMContentLoaded', () => {
+            populateQuotationData();
+
+            // 添加打印页尾：Quoted By AlonZhang + 页码 + 当天日期
+            const today = new Date();
+            const y = today.getFullYear();
+            const m = String(today.getMonth() + 1).padStart(2, '0');
+            const d = String(today.getDate()).padStart(2, '0');
+            const dateStr = `${y}-${m}-${d}`;
+            const footerStyle = document.createElement('style');
+            footerStyle.textContent = `
+                @media print {
+                    @page {
+                        @bottom-left {
+                            content: "Quoted By AlonZhang";
+                            font-size: 8pt;
+                            color: #999;
+                        }
+                        @bottom-center {
+                            content: "Page " counter(page) " / " counter(pages);
+                            font-size: 8pt;
+                            color: #999;
+                        }
+                        @bottom-right {
+                            content: "${dateStr}";
+                            font-size: 8pt;
+                            color: #999;
+                        }
+                    }
+                }
+            `;
+            document.head.appendChild(footerStyle);
+        });
+    </script>
+</body>
+</html>

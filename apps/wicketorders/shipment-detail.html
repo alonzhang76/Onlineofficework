@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>出货明细 | Shipment Detail</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg: #f5f7fa;
+  --bg2: #ffffff;
+  --ink: #1f2937;
+  --muted: #6b7280;
+  --rule: #d1d5db;
+  --accent: #2563eb;
+  --accent2: #059669;
+  --danger: #dc2626;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* 操作栏 */
+.toolbar {
+  background: var(--bg2);
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.toolbar .form-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.toolbar select {
+  padding: 8px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  font-size: 13px;
+  min-width: 200px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity .2s;
+}
+.btn:hover { opacity: 0.9; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-success { background: var(--accent2); color: #fff; }
+.btn-secondary { background: var(--bg); color: var(--ink); border: 1px solid var(--rule); }
+
+/* 文档预览区域 */
+.doc-container {
+  max-width: 900px;
+  margin: 24px auto;
+  padding: 0 24px;
+}
+
+.doc-preview {
+  background: #fff;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 40px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+/* 公司抬头 */
+.company-header {
+  text-align: center;
+  margin-bottom: 30px;
+  border-bottom: 2px solid var(--ink);
+  padding-bottom: 20px;
+}
+
+.company-header h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+
+.company-header h2 {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.company-header .company-info {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+
+.company-header .company-info span {
+  margin: 0 8px;
+}
+
+/* 文档标题 */
+.doc-title {
+  text-align: center;
+  font-size: 20px;
+  font-weight: 600;
+  margin: 20px 0;
+  color: var(--ink);
+}
+
+/* 信息区域 */
+.info-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+  font-size: 13px;
+}
+
+.info-box {
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 12px 16px;
+}
+
+.info-box h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--accent);
+}
+
+.info-box p {
+  margin: 4px 0;
+  color: var(--ink);
+}
+
+/* 表格容器 */
+.table-container {
+  overflow-x: auto;
+  margin: 16px 0;
+  border: 1px solid #333;
+  border-radius: 6px;
+}
+
+/* 表格 */
+.doc-table {
+  width: 100%;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.doc-table th, .doc-table td {
+  border: 1px solid #333;
+  padding: 6px 8px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.doc-table th {
+  background: #f0f0f0;
+  font-weight: 600;
+  text-align: center;
+}
+
+.doc-table td {
+  text-align: center;
+}
+
+.doc-table td.left {
+  text-align: left;
+}
+
+.doc-table td.merged-cell {
+  background: #fafafa;
+}
+
+/* 汇总行 */
+.summary-row {
+  font-weight: 600;
+  background: #f9f9f9;
+}
+
+/* 签章区域 */
+.signature-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  margin-top: 40px;
+  padding-top: 20px;
+}
+
+.signature-box {
+  text-align: center;
+}
+
+.signature-box h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 60px;
+}
+
+.signature-line {
+  border-top: 1px solid var(--ink);
+  margin-top: 20px;
+  padding-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* 页脚 */
+.doc-footer {
+  text-align: center;
+  margin-top: 30px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* 打印样式 */
+@media print {
+  @page { size: A4 portrait; margin: 8mm; }
+  .toolbar { display: none !important; }
+  body { background: #fff; font-size: 11px; }
+  .doc-container { max-width: 100%; margin: 0; padding: 0; }
+  .doc-preview {
+    box-shadow: none;
+    border: none;
+    padding: 0;
+  }
+
+  /* 抬头与信息区收紧 */
+  .company-header { margin-bottom: 14px; padding-bottom: 10px; }
+  .company-header h1 { font-size: 18px; margin-bottom: 4px; }
+  .company-header h2 { font-size: 12px; margin-bottom: 6px; }
+  .doc-title { font-size: 16px; margin: 10px 0; }
+  .info-section { gap: 10px; margin-bottom: 10px; font-size: 11px; }
+  .info-box { padding: 6px 10px; }
+  .signature-section { margin-top: 24px; gap: 24px; }
+
+  /* 表格：全部列压入 A4 可打印宽度 */
+  .table-container { overflow: visible; margin: 8px 0; border-radius: 0; }
+  .doc-table {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+    font-size: 9px;
+    line-height: 1.3;
+  }
+  .doc-table th, .doc-table td {
+    border: 1px solid #000;
+    border-radius: 0 !important;
+    padding: 3px 2px;
+    white-space: normal;
+    word-break: break-all;
+    overflow-wrap: break-word;
+  }
+  /* 列宽分配（共11列）：序号 订单号 产品名称 图号 规格型号 数量 木箱尺寸 木箱数 净重 毛重 体积 */
+  .doc-table th:nth-child(1), .doc-table td:nth-child(1) { width: 4%; }
+  .doc-table th:nth-child(2), .doc-table td:nth-child(2) { width: 9%; }
+  .doc-table th:nth-child(3), .doc-table td:nth-child(3) { width: 24%; }
+  .doc-table th:nth-child(4), .doc-table td:nth-child(4) { width: 9%; }
+  .doc-table th:nth-child(5), .doc-table td:nth-child(5) { width: 8%; }
+  .doc-table th:nth-child(6), .doc-table td:nth-child(6) { width: 6%; }
+  .doc-table th:nth-child(7), .doc-table td:nth-child(7) { width: 11%; }
+  .doc-table th:nth-child(8), .doc-table td:nth-child(8) { width: 6%; }
+  .doc-table th:nth-child(9), .doc-table td:nth-child(9) { width: 8%; }
+  .doc-table th:nth-child(10), .doc-table td:nth-child(10) { width: 8%; }
+  .doc-table th:nth-child(11), .doc-table td:nth-child(11) { width: 7%; }
+
+  .doc-table td[style*="background-color"] {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* 空数据提示 */
+.empty-message {
+  text-align: center;
+  padding: 40px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* 日期输入 */
+.toolbar input[type="date"] {
+  padding: 8px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.toolbar input[type="text"] {
+  padding: 8px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  font-size: 13px;
+  width: 150px;
+}
+</style>
+</head>
+<body>
+
+<!-- 操作栏 -->
+<div class="toolbar">
+  <div class="form-group">
+    <label>装货地址：</label>
+    <select id="loadingAddressSelect" onchange="updateLoadingAddress()">
+      <option value="">-- 选择公司 --</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label>出货日期：</label>
+    <input type="date" id="shipmentDate" onchange="updateDate()">
+  </div>
+  <div class="form-group">
+    <label>单据编号：</label>
+    <input type="text" id="docNo" placeholder="自动生成" readonly>
+  </div>
+  <div style="flex:1"></div>
+  <button class="btn btn-primary" onclick="printDocument()">打印 Print</button>
+  <button class="btn btn-success" onclick="exportToExcel()">导出Excel</button>
+  <button class="btn btn-secondary" onclick="window.close()">关闭</button>
+</div>
+
+<!-- 文档预览 -->
+<div class="doc-container">
+  <div class="doc-preview" id="docPreview">
+    <!-- 公司抬头 -->
+    <div class="company-header" id="companyHeader">
+      <h1 id="companyNameCn">公司名称</h1>
+      <h2 id="companyNameEn">Company Name</h2>
+    </div>
+
+    <!-- 文档标题 -->
+    <div class="doc-title">出货明细单 SHIPMENT DETAIL</div>
+
+    <!-- 信息区域 -->
+    <div class="info-section">
+      <div class="info-box">
+        <h4>发货人 Shipper</h4>
+        <p id="shipperInfo">请选择装货地址</p>
+      </div>
+      <div class="info-box">
+        <h4>收货人 Consignee</h4>
+        <p id="consigneeInfo">-</p>
+      </div>
+    </div>
+
+    <!-- 装货信息 -->
+    <div class="info-section">
+      <div class="info-box">
+        <h4>装货地址 Loading Address</h4>
+        <p id="loadingAddress">请选择装货地址</p>
+      </div>
+      <div class="info-box">
+        <h4>出货信息 Shipment Info</h4>
+        <p>出货日期：<span id="displayDate">-</span></p>
+        <p>单据编号：<span id="displayDocNo">-</span></p>
+        <p>柜型：<span id="displayContainerType">-</span></p>
+      </div>
+    </div>
+
+    <!-- 明细表格 -->
+    <div class="table-container">
+      <table class="doc-table" id="detailTable">
+        <thead>
+          <tr>
+            <th style="width:30px">序号</th>
+            <th>订单号</th>
+            <th>产品名称</th>
+            <th>图号</th>
+            <th>规格型号</th>
+            <th>数量</th>
+            <th>木箱尺寸</th>
+            <th>木箱数</th>
+            <th>净重(KG)</th>
+            <th>毛重(KG)</th>
+            <th>体积(M³)</th>
+          </tr>
+        </thead>
+        <tbody id="detailBody">
+        </tbody>
+        <tfoot>
+          <tr class="summary-row">
+            <td colspan="5">合计 Total</td>
+            <td id="totalQty">0</td>
+            <td>-</td>
+            <td id="totalCrateQty">0</td>
+            <td id="totalNw">0</td>
+            <td id="totalGw">0</td>
+            <td id="totalVolume">0</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <!-- 备注 -->
+    <div style="margin-top: 20px; padding: 16px; background: #f9fafb; border-radius: 8px;">
+      <label style="display: block; font-weight: 500; margin-bottom: 8px; font-size: 14px;">备注 Remarks</label>
+      <textarea id="remarksInput" rows="3" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; resize: vertical;" placeholder="请输入备注内容..."></textarea>
+    </div>
+
+    <!-- 日期 -->
+    <div style="text-align: right; margin-top: 40px; padding-top: 20px; border-top: 1px solid #d1d5db;">
+      <div style="font-size: 13px; color: #6b7280; margin-bottom: 8px;">制单人: AlonZhang</div>
+      <div style="font-size: 13px; color: #6b7280;">日期 Date: <span id="signatureDate"></span></div>
+    </div>
+
+    <!-- 页脚 -->
+    <div class="doc-footer">
+      <p>本单据仅供参考，具体信息以实际出货为准</p>
+      <p>This document is for reference only, actual shipment information may vary</p>
+      <div style="margin-top: 10px; font-size: 12px; color: #6b7280;">
+        第 <span id="currentPage">1</span> 页 / 共 <span id="totalPages">1</span> 页
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// 数据存储
+let shipmentData = [];
+let companies = [];
+let customers = [];
+let selectedCompany = null;
+
+// 页面加载时初始化
+document.addEventListener('DOMContentLoaded', function() {
+  loadCompanies();
+  loadCustomers();
+  loadShipmentData();
+  generateDocNo();
+  setSignatureDate();
+});
+
+// 加载客户信息
+function loadCustomers() {
+  const customerRecords = JSON.parse(localStorage.getItem('customerRecords') || '[]');
+  customers = customerRecords.map(c => ({
+    id: c.id,
+    name: c.name || c.customerName || '',
+    contact: c.contactName || c.contact || '',
+    phone: c.phone || '',
+    email: c.email || '',
+    address: c.address || ''
+  }));
+}
+
+// 繁体/异体字 → 简体（公司名、地址高频字），用于简繁混写时的客户名匹配
+const _T2S_CHARS = {
+  '屬':'属','業':'业','廠':'厂','國':'国','產':'产','萬':'万','號':'号','縣':'县','鄉':'乡','鎮':'镇',
+  '鋼':'钢','鐵':'铁','機':'机','電':'电','臺':'台','灣':'湾','龍':'龙','華':'华','豐':'丰','順':'顺',
+  '興':'兴','達':'达','發':'发','營':'营','實':'实','製':'制','運':'运','輸':'输','貿':'贸','進':'进',
+  '環':'环','際':'际','經':'经','濟':'济','開':'开','區':'区','園':'园','築':'筑','裝':'装','膠':'胶',
+  '學':'学','儀':'仪','設':'设','備':'备','調':'调','凍':'冻','氣':'气','統':'统','軟':'软','體':'体',
+  '網':'网','絡':'络','訊':'讯','數':'数','雲':'云','資':'资','護':'护','攝':'摄','報':'报','廢':'废',
+  '檢':'检','計':'计','構':'构','沖':'冲','鑄':'铸','鍛':'锻','鏽':'锈','關':'关','櫃':'柜','廚':'厨',
+  '衛':'卫','閥':'阀','門':'门','磚':'砖','牆':'墙','纜':'缆','繼':'继','監':'监','滅':'灭','風':'风',
+  '濾':'滤','聲':'声','噴':'喷','傳':'传','變':'变','壓':'压','樹':'树','復':'复','纖':'纤','維':'维',
+  '熱':'热','處':'处','陽':'阳','極':'极','標':'标','準':'准','緊':'紧','絲':'丝','釘':'钉','軸':'轴',
+  '盤':'盘','懸':'悬','掛':'挂','離':'离','燈':'灯','禮':'礼','車':'车','輛':'辆','輪':'轮','碼':'码',
+  '頭':'头','倉':'仓','儲':'储','週':'周','東':'东','廣':'广','蘇':'苏','溫':'温','廈':'厦','島':'岛',
+  '煙':'烟','馬':'马','義':'义','蓮':'莲','團':'团','動':'动','紡':'纺','織':'织','針':'针','飾':'饰',
+  '紙':'纸','農':'农','漁':'渔','醫':'医','藥':'药','療':'疗','滌':'涤','潔':'洁','淨':'净','塗':'涂',
+  '顏':'颜','鍍':'镀','鋅':'锌','鋁':'铝','銅':'铜','銀':'银','蘭':'兰','爐':'炉','減':'减','線':'线',
+  '橋':'桥','貨':'货','聯':'联','顯':'显','務':'务','總':'总','辦':'办','樁':'桩','節':'节','鈑':'钣',
+  '協':'协','鳳':'凤','輝':'辉','鴻':'鸿','創':'创','優':'优','質':'质','誠':'诚','匯':'汇','銷':'销',
+  '購':'购','買':'买','賣':'卖','費':'费','稅':'税','貸':'贷','驗':'验','測':'测','試':'试','認':'认',
+  '證':'证','財':'财','會':'会','師':'师','顧':'顾','問':'问','詢':'询','術':'术','藝':'艺','圖':'图',
+  '視':'视','頻':'频','紅':'红','覽':'览','館':'馆','鋪':'铺','場':'场','樓':'楼','壇':'坛','巖':'岩',
+  '鄰':'邻','閘':'闸','崗':'岗','員':'员','職':'职','稱':'称','謂':'谓','種':'种','類':'类',
+  '別':'别','級':'级','塊':'块','堅':'坚','來':'来','單':'单','據':'据','點':'点',
+  '張':'张','楊':'杨','黃':'黄','趙':'赵','劉':'刘','陳':'陈','吳':'吴','鄭':'郑'
+};
+
+// 深度规范化：繁→简、去空格/标点、转小写，用于客户名匹配
+function _deepNormName(s) {
+  return String(s || '').trim().toLowerCase()
+    .replace(/[\s()（）【】\[\]{}·.,，。、'"“”‘’\-—_/\\]/g, '')
+    .replace(/[　-〿＀-￯]/g, '')
+    .replace(/[\u4e00-\u9fff]/g, ch => _T2S_CHARS[ch] || ch);
+}
+
+// Levenshtein 编辑距离
+function _levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  let prev = new Array(n + 1);
+  let curr = new Array(n + 1);
+  for (let j = 0; j <= n; j++) prev[j] = j;
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[n];
+}
+
+// 名称相似度（0~1），基于深度规范化后的编辑距离
+function _nameSimilarity(a, b) {
+  if (!a || !b) return 0;
+  const dist = _levenshtein(a, b);
+  return 1 - dist / Math.max(a.length, b.length);
+}
+
+// 按客户名查找客户卡片：精确 → 包含 → 繁简归一化 → 字形相似度≥0.8取最高分
+function findCustomerByName(customerName) {
+  const norm = s => String(s || '').trim().toLowerCase();
+  const target = norm(customerName);
+  if (!target) return null;
+  let customer = customers.find(c => norm(c.name) === target);
+  if (!customer) {
+    customer = customers.find(c => {
+      const n = norm(c.name);
+      return n && (n.includes(target) || target.includes(n));
+    });
+  }
+  if (!customer) {
+    const deepTarget = _deepNormName(customerName);
+    if (deepTarget) {
+      customer = customers.find(c => {
+        const n = _deepNormName(c.name);
+        return n && (n === deepTarget || n.includes(deepTarget) || deepTarget.includes(n));
+      });
+    }
+  }
+  if (!customer) {
+    const deepTarget = _deepNormName(customerName);
+    if (deepTarget.length >= 3) {
+      let best = null, bestSim = 0;
+      customers.forEach(c => {
+        const n = _deepNormName(c.name);
+        if (n.length < 3) return;
+        const sim = _nameSimilarity(deepTarget, n);
+        if (sim >= 0.8 && sim > bestSim) { bestSim = sim; best = c; }
+      });
+      customer = best;
+    }
+  }
+  return customer;
+}
+
+// 设置签字日期为今日
+function setSignatureDate() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  document.getElementById('signatureDate').textContent = `${year}-${month}-${day}`;
+}
+
+// 加载公司信息
+function loadCompanies() {
+  companies = JSON.parse(localStorage.getItem('cdg_companies') || '[]');
+  const select = document.getElementById('loadingAddressSelect');
+  
+  select.innerHTML = '<option value="">-- 选择公司 --</option>';
+  companies.forEach(c => {
+    select.innerHTML += `<option value="${c.id}" data-name="${c.nameCn}" data-address="${c.address}" data-phone="${c.phone}" data-email="${c.email}" data-contact="${c.contact}">${c.nameCn}</option>`;
+  });
+  
+  // 默认选择第一个公司
+  if (companies.length > 0) {
+    select.value = companies[0].id;
+    updateLoadingAddress();
+  }
+}
+
+// 更新装货地址
+function updateLoadingAddress() {
+  const select = document.getElementById('loadingAddressSelect');
+  const option = select.selectedOptions[0];
+  
+  if (!option || !option.value) {
+    document.getElementById('loadingAddress').textContent = '请选择装货地址';
+    document.getElementById('shipperInfo').textContent = '请选择装货地址';
+    return;
+  }
+  
+  const company = companies.find(c => c.id == option.value);
+  if (company) {
+    selectedCompany = company;
+    
+    // 清理公司名称
+    const cleanedNameCn = cleanCompanyName(company.nameCn, 'cn');
+    const cleanedNameEn = cleanCompanyName(company.nameEn, 'en');
+    
+    // 更新公司抬头
+    document.getElementById('companyNameCn').textContent = cleanedNameCn;
+    document.getElementById('companyNameEn').textContent = cleanedNameEn;
+    
+    // 更新装货地址
+    document.getElementById('loadingAddress').textContent = company.address || '-';
+    
+    // 更新发货人信息
+    document.getElementById('shipperInfo').innerHTML = `
+      ${cleanedNameCn || '-'}<br>
+      ${cleanedNameEn || '-'}<br>
+      地址: ${company.address || '-'}<br>
+      电话: ${company.phone || '-'}<br>
+      联系人: ${company.contact || '-'}
+    `;
+  }
+}
+
+// 加载出货数据
+function loadShipmentData() {
+  shipmentData = JSON.parse(localStorage.getItem('shipmentDetailData') || '[]');
+  
+  if (shipmentData.length === 0) {
+    document.getElementById('detailBody').innerHTML = '<tr><td colspan="11" class="empty-message">暂无出货数据</td></tr>';
+    return;
+  }
+  
+  renderDetailTable();
+  
+  // 确保客户数据已加载后再更新收货人信息
+  if (!customers || customers.length === 0) {
+    loadCustomers();
+  }
+  updateConsigneeInfo();
+  updateContainerType();
+  
+  // 设置默认日期（使用计划出货日期）
+  if (shipmentData[0].planDate) {
+    document.getElementById('shipmentDate').value = shipmentData[0].planDate;
+    updateDate();
+  }
+}
+
+// 渲染明细表格
+function renderDetailTable() {
+  const tbody = document.getElementById('detailBody');
+  tbody.innerHTML = '';
+  
+  let totalQty = 0;
+  let totalCrateQty = 0;
+  let totalNw = 0;
+  let totalGw = 0;
+  let totalVolume = 0;
+  
+  // 展开所有产品行
+  const allProductRows = [];
+  shipmentData.forEach(item => {
+    const products = item.products && Array.isArray(item.products) ? item.products : [];
+    products.forEach(product => {
+      allProductRows.push({
+        shipment: item,
+        product: product
+      });
+    });
+  });
+  
+  // 按订单号分组
+  const orderGroups = {};
+  allProductRows.forEach(item => {
+    const key = item.shipment.orderNo || 'unknown';
+    if (!orderGroups[key]) {
+      orderGroups[key] = [];
+    }
+    orderGroups[key].push(item);
+  });
+  
+  let rowIndex = 0;
+  
+  // 遍历每个订单号组
+  Object.values(orderGroups).forEach(group => {
+    group.forEach((item, groupIndex) => {
+      const product = item.product;
+      const qty = parseFloat(product.qty) || 0;
+      const crateQty = parseInt(product.crateQty) || 0;
+      const nw = parseFloat(product.nw) || 0;
+      const gw = parseFloat(product.gw) || 0;
+      const volume = parseFloat(product.volume) || 0;
+      
+      totalQty += qty;
+      totalCrateQty += crateQty;
+      totalNw += nw;
+      totalGw += gw;
+      totalVolume += volume;
+      
+      rowIndex++;
+      
+      // 同一订单号只在第一行显示订单号；产品名称、图号、规格型号每行各自显示
+      const isFirstRow = groupIndex === 0;
+      
+      tbody.innerHTML += `<tr>
+        <td>${rowIndex}</td>
+        <td class="left${isFirstRow ? '' : ' merged-cell'}" ${isFirstRow ? 'style="background-color:#dc2626;color:#fff;padding:4px 8px;border-radius:4px;"' : ''}>${isFirstRow ? (item.shipment.orderNo || '-') : ''}</td>
+        <td class="left">${product.productName || '-'}</td>
+        <td class="left">${product.drawingNo || '-'}</td>
+        <td class="left">${product.spec || '-'}</td>
+        <td>${qty || '-'}</td>
+        <td class="left">${product.crateSize || '-'}</td>
+        <td>${product.crateQty || '-'}</td>
+        <td>${nw.toFixed(2)}</td>
+        <td>${gw.toFixed(2)}</td>
+        <td>${volume.toFixed(3)}</td>
+      </tr>`;
+    });
+  });
+  
+  // 更新汇总
+  document.getElementById('totalQty').textContent = totalQty;
+  document.getElementById('totalCrateQty').textContent = totalCrateQty;
+  document.getElementById('totalNw').textContent = totalNw.toFixed(2);
+  document.getElementById('totalGw').textContent = totalGw.toFixed(2);
+  document.getElementById('totalVolume').textContent = totalVolume.toFixed(3);
+  
+  // 将备注内容传递到下方的备注输入框
+  const allRemarks = [];
+  shipmentData.forEach(item => {
+    if (item.remarks && item.remarks.trim()) {
+      allRemarks.push(item.remarks.trim());
+    }
+    // 也检查产品级别的备注
+    const products = item.products && Array.isArray(item.products) ? item.products : [];
+    products.forEach(product => {
+      if (product.remarks && product.remarks.trim()) {
+        allRemarks.push(product.remarks.trim());
+      }
+    });
+  });
+  if (allRemarks.length > 0) {
+    document.getElementById('remarksInput').value = allRemarks.join('\n');
+  }
+}
+
+// 清理公司名称
+function cleanCompanyName(name, type) {
+  if (!name) return '';
+  
+  if (type === 'cn') {
+    // 中文名称：去掉数字+字母组合和括号（包括括号内的内容）
+    let cleaned = name;
+    // 去掉括号及其内容，如 "(ABC123)"
+    cleaned = cleaned.replace(/\([^)]*\)/g, '');
+    // 去掉数字+字母组合（如 ABC123, A1B2C3 等）
+    cleaned = cleaned.replace(/[A-Za-z0-9]+/g, '');
+    // 去掉多余的空格和横线
+    cleaned = cleaned.replace(/[-_\s]+/g, '').trim();
+    return cleaned || '公司名称';
+  } else {
+    // 英文名称：去掉横线之前的所有内容
+    const parts = name.split('-');
+    if (parts.length > 1) {
+      return parts[parts.length - 1].trim() || 'Company Name';
+    }
+    return name.trim() || 'Company Name';
+  }
+}
+
+// 更新收货人信息
+function updateConsigneeInfo() {
+  // 优先从 localStorage 读取 customs-doc-generator.html 传递的收货人联系人
+  const storedConsignee = localStorage.getItem('shipmentDetailConsignee');
+  if (storedConsignee) {
+    try {
+      const c = JSON.parse(storedConsignee);
+      let html = c.name || '';
+      if (c.contact) html += `<br>Attn: ${c.contact}`;
+      if (c.phone) html += `<br>Tel: ${c.phone}`;
+      if (c.email) html += `<br>Email: ${c.email}`;
+      if (c.address) html += `<br>${c.address}`;
+      document.getElementById('consigneeInfo').innerHTML = html;
+      return;
+    } catch(e) {}
+  }
+
+  // 回退：从 customerRecords 中按客户名称查找（规范化模糊匹配，兼容简繁差异）
+  const customerNames = shipmentData.map(s => s.customer).filter(c => c);
+  const uniqueCustomers = [...new Set(customerNames)];
+
+  if (uniqueCustomers.length > 0) {
+    let consigneeHtml = '';
+    uniqueCustomers.forEach(customerName => {
+      const customer = findCustomerByName(customerName);
+      const address = customer ? customer.address : '';
+      const contact = customer ? customer.contact : '';
+      const phone = customer ? customer.phone : '';
+      const email = customer ? customer.email : '';
+
+      consigneeHtml += `${customerName}`;
+      if (contact) consigneeHtml += `<br>Attn: ${contact}`;
+      if (phone) consigneeHtml += `<br>Tel: ${phone}`;
+      if (email) consigneeHtml += `<br>Email: ${email}`;
+      if (address) consigneeHtml += `<br>${address}`;
+      consigneeHtml += '<br><br>';
+    });
+    document.getElementById('consigneeInfo').innerHTML = consigneeHtml.trim();
+  } else {
+    document.getElementById('consigneeInfo').textContent = '-';
+  }
+}
+
+// 更新柜型
+function updateContainerType() {
+  const containerTypes = shipmentData.map(s => s.containerType).filter(c => c);
+  const uniqueTypes = [...new Set(containerTypes)];
+  
+  if (uniqueTypes.length > 0) {
+    document.getElementById('displayContainerType').textContent = uniqueTypes.join(', ');
+  } else {
+    document.getElementById('displayContainerType').textContent = '-';
+  }
+}
+
+// 更新日期
+function updateDate() {
+  const date = document.getElementById('shipmentDate').value;
+  document.getElementById('displayDate').textContent = date || '-';
+}
+
+// 生成单据编号
+function generateDocNo() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const random = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+  
+  const docNo = `SD${year}${month}${day}-${random}`;
+  document.getElementById('docNo').value = docNo;
+  document.getElementById('displayDocNo').textContent = docNo;
+}
+
+// 打印
+function printDocument() {
+  window.print();
+}
+
+// 导出Excel
+function exportToExcel() {
+  if (shipmentData.length === 0) {
+    alert('没有数据可导出');
+    return;
+  }
+  
+  const company = selectedCompany || {};
+  const date = document.getElementById('shipmentDate').value;
+  const docNo = document.getElementById('docNo').value;
+  
+  // 构建数据
+  const headerInfo = [
+    ['出货明细单 SHIPMENT DETAIL'],
+    [],
+    ['发货人:', company.nameCn || '-', '', '单据编号:', docNo],
+    ['发货人(英文):', company.nameEn || '-', '', '出货日期:', date],
+    ['地址:', company.address || '-', '', '柜型:', document.getElementById('displayContainerType').textContent],
+    ['电话:', company.phone || '-', '', '', ''],
+    ['联系人:', company.contact || '-', '', '', ''],
+    [],
+    ['收货人:', document.getElementById('consigneeInfo').textContent],
+    [],
+    ['明细列表:'],
+    ['序号', '订单号', '产品名称', '图号', '规格型号', '数量', '木箱尺寸', '木箱数', '净重(KG)', '毛重(KG)', '体积(M³)', '备注']
+  ];
+  
+  const detailRows = [];
+  let rowIndex = 0;
+  
+  shipmentData.forEach(item => {
+    const products = item.products && Array.isArray(item.products) ? item.products : [];
+    products.forEach((product, pIndex) => {
+      rowIndex++;
+      detailRows.push([
+        rowIndex,
+        pIndex === 0 ? (item.orderNo || '-') : '',
+        product.productName || '-',
+        product.drawingNo || '-',
+        product.spec || '-',
+        product.qty || '-',
+        product.crateSize || '-',
+        product.crateQty || '-',
+        parseFloat(product.nw || 0).toFixed(2),
+        parseFloat(product.gw || 0).toFixed(2),
+        parseFloat(product.volume || 0).toFixed(3),
+        pIndex === 0 ? (item.remarks || '-') : ''
+      ]);
+    });
+  });
+  
+  // 计算汇总
+  let totalQty = 0;
+  let totalCrateQty = 0;
+  let totalNw = 0;
+  let totalGw = 0;
+  let totalVolume = 0;
+  
+  shipmentData.forEach(item => {
+    const products = item.products && Array.isArray(item.products) ? item.products : [];
+    products.forEach((product) => {
+      totalQty += parseFloat(product.qty) || 0;
+      totalCrateQty += parseInt(product.crateQty) || 0;
+      totalNw += parseFloat(product.nw) || 0;
+      totalGw += parseFloat(product.gw) || 0;
+      totalVolume += parseFloat(product.volume) || 0;
+    });
+  });
+  
+  const summaryRow = ['合计', '', '', '', '', totalQty, '', totalCrateQty, totalNw.toFixed(2), totalGw.toFixed(2), totalVolume.toFixed(3), ''];
+  
+  const allData = [...headerInfo, ...detailRows, [], summaryRow];
+  
+  const ws = XLSX.utils.aoa_to_sheet(allData);
+  
+  // 设置列宽
+  ws['!cols'] = [
+    {wch: 6}, {wch: 15}, {wch: 20}, {wch: 15}, {wch: 20}, {wch: 10},
+    {wch: 15}, {wch: 10}, {wch: 12}, {wch: 12}, {wch: 12}, {wch: 20}
+  ];
+  
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '出货明细');
+  
+  const fileName = `出货明细_${docNo}_${date || '无日期'}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+}
+</script>
+
+</body>
+</html>
