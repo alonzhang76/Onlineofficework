@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>不锈钢标签打印 - 无锡华烁特钢有限公司</title>
+<style>
+/* ===== Theme ===== */
+:root{
+  --bg:#eef1f6; --bg2:#fff; --ink:#0f1e3d; --muted:#5a6b85;
+  --rule:#dde3ed; --accent:#1a3a6b; --accent2:#3a6b8a;
+  --accent-soft:#eef2f8; --steel-soft:#e8f0f5;
+  --ok:#2d8a4e; --danger:#c0392b;
+  --font:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;
+  --mono:'SF Mono','Consolas','Courier New',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px}
+body{font-family:var(--font);color:var(--ink);background:var(--bg);line-height:1.6;min-height:100vh;
+  background-image:radial-gradient(circle at 15% 10%,rgba(26,58,107,.06),transparent 45%),radial-gradient(circle at 85% 90%,rgba(58,107,138,.07),transparent 45%);
+}
+
+/* ===== Header ===== */
+.page-head{background:linear-gradient(135deg,var(--accent) 0%,#2a5290 100%);color:#fff;padding:1rem 1.2rem;box-shadow:0 3px 14px rgba(26,58,107,.2)}
+.page-head-inner{max-width:1120px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.8rem}
+.page-head h1{font-size:1.3rem;letter-spacing:.03em;display:flex;align-items:center;gap:.5rem}
+.page-head h1 svg{width:22px;height:22px}
+.page-head .sub{font-size:.78rem;opacity:.85;margin-top:.15rem}
+.back-btn{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1rem;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:8px;color:#fff;font-size:.82rem;font-weight:600;cursor:pointer;transition:all .15s;text-decoration:none}
+.back-btn:hover{background:rgba(255,255,255,.25);transform:translateY(-1px)}
+.back-btn svg{width:16px;height:16px}
+
+/* ===== Layout ===== */
+.app{max-width:1120px;margin:0 auto;padding:1.2rem}
+.edit-grid{display:grid;grid-template-columns:1fr 380px;gap:1.1rem;align-items:start}
+.edit-grid > div:first-child{order:2}
+.edit-grid > div:last-child{order:1}
+@media(max-width:880px){.edit-grid{grid-template-columns:1fr}.edit-grid > div:first-child{order:0}.edit-grid > div:last-child{order:0}}
+
+/* ===== Card ===== */
+.card{background:var(--bg2);border-radius:10px;padding:1.1rem 1.3rem;box-shadow:0 3px 16px rgba(15,30,61,.07),0 1px 3px rgba(15,30,61,.03);margin-bottom:.9rem}
+.card-title{display:flex;align-items:center;gap:.5rem;font-size:.95rem;font-weight:700;color:var(--accent);margin-bottom:.8rem;padding-bottom:.55rem;border-bottom:1px solid var(--rule)}
+.card-title svg{width:16px;height:16px}
+.card-title .en{margin-left:auto;font-size:.68rem;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;font-weight:400}
+
+/* ===== Label Preview ===== */
+.preview-sticky{position:sticky;top:1rem}
+.label-stage{display:flex;flex-direction:column;align-items:center;gap:.7rem}
+.label-box{
+  width:400px;height:250px;
+  background:#fff;border-radius:6px;
+  position:relative;overflow:hidden;
+  box-shadow:0 4px 14px rgba(15,30,61,.12),0 1px 4px rgba(15,30,61,.06);
+  font-size:9px;line-height:1.4;
+  display:flex;flex-direction:column;
+}
+.label-box .l-bar{position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--accent) 0%,var(--accent2) 100%);z-index:2}
+.label-box .l-header{padding:4px 6px 3px 8px;border-bottom:1px solid var(--accent);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.label-box .l-co{font-size:9px;font-weight:800;color:var(--accent);letter-spacing:.02em}
+.label-box .l-co-en{font-size:5px;color:var(--muted);margin-top:0}
+.label-box .l-badge{font-size:5px;font-weight:700;color:#fff;background:var(--accent);padding:1px 4px;border-radius:2px;letter-spacing:.06em;display:flex;align-items:center;gap:2px}
+.label-box .l-badge::before{content:'';width:2.5px;height:2.5px;border-radius:50%;background:var(--accent2)}
+.label-box .l-hero{display:flex;align-items:stretch;gap:0;padding:3px 6px 3px 8px;background:linear-gradient(135deg,var(--accent-soft) 0%,transparent 70%);border-bottom:0.5px solid var(--rule);flex-shrink:0}
+.label-box .l-hero-left{display:flex;flex-direction:column;justify-content:center;min-width:80px}
+.label-box .l-hero-label{font-size:4.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em;font-weight:700;margin-bottom:0.5px}
+.label-box .l-hero-grade{font-size:15px;font-weight:900;color:var(--accent);line-height:1;letter-spacing:.01em}
+.label-box .l-hero-right{display:flex;flex-direction:column;justify-content:center;gap:1.5px;flex:1;border-left:1px solid var(--rule);padding-left:5px}
+.label-box .l-hero-row{display:flex;gap:2px;align-items:baseline}
+.label-box .l-hero-lbl{font-size:5.5px;color:var(--accent2);font-weight:700;white-space:nowrap}
+.label-box .l-hero-val{font-size:7px;color:var(--ink);font-weight:600}
+.label-box .l-hero-barcode{margin-top:1px;height:14px;display:flex;align-items:center}
+.label-box .l-hero-barcode svg{height:14px !important;width:auto !important;max-width:100%}
+.label-box .l-hero-qr{width:48px;height:48px;flex-shrink:0;border-left:1px solid var(--rule);margin-left:4px;padding-left:4px;display:flex;align-items:center;justify-content:center}
+.label-box .l-hero-qr > div,.label-box .l-hero-qr img,.label-box .l-hero-qr canvas,.label-box .l-hero-qr svg{width:48px !important;height:48px !important;display:block}
+.label-box .l-heat{margin:2px 6px 2px 5px;padding:2.5px 5px;background:linear-gradient(90deg,var(--accent) 0%,var(--accent2) 100%);border-radius:2px;display:flex;align-items:center;gap:3px;flex-shrink:0;position:relative;overflow:hidden}
+.label-box .l-heat::after{content:'';position:absolute;right:0;top:0;bottom:0;width:16px;background:repeating-linear-gradient(90deg,rgba(255,255,255,.15) 0 1px,transparent 1px 3px)}
+.label-box .l-heat-lbl{font-size:4.5px;color:rgba(255,255,255,.9);font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.label-box .l-heat-val{font-size:7.5px;font-weight:800;color:#fff;letter-spacing:.02em;margin-left:auto;position:relative;z-index:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:65%}
+.label-box .l-body{padding:2.5px 6px 2.5px 8px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:2px 5px;flex:1;align-content:start}
+.label-box .l-row{display:flex;gap:2px;align-items:baseline;min-height:10px}
+.label-box .l-lbl{color:var(--accent2);font-weight:700;white-space:nowrap;flex-shrink:0;font-size:6px;letter-spacing:.02em}
+.label-box .l-lbl::before{content:'·';margin-right:1.5px;color:var(--accent)}
+.label-box .l-val{color:var(--ink);font-weight:600;word-break:break-all;font-size:7px}
+.label-box .l-val.mono{font-family:var(--mono);letter-spacing:.01em}
+.label-box .l-full{grid-column:1/-1}
+.label-box .l-wide2{grid-column:span 2}
+.label-box .l-foot{padding:2.5px 6px 2.5px 8px;display:flex;justify-content:space-between;align-items:center;font-size:5px;color:var(--muted);border-top:0.5px solid var(--rule);background:linear-gradient(90deg,var(--accent-soft),transparent);flex-shrink:0}
+.label-box .l-foot-left{display:flex;gap:3px;align-items:center}
+.label-box .l-foot .l-date{font-family:var(--mono)}
+.label-box .l-foot .l-contact{font-family:var(--mono);color:var(--muted);font-size:5px}
+.label-box .l-foot .l-co-short{font-weight:700;color:var(--accent)}
+.label-meta{font-size:.72rem;color:var(--muted);text-align:center}
+.label-meta .dim{color:var(--accent2);font-weight:600}
+
+/* ===== Buttons ===== */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.35rem;padding:.5rem .9rem;border:none;border-radius:7px;cursor:pointer;font-family:var(--font);font-size:.8rem;font-weight:600;transition:all .15s ease}
+.btn svg{width:15px;height:15px;flex-shrink:0}
+.btn-primary{background:linear-gradient(135deg,var(--accent),#2a5290);color:#fff;box-shadow:0 3px 10px rgba(26,58,107,.25)}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 5px 14px rgba(26,58,107,.35)}
+.btn-gold{background:linear-gradient(135deg,var(--accent2),#5a8baa);color:#fff;box-shadow:0 3px 10px rgba(58,107,138,.25)}
+.btn-gold:hover{transform:translateY(-1px);box-shadow:0 5px 14px rgba(58,107,138,.35)}
+.btn-ghost{background:transparent;border:1px solid var(--rule);color:var(--muted)}
+.btn-ghost:hover{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.btn-danger{background:transparent;border:1px solid var(--rule);color:var(--muted)}
+.btn-danger:hover{background:var(--danger);color:#fff;border-color:var(--danger)}
+.btn-sm{padding:.3rem .5rem;font-size:.72rem}
+.btn-sm svg{width:13px;height:13px}
+.btn-row{display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center}
+
+/* ===== Form ===== */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:.4rem .6rem}
+.form-field{display:flex;flex-direction:column;gap:.12rem}
+.form-field.full{grid-column:1/-1}
+.form-field label{font-size:.7rem;color:var(--muted);font-weight:500}
+.form-field label .en{color:var(--rule);font-size:.62rem;margin-left:.3rem}
+.form-field input,.form-field select,.form-field textarea{
+  padding:.32rem .55rem;border:1px solid var(--rule);border-radius:5px;font-family:var(--font);font-size:.8rem;color:var(--ink);
+  background:var(--bg2);transition:border-color .15s ease,box-shadow .15s ease;outline:none;
+}
+.form-field input:focus,.form-field select:focus,.form-field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(26,58,107,.1)}
+.form-field input.mono,.form-field textarea.mono{font-family:var(--mono);letter-spacing:.02em}
+.form-field textarea{resize:vertical;min-height:28px}
+.form-section{font-size:.66rem;color:var(--accent2);font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin:.25rem 0 .1rem;padding-bottom:.15rem;border-bottom:1px dashed var(--rule)}
+
+/* material quick-select */
+.mat-chips{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.6rem}
+.mat-chip{padding:.18rem .5rem;font-size:.7rem;border:1px solid var(--rule);border-radius:4px;cursor:pointer;color:var(--muted);background:var(--bg2);transition:all .12s}
+.mat-chip:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* ===== Draft indicator ===== */
+.draft-indicator{display:flex;align-items:center;gap:.4rem;font-size:.7rem;color:var(--muted);margin-top:.5rem;justify-content:center}
+.draft-dot{width:7px;height:7px;border-radius:50%;background:var(--ok);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ===== Toast ===== */
+.toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%) translateY(100px);background:var(--accent);color:#fff;padding:.6rem 1.3rem;border-radius:8px;font-size:.82rem;font-weight:600;box-shadow:0 4px 16px rgba(26,58,107,.3);transition:transform .25s ease;z-index:999;pointer-events:none}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast.ok{background:var(--ok)}
+.toast.err{background:var(--danger)}
+
+/* ===== Print ===== */
+@page { size: 80mm 50mm; margin: 0; }
+@media print{
+  @page { size: 80mm 50mm; margin: 0; }
+  html,body{margin:0!important;padding:0!important;background:#fff}
+  .page-head,.edit-grid > div:not(.print-area),.btn,.toast,.card-title,.draft-indicator{display:none !important}
+  .print-area{display:block !important;position:fixed;top:0;left:0;width:80mm;height:50mm;margin:0;padding:0}
+  .print-label{
+    width:80mm;height:50mm;border-radius:0;
+    padding:0;font-size:5.5px;line-height:1.2;
+    -webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;
+    display:flex;flex-direction:column;
+    position:absolute;top:0;left:0;margin:0;
+  }
+  /* 隐藏不需要打印的元素 */
+  .print-label .l-bar{width:0.8mm;background:#1a3a6b}
+  .print-label .l-badge{display:none !important}
+  .print-label .l-foot .l-contact{display:none !important}
+  .print-label .l-foot .l-co-short{display:none !important}
+  .print-label .l-row:has(#pt-heat),
+  .print-label .l-row:has(#pt-matno),
+  .print-label .l-row:has(#pt-drawno),
+  .print-label .l-row:has(#pt-origin),
+  .print-label .l-row:has(#pt-std),
+  .print-label .l-row:has(#pt-process),
+  .print-label .l-row:has(#pt-qacert),
+  .print-label .l-row:has(#pt-remark){display:none !important}
+  /* 二维码：绝对定位右上角，放大一倍到36mm */
+  .print-label .l-hero-qr{
+    position:absolute;top:2mm;right:2mm;
+    width:36mm;height:36mm;
+    border-left:none;margin:0;padding:0;
+    border:0.5px solid #1a3a6b;
+    display:flex;align-items:center;justify-content:center;
+    z-index:5;
+  }
+  .print-label .l-hero-qr > div,.print-label .l-hero-qr img,.print-label .l-hero-qr canvas,.print-label .l-hero-qr svg{width:34mm !important;height:34mm !important}
+  /* 物料编号条形码：定位在二维码下方 */
+  .print-label .l-hero-barcode{
+    position:absolute;top:39mm;right:2mm;
+    width:36mm;height:9mm;
+    display:flex !important;
+    flex-direction:row;
+    align-items:center;
+    justify-content:center;
+    gap:1mm;
+  }
+  .print-label .l-hero-barcode::before{
+    content:'物料编号';
+    font-size:6px;
+    color:#1a3a6b;
+    font-weight:700;
+    white-space:nowrap;
+    writing-mode:vertical-rl;
+    text-orientation:upright;
+    letter-spacing:.1em;
+  }
+  .print-label .l-hero-barcode svg{
+    width:28mm !important;
+    height:7mm !important;
+  }
+  /* 左侧文字区域，留出右侧38mm给二维码 */
+  .print-label .l-header{padding:1mm 1.5mm 0.6mm 2mm;border-bottom:0.2mm solid #1a3a6b;margin-right:38mm}
+  .print-label .l-co{font-size:9px;font-weight:800;color:#1a3a6b}
+  .print-label .l-co-en{font-size:4.5px;color:#666}
+  .print-label .l-hero{padding:0.8mm 1.5mm 0.8mm 2mm;background:#eef2f8;border-bottom:0.15mm solid #dde3ed;margin-right:38mm}
+  .print-label .l-hero-left{min-width:0}
+  .print-label .l-hero-label{font-size:4px}
+  .print-label .l-hero-grade{font-size:16px;font-weight:900;color:#1a3a6b}
+  .print-label .l-hero-right{border-left:0.15mm solid #dde3ed;padding-left:1mm;gap:0.3mm}
+  .print-label .l-hero-lbl{font-size:6px;color:#1a3a6b}
+  .print-label .l-hero-val{font-size:9px;color:#000;font-weight:600}
+  /* 客户：去掉背景色，改为普通文字 */
+  .print-label .l-heat{margin:0.5mm 1.5mm 0.5mm 1mm;padding:0.3mm 0;background:none;border-radius:0;margin-right:38mm}
+  .print-label .l-heat::after{display:none}
+  .print-label .l-heat-lbl{font-size:6px;color:#1a3a6b;font-weight:700}
+  .print-label .l-heat-val{font-size:9px;color:#000;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70%}
+  /* 重量和收货信息 */
+  .print-label .l-body{padding:0.5mm 1.5mm 0.5mm 2mm;display:grid;grid-template-columns:1fr 1fr;gap:0.3mm 1.5mm;flex:1;align-content:start;margin-right:38mm}
+  .print-label .l-row{min-height:2.5mm}
+  .print-label .l-lbl{font-size:7px;color:#1a3a6b;font-weight:700}
+  .print-label .l-lbl::before{color:#1a3a6b}
+  .print-label .l-val{font-size:9px;color:#000;font-weight:600}
+  /* 合同/订单号：独占一行，值不换行 */
+  .print-label .l-row:has(#pt-contract){
+    grid-column:1/-1;
+  }
+  .print-label .l-row:has(#pt-contract) .l-val{
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  /* 收货信息：独占一行，值换行显示避免与二维码重叠 */
+  .print-label .l-row:has(#pt-receiving){
+    grid-column:1/-1;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:0;
+  }
+  .print-label .l-row:has(#pt-receiving) .l-val{
+    display:block;
+    width:100%;
+    word-break:break-all;
+  }
+  .print-label .l-full{grid-column:1/-1}
+  /* 日期：底部显示 */
+  .print-label .l-foot{
+    padding:0.5mm 1.5mm 0.5mm 2mm;
+    margin-right:38mm;
+    border-top:0.15mm solid #dde3ed;
+    background:none;
+    display:flex !important;
+    justify-content:flex-start;
+  }
+  .print-label .l-foot .l-date{
+    font-size:7px;
+    color:#1a3a6b;
+    font-weight:600;
+    font-family:SF Mono,Consolas,Courier New,monospace;
+  }
+}
+.print-area{display:none}
+</style>
+</head>
+<body>
+<div id="queue-nav" style="display:none;position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.12);padding:8px 12px;align-items:center;gap:10px;font-size:13px;">
+  <button id="q-prev" style="padding:4px 12px;border:1px solid #d1d5db;background:#fff;border-radius:6px;cursor:pointer;">上一条</button>
+  <span id="queue-pos" style="font-weight:600;color:#374151;min-width:110px;text-align:center;"></span>
+  <button id="q-next" style="padding:4px 12px;border:1px solid #d1d5db;background:#fff;border-radius:6px;cursor:pointer;">下一条</button>
+</div>
+
+<div class="page-head">
+  <div class="page-head-inner">
+    <div>
+      <h1>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        标签内容编辑
+      </h1>
+      <div class="sub">Edit Content · 实时预览同步</div>
+    </div>
+    <a class="back-btn" id="backBtn" href="saved-labels.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 4v6"/></svg>
+      已保存标签
+    </a>
+  </div>
+</div>
+
+<div class="app">
+  <div class="edit-grid">
+    <!-- ===== Left: Sticky Preview ===== -->
+    <div>
+      <div class="preview-sticky">
+        <div class="card">
+          <div class="card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/></svg>
+            实时预览
+            <span class="en">Live Preview</span>
+          </div>
+          <div class="label-stage">
+            <div class="label-box" id="labelPreview">
+              <div class="l-bar"></div>
+              <div class="l-header">
+                <div>
+                  <div class="l-co" id="p-co-cn">无锡华烁特钢有限公司</div>
+                  <div class="l-co-en" id="p-co-en">Wuxi Brilliance Special Steel Co., Ltd</div>
+                </div>
+                <div class="l-badge">QC PASS</div>
+              </div>
+              <div class="l-hero">
+                <div class="l-hero-left">
+                  <div class="l-hero-label">材质 GRADE</div>
+                  <div class="l-hero-grade" id="p-material">—</div>
+                </div>
+                <div class="l-hero-right">
+                  <div class="l-hero-row"><span class="l-hero-lbl">产品</span><span class="l-hero-val" id="p-product">—</span></div>
+                  <div class="l-hero-row"><span class="l-hero-lbl">规格</span><span class="l-hero-val" id="p-spec">—</span></div>
+                  <div class="l-hero-barcode"><svg id="p-barcode"></svg></div>
+                </div>
+                <div class="l-hero-qr"><div id="p-qrcode"></div></div>
+              </div>
+              <div class="l-heat">
+                <span class="l-heat-lbl">客户 CUSTOMER</span>
+                <span class="l-heat-val" id="p-customer">—</span>
+              </div>
+              <div class="l-body">
+                <div class="l-row"><span class="l-lbl">合同/订单号</span><span class="l-val mono" id="p-contract">—</span></div>
+                <div class="l-row"><span class="l-lbl">炉号</span><span class="l-val mono" id="p-heat">—</span></div>
+                <div class="l-row"><span class="l-lbl">物料编号</span><span class="l-val mono" id="p-matno">—</span></div>
+                <div class="l-row"><span class="l-lbl">图号</span><span class="l-val mono" id="p-drawno">—</span></div>
+                <div class="l-row"><span class="l-lbl">坯料产地</span><span class="l-val" id="p-origin">—</span></div>
+                <div class="l-row"><span class="l-lbl">重量</span><span class="l-val mono" id="p-weight">—</span></div>
+                <div class="l-row"><span class="l-lbl">总件数</span><span class="l-val mono" id="p-tqty">—</span></div>
+                <div class="l-row"><span class="l-lbl">总重量</span><span class="l-val mono" id="p-tweight">—</span></div>
+                <div class="l-row"><span class="l-lbl">执行标准</span><span class="l-val" id="p-std">—</span></div>
+                <div class="l-row"><span class="l-lbl">处理工艺</span><span class="l-val" id="p-process">—</span></div>
+                <div class="l-row"><span class="l-lbl">质保书号码</span><span class="l-val mono" id="p-qacert">—</span></div>
+                <div class="l-row"><span class="l-lbl">备注</span><span class="l-val" id="p-remark">—</span></div>
+                <div class="l-row l-full"><span class="l-lbl">收货信息</span><span class="l-val" id="p-receiving">—</span></div>
+              </div>
+              <div class="l-foot">
+                <div class="l-foot-left">
+                  <span class="l-date" id="p-date">—</span>
+                  <span class="l-contact" id="p-contact"></span>
+                </div>
+                <span class="l-co-short" id="p-supplier">—</span>
+              </div>
+            </div>
+            <div class="label-meta">实际尺寸 <span class="dim">80mm × 50mm</span> · 热敏不干胶</div>
+            <div class="btn-row">
+              <button class="btn btn-primary" onclick="printLabel()" title="打印">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              </button>
+              <button class="btn btn-gold" onclick="saveLabel()" title="保存">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              </button>
+              <button class="btn btn-ghost" onclick="clearForm()" title="新建">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+            </div>
+            <div class="draft-indicator">
+              <span class="draft-dot"></span>
+              <span>草稿自动保存</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Right: Form ===== -->
+    <div>
+      <div class="card">
+        <div class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          标签内容编辑
+          <span class="en">Edit Content</span>
+        </div>
+        <div class="form-grid">
+          <div class="form-field">
+            <label>公司名称 <span class="en">Company</span></label>
+            <select id="f-company" onchange="updatePreview()">
+              <option value="0">无锡华烁特钢有限公司</option>
+              <option value="1">无锡泰坦福新材料有限公司</option>
+              <option value="2">无锡泰益特钢有限公司</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>联系人及电话 <span class="en">Contact</span></label>
+            <select id="f-contact" onchange="updatePreview()">
+              <option value=""></option>
+              <option value="唐绍磐 138 1218 8851">唐绍磐 138 1218 8851</option>
+              <option value="周瑾 138 1205 6968">周瑾 138 1205 6968</option>
+              <option value="张荣龙 136 6511 9291">张荣龙 136 6511 9291</option>
+            </select>
+          </div>
+
+          <div class="form-section">订单信息 · Order Info</div>
+
+          <div class="form-field">
+            <label>合同/订单号 <span class="en">Order No.</span></label>
+            <input type="text" id="f-contract" class="mono" placeholder="如 HT-2025-001" oninput="updatePreview()">
+          </div>
+          <div class="form-field">
+            <label>客户名称 <span class="en">Customer</span></label>
+            <input type="text" id="f-customer" placeholder="如 XX机械有限公司" oninput="updatePreview()">
+          </div>
+          <div class="form-field">
+            <label>供应商编号 <span class="en">Supplier No.</span></label>
+            <input type="text" id="f-supplier" class="mono" placeholder="如 GYS-001" oninput="updatePreview()">
+          </div>
+
+          <div class="form-section">产品信息 · Product Info</div>
+
+          <div class="form-field">
+            <label>产品 <span class="en">Product</span></label>
+            <input type="text" id="f-product" placeholder="如 不锈钢棒材" oninput="updatePreview()">
+          </div>
+          <div class="form-field">
+            <label>材质 <span class="en">Material</span></label>
+            <input type="text" id="f-material" placeholder="如 304, 316L" oninput="updatePreview()">
+          </div>
+          <div class="form-field">
+            <label>规格 <span class="en">Spec</span></label>
+            <input type="text" id="f-spec" placeholder="如 φ50×2000mm" oninput="updatePreview()">
+          </div>
+          <div class="form-field">
+            <label>物料编号 <span class="en">Mat. No.</span></label>
+            <input type="text" id="f-matno" class="mono" placeholder="如 WL-2025-001" oninput="updatePreview()">
+          </div>
+
+          <div class="form-section">生产追溯 · Traceability</div>
+
+          <div class="form-field">
+            <label>图号 <span class="en">Drawing No.</span></label>
+            <input type="text" id="f-drawno" class="mono" placeholder="如 DWG-001" oninput="updatePreview()">
+          </div>
+          <div class="form-field">
+            <label>炉号 <span class="en">Heat No.</span></label>
+            <input type="text" id="f-heat" class="mono" placeholder="如 H20250801" oninput="updatePreview()">
+          </div>
+          <div class="form-field full">
+            <label>坯料产地 <span class="en">Blank Origin</span></label>
+            <input type="text" id="f-origin" placeholder="如 抚顺特钢" oninput="updatePreview()">
+          </div>
+
+          <div class="form-section">计量信息 · Quantity</div>
+
+          <div class="form-field">
+            <label>重量 (公斤) <span class="en">Weight</span></label>
+            <input type="text" id="f-weight" class="mono" placeholder="如 1250" oninput="updatePreview()">
+          </div>
+          <div class="form-field">
+            <label>总件数 <span class="en">Total Qty</span></label>
+            <input type="text" id="f-tqty" class="mono" placeholder="如 20" oninput="updatePreview()">
+          </div>
+          <div class="form-field full">
+            <label>总重量 (公斤) <span class="en">Total Weight</span></label>
+            <input type="text" id="f-tweight" class="mono" placeholder="如 25000" oninput="updatePreview()">
+          </div>
+
+          <div class="form-section">品质标准 · Quality</div>
+
+          <div class="form-field full">
+            <label>执行标准 <span class="en">Standard</span></label>
+            <input type="text" id="f-std" placeholder="如 GB/T 1220-2019" oninput="updatePreview()">
+          </div>
+          <div class="form-field full">
+            <label>处理工艺 <span class="en">Process</span></label>
+            <input type="text" id="f-process" placeholder="如 固溶处理、酸洗" oninput="updatePreview()">
+          </div>
+          <div class="form-field full">
+            <label>质保书号码 <span class="en">QA Cert No.</span></label>
+            <input type="text" id="f-qacert" class="mono" placeholder="如 ZBS-2025-001" oninput="updatePreview()">
+          </div>
+          <div class="form-field full">
+            <label>收货信息 <span class="en">Receiving Info</span></label>
+            <input type="text" id="f-receiving" placeholder="如 收货地址、收货人" oninput="updatePreview()">
+          </div>
+          <div class="form-field full">
+            <label>备注 <span class="en">Remarks</span></label>
+            <textarea id="f-remark" rows="2" placeholder="其他说明..." oninput="updatePreview()"></textarea>
+          </div>
+        </div>
+        <div class="mat-chips">
+          <span class="mat-chip" onclick="quickFill('material','304')">304</span>
+          <span class="mat-chip" onclick="quickFill('material','304L')">304L</span>
+          <span class="mat-chip" onclick="quickFill('material','316L')">316L</span>
+          <span class="mat-chip" onclick="quickFill('material','321')">321</span>
+          <span class="mat-chip" onclick="quickFill('material','310S')">310S</span>
+          <span class="mat-chip" onclick="quickFill('material','317L')">317L</span>
+          <span class="mat-chip" onclick="quickFill('material','904L')">904L</span>
+          <span class="mat-chip" onclick="quickFill('material','2205')">2205</span>
+          <span class="mat-chip" onclick="quickFill('material','2507')">2507</span>
+          <span class="mat-chip" onclick="quickFill('material','17-4PH')">17-4PH</span>
+          <span class="mat-chip" onclick="quickFill('origin','抚顺特钢')">抚顺特钢</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Print area (hidden on screen) ===== -->
+<div class="print-area">
+  <div class="label-box print-label" id="printLabel">
+    <div class="l-bar"></div>
+    <div class="l-header">
+      <div>
+        <div class="l-co" id="pt-co-cn">无锡华烁特钢有限公司</div>
+        <div class="l-co-en" id="pt-co-en">Wuxi Brilliance Special Steel Co., Ltd</div>
+      </div>
+      <div class="l-badge">QC PASS</div>
+    </div>
+    <div class="l-hero">
+      <div class="l-hero-left">
+        <div class="l-hero-label">材质 GRADE</div>
+        <div class="l-hero-grade" id="pt-material">—</div>
+      </div>
+      <div class="l-hero-right">
+        <div class="l-hero-row"><span class="l-hero-lbl">产品</span><span class="l-hero-val" id="pt-product">—</span></div>
+        <div class="l-hero-row"><span class="l-hero-lbl">规格</span><span class="l-hero-val" id="pt-spec">—</span></div>
+        <div class="l-hero-barcode"><svg id="pt-barcode"></svg></div>
+      </div>
+      <div class="l-hero-qr"><div id="pt-qrcode"></div></div>
+    </div>
+    <div class="l-heat">
+      <span class="l-heat-lbl">客户 CUSTOMER</span>
+      <span class="l-heat-val" id="pt-customer">—</span>
+    </div>
+    <div class="l-body">
+      <div class="l-row"><span class="l-lbl">合同/订单号</span><span class="l-val mono" id="pt-contract">—</span></div>
+      <div class="l-row"><span class="l-lbl">炉号</span><span class="l-val mono" id="pt-heat">—</span></div>
+      <div class="l-row"><span class="l-lbl">物料编号</span><span class="l-val mono" id="pt-matno">—</span></div>
+      <div class="l-row"><span class="l-lbl">图号</span><span class="l-val mono" id="pt-drawno">—</span></div>
+      <div class="l-row"><span class="l-lbl">坯料产地</span><span class="l-val" id="pt-origin">—</span></div>
+      <div class="l-row"><span class="l-lbl">重量</span><span class="l-val mono" id="pt-weight">—</span></div>
+      <div class="l-row"><span class="l-lbl">总件数</span><span class="l-val mono" id="pt-tqty">—</span></div>
+      <div class="l-row"><span class="l-lbl">总重量</span><span class="l-val mono" id="pt-tweight">—</span></div>
+      <div class="l-row"><span class="l-lbl">执行标准</span><span class="l-val" id="pt-std">—</span></div>
+      <div class="l-row"><span class="l-lbl">处理工艺</span><span class="l-val" id="pt-process">—</span></div>
+      <div class="l-row"><span class="l-lbl">质保书号码</span><span class="l-val mono" id="pt-qacert">—</span></div>
+      <div class="l-row"><span class="l-lbl">备注</span><span class="l-val" id="pt-remark">—</span></div>
+      <div class="l-row l-full"><span class="l-lbl">收货信息</span><span class="l-val" id="pt-receiving">—</span></div>
+    </div>
+    <div class="l-foot">
+      <div class="l-foot-left">
+        <span class="l-date" id="pt-date">—</span>
+        <span class="l-contact" id="pt-contact"></span>
+      </div>
+      <span class="l-co-short" id="pt-supplier">—</span>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<script>
+// ===== State =====
+var STORAGE_KEY = 'hs_label_data_v2';
+var DRAFT_KEY = 'hs_label_draft';
+var editingId = null;
+var COMPANIES = [
+  {cn:'无锡华烁特钢有限公司',en:'Wuxi Brilliance Special Steel Co., Ltd',short:'无锡华烁特钢'},
+  {cn:'无锡泰坦福新材料有限公司',en:'Wuxi Titanic Fortress Material Co., Ltd',short:'无锡泰坦福'},
+  {cn:'无锡泰益特钢有限公司',en:'Wuxi Taiyi Special Steel Co., Ltd',short:'无锡泰益特钢'}
+];
+var FIELDS = ['contract','customer','contact','supplier','product','material','spec','matno','drawno','heat','origin','weight','tqty','tweight','std','process','qacert','receiving','remark'];
+
+// ===== Helpers =====
+function $(id){return document.getElementById(id)}
+function val(id){return ($(id).value||'').trim()}
+function setVal(id,v){
+  var el = $(id);
+  if(!el) return;
+  v = v||'';
+  if(el.tagName === 'SELECT'){
+    var found = false;
+    for(var i=0;i<el.options.length;i++){
+      if(el.options[i].value === v){ el.value = v; found = true; break; }
+    }
+    if(!found && v){
+      var opt = document.createElement('option');
+      opt.value = v; opt.textContent = v;
+      el.appendChild(opt);
+      el.value = v;
+    } else if(!v){
+      el.value = '';
+    }
+  } else {
+    el.value = v;
+  }
+}
+function todayStr(){
+  var d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function showToast(msg,type){
+  var t=$('toast');
+  t.textContent=msg;
+  t.className='toast show '+(type||'');
+  setTimeout(function(){t.className='toast '+(type||'');},1800);
+}
+
+// ===== Get form data =====
+function getFormData(){
+  var d={company:parseInt(val('f-company'))||0, date:todayStr()};
+  FIELDS.forEach(function(f){d[f]=val('f-'+f)});
+  return d;
+}
+
+// ===== Draft save/load =====
+function saveDraft(){
+  var d=getFormData();
+  d.editingId=editingId;
+  localStorage.setItem(DRAFT_KEY,JSON.stringify(d));
+}
+function loadDraft(){
+  try{
+    var d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');
+    if(d){
+      setVal('f-company',String(d.company||0));
+      FIELDS.forEach(function(f){setVal('f-'+f,d[f])});
+      editingId=d.editingId||null;
+      return true;
+    }
+  }catch(e){}
+  return false;
+}
+
+// ===== QR Code =====
+var QR_FIELDS = ['contract','contact','supplier','product','material','spec','matno','drawno','heat','origin','weight','tqty','tweight','std','process','qacert','receiving','remark'];
+var QR_LABELS = {
+  contract:'合同/订单号',customer:'客户',contact:'联系人及电话',supplier:'供应商编号',
+  product:'产品',material:'材质',spec:'规格',
+  matno:'物料编号',drawno:'图号',heat:'炉号',origin:'坯料产地',
+  weight:'重量',tqty:'总件数',tweight:'总重量',std:'执行标准',
+  process:'处理工艺',qacert:'质保书号码',receiving:'收货信息',remark:'备注'
+};
+function buildQRContent(d){
+  var co=COMPANIES[d.company]||COMPANIES[0];
+  var lines=[co.cn];
+  QR_FIELDS.forEach(function(f){
+    var v=d[f];
+    if(!v) return;
+    if(f==='weight'||f==='tweight') v=v+'公斤';
+    lines.push(QR_LABELS[f]+': '+v);
+  });
+  return lines.join('\n');
+}
+function updateQRCode(d){
+  var content=buildQRContent(d);
+  var encoded=encodeURIComponent(content);
+  var qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=0&ecc=L&data='+encoded;
+  function fallbackLocal(el){
+    if(typeof qrcode==='undefined'){el.innerHTML='';return;}
+    try{
+      var qr=qrcode(0,'L');
+      qr.addData(content);
+      qr.make();
+      var mc=qr.getModuleCount();
+      var cs=Math.max(3,Math.ceil(300/mc));
+      el.innerHTML=qr.createImgTag(cs,0);
+    }catch(e){el.innerHTML='';}
+  }
+  var targets=[$('p-qrcode'),$('pt-qrcode')];
+  targets.forEach(function(el){
+    if(!el) return;
+    var img=new Image();
+    img.style.cssText='width:100%;height:100%;display:block';
+    img.onload=function(){el.innerHTML='';el.appendChild(img);};
+    img.onerror=function(){fallbackLocal(el);};
+    img.src=qrUrl;
+  });
+}
+
+// ===== Update preview + save draft =====
+function updatePreview(){
+  var d=getFormData();
+  var dash='—';
+  var co=COMPANIES[d.company]||COMPANIES[0];
+  $('p-co-cn').textContent=co.cn;
+  $('p-co-en').textContent=co.en;
+  $('pt-co-cn').textContent=co.cn;
+  $('pt-co-en').textContent=co.en;
+  FIELDS.forEach(function(f){
+    var v=d[f];
+    if(f==='weight'&&v) v=v+' 公斤';
+    if(f==='tweight'&&v) v=v+' 公斤';
+    if(f==='contact'){
+      var cv=v?'· '+v:'';
+      $('p-contact').textContent=cv;
+      $('pt-contact').textContent=cv;
+    }else if(f==='supplier'){
+      $('p-supplier').textContent=v||'—';
+      $('pt-supplier').textContent=v||'—';
+    }else{
+      $('p-'+f).textContent=v||dash;
+      $('pt-'+f).textContent=v||dash;
+    }
+  });
+  $('p-date').textContent=d.date;
+  $('pt-date').textContent=d.date;
+  updateQRCode(d);
+  updateBarcode(d.matno);
+  saveDraft();
+}
+
+// ===== Barcode =====
+function updateBarcode(matno){
+  var targets=[$('p-barcode'),$('pt-barcode')];
+  targets.forEach(function(el){
+    if(!el) return;
+    if(matno && typeof JsBarcode!=='undefined'){
+      try{
+        JsBarcode(el, matno, {format:'CODE128',width:1.3,height:18,displayValue:false,margin:0,background:'transparent'});
+      }catch(e){el.innerHTML='';}
+    }else{
+      el.innerHTML='';
+    }
+  });
+}
+
+// ===== Quick fill =====
+function quickFill(field,v){
+  $('f-'+field).value=v;
+  updatePreview();
+}
+
+// ===== Clear form =====
+function clearForm(){
+  setVal('f-company','0');
+  FIELDS.forEach(function(f){setVal('f-'+f,'')});
+  editingId=null;
+  updatePreview();
+  showToast('已清空','');
+}
+
+// ===== Storage =====
+function loadData(){
+  try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]')}catch(e){return[]}
+}
+function saveData(arr){
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(arr));
+}
+
+// ===== Save label =====
+function saveLabel(){
+  var d=getFormData();
+  if(!d.product&&!d.material&&!d.spec&&!d.heat&&!d.contract&&!d.customer){
+    showToast('请至少填写合同/订单号、客户名称、产品、材质、规格或炉号','err');
+    return;
+  }
+  var arr=loadData();
+  if(editingId){
+    var idx=arr.findIndex(function(x){return x.id===editingId});
+    if(idx>=0){
+      d.id=editingId;
+      d.savedAt=arr[idx].savedAt;
+      if(arr[idx].name) d.name=arr[idx].name; // 保留“副本”名称
+      arr[idx]=d;
+    }
+    saveData(arr);
+    showToast('已更新','ok');
+  }else{
+    d.id='L'+Date.now();
+    d.savedAt=Date.now();
+    arr.unshift(d);
+    saveData(arr);
+    editingId=d.id;
+    showToast('已保存','ok');
+  }
+  saveDraft();
+}
+
+// ===== Print =====
+function printLabel(){
+  updatePreview();
+  setTimeout(function(){ window.print(); }, 600);
+}
+
+// ===== Batch queue（勾选多条记录批量打印标签） =====
+var labelQueue=null, queueIndex=0;
+function applyQueueItem(){
+  if(!labelQueue||!labelQueue.length) return;
+  var pd=labelQueue[queueIndex]||{};
+  if(typeof pd.company!=='undefined'){ setVal('f-company',String(pd.company||0)); }
+  FIELDS.forEach(function(f){ setVal('f-'+f, pd[f]||''); });
+  editingId=null;
+  updatePreview();
+  var nav=$('queue-nav');
+  if(nav){ nav.style.display='flex'; }
+  $('queue-pos').textContent='第 '+(queueIndex+1)+' 条 / 共 '+labelQueue.length+' 条';
+  $('q-prev').disabled=(queueIndex<=0);
+  $('q-next').disabled=(queueIndex>=labelQueue.length-1);
+}
+function queueMove(d){
+  if(!labelQueue) return;
+  var ni=queueIndex+d;
+  if(ni<0||ni>=labelQueue.length) return;
+  queueIndex=ni;
+  applyQueueItem();
+}
+(function(){
+  var p=$('q-prev'), n=$('q-next');
+  if(p) p.onclick=function(){queueMove(-1)};
+  if(n) n.onclick=function(){queueMove(1)};
+})();
+
+// ===== 跨标签页实时监听：页面被浏览器复用未刷新时，也能接收主应用新写入的数据 =====
+window.addEventListener('storage', function(e){
+  if(e.key === 'hs_label_prefill_batch' && e.newValue){
+    try{
+      var qArr = JSON.parse(e.newValue);
+      if(Array.isArray(qArr) && qArr.length){ labelQueue = qArr; queueIndex = 0; applyQueueItem(); }
+    }catch(err){}
+  }else if(e.key === 'hs_label_prefill' && e.newValue){
+    try{
+      var pd = JSON.parse(e.newValue);
+      labelQueue = null;
+      var nav = $('queue-nav'); if(nav){ nav.style.display='none'; }
+      if(typeof pd.company !== 'undefined'){ setVal('f-company',String(pd.company||0)); }
+      FIELDS.forEach(function(f){ setVal('f-'+f, pd[f]||''); });
+      editingId = null;
+      updatePreview();
+    }catch(err){}
+  }
+});
+
+// ===== Init =====
+var batchRaw = localStorage.getItem('hs_label_prefill_batch');
+if(batchRaw){
+  localStorage.removeItem('hs_label_prefill_batch');
+  try{
+    var qArr = JSON.parse(batchRaw);
+    if(Array.isArray(qArr) && qArr.length){ labelQueue = qArr; queueIndex = 0; applyQueueItem(); }
+  }catch(e){}
+}
+if(!labelQueue){
+  // Check for prefill data from external pages (e.g. SalesManagement 发退货记录)
+  var prefillData = localStorage.getItem('hs_label_prefill');
+  if(prefillData){
+    localStorage.removeItem('hs_label_prefill');
+    try{
+      var pd = JSON.parse(prefillData);
+      if(typeof pd.company !== 'undefined'){ setVal('f-company',String(pd.company||0)); }
+      FIELDS.forEach(function(f){ setVal('f-'+f, pd[f]||''); });
+    }catch(e){}
+  }else if(localStorage.getItem('hs_label_load')){
+    // Check for load request from saved-labels page
+    var loadId = localStorage.getItem('hs_label_load');
+    localStorage.removeItem('hs_label_load');
+    var arr = loadData();
+    var item = arr.find(function(x){return x.id===loadId});
+    if(item){
+      setVal('f-company',String(item.company||0));
+      FIELDS.forEach(function(f){setVal('f-'+f,item[f])});
+      editingId = loadId;
+    }
+  }else{
+    // Load draft
+    loadDraft();
+  }
+}
+updatePreview();
+</script>
+</body>
+</html>

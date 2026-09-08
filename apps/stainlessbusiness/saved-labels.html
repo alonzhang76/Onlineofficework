@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>已保存标签 - 名片视图</title>
+<style>
+:root{
+  --bg:#eef1f6; --bg2:#fff; --ink:#0f1e3d; --muted:#5a6b85;
+  --rule:#dde3ed; --accent:#1a3a6b; --accent2:#3a6b8a;
+  --accent-soft:#eef2f8; --steel-soft:#e8f0f5;
+  --ok:#2d8a4e; --danger:#c0392b; --gold:#c9a961;
+  --font:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;
+  --mono:'SF Mono','Consolas','Courier New',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px}
+body{font-family:var(--font);color:var(--ink);background:var(--bg);line-height:1.6;min-height:100vh;
+  background-image:radial-gradient(circle at 15% 10%,rgba(26,58,107,.06),transparent 45%),radial-gradient(circle at 85% 90%,rgba(58,107,138,.07),transparent 45%);
+}
+
+/* ===== Header ===== */
+.app-head{background:linear-gradient(135deg,var(--accent) 0%,#2a5290 100%);color:#fff;padding:1.5rem 1.2rem;box-shadow:0 3px 14px rgba(26,58,107,.2)}
+.app-head-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem}
+.app-head h1{font-size:1.5rem;letter-spacing:.03em;display:flex;align-items:center;gap:.5rem}
+.app-head h1 svg{width:24px;height:24px}
+.app-head .sub{font-size:.82rem;opacity:.85;margin-top:.2rem}
+.back-btn{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1rem;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:8px;color:#fff;font-size:.82rem;font-weight:600;cursor:pointer;transition:all .15s;text-decoration:none}
+.back-btn:hover{background:rgba(255,255,255,.25);transform:translateY(-1px)}
+.back-btn svg{width:16px;height:16px}
+
+/* ===== Toolbar ===== */
+.toolbar{max-width:1200px;margin:1.2rem auto;padding:0 1.2rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+.search-box{flex:1;min-width:240px;position:relative}
+.search-box svg{position:absolute;left:.7rem;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--muted);pointer-events:none}
+.search-box input{width:100%;padding:.55rem .8rem .55rem 2.2rem;border:1px solid var(--rule);border-radius:8px;font-family:var(--font);font-size:.85rem;color:var(--ink);background:var(--bg2);outline:none;transition:border-color .15s,box-shadow .15s}
+.search-box input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(26,58,107,.1)}
+.count-badge{font-size:.8rem;color:var(--muted);white-space:nowrap}
+.count-badge strong{color:var(--accent);font-size:.95rem}
+
+/* ===== Cards Grid ===== */
+.cards-grid{max-width:1200px;margin:0 auto;padding:0 1.2rem 2rem;display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:1rem}
+
+/* ===== Business Card ===== */
+.biz-card{background:var(--bg2);border-radius:10px;overflow:hidden;box-shadow:0 3px 14px rgba(15,30,61,.08),0 1px 3px rgba(15,30,61,.04);transition:transform .15s,box-shadow .15s;border:1px solid var(--rule);display:flex;flex-direction:column}
+.biz-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(15,30,61,.15),0 2px 6px rgba(15,30,61,.06);border-color:var(--accent2)}
+.biz-card.active{border-color:var(--accent2);box-shadow:0 4px 18px rgba(58,107,138,.2)}
+
+/* Card header — gradient with material grade */
+.bc-head{background:linear-gradient(135deg,var(--accent) 0%,var(--accent2) 100%);padding:.8rem 1rem .7rem;color:#fff;position:relative;overflow:hidden}
+.bc-head::after{content:'';position:absolute;right:-10px;top:-10px;width:60px;height:60px;border-radius:50%;background:rgba(255,255,255,.06)}
+.bc-head::before{content:'';position:absolute;right:20px;bottom:-15px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.04)}
+.bc-grade{font-size:1.4rem;font-weight:900;letter-spacing:.02em;line-height:1.1}
+.bc-spec{font-size:.78rem;opacity:.9;margin-top:.15rem;font-family:var(--mono)}
+.bc-co{font-size:.68rem;opacity:.75;margin-top:.3rem}
+
+/* Card body — field grid */
+.bc-body{padding:.7rem 1rem .5rem;flex:1}
+.bc-grid{display:grid;grid-template-columns:1fr 1fr;gap:.35rem .8rem}
+.bc-field{display:flex;flex-direction:column;gap:0;min-width:0}
+.bc-field.full{grid-column:1/-1}
+.bc-lbl{font-size:.62rem;color:var(--accent2);font-weight:700;letter-spacing:.03em;text-transform:uppercase;white-space:nowrap}
+.bc-val{font-size:.8rem;color:var(--ink);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bc-val.mono{font-family:var(--mono);letter-spacing:.01em}
+.bc-val.empty{color:var(--rule);font-weight:400}
+
+/* Heat number strip */
+.bc-heat{margin:.5rem 1rem;padding:.3rem .6rem;background:linear-gradient(90deg,var(--accent-soft),transparent);border-left:2.5px solid var(--accent2);border-radius:0 4px 4px 0;display:flex;align-items:center;gap:.4rem}
+.bc-heat-lbl{font-size:.6rem;color:var(--accent2);font-weight:700;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
+.bc-heat-val{font-size:.78rem;color:var(--accent);font-weight:800;font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Customer strip */
+.bc-customer{margin:0 1rem .5rem;padding:.3rem .6rem;background:var(--steel-soft);border-radius:4px;display:flex;align-items:center;gap:.4rem}
+.bc-customer-lbl{font-size:.6rem;color:var(--accent2);font-weight:700;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
+.bc-customer-val{font-size:.78rem;color:var(--ink);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Card footer */
+.bc-foot{padding:.5rem 1rem;border-top:1px solid var(--rule);display:flex;align-items:center;justify-content:space-between;background:var(--accent-soft)}
+.bc-foot-left{display:flex;flex-direction:column;gap:1px;min-width:0}
+.bc-date{font-size:.68rem;color:var(--muted);font-family:var(--mono)}
+.bc-contact{font-size:.68rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
+.bc-supplier{font-size:.68rem;color:var(--accent);font-weight:700;font-family:var(--mono);white-space:nowrap}
+.bc-actions{display:flex;gap:.3rem;flex-shrink:0}
+.bc-btn{width:30px;height:30px;border:1px solid var(--rule);border-radius:6px;background:var(--bg2);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .12s;color:var(--muted)}
+.bc-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.bc-btn.danger:hover{border-color:var(--danger);color:#fff;background:var(--danger)}
+.bc-btn svg{width:14px;height:14px}
+.bc-name{display:flex;align-items:center;gap:.35rem;font-size:.72rem;font-weight:700;color:var(--accent);background:var(--accent-soft);padding:.28rem .6rem;margin:.55rem .8rem 0;border-radius:6px;border:1px dashed var(--accent)}
+.bc-name svg{width:13px;height:13px;flex:none}
+
+/* ===== Empty State ===== */
+.empty-state{grid-column:1/-1;text-align:center;padding:3rem 1rem;color:var(--muted)}
+.empty-state svg{width:48px;height:48px;color:var(--rule);margin-bottom:.8rem}
+.empty-state p{font-size:.9rem}
+.empty-state .hint{font-size:.75rem;margin-top:.3rem;color:var(--rule)}
+
+/* ===== Pagination ===== */
+.pagination{max-width:1200px;margin:0 auto;padding:1rem 1.2rem 2rem;display:flex;align-items:center;justify-content:center;gap:.3rem;flex-wrap:wrap}
+.page-btn{min-width:36px;height:36px;padding:0 .5rem;border:1px solid var(--rule);border-radius:7px;background:var(--bg2);cursor:pointer;font-family:var(--font);font-size:.82rem;font-weight:600;color:var(--muted);transition:all .12s;display:flex;align-items:center;justify-content:center}
+.page-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.page-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.page-btn:disabled{opacity:.4;cursor:not-allowed}
+.page-btn svg{width:14px;height:14px}
+.page-info{font-size:.78rem;color:var(--muted);margin:0 .5rem}
+
+/* ===== Toast ===== */
+.toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%) translateY(100px);background:var(--accent);color:#fff;padding:.6rem 1.3rem;border-radius:8px;font-size:.82rem;font-weight:600;box-shadow:0 4px 16px rgba(26,58,107,.3);transition:transform .25s ease;z-index:999;pointer-events:none}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast.ok{background:var(--ok)}
+.toast.err{background:var(--danger)}
+
+/* ===== Print ===== */
+@media print{
+  .app-head,.toolbar,.pagination,.bc-actions{display:none !important}
+  .cards-grid{display:block}
+  .biz-card{break-inside:avoid;margin-bottom:5mm;box-shadow:none;border:1px solid #ccc}
+}
+</style>
+</head>
+<body>
+
+<div class="app-head">
+  <div class="app-head-inner">
+    <div>
+      <h1>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 4v6"/></svg>
+        已保存标签
+      </h1>
+      <div class="sub">名片视图 · Business Card View</div>
+    </div>
+    <a class="back-btn" id="backBtn" href="label-print.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+      返回编辑
+    </a>
+  </div>
+</div>
+
+<div class="toolbar">
+  <div class="search-box">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="text" id="searchInput" placeholder="搜索材质、规格、客户、炉号、合同号..." oninput="onSearch()">
+  </div>
+  <div class="count-badge">共 <strong id="totalCount">0</strong> 条<span id="filteredInfo"></span></div>
+</div>
+
+<div class="cards-grid" id="cardsGrid"></div>
+
+<div class="pagination" id="pagination"></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== Config =====
+var STORAGE_KEY = 'hs_label_data_v2';
+var PAGE_SIZE = 12;
+var currentPage = 1;
+var searchText = '';
+
+var COMPANIES = [
+  {cn:'无锡华烁特钢有限公司',en:'Wuxi Brilliance Special Steel Co., Ltd',short:'无锡华烁特钢'},
+  {cn:'无锡泰坦福新材料有限公司',en:'Wuxi Titanic Fortress Material Co., Ltd',short:'无锡泰坦福'},
+  {cn:'无锡泰益特钢有限公司',en:'Wuxi Taiyi Special Steel Co., Ltd',short:'无锡泰益特钢'}
+];
+
+var FIELD_LABELS = {
+  contract:'合同/订单号', customer:'客户', contact:'联系人', supplier:'供应商编号',
+  product:'产品', material:'材质', spec:'规格', matno:'物料编号',
+  drawno:'图号', heat:'炉号', origin:'坯料产地',
+  weight:'重量', tqty:'总件数', tweight:'总重量',
+  std:'执行标准', process:'处理工艺', qacert:'质保书号码', receiving:'收货信息', remark:'备注'
+};
+
+var CARD_FIELDS_LEFT = ['contract','matno','drawno','product','origin'];
+var CARD_FIELDS_RIGHT = ['weight','tqty','tweight','std'];
+
+// ===== Helpers =====
+function $(id){return document.getElementById(id)}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function showToast(msg,type){
+  var t=$('toast');
+  t.textContent=msg;
+  t.className='toast show '+(type||'');
+  setTimeout(function(){t.className='toast '+(type||'');},1800);
+}
+
+// ===== Data =====
+function loadData(){
+  try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]')}catch(e){return[]}
+}
+function saveData(arr){
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(arr));
+}
+
+// ===== Search =====
+function onSearch(){
+  searchText = ($('searchInput').value||'').trim().toLowerCase();
+  currentPage = 1;
+  render();
+}
+
+// ===== Delete =====
+function deleteLabel(id){
+  var arr = loadData().filter(function(x){return x.id!==id});
+  saveData(arr);
+  showToast('已删除','');
+  render();
+}
+
+// ===== Copy — duplicate the record as a “副本” =====
+function copyLabel(id){
+  var arr = loadData();
+  var src = null;
+  for(var i=0;i<arr.length;i++){ if(arr[i].id===id){ src=arr[i]; break; } }
+  if(!src){ showToast('未找到原记录','err'); return; }
+  var copy = JSON.parse(JSON.stringify(src));
+  copy.id = 'L'+Date.now();
+  copy.savedAt = Date.now();
+  var d = new Date();
+  copy.date = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  // 以合同/订单号（或 产品+材质+规格）作为文件名，追加“副本”；重名时自动编号
+  var base = (src.name ? String(src.name).replace(/\s*副本\s*\d*$/,'') : '')
+          || src.contract
+          || [src.product, src.material, src.spec].filter(Boolean).join(' ')
+          || '未命名标签';
+  var usedNames = {};
+  arr.forEach(function(x){ if(x.name) usedNames[x.name]=1; });
+  var name = base+' 副本', n=2;
+  while(usedNames[name]){ name = base+' 副本'+n; n++; }
+  copy.name = name;
+  arr.unshift(copy);
+  saveData(arr);
+  currentPage = 1;
+  showToast('已复制为「'+name+'」','ok');
+  render();
+}
+
+// ===== Edit — pass load instruction to edit page =====
+function editLabel(id){
+  localStorage.setItem('hs_label_load', id);
+  window.location.href = 'label-print.html?ts=' + Date.now();
+}
+
+// ===== Render =====
+function getFiltered(){
+  var arr = loadData();
+  if(!searchText) return arr;
+  return arr.filter(function(item){
+    var co = COMPANIES[item.company]||COMPANIES[0];
+    var haystack = [
+      co.cn, co.short,
+      item.contract, item.customer, item.contact, item.supplier,
+      item.product, item.material, item.spec, item.matno,
+      item.drawno, item.heat, item.origin,
+      item.weight, item.tqty, item.tweight,
+      item.std, item.process, item.qacert, item.receiving, item.remark, item.date
+    ].join(' ').toLowerCase();
+    return haystack.indexOf(searchText) >= 0;
+  });
+}
+
+function render(){
+  var filtered = getFiltered();
+  var total = loadData().length;
+  $('totalCount').textContent = total;
+  if(searchText && filtered.length !== total){
+    $('filteredInfo').innerHTML = ' · 筛选出 <strong>'+filtered.length+'</strong> 条';
+  }else{
+    $('filteredInfo').innerHTML = '';
+  }
+
+  // Pagination
+  var totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  if(currentPage > totalPages) currentPage = totalPages;
+  var start = (currentPage - 1) * PAGE_SIZE;
+  var pageItems = filtered.slice(start, start + PAGE_SIZE);
+
+  // Render cards
+  var grid = $('cardsGrid');
+  if(filtered.length === 0){
+    grid.innerHTML = '<div class="empty-state">'+
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 4v6"/></svg>'+
+      '<p>'+(searchText?'未找到匹配的标签':'暂无已保存标签')+'</p>'+
+      '<div class="hint">'+(searchText?'试试其他关键词':'在打印页面保存标签后即可在此查看')+'</div>'+
+      '</div>';
+  }else{
+    grid.innerHTML = pageItems.map(function(item){
+      var co = COMPANIES[item.company]||COMPANIES[0];
+      var material = item.material || '—';
+      var spec = item.spec || '';
+      var heat = item.heat || '';
+      var customer = item.customer || '';
+
+      // Build field cells
+      var leftFields = CARD_FIELDS_LEFT.map(function(f){
+        var v = item[f];
+        if(f==='weight'&&v) v = v+' 公斤';
+        return '<div class="bc-field">'+
+          '<span class="bc-lbl">'+FIELD_LABELS[f]+'</span>'+
+          '<span class="bc-val'+(v?' mono':' empty')+'">'+esc(v||'—')+'</span>'+
+        '</div>';
+      }).join('');
+
+      var rightFields = CARD_FIELDS_RIGHT.map(function(f){
+        var v = item[f];
+        if(f==='weight'&&v) v = v+' 公斤';
+        if(f==='tweight'&&v) v = v+' 公斤';
+        return '<div class="bc-field">'+
+          '<span class="bc-lbl">'+FIELD_LABELS[f]+'</span>'+
+          '<span class="bc-val'+(v?' mono':' empty')+'">'+esc(v||'—')+'</span>'+
+        '</div>';
+      }).join('');
+
+      // Process & remark full width
+      var fullFields = '';
+      if(item.process){
+        fullFields += '<div class="bc-field full"><span class="bc-lbl">'+FIELD_LABELS.process+'</span><span class="bc-val">'+esc(item.process)+'</span></div>';
+      }
+      if(item.qacert){
+        fullFields += '<div class="bc-field full"><span class="bc-lbl">'+FIELD_LABELS.qacert+'</span><span class="bc-val mono">'+esc(item.qacert)+'</span></div>';
+      }
+      if(item.receiving){
+        fullFields += '<div class="bc-field full"><span class="bc-lbl">'+FIELD_LABELS.receiving+'</span><span class="bc-val">'+esc(item.receiving)+'</span></div>';
+      }
+      if(item.remark){
+        fullFields += '<div class="bc-field full"><span class="bc-lbl">'+FIELD_LABELS.remark+'</span><span class="bc-val">'+esc(item.remark)+'</span></div>';
+      }
+
+      // Heat strip
+      var heatHtml = heat ?
+        '<div class="bc-heat"><span class="bc-heat-lbl">炉号</span><span class="bc-heat-val">'+esc(heat)+'</span></div>' : '';
+
+      // Customer strip
+      var customerHtml = customer ?
+        '<div class="bc-customer"><span class="bc-customer-lbl">客户</span><span class="bc-customer-val">'+esc(customer)+'</span></div>' : '';
+
+      // Footer
+      var contactTxt = item.contact || '';
+      var supplierTxt = item.supplier || '';
+      var dateTxt = item.date || '';
+
+      return '<div class="biz-card">'+
+        '<div class="bc-head">'+
+          '<div class="bc-grade">'+esc(material)+'</div>'+
+          (spec?'<div class="bc-spec">'+esc(spec)+'</div>':'')+
+          '<div class="bc-co">'+esc(co.short)+'</div>'+
+        '</div>'+
+        heatHtml+
+        customerHtml+
+        '<div class="bc-body">'+
+          '<div class="bc-grid">'+
+            leftFields+
+            rightFields+
+            fullFields+
+          '</div>'+
+        '</div>'+
+        '<div class="bc-foot">'+
+          '<div class="bc-foot-left">'+
+            (dateTxt?'<span class="bc-date">'+esc(dateTxt)+'</span>':'')+
+            (contactTxt?'<span class="bc-contact">'+esc(contactTxt)+'</span>':'')+
+          '</div>'+
+          (supplierTxt?'<span class="bc-supplier">'+esc(supplierTxt)+'</span>':'')+
+          '<div class="bc-actions">'+
+            '<button class="bc-btn" onclick="copyLabel(\''+item.id+'\')" title="复制">'+
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'+
+            '</button>'+
+            '<button class="bc-btn" onclick="editLabel(\''+item.id+'\')" title="编辑">'+
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'+
+            '</button>'+
+            '<button class="bc-btn danger" onclick="deleteLabel(\''+item.id+'\')" title="删除">'+
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>'+
+            '</button>'+
+          '</div>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+  }
+
+  // Render pagination
+  renderPagination(totalPages);
+}
+
+function renderPagination(totalPages){
+  var pag = $('pagination');
+  if(totalPages <= 1){
+    pag.innerHTML = '';
+    return;
+  }
+
+  var html = '';
+  // Prev
+  html += '<button class="page-btn" onclick="goPage('+(currentPage-1)+')" '+(currentPage<=1?'disabled':'')+'>'+
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>'+
+  '</button>';
+
+  // Page numbers — show up to 7 pages with ellipsis
+  var pages = [];
+  if(totalPages <= 7){
+    for(var i=1;i<=totalPages;i++) pages.push(i);
+  }else{
+    pages.push(1);
+    if(currentPage > 3) pages.push('...');
+    var s = Math.max(2, currentPage-1);
+    var e = Math.min(totalPages-1, currentPage+1);
+    for(var i=s;i<=e;i++) pages.push(i);
+    if(currentPage < totalPages-2) pages.push('...');
+    pages.push(totalPages);
+  }
+
+  pages.forEach(function(p){
+    if(p === '...'){
+      html += '<span class="page-info">…</span>';
+    }else{
+      html += '<button class="page-btn'+(p===currentPage?' active':'')+'" onclick="goPage('+p+')">'+p+'</button>';
+    }
+  });
+
+  // Next
+  html += '<button class="page-btn" onclick="goPage('+(currentPage+1)+')" '+(currentPage>=totalPages?'disabled':'')+'>'+
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>'+
+  '</button>';
+
+  // Info
+  var filtered = getFiltered().length;
+  var start = (currentPage-1)*PAGE_SIZE + 1;
+  var end = Math.min(currentPage*PAGE_SIZE, filtered);
+  html += '<span class="page-info">'+start+'-'+end+' / '+filtered+'</span>';
+
+  pag.innerHTML = html;
+}
+
+function goPage(p){
+  currentPage = p;
+  render();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// ===== Init =====
+render();
+</script>
+</body>
+</html>
