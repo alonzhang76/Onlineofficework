@@ -351,6 +351,10 @@
               _origSetItem(nativeKey, rawC);
             }
             cache[key] = cloudVal;
+            cacheTs[key] = new Date().toISOString();
+            // 丢弃云端加载前排队的过期写入，防止其稍后覆盖云端真实数据
+            // （如页面初始化代码误写的示例数据/空数组）
+            delete pendingWrites[key];
           }
           // 两者皆空 → 无需处理
           continue;
@@ -384,8 +388,8 @@
     recentWrites[key] = Date.now();
 
     if (!sb || !initialized) {
-      // 加入待处理队列
-      pendingWrites[key] = value;
+      // 加入待处理队列（记录写入时间戳，供 flushPending 判断是否为过期写入）
+      pendingWrites[key] = { value: value, ts: Date.now() };
       return;
     }
 
@@ -397,7 +401,7 @@
       }, { onConflict: 'store_key' });
     } catch (e) {
       console.warn('[SupabaseSync] Sync error for', key, e);
-      pendingWrites[key] = value;
+      pendingWrites[key] = { value: value, ts: Date.now() };
     }
   }
 
@@ -407,9 +411,19 @@
     if (keys.length === 0) return;
     for (var i = 0; i < keys.length; i++) {
       var key = keys[i];
-      var value = pendingWrites[key];
+      var entry = pendingWrites[key];
+      var value = entry && entry.value !== undefined ? entry.value : entry;
       delete pendingWrites[key];
-      // 防护：队列值为空而本地当前值非空时跳过
+
+      // 防护1：早于云端数据时间戳的排队写入视为过期，跳过上传
+      // （云端加载完成前应用初始化误写的值不得覆盖云端真实数据）
+      if (entry && entry.ts && cacheTs[key]) {
+        try {
+          if (new Date(entry.ts) < new Date(cacheTs[key])) continue;
+        } catch (e) {}
+      }
+
+      // 防护2：队列值为空而本地当前值非空时跳过
       // （避免云端加载完成前应用初始化误写的空数组覆盖云端真实数据）
       if (isEmptyValue(value)) {
         var raw = _origGetItem(toLocalKey(key));
