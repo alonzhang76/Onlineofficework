@@ -4,7 +4,7 @@
       "id": "wage",
       "name": "计件工资管理",
       "description": "员工计件工资计算与管理系统",
-      "url": "apps/wicketproduct/index.html",
+      "url": "apps/wage/index.html",
       "icon": "📊",
       "color": "#3b82f6",
       "sort_order": 1
