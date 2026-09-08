@@ -589,38 +589,37 @@
                 @apply min-w-[300px] max-w-[400px] whitespace-nowrap;
             }
             /* 采购订单列表冻结列样式 */
-            /* 表头整体垂直冻结（在 .table-container 滚动区内吸顶） */
-            .purchase-order-table thead th {
-                position: sticky;
-                top: 0;
-                z-index: 20;
-                background-color: #f9fafb; /* bg-gray-50 */
-            }
-            /* 冻结左侧列：表头 z-index 需高于表体，避免滚动时被表体覆盖 */
-            .purchase-order-table th:nth-child(1) {
-                left: 0; z-index: 30; background-color: #f9fafb; width: 40px; min-width: 40px;
-            }
+            /* 设置每列的冻结位置和宽度 */
+            .purchase-order-table th:nth-child(1),
             .purchase-order-table td:nth-child(1) {
                 @apply sticky left-0 bg-white z-10 w-[40px];
             }
-            .purchase-order-table th:nth-child(2) {
-                left: 40px; z-index: 31; background-color: #f9fafb; width: 120px; min-width: 120px;
-            }
+            .purchase-order-table th:nth-child(2),
             .purchase-order-table td:nth-child(2) {
-                @apply sticky left-[40px] bg-white z-11 w-[120px];
+                @apply sticky left-[40px] bg-white z-20 w-[120px];
             }
-            .purchase-order-table th:nth-child(3) {
-                left: 160px; z-index: 32; background-color: #f9fafb; width: 100px; min-width: 100px;
-            }
+            .purchase-order-table th:nth-child(3),
             .purchase-order-table td:nth-child(3) {
-                @apply sticky left-[160px] bg-white z-12 w-[100px];
+                @apply sticky left-[160px] bg-white z-30 w-[100px];
             }
-            .purchase-order-table th:nth-child(4) {
-                left: 260px; z-index: 33; background-color: #f9fafb; min-width: 300px; max-width: 400px;
-            }
+            .purchase-order-table th:nth-child(4),
             .purchase-order-table td:nth-child(4) {
-                @apply sticky left-[260px] bg-white z-13 min-w-[300px] max-w-[400px] whitespace-nowrap;
+                @apply sticky left-[260px] bg-white z-40 min-w-[300px] max-w-[400px] whitespace-nowrap;
             }
+            /* 表头垂直冻结（原生 CSS，z-index 高于所有表体冻结列）：
+               表格在 .table-container 内垂直滚动时表头始终可见。
+               注意：不使用 @apply 写自定义层级，避免非法 Tailwind 类名导致整站样式编译失败。 */
+            .purchase-order-table thead th {
+                position: sticky;
+                top: 0;
+                z-index: 60;
+                background-color: #f9fafb;
+            }
+            /* 左上角交叉单元格：同时受左冻结与顶冻结约束，层级最高 */
+            .purchase-order-table thead th:nth-child(1) { z-index: 70; background-color: #f9fafb; }
+            .purchase-order-table thead th:nth-child(2) { z-index: 71; background-color: #f9fafb; }
+            .purchase-order-table thead th:nth-child(3) { z-index: 72; background-color: #f9fafb; }
+            .purchase-order-table thead th:nth-child(4) { z-index: 73; background-color: #f9fafb; }
             /* 设置总金额（含税）列宽度 */
             .table.purchase-order-table th:nth-child(13),
             .table.purchase-order-table td:nth-child(13) {
