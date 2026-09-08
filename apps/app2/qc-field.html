@@ -1,0 +1,2910 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>外勤QC - AA服装外贸系统</title>
+<link rel="stylesheet" href="css/common.css?v=20260812">
+<style>
+:root{
+  --qc-bg:#f0f2f5;--qc-card:#fff;--qc-primary:#2b6cb0;--qc-primary-light:#ebf4ff;
+  --qc-success:#2f9e44;--qc-success-light:#ebfbee;
+  --qc-warning:#f59f00;--qc-warning-light:#fff9db;
+  --qc-danger:#e03131;--qc-danger-light:#fff5f5;
+  --qc-gray:#adb5bd;--qc-gray-light:#f1f3f5;
+  --qc-text:#333;--qc-text-light:#868e96;--qc-border:#e0e0e0;
+  --qc-radius:6px;--qc-shadow:0 1px 3px rgba(0,0,0,.08);
+}
+/* Header */
+.qc-header{background:linear-gradient(135deg,#1a365d,#2b6cb0);color:#fff;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,.15);border-radius:var(--qc-radius);margin-bottom:12px;}
+.qc-header h1{font-size:18px;font-weight:600;margin:0;}
+.qc-header-actions{display:flex;gap:8px;align-items:center;}
+.qc-header-btn{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);color:#fff;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:12px;transition:.2s;}
+.qc-header-btn:hover{background:rgba(255,255,255,.3);}
+.qc-header-btn.outline{background:#fff;color:#495057;border:1px solid var(--qc-border);}
+.qc-header-btn.outline:hover{background:#f8f9fa;}
+/* Tabs */
+.qc-tabs{display:flex;background:#fff;border-bottom:2px solid var(--qc-border);padding:0 12px;border-radius:0;position:sticky;top:0;z-index:40;box-shadow:0 1px 6px rgba(0,0,0,.06);}
+.qc-tab-btn{padding:10px 24px;border:none;background:none;cursor:pointer;font-size:13px;color:var(--qc-text-light);border-bottom:3px solid transparent;transition:.2s;font-weight:500;}
+.qc-tab-btn:hover{color:var(--qc-primary);}
+.qc-tab-btn.active{color:var(--qc-primary);border-bottom-color:var(--qc-primary);font-weight:600;}
+/* Tab content */
+.qc-tab-content{display:none;padding:16px 4px;}
+.qc-tab-content.active{display:block;}
+/* Cards */
+.qc-card{background:var(--qc-card);border-radius:var(--qc-radius);box-shadow:var(--qc-shadow);margin-bottom:16px;overflow:hidden;}
+.qc-card-header{background:#f8f9fa;padding:10px 16px;border-bottom:1px solid var(--qc-border);font-weight:600;font-size:13px;display:flex;align-items:center;gap:8px;color:#495057;}
+.qc-card-header .icon{font-size:15px;}
+.qc-card-body{padding:16px;}
+/* Form */
+.qc-form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;}
+.qc-form-group{display:flex;flex-direction:column;gap:4px;}
+.qc-form-group.full{grid-column:1/-1;}
+.qc-form-group label{font-size:12px;color:#495057;font-weight:500;}
+.qc-form-group label .req{color:var(--qc-danger);}
+.qc-form-control{padding:5px 8px;border:1px solid var(--qc-border);border-radius:4px;font-size:13px;background:#fffde7;transition:.2s;width:100%;}
+.qc-form-control:focus{outline:none;border-color:var(--qc-primary);box-shadow:0 0 0 2px rgba(43,108,176,.1);}
+textarea.qc-form-control{resize:vertical;min-height:48px;font-family:inherit;}
+select.qc-form-control{cursor:pointer;}
+.qc-checkbox-group{display:flex;align-items:center;gap:6px;padding:5px 0;}
+.qc-checkbox-group input[type=checkbox]{width:16px;height:16px;cursor:pointer;}
+/* QC报告问题类别 标签 */
+.qc-tag-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border:1px solid var(--qc-border);border-radius:14px;background:#fff;cursor:pointer;font-size:12px;user-select:none;transition:.15s;}
+.qc-tag-chip input[type=checkbox]{display:none;}
+.qc-tag-chip span{color:#495057;}
+.qc-tag-chip:has(input:checked){background:var(--qc-primary);border-color:var(--qc-primary);}
+.qc-tag-chip:has(input:checked) span{color:#fff;}
+.qc-tag-chip:hover{border-color:var(--qc-primary);}
+/* QC报告问题类别 管理弹窗 */
+.qc-tag-modal{position:fixed;inset:0;z-index:3000;}
+.qc-tag-modal-mask{position:absolute;inset:0;background:rgba(0,0,0,0.35);}
+.qc-tag-modal-card{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:420px;max-width:92vw;max-height:80vh;display:flex;flex-direction:column;background:#fff;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.2);}
+.qc-tag-modal-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--qc-border);font-weight:600;font-size:14px;}
+.qc-tag-modal-body{padding:10px 14px;overflow-y:auto;flex:1;}
+.qc-tag-mgr-row{display:flex;gap:6px;align-items:center;margin-bottom:6px;}
+.qc-tag-mgr-row input{flex:1;border:1px solid var(--qc-border);border-radius:4px;padding:5px 8px;font-size:13px;}
+/* Size table */
+.qc-size-table,.qc-sub-table{width:100%;border-collapse:collapse;font-size:12px;}
+.qc-size-table th,.qc-sub-table th{background:#f8f9fa;padding:6px 8px;text-align:left;border:1px solid var(--qc-border);font-weight:600;white-space:nowrap;}
+.qc-size-table td,.qc-sub-table td{padding:4px 8px;border:1px solid var(--qc-border);text-align:left;}
+.qc-size-table input,.qc-sub-table input,.qc-sub-table textarea,.qc-sub-table select{border:1px solid var(--qc-border);border-radius:3px;padding:3px 6px;font-size:12px;width:100%;background:#fffde7;}
+.qc-size-table input:focus,.qc-sub-table input:focus,.qc-sub-table textarea:focus,.qc-sub-table select:focus{outline:none;border-color:var(--qc-primary);}
+/* Buttons */
+.qc-btn{padding:5px 14px;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;transition:.2s;display:inline-flex;align-items:center;gap:4px;}
+.qc-btn-primary{background:var(--qc-primary);color:#fff;}
+.qc-btn-primary:hover{background:#1e4d7b;}
+.qc-btn-success{background:var(--qc-success);color:#fff;}
+.qc-btn-success:hover{background:#237b35;}
+.qc-btn-danger{background:var(--qc-danger);color:#fff;}
+.qc-btn-danger:hover{background:#b92525;}
+.qc-btn-outline{background:#fff;border:1px solid var(--qc-border);color:#495057;}
+.qc-btn-outline:hover{background:#f8f9fa;border-color:var(--qc-primary);color:var(--qc-primary);}
+.qc-btn-sm{padding:3px 8px;font-size:12px;}
+.qc-btn-icon{padding:3px 7px;font-size:14px;border:none;border-radius:3px;cursor:pointer;background:transparent;transition:.2s;}
+.qc-btn-icon:hover{background:#e9ecef;}
+.qc-btn-icon.danger:hover{background:var(--qc-danger-light);color:var(--qc-danger);}
+.qc-form-actions{display:flex;gap:8px;justify-content:flex-end;padding:12px 0 0;}
+/* Image upload */
+.qc-status{color:#6c757d;padding:2px 4px;min-height:14px;}
+.qc-issue-img-block{border:1px solid var(--qc-border);border-radius:6px;padding:8px;background:#fafbfc;margin-top:6px;}
+.qc-issue-img-gallery{display:flex;gap:6px;flex-wrap:wrap;align-items:flex-start;margin-bottom:6px;}
+.qc-issue-img-thumb{position:relative;flex-shrink:0;}
+.qc-issue-img-thumb img{width:80px;height:80px;object-fit:cover;border-radius:4px;border:1px solid var(--qc-border);cursor:pointer;display:block;background:#fff;}
+.qc-issue-img-thumb .remove-btn{position:absolute;top:-6px;right:-6px;background:var(--qc-danger);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;z-index:2;}
+.qc-issue-img-empty{padding:6px;font-size:11px;color:var(--qc-text-light);text-align:center;background:var(--qc-gray-light);border-radius:4px;border:1px dashed var(--qc-border);}
+.qc-issue-img-row{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;}
+.qc-issue-img-preview{position:relative;flex-shrink:0;}
+.qc-issue-img-preview img{width:80px;height:80px;object-fit:cover;border-radius:4px;border:1px solid var(--qc-border);cursor:pointer;display:block;background:#fff;}
+.qc-issue-img-preview .remove-btn{position:absolute;top:-6px;right:-6px;background:var(--qc-danger);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;}
+.qc-issue-img-actions{display:flex;flex-direction:column;gap:4px;flex:1;min-width:200px;}
+.qc-issue-img-actions .btn-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.qc-issue-img-actions .btn-row .qc-btn{flex:0 1 auto;justify-content:center;min-width:90px;}
+.qc-issue-img-actions .btn-row .date-inline-label{font-size:11px;color:#6c757d;white-space:nowrap;margin-left:4px;}
+.qc-issue-img-actions .btn-row .date-inline-input{flex:0 0 130px;font-size:12px;padding:3px 6px;border:1px solid var(--qc-border);border-radius:3px;}
+.qc-issue-img-actions .date-row{display:flex;gap:6px;align-items:center;}
+.qc-issue-img-actions .date-row label{font-size:11px;color:#6c757d;white-space:nowrap;}
+.qc-issue-img-actions .date-row input{flex:1;font-size:12px;padding:3px 6px;border:1px solid var(--qc-border);border-radius:3px;}
+.qc-issue-img-status{font-size:11px;color:#6c757d;padding:2px 0;}
+/* Issue table inline image */
+.qc-issue-table-img{position:relative;width:46px;height:46px;border:1px dashed var(--qc-border);border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:pointer;background:#fff;color:#adb5bd;font-size:18px;overflow:hidden;}
+.qc-issue-table-img:hover{border-color:var(--qc-primary);color:var(--qc-primary);}
+.qc-issue-table-img img{width:100%;height:100%;object-fit:cover;}
+.qc-issue-table-img .remove-btn{position:absolute;top:-4px;right:-4px;background:var(--qc-danger);color:#fff;border:none;border-radius:50%;width:14px;height:14px;font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;z-index:2;}
+.qc-image-upload{border:2px dashed var(--qc-border);border-radius:6px;padding:16px;text-align:center;cursor:pointer;transition:.2s;}
+.qc-image-upload:hover{border-color:var(--qc-primary);background:var(--qc-primary-light);}
+.qc-image-preview{max-width:120px;max-height:160px;border-radius:4px;border:1px solid var(--qc-border);}
+.qc-image-container{display:flex;gap:12px;align-items:flex-start;}
+.qc-image-container .preview-box{position:relative;}
+.qc-image-container .remove-img{position:absolute;top:-6px;right:-6px;background:var(--qc-danger);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;}
+/* Section toggle */
+.qc-section-toggle{display:flex;align-items:center;gap:10px;}
+.qc-toggle-switch{position:relative;width:44px;height:22px;background:#ccc;border-radius:11px;cursor:pointer;transition:.2s;}
+.qc-toggle-switch.on{background:var(--qc-success);}
+.qc-toggle-switch::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;background:#fff;border-radius:50%;transition:.2s;}
+.qc-toggle-switch.on::after{left:24px;}
+.qc-toggle-label{font-size:13px;font-weight:500;}
+/* Query page */
+.qc-search-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px;}
+.qc-search-bar .qc-form-control{width:auto;min-width:160px;}
+.qc-filter-chips{display:flex;gap:6px;flex-wrap:wrap;}
+.qc-filter-chip{padding:4px 12px;border-radius:16px;font-size:12px;cursor:pointer;border:1px solid var(--qc-border);background:#fff;transition:.2s;}
+.qc-filter-chip.active{background:var(--qc-primary);color:#fff;border-color:var(--qc-primary);}
+.qc-filter-chip:hover:not(.active){border-color:var(--qc-primary);color:var(--qc-primary);}
+/* Data table */
+.qc-data-table{width:100%;border-collapse:collapse;font-size:12px;background:#fff;border-radius:var(--qc-radius);overflow:hidden;box-shadow:var(--qc-shadow);}
+.qc-data-table th{background:#f8f9fa;padding:8px 10px;text-align:left;border-bottom:2px solid var(--qc-border);font-weight:600;white-space:nowrap;color:#495057;}
+.qc-data-table td{padding:6px 10px;border-bottom:1px solid #f1f3f5;text-align:left;vertical-align:middle;}
+.qc-data-table tr:hover{background:#f8f9fa;}
+.qc-status-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500;white-space:nowrap;}
+.qc-status-done{background:var(--qc-success-light);color:var(--qc-success);}
+.qc-status-progress{background:var(--qc-primary-light);color:var(--qc-primary);}
+.qc-status-issue{background:var(--qc-danger-light);color:var(--qc-danger);}
+.qc-status-pending{background:var(--qc-gray-light);color:#6c757d;}
+.qc-status-overdue{background:var(--qc-danger);color:#fff;}
+.qc-progress-cell{min-width:120px;}
+.qc-progress-bar-mini{height:6px;background:var(--qc-gray-light);border-radius:3px;overflow:hidden;margin-top:2px;}
+.qc-progress-bar-fill{height:100%;background:var(--qc-primary);border-radius:3px;transition:.3s;}
+/* Dashboard */
+.qc-stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:16px;}
+.qc-stat-card{background:#fff;border-radius:var(--qc-radius);padding:14px 16px;box-shadow:var(--qc-shadow);display:flex;align-items:center;gap:12px;}
+.qc-stat-icon{width:40px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
+.qc-stat-icon.blue{background:var(--qc-primary-light);color:var(--qc-primary);}
+.qc-stat-icon.green{background:var(--qc-success-light);color:var(--qc-success);}
+.qc-stat-icon.orange{background:var(--qc-warning-light);color:var(--qc-warning);}
+.qc-stat-icon.red{background:var(--qc-danger-light);color:var(--qc-danger);}
+.qc-stat-icon.gray{background:var(--qc-gray-light);color:#6c757d;}
+.qc-stat-info{flex:1;}
+.qc-stat-value{font-size:22px;font-weight:700;line-height:1.2;}
+.qc-stat-label{font-size:11px;color:var(--qc-text-light);}
+/* Gantt chart */
+.qc-gantt-container{background:#fff;border-radius:var(--qc-radius);box-shadow:var(--qc-shadow);overflow-x:auto;}
+.qc-gantt-row{display:flex;align-items:stretch;border-bottom:1px solid #f1f3f5;min-height:48px;transition:.15s;}
+.qc-gantt-row:hover{background:#f8f9fa;}
+.qc-gantt-info{min-width:200px;width:200px;padding:8px 12px;border-right:2px solid var(--qc-border);display:flex;flex-direction:column;justify-content:center;gap:2px;flex-shrink:0;}
+.qc-gantt-info .factory{font-weight:600;font-size:12px;color:#333;}
+.qc-gantt-info .meta{font-size:11px;color:var(--qc-text-light);}
+.qc-gantt-stages{display:flex;flex:1;align-items:stretch;}
+.qc-gantt-stage{flex:1;min-width:80px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px 2px;border-right:1px solid #f1f3f5;position:relative;cursor:pointer;transition:.15s;font-size:10px;text-align:center;color:#fff;min-height:48px;}
+.qc-gantt-stage:hover{filter:brightness(1.1);z-index:1;}
+.qc-gantt-stage.done{background:var(--qc-success);}
+.qc-gantt-stage.progress{background:var(--qc-primary);}
+.qc-gantt-stage.issue{background:var(--qc-danger);}
+.qc-gantt-stage.pending{background:#e9ecef;color:#adb5bd;}
+.qc-gantt-stage.na{background:#f8f9fa;color:#dee2e6;}
+.qc-gantt-stage.check-col{background:var(--qc-warning);color:#fff;}
+.qc-gantt-stage.check-col.empty{background:#fff3e0;color:#adb5bd;}
+.qc-gantt-header .qc-gantt-stage.check-col{background:#fff3e0;color:#866a00;}
+.qc-gantt-stage .stage-name{font-weight:500;line-height:1.2;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.qc-gantt-stage .stage-date{font-size:9px;opacity:.85;margin-top:1px;}
+.qc-gantt-stage .issue-flag{position:absolute;top:2px;right:2px;background:#fff;border-radius:50%;width:14px;height:14px;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--qc-danger);font-weight:700;}
+.qc-gantt-header{display:flex;border-bottom:2px solid var(--qc-border);background:#f8f9fa;position:sticky;top:0;z-index:2;}
+.qc-gantt-header .qc-gantt-info{font-weight:600;font-size:12px;color:#495057;display:flex;align-items:center;}
+.qc-gantt-header .qc-gantt-stages{display:flex;}
+.qc-gantt-header .qc-gantt-stage{background:#f8f9fa;color:#495057;font-weight:600;min-height:36px;cursor:default;}
+.qc-gantt-header .qc-gantt-stage:hover{filter:none;}
+.qc-gantt-delivery{min-width:90px;width:90px;padding:8px 6px;border-left:2px solid var(--qc-border);display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;flex-shrink:0;font-size:11px;}
+.qc-gantt-delivery .date{font-weight:600;}
+.qc-gantt-delivery .countdown{font-size:10px;margin-top:1px;}
+.qc-gantt-delivery .countdown.overdue{color:var(--qc-danger);font-weight:600;}
+.qc-gantt-delivery .countdown.soon{color:var(--qc-warning);font-weight:600;}
+.qc-gantt-delivery .countdown.ok{color:var(--qc-success);}
+.qc-empty-state{text-align:center;padding:40px 20px;color:var(--qc-text-light);}
+.qc-empty-state .icon{font-size:48px;margin-bottom:8px;}
+.qc-empty-state p{font-size:14px;}
+/* Modal */
+.qc-modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.4);z-index:1000;justify-content:center;align-items:flex-start;padding:30px 20px;overflow-y:auto;}
+.qc-modal-overlay.show{display:flex;}
+.qc-modal{background:#fff;border-radius:8px;width:90%;max-width:900px;box-shadow:0 8px 32px rgba(0,0,0,.2);overflow:hidden;}
+.qc-modal-header{background:linear-gradient(135deg,#1a365d,#2b6cb0);color:#fff;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;}
+.qc-modal-header h2{font-size:16px;font-weight:600;margin:0;}
+.qc-modal-close{background:none;border:none;color:#fff;font-size:24px;cursor:pointer;line-height:1;padding:0;}
+.qc-modal-body{padding:20px;max-height:70vh;overflow-y:auto;}
+.qc-detail-section{margin-bottom:20px;}
+.qc-detail-section h3{font-size:14px;color:var(--qc-primary);border-bottom:2px solid var(--qc-border);padding-bottom:4px;margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+.qc-detail-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;}
+.qc-detail-item{display:flex;flex-direction:column;gap:2px;}
+.qc-detail-item .label{font-size:11px;color:var(--qc-text-light);}
+.qc-detail-item .value{font-size:13px;font-weight:500;}
+.qc-detail-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px;}
+.qc-detail-table th{background:#f8f9fa;padding:6px 8px;text-align:left;border:1px solid var(--qc-border);font-weight:600;}
+.qc-detail-table td{padding:5px 8px;border:1px solid var(--qc-border);text-align:left;}
+/* Flow diagram */
+.qc-flow-diagram{display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:12px;background:#f8f9fa;border-radius:6px;margin-bottom:16px;}
+.qc-flow-node{padding:6px 12px;border-radius:4px;font-size:11px;font-weight:500;white-space:nowrap;}
+.qc-flow-node.done{background:var(--qc-success);color:#fff;}
+.qc-flow-node.progress{background:var(--qc-primary);color:#fff;}
+.qc-flow-node.issue{background:var(--qc-danger);color:#fff;}
+.qc-flow-node.pending{background:#e9ecef;color:#adb5bd;}
+.qc-flow-node.na{background:#f8f9fa;color:#dee2e6;text-decoration:line-through;}
+.qc-flow-arrow{color:#adb5bd;font-size:14px;}
+/* Legend */
+.qc-legend{display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:8px 0;font-size:12px;color:#495057;}
+.qc-legend-item{display:flex;align-items:center;gap:6px;}
+.qc-legend-color{width:14px;height:14px;border-radius:3px;}
+/* Edit banner */
+.qc-edit-banner{display:none;background:var(--qc-warning-light);border:1px solid var(--qc-warning);border-radius:var(--qc-radius);padding:8px 16px;margin-bottom:12px;align-items:center;justify-content:space-between;}
+.qc-edit-banner.show{display:flex;}
+/* Readonly mode */
+body.readonly-mode .qc-btn-primary,
+body.readonly-mode .qc-btn-success,
+body.readonly-mode .qc-btn-danger,
+body.readonly-mode .qc-btn-outline,
+body.readonly-mode .qc-btn-icon.danger,
+body.readonly-mode .qc-image-upload,
+body.readonly-mode .qc-toggle-switch,
+body.readonly-mode .qc-form-control,
+body.readonly-mode .qc-size-table input,
+body.readonly-mode .qc-sub-table input,
+body.readonly-mode .qc-sub-table textarea,
+body.readonly-mode .qc-sub-table select,
+body.readonly-mode .qc-size-table input,
+body.readonly-mode .qc-checkbox-group input,
+body.readonly-mode .remove-img,
+body.readonly-mode .remove-btn,
+body.readonly-mode #tab-register input[type=file],
+body.readonly-mode .qc-issue-table-img{pointer-events:none;opacity:.55;}
+body.readonly-mode .qc-btn-primary::before,
+body.readonly-mode .qc-btn-success::before,
+body.readonly-mode .qc-btn-danger::before{content:'🔒 ';opacity:.7;}
+/* Responsive */
+@media(max-width:768px){
+  .qc-form-grid{grid-template-columns:1fr;}
+  .qc-gantt-info{min-width:140px;width:140px;}
+  .qc-gantt-stage{min-width:60px;}
+  .qc-stats-grid{grid-template-columns:repeat(2,1fr);}
+  .qc-header h1{font-size:15px;}
+  .qc-tab-btn{padding:8px 14px;font-size:12px;}
+}
+</style>
+</head>
+<body>
+<div class="app-layout">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main-area">
+    <div class="app-header">
+      <button class="header-toggle">☰</button>
+      <span class="header-title">外勤QC</span>
+      <div class="header-actions">
+        <button class="btn btn-sm" onclick="App.backupData()">📦</button>
+        <div class="header-user"><span>👤</span><span class="user-name">管理员</span></div>
+        <button class="btn btn-sm" onclick="App.logout()">🚪</button>
+      </div>
+    </div>
+    <div class="app-content">
+      <div class="qc-header">
+        <h1>外勤QC管理</h1>
+        <div class="qc-header-actions">
+          <span class="qc-header-btn" style="cursor:default;" id="recordCount">0 条记录</span>
+        </div>
+      </div>
+
+      <div class="qc-tabs">
+        <button class="qc-tab-btn active" data-tab="register" onclick="switchTab('register')">外勤登记</button>
+        <button class="qc-tab-btn" data-tab="query" onclick="switchTab('query')">数据查询</button>
+        <button class="qc-tab-btn" data-tab="dashboard" onclick="switchTab('dashboard')">进度看板</button>
+      </div>
+
+      <!-- Tab 1: 外勤登记 -->
+      <div class="qc-tab-content active" id="tab-register">
+        <div class="qc-edit-banner" id="editBanner">
+          <span style="font-size:13px;color:#866a00;font-weight:500;">✏ 正在编辑记录：<span id="editBannerText"></span></span>
+          <button class="qc-btn qc-btn-outline qc-btn-sm" onclick="resetForm()">取消编辑</button>
+        </div>
+        <div class="qc-card">
+          <div class="qc-card-header"><span class="icon">📋</span>基础信息</div>
+          <div class="qc-card-body">
+            <div class="qc-form-grid">
+              <div class="qc-form-group">
+                <label>服装厂名称 <span class="req">*</span></label>
+                <input type="text" class="qc-form-control" id="factory" list="factoryList" placeholder="选择或输入服装厂" autocomplete="off">
+                <datalist id="factoryList"></datalist>
+              </div>
+              <div class="qc-form-group">
+                <label>QC姓名 <span class="req">*</span></label>
+                <input type="text" class="qc-form-control" id="qcName" list="qcNameList" placeholder="选择或输入QC姓名" autocomplete="off">
+                <datalist id="qcNameList"></datalist>
+              </div>
+              <div class="qc-form-group">
+                <label>款号 <span class="req">*</span></label>
+                <input type="text" class="qc-form-control" id="styleNo" list="styleNoList" placeholder="选择或输入款号" autocomplete="off" oninput="onStyleNoChange()" onchange="onStyleNoChange()">
+                <datalist id="styleNoList"></datalist>
+              </div>
+              <div class="qc-form-group">
+                <label>订单号 <span class="req">*</span> <span style="color:var(--qc-text-light);font-weight:normal;font-size:11px;">（自动带出）</span></label>
+                <input type="text" class="qc-form-control" id="orderNo" list="orderNoList" placeholder="输入款号后自动带出" autocomplete="off" readonly onchange="onOrderNoChange()">
+                <datalist id="orderNoList"></datalist>
+              </div>
+              <div class="qc-form-group"><label>交期 <span class="req">*</span> <span style="color:var(--qc-text-light);font-weight:normal;font-size:11px;">（同订单ETD）</span></label><input type="date" class="qc-form-control" id="deliveryDate" readonly></div>
+              <div class="qc-form-group">
+                <label>是否需要水洗工序</label>
+                <div class="qc-section-toggle">
+                  <div class="qc-toggle-switch" id="washToggle" onclick="toggleWash()"></div>
+                  <span class="qc-toggle-label" id="washLabel">否</span>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top:12px;">
+              <label style="font-size:12px;color:#495057;font-weight:500;display:block;margin-bottom:6px;">款式图 <span style="color:var(--qc-text-light);font-weight:normal;font-size:11px;">（同款号跨模块共享，自动从订单管理调取）</span></label>
+              <div class="qc-image-container" id="imageContainer">
+                <div class="preview-box" id="imagePreviewBox" style="display:none;">
+                  <img id="styleImagePreview" class="qc-image-preview" alt="款式图">
+                </div>
+                <div class="qc-status" id="imageStatus" style="font-size:11px;">输入款号后自动加载</div>
+              </div>
+            </div>
+            <div style="margin-top:12px;">
+              <label style="font-size:12px;color:#495057;font-weight:500;display:block;margin-bottom:6px;">订单各尺寸数量 <span style="color:var(--qc-text-light);font-weight:normal;font-size:11px;">（自动从订单中调取，只读）</span></label>
+              <div id="sizeTableContainer">
+                <div style="padding:12px;text-align:center;color:var(--qc-text-light);font-size:12px;background:var(--qc-gray-light);border:1px dashed var(--qc-border);border-radius:4px;">输入款号与订单号后自动加载</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 水洗版块 -->
+        <div class="qc-card" id="washSection" style="display:none;">
+          <div class="qc-card-header"><span class="icon">🌊</span>水洗版块</div>
+          <div class="qc-card-body">
+            <div class="qc-form-grid">
+              <div class="qc-form-group">
+                <label>水洗标样确认收到</label>
+                <div class="qc-checkbox-group"><input type="checkbox" id="w_sample_confirmed"><label for="w_sample_confirmed" style="font-weight:normal;">已确认收到</label></div>
+                <input type="date" class="qc-form-control" id="w_sample_date" style="margin-top:4px;">
+              </div>
+              <div class="qc-form-group"><label>头缸时间</label><input type="date" class="qc-form-control" id="w_first_date"></div>
+              <div class="qc-form-group"><label>头缸数量</label><input type="text" class="qc-form-control" id="w_first_qty" placeholder="数量/缸数"></div>
+              <div class="qc-form-group full">
+                <label>头缸问题</label>
+                <textarea class="qc-form-control" id="w_first_issues" placeholder="描述头缸试洗中发现的问题"></textarea>
+                <div class="qc-issue-img-block" id="wFirstIssueBlock"></div>
+              </div>
+              <div class="qc-form-group full">
+                <label>大货水洗方法确定</label>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                  <div class="qc-checkbox-group" style="margin:0;"><input type="checkbox" id="w_method_confirmed"><label for="w_method_confirmed" style="font-weight:normal;">方法已确定</label></div>
+                  <input type="date" class="qc-form-control" id="w_method_date" style="width:150px;flex-shrink:0;">
+                  <input type="text" class="qc-form-control" id="w_method_text" placeholder="大货水洗方法，如：酵素洗+软油" style="flex:1;min-width:180px;">
+                </div>
+              </div>
+              <div class="qc-form-group"><label>大货水洗时间</label><input type="date" class="qc-form-control" id="w_bulk_date"></div>
+              <div class="qc-form-group"><label>大货水洗结束时间</label><input type="date" class="qc-form-control" id="w_bulk_end"></div>
+              <div class="qc-form-group"><label>大货总缸数</label><input type="number" class="qc-form-control" id="w_bulk_total" min="0" placeholder="0"></div>
+              <div class="qc-form-group full">
+                <label>大货水洗问题</label>
+                <textarea class="qc-form-control" id="w_bulk_issues" placeholder="大货水洗过程中的问题"></textarea>
+                <div class="qc-issue-img-block" id="wBulkIssueBlock"></div>
+              </div>
+              <div class="qc-form-group full"><label>问题整改情况</label><textarea class="qc-form-control" id="w_bulk_rect" placeholder="整改措施及结果"></textarea></div>
+              <div class="qc-form-group">
+                <label>大货问题解决</label>
+                <div class="qc-checkbox-group"><input type="checkbox" id="w_resolved"><label for="w_resolved" style="font-weight:normal;">问题已解决</label></div>
+                <input type="date" class="qc-form-control" id="w_resolve_date" style="margin-top:4px;">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 服装版块 -->
+        <div class="qc-card">
+          <div class="qc-card-header"><span class="icon">👕</span>服装版块</div>
+          <div class="qc-card-body">
+            <div class="qc-form-grid">
+              <div class="qc-form-group"><label>封样样衣日期</label><input type="date" class="qc-form-control" id="g_seal_date"></div>
+              <div class="qc-form-group">
+                <label>封样确认</label>
+                <div class="qc-checkbox-group"><input type="checkbox" id="g_seal_confirmed"><label for="g_seal_confirmed" style="font-weight:normal;">封样已确认</label></div>
+              </div>
+              <div class="qc-form-group full"><label>封样意见</label><textarea class="qc-form-control" id="g_seal_opinion" placeholder="封样意见/修改建议"></textarea></div>
+              <div class="qc-form-group"><label>PP产前样日期</label><input type="date" class="qc-form-control" id="g_pp_date"></div>
+              <div class="qc-form-group">
+                <label>PP产前样确认</label>
+                <div class="qc-checkbox-group"><input type="checkbox" id="g_pp_confirmed"><label for="g_pp_confirmed" style="font-weight:normal;">PP样已确认</label></div>
+              </div>
+              <div class="qc-form-group full"><label>PP产前样备注</label><textarea class="qc-form-control" id="g_pp_notes" placeholder="PP产前样备注"></textarea></div>
+              <div class="qc-form-group"><label>面里辅料核对日期</label><input type="date" class="qc-form-control" id="g_mat_date"></div>
+              <div class="qc-form-group">
+                <label>核对结果</label>
+                <select class="qc-form-control" id="g_mat_status">
+                  <option value="">请选择</option>
+                  <option value="consistent">核对一致</option>
+                  <option value="inconsistent">有差异</option>
+                  <option value="pending">待核对</option>
+                </select>
+              </div>
+              <div class="qc-form-group full">
+                <label>面里衬辅料问题及整改</label>
+                <textarea class="qc-form-control" id="g_mat_notes" placeholder="面料、里料、辅料等问题及整改情况"></textarea>
+                <div class="qc-issue-img-block" id="gMatIssueBlock"></div>
+              </div>
+              <div class="qc-form-group full">
+                <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                  <span>QC报告问题类别 <span style="color:var(--qc-text-light);font-weight:normal;font-size:11px;">（勾选后点击“验货报告”可快速带入验货报告类别列）</span></span>
+                  <button type="button" class="qc-btn qc-btn-outline qc-btn-sm" onclick="openQcTagManager()">管理</button>
+                </label>
+                <div class="qc-tag-group" id="qcTagGroup" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:8px;">
+              <div class="qc-form-group"><label>开裁时间</label><input type="date" class="qc-form-control" id="g_cut_date"></div>
+              <div class="qc-form-group"><label>上机缝制</label><input type="date" class="qc-form-control" id="g_sew_start"></div>
+              <div class="qc-form-group"><label>缝制结束</label><input type="date" class="qc-form-control" id="g_sew_end"></div>
+              <div class="qc-form-group"><label>后道整理</label><input type="date" class="qc-form-control" id="g_finish"></div>
+              <div class="qc-form-group"><label>包装日期</label><input type="date" class="qc-form-control" id="g_pack"></div>
+              <div class="qc-form-group"><label>出货日期</label><input type="date" class="qc-form-control" id="g_ship"></div>
+            </div>
+
+            <div style="margin-top:16px;">
+              <label style="font-size:12px;color:#495057;font-weight:500;display:block;margin-bottom:6px;">上线记录（可多次登记，多个QC查看）</label>
+              <table class="qc-sub-table" id="onlineTable">
+                <thead><tr><th style="width:30px;">#</th><th style="width:140px;">上线日期</th><th style="width:120px;">QC姓名</th><th>查看备注</th><th style="width:36px;"></th></tr></thead>
+                <tbody id="onlineTableBody"></tbody>
+              </table>
+              <button class="qc-btn qc-btn-outline qc-btn-sm" style="margin-top:6px;" onclick="addOnlineRow()">+ 添加上线记录</button>
+            </div>
+
+            <div style="margin-top:16px;">
+              <label style="font-size:12px;color:#495057;font-weight:500;display:block;margin-bottom:6px;">生产中问题及整改 <span style="color:var(--qc-text-light);font-weight:normal;font-size:11px;">（每行可附加问题图片）</span></label>
+              <table class="qc-sub-table" id="issueTable">
+                <thead><tr><th style="width:30px;">#</th><th style="width:120px;">发现日期</th><th>问题描述</th><th>整改措施</th><th style="width:90px;">状态</th><th style="width:120px;">解决日期</th><th style="width:70px;">问题图片</th><th style="width:36px;"></th></tr></thead>
+                <tbody id="issueTableBody"></tbody>
+              </table>
+              <button class="qc-btn qc-btn-outline qc-btn-sm" style="margin-top:6px;" onclick="addIssueRow()">+ 添加问题</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="qc-form-actions">
+          <button class="qc-btn qc-btn-outline" onclick="resetForm()">重置</button>
+          <button class="qc-btn qc-btn-primary" onclick="saveRecord()">保存记录</button>
+          <button class="qc-btn qc-btn-success" onclick="(async function(){await generateQCReport();})()" title="将当前外勤登记信息带入验货报告">验货报告</button>
+        </div>
+
+        <!-- QC报告问题类别 管理弹窗 -->
+        <div class="qc-tag-modal" id="qcTagModal" style="display:none;">
+          <div class="qc-tag-modal-mask" onclick="closeQcTagManager()"></div>
+          <div class="qc-tag-modal-card">
+            <div class="qc-tag-modal-header">
+              <span>管理 QC 报告问题类别</span>
+              <button class="qc-btn-icon" onclick="closeQcTagManager()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#666;">&times;</button>
+            </div>
+            <div class="qc-tag-modal-body" id="qcTagManagerList"></div>
+            <div class="qc-tag-modal-footer" style="display:flex;gap:8px;align-items:center;">
+              <button class="qc-btn qc-btn-outline qc-btn-sm" onclick="addQcTagManagerRow()">+ 添加</button>
+              <span style="flex:1;"></span>
+              <button class="qc-btn qc-btn-outline qc-btn-sm" onclick="closeQcTagManager()">取消</button>
+              <button class="qc-btn qc-btn-primary qc-btn-sm" onclick="saveQcTagManager()">保存</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 2: 数据查询 -->
+      <div class="qc-tab-content" id="tab-query">
+        <div class="qc-search-bar">
+          <input type="text" class="qc-form-control" id="searchInput" placeholder="搜索服装厂/订单号/款号/QC姓名..." oninput="renderQueryTable()">
+          <div class="qc-filter-chips" id="filterChips">
+            <div class="qc-filter-chip active" data-filter="all" onclick="setFilter('all')">全部</div>
+            <div class="qc-filter-chip" data-filter="progress" onclick="setFilter('progress')">进行中</div>
+            <div class="qc-filter-chip" data-filter="issue" onclick="setFilter('issue')">有问题</div>
+            <div class="qc-filter-chip" data-filter="done" onclick="setFilter('done')">已完成</div>
+            <div class="qc-filter-chip" data-filter="overdue" onclick="setFilter('overdue')">已逾期</div>
+          </div>
+        </div>
+        <div id="queryTableContainer"></div>
+      </div>
+
+      <!-- Tab 3: 进度看板 -->
+      <div class="qc-tab-content" id="tab-dashboard">
+        <div class="qc-stats-grid" id="statsGrid"></div>
+        <div class="qc-card">
+          <div class="qc-card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+            <span><span class="icon">📊</span>工序进度看板</span>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <select class="qc-form-control" id="dashFactoryFilter" style="font-size:12px;width:auto;" onchange="renderDashboard()">
+                <option value="">全部服装厂</option>
+              </select>
+              <select class="qc-form-control" id="dashQcFilter" style="font-size:12px;width:auto;" onchange="renderDashboard()">
+                <option value="">全部QC</option>
+              </select>
+            </div>
+          </div>
+          <div class="qc-card-body" style="padding:0;">
+            <div class="qc-legend" style="padding:10px 16px;border-bottom:1px solid var(--qc-border);">
+              <div class="qc-legend-item"><div class="qc-legend-color" style="background:var(--qc-success);"></div>已完成</div>
+              <div class="qc-legend-item"><div class="qc-legend-color" style="background:var(--qc-primary);"></div>进行中</div>
+              <div class="qc-legend-item"><div class="qc-legend-color" style="background:var(--qc-danger);"></div>有问题</div>
+              <div class="qc-legend-item"><div class="qc-legend-color" style="background:#e9ecef;"></div>未开始</div>
+              <div class="qc-legend-item"><div class="qc-legend-color" style="background:#f8f9fa;border:1px solid var(--qc-border);"></div>不适用</div>
+            </div>
+            <div id="ganttContainer"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detail Modal -->
+      <div class="qc-modal-overlay" id="detailModal" onclick="if(event.target===this)closeModal()">
+        <div class="qc-modal">
+          <div class="qc-modal-header">
+            <h2 id="modalTitle">详情</h2>
+            <button class="qc-modal-close" onclick="closeModal()">&times;</button>
+          </div>
+          <div class="qc-modal-body" id="modalBody"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/common.js?v=20260825b"></script>
+<!-- Supabase 云端同步 + 独立轮询 -->
+<script src="js/localstorage-patch.js?v=20260823a"></script>
+<script src="js/supabase-store.js?v=20260825c"></script>
+<script src="js/init-page.js?v=20260825b"></script>
+<!-- Supabase 登录守卫 -->
+<script src="js/auth-guard.js?v=20260823a"></script>
+<!-- 管理员邮箱配置 -->
+<script type="module" src="js/admin-config.js?v=20260813"></script>
+<!-- 统一表单提交 + 文件上传 helper -->
+<script type="module" src="js/form-submit.js?v=20260823a"></script>
+<!-- 退出登录 -->
+<script type="module" src="js/logout.js?v=20260813"></script>
+<script>
+// ===== 云端同步：提前注册监听器 =====
+var PageDataSyncGuard = {
+  inited: false, pending: false,
+  watchKeys: ['qc_field_mgmt_v2'],
+  emptyCheckKeys: ['qc_field_mgmt_v2'],
+  afterInit: function() {
+    var self = this; this.inited = true;
+    function doRefresh() {
+      try {
+        loadData();
+        updateCount();
+        if (typeof renderQueryTable === 'function') renderQueryTable();
+        if (typeof renderDashboard === 'function') renderDashboard();
+      } catch(e) {}
+    }
+    if (self.pending) setTimeout(doRefresh, 200);
+    setTimeout(function() {
+      var allEmpty = self.emptyCheckKeys.every(function(k){
+        try{ var a=App.store.get(k,[]); return !a||a.length===0; }catch(e){return true;}
+      });
+      if (allEmpty) doRefresh();
+    }, 2000);
+  }
+};
+window.addEventListener('cloud-data-updated', function(e){
+  var keys = (e.detail&&e.detail.keys)||[];
+  var need = keys.some(function(k){ return PageDataSyncGuard.watchKeys.indexOf(k)>=0; });
+  if (need) {
+    if (!PageDataSyncGuard.inited) { PageDataSyncGuard.pending=true; return; }
+    try {
+      loadData();
+      updateCount();
+      if (typeof renderQueryTable === 'function') renderQueryTable();
+      if (typeof renderDashboard === 'function') renderDashboard();
+    } catch(e){}
+  }
+  // 联系录 / 订单变化时刷新下拉数据源
+  if (keys.indexOf('contacts')>=0 && typeof populateContactDatalists === 'function') {
+    try { populateContactDatalists(); } catch(_e){}
+  }
+  if (keys.indexOf('orders')>=0 && typeof populateStyleNoDatalist === 'function') {
+    try { populateStyleNoDatalist(); } catch(_e){}
+  }
+});
+
+App.init('qcField');
+App.checkLogin();
+App.initSampleData();
+App.enforcePagePermission('qcField');
+setTimeout(function() { if (window.PageDataSyncGuard) window.PageDataSyncGuard.afterInit(); }, 0);
+
+// ==================== 数据管理 ====================
+const STORAGE_KEY = 'qc_field_mgmt_v2';
+let records = [];
+let editingId = null;
+let currentFilter = 'all';
+let needWash = false;
+
+// 等待 window.SupabaseSubmit 异步加载完成（form-submit.js 是 type=module，加载较慢）
+// 超时后返回 null，由调用方走 base64/本地兜底
+function waitForSupabaseSubmit(timeoutMs){
+  timeoutMs = timeoutMs || 8000;
+  var start = Date.now();
+  return new Promise(function(resolve){
+    function check(){
+      if(window.SupabaseSubmit && typeof SupabaseSubmit.getSignedUrl === 'function'){
+        resolve(window.SupabaseSubmit);
+        return;
+      }
+      if(Date.now() - start > timeoutMs){
+        resolve(null);
+        return;
+      }
+      setTimeout(check, 100);
+    }
+    check();
+  });
+}
+
+const STAGES_WASH = [
+  {key:'w_sample',name:'水洗标样确认',short:'标样确认'},
+  {key:'w_first',name:'头缸试洗',short:'头缸'},
+  {key:'w_method',name:'大货水洗方法',short:'水洗方法'},
+  {key:'w_bulk',name:'大货水洗执行',short:'大货水洗'},
+  {key:'w_resolve',name:'大货问题解决',short:'问题解决'}
+];
+const STAGES_GARMENT = [
+  {key:'g_seal',name:'封样样衣',short:'封样'},
+  {key:'g_pp',name:'PP产前样',short:'PP产前样'},
+  {key:'g_mat',name:'面里辅料核对',short:'辅料核对'},
+  {key:'g_cut',name:'开裁',short:'开裁'},
+  {key:'g_online',name:'上线生产',short:'上线'},
+  {key:'g_sew_start',name:'上机缝制',short:'上机'},
+  {key:'g_sew_end',name:'缝制结束',short:'缝制完'},
+  {key:'g_finish',name:'后道整理',short:'后道'},
+  {key:'g_pack',name:'包装',short:'包装'},
+  {key:'g_ship',name:'出货',short:'出货'},
+  {key:'g_issue',name:'问题整改',short:'问题整改'}
+];
+
+function loadData(){
+  try{ records = App.store.get(STORAGE_KEY, []); }catch(e){ records = []; }
+  if(!Array.isArray(records)) records = [];
+}
+function saveData(){
+  App.store.set(STORAGE_KEY, records);
+  updateCount();
+}
+function genId(){ return 'qc_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
+function updateCount(){ var el = document.getElementById('recordCount'); if(el) el.textContent = records.length + ' 条记录'; }
+
+// ==================== 标签页 ====================
+function switchTab(tab){
+  document.querySelectorAll('.qc-tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+  document.querySelectorAll('.qc-tab-content').forEach(c=>c.classList.toggle('active',c.id==='tab-'+tab));
+  if(tab==='query') renderQueryTable();
+  if(tab==='dashboard') renderDashboard();
+}
+
+// ==================== 水洗开关 ====================
+function toggleWash(){
+  needWash = !needWash;
+  var ts = document.getElementById('washToggle');
+  ts.classList.toggle('on',needWash);
+  document.getElementById('washLabel').textContent = needWash ? '是' : '否';
+  document.getElementById('washSection').style.display = needWash ? 'block' : 'none';
+}
+
+// ==================== 下拉数据源：通讯录 + 订单款号 ====================
+function populateContactDatalists(){
+  try{
+    var contacts = App.store.get('contacts', []) || [];
+    var factories = contacts.filter(function(c){ return c && c.type === '服装厂'; })
+      .map(function(c){ return (c.name || '').trim(); })
+      .filter(function(s){ return s; });
+    // QC姓名：取"同事"类型下的【联系人姓名】（contactPerson 字段！）
+    // 绝不 fallback 到 c.name，因为 c.name 是同事所属公司名（不是人名）
+    // 没有填 contactPerson 的同事记录，不会出现在 QC姓名下拉里
+    var colleagues = contacts.filter(function(c){ return c && c.type === '同事'; })
+      .map(function(c){ return (c.contactPerson || '').trim(); })
+      .filter(function(s){ return s; });
+    var fdl = document.getElementById('factoryList');
+    if(fdl) fdl.innerHTML = unique(factories).map(function(s){ return '<option value="'+escAttr(s)+'">'; }).join('');
+    var qdl = document.getElementById('qcNameList');
+    if(qdl) qdl.innerHTML = unique(colleagues).map(function(s){ return '<option value="'+escAttr(s)+'">'; }).join('');
+  }catch(_e){}
+}
+function populateStyleNoDatalist(){
+  try{
+    var orders = App.store.get('orders', []) || [];
+    var styleNos = orders.map(function(o){ return (o.styleNo || '').trim(); }).filter(function(s){ return s; });
+    var dl = document.getElementById('styleNoList');
+    if(dl) dl.innerHTML = unique(styleNos).map(function(s){ return '<option value="'+escAttr(s)+'">'; }).join('');
+  }catch(_e){}
+}
+function unique(arr){ var seen = {}; var out = []; arr.forEach(function(s){ if(!seen[s]){ seen[s] = true; out.push(s); } }); return out; }
+
+// 根据款号查找匹配的订单
+function findOrdersByStyleNo(styleNo){
+  if(!styleNo) return [];
+  try{
+    var orders = App.store.get('orders', []) || [];
+    return orders.filter(function(o){
+      return (o.styleNo || '').trim().toLowerCase() === String(styleNo).trim().toLowerCase();
+    });
+  }catch(_e){ return []; }
+}
+function findOrderByNo(orderNo, styleNo){
+  if(!orderNo) return null;
+  try{
+    var orders = App.store.get('orders', []) || [];
+    var matched = orders.filter(function(o){
+      return (o.orderNo || '').trim().toLowerCase() === String(orderNo).trim().toLowerCase();
+    });
+    if(styleNo){
+      matched = matched.filter(function(o){
+        return (o.styleNo || '').trim().toLowerCase() === String(styleNo).trim().toLowerCase();
+      });
+    }
+    return matched[0] || null;
+  }catch(_e){ return null; }
+}
+
+// ==================== 款号 → 订单号 + 尺寸表 联动 ====================
+function onStyleNoChange(){
+  var sn = val('styleNo');
+  // 订单号 datalist
+  var matched = findOrdersByStyleNo(sn);
+  var odl = document.getElementById('orderNoList');
+  if(odl){
+    var seen = {};
+    var opts = [];
+    matched.forEach(function(o){
+      var v = (o.orderNo || '').trim();
+      if(v && !seen[v]){ seen[v] = true; opts.push('<option value="'+escAttr(v)+'">'); }
+    });
+    odl.innerHTML = opts.join('');
+  }
+  // 唯一订单：自动填入订单号
+  var uniqueOrderNos = [];
+  var seen2 = {};
+  matched.forEach(function(o){
+    var v = (o.orderNo || '').trim();
+    if(v && !seen2[v]){ seen2[v] = true; uniqueOrderNos.push(v); }
+  });
+  if(uniqueOrderNos.length === 1){
+    var oEl = document.getElementById('orderNo');
+    if(oEl && oEl.value !== uniqueOrderNos[0]){
+      oEl.value = uniqueOrderNos[0];
+    }
+    // 同步填充交期（= 订单 ETD/交货日期）
+    var matchedOrder = matched.find(function(o){ return (o.orderNo||'').trim() === uniqueOrderNos[0]; });
+    var ddEl = document.getElementById('deliveryDate');
+    if(ddEl && matchedOrder){
+      var etd = matchedOrder.etd || matchedOrder.deliveryDate || matchedOrder.shipDate || '';
+      if(etd) ddEl.value = etd;
+    }
+  } else if(matched.length > 0){
+    // 多订单：取第一个匹配订单的 ETD 作为默认交期
+    var oEl2 = document.getElementById('orderNo');
+    if(oEl2 && !oEl2.value) oEl2.value = (matched[0].orderNo || '').trim();
+    var ddEl3 = document.getElementById('deliveryDate');
+    if(ddEl3 && matched[0]){
+      var etd2 = matched[0].etd || matched[0].deliveryDate || matched[0].shipDate || '';
+      if(etd2) ddEl3.value = etd2;
+    }
+  } else {
+    var ddEl2 = document.getElementById('deliveryDate');
+    if(ddEl2) ddEl2.value = '';
+  }
+  refreshSizeMatrix();
+  refreshStyleImageFromCache(sn);
+}
+
+function onOrderNoChange(){
+  // 订单号变化 → 同步填充交期（= 订单 ETD/交货日期）
+  try {
+    var sn = val('styleNo'), on = val('orderNo');
+    if(on){
+      var order = findOrderByNo(on, sn);
+      var ddEl = document.getElementById('deliveryDate');
+      if(ddEl && order){
+        var etd = order.etd || order.deliveryDate || order.shipDate || '';
+        if(etd) ddEl.value = etd;
+      }
+    }
+  } catch(_e){}
+  refreshSizeMatrix();
+}
+
+// 从订单 sizeMatrix 渲染只读尺寸数量表
+function refreshSizeMatrix(){
+  var container = document.getElementById('sizeTableContainer');
+  if(!container) return;
+  var sn = val('styleNo'), on = val('orderNo');
+  if(!sn || !on){
+    container.innerHTML = '<div style="padding:12px;text-align:center;color:var(--qc-text-light);font-size:12px;background:var(--qc-gray-light);border:1px dashed var(--qc-border);border-radius:4px;">输入款号与订单号后自动加载</div>';
+    return;
+  }
+  var order = findOrderByNo(on, sn);
+  if(!order || !order.sizeMatrix || !order.sizeMatrix.rows || order.sizeMatrix.rows.length === 0){
+    container.innerHTML = '<div style="padding:12px;text-align:center;color:var(--qc-text-light);font-size:12px;background:var(--qc-gray-light);border:1px dashed var(--qc-border);border-radius:4px;">该订单未配置尺寸矩阵</div>';
+    return;
+  }
+  var sizes = order.sizeMatrix.sizes || [];
+  var rows = order.sizeMatrix.rows || [];
+  var html = '<table class="qc-sub-table" style="background:#fff;"><thead><tr>'+
+    '<th style="width:30px;">#</th><th>包装ID</th><th>Ass.Type</th><th>Color Code</th><th>Color</th><th>箱数</th>' +
+    sizes.map(function(s){ return '<th style="text-align:center;min-width:50px;">'+esc(s)+'</th>'; }).join('') +
+    '<th style="text-align:center;">合计</th></tr></thead><tbody>';
+  var grandTotal = 0;
+  rows.forEach(function(row, idx){
+    var cartons = parseInt(row.noOfCartons) || 0;
+    var rowTotal = 0;
+    var qtyCells = sizes.map(function(s){
+      var q = parseInt((row.quantities || {})[s]) || 0;
+      var lineTotal = (row.assType === 'SOLID') ? q : q * cartons;
+      rowTotal += lineTotal;
+      return '<td style="text-align:center;">'+(q > 0 ? q : '-')+'</td>';
+    }).join('');
+    grandTotal += rowTotal;
+    html += '<tr>' +
+      '<td style="text-align:center;">'+(idx+1)+'</td>' +
+      '<td>'+esc(row.packageId || '-')+'</td>' +
+      '<td>'+esc(row.assType || '-')+'</td>' +
+      '<td>'+esc(row.colorCode || '-')+'</td>' +
+      '<td>'+esc(row.colorName || '-')+'</td>' +
+      '<td style="text-align:center;">'+(cartons || '-')+'</td>' +
+      qtyCells +
+      '<td style="text-align:center;font-weight:600;">'+rowTotal+'</td>' +
+      '</tr>';
+  });
+  html += '<tr style="background:#f8f9fa;font-weight:600;"><td colspan="'+(6+sizes.length)+'" style="text-align:right;">总计</td><td style="text-align:center;">'+grandTotal+'</td></tr>';
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+// 收集尺寸表快照（保存时存档，详情弹窗中回显用）
+function collectSizeSnapshot(){
+  var sn = val('styleNo'), on = val('orderNo');
+  if(!sn || !on) return null;
+  var order = findOrderByNo(on, sn);
+  if(!order || !order.sizeMatrix) return null;
+  var sizes = order.sizeMatrix.sizes || [];
+  var rows = (order.sizeMatrix.rows || []).map(function(r){
+    var cartons = parseInt(r.noOfCartons) || 0;
+    var qtyPerSize = {};
+    var rowTotal = 0;
+    (sizes || []).forEach(function(s){
+      var q = parseInt((r.quantities || {})[s]) || 0;
+      var lineTotal = (r.assType === 'SOLID') ? q : q * cartons;
+      qtyPerSize[s] = q;
+      rowTotal += lineTotal;
+    });
+    return {
+      packageId: r.packageId || '', assType: r.assType || '',
+      colorCode: r.colorCode || '', colorName: r.colorName || '',
+      noOfCartons: cartons, quantities: qtyPerSize, rowTotal: rowTotal
+    };
+  });
+  return { sizes: sizes, rows: rows };
+}
+
+// 兼容旧数据的尺寸字符串
+function formatSizeSnapshot(snapshot){
+  if(!snapshot) return '';
+  if(Array.isArray(snapshot)){
+    // 旧格式：[{size, qty}]
+    return snapshot.map(function(s){ return s.size+':'+s.qty; }).join(' ');
+  }
+  if(snapshot.rows && snapshot.sizes){
+    return snapshot.rows.map(function(r){
+      var head = [r.packageId, r.assType, r.colorCode, r.colorName].filter(function(s){ return s; }).join('|');
+      var qty = (snapshot.sizes || []).map(function(s){ return s+'='+(r.quantities[s]||0); }).join(' ');
+      return '['+head+'] '+qty;
+    }).join(' ; ');
+  }
+  return '';
+}
+
+// ==================== 问题图片：上传/预览/清除（全部走 Supabase 存储） ====================
+// 三个固定问题图片块：wFirstIssue / wBulkIssue / gMatIssue
+// 每个块的状态：{ path, name, base64, date }
+// 多图支持：_issueImages[prefix] 为数组 [{path,name,base64,date}, ...]
+var _issueImages = { wFirstIssue: [], wBulkIssue: [], gMatIssue: [] };
+var _issueRowImages = []; // 每行的图片数组，按行索引对应
+
+// 兼容旧格式（单图对象）→ 数组
+function normalizeImages(img){
+  if(!img) return [];
+  if(Array.isArray(img)) return img.filter(function(i){ return i && (i.path || i.name || i.base64); });
+  if(typeof img === 'object' && (img.path || img.name)) return [img];
+  return [];
+}
+
+// 渲染一个固定问题图片块（多图画廊）
+function renderIssueImageBlock(prefix){
+  var container = document.getElementById(prefix + 'Block');
+  if(!container) return;
+  var imgs = _issueImages[prefix] || [];
+  var dateVal = imgs.length ? (imgs[0].date || '') : '';
+  var galleryHtml = imgs.map(function(im, i){
+    var src = im.base64 || '';   // base64 用于即时显示
+    var dataPath = im.path && im.path.indexOf('data:image') !== 0 ? im.path : '';
+    var html = '<div class="qc-issue-img-thumb" id="' + prefix + 'Thumb' + i + '">';
+    if(src){
+      // 有 base64：直接内联 + 可点击全屏
+      html += '<img src="' + escAttr(src) + '" data-img-path="' + escAttr(dataPath) + '" data-fullsrc="' + (src ? '1' : '') + '" style="cursor:zoom-in;" onclick="window._qcOpenThumb(\'' + prefix + '\',' + i + ')">';
+    } else if(dataPath){
+      // 无 base64 但有 path（Supabase）：通过 id 加载 signed URL 后填充
+      html += '<img id="' + prefix + 'ThumbImg' + i + '" data-img-path="' + escAttr(dataPath) + '" alt="' + escAttr(im.name||'') + '" style="min-width:80px;min-height:80px;background:#f8f9fa;">';
+    } else {
+      html += '<img alt="' + escAttr(im.name||'') + '" style="width:80px;height:80px;background:#f8f9fa;">';
+    }
+    html += '<button class="remove-btn" onclick="removeIssueImageAt(\'' + prefix + '\',' + i + ')">&times;</button>';
+    html += '</div>';
+    return html;
+  }).join('');
+  container.innerHTML =
+    '<div class="qc-issue-img-gallery" id="' + prefix + 'Gallery">' + galleryHtml + '</div>' +
+    '<div class="qc-issue-img-actions">' +
+      '<div class="btn-row">' +
+        '<button class="qc-btn qc-btn-outline qc-btn-sm" onclick="document.getElementById(\'' + prefix + 'FileInput\').click()">💻 本地上传</button>' +
+        '<button class="qc-btn qc-btn-outline qc-btn-sm" id="' + prefix + 'NasBtn" onclick="nasPickIssueImage(\'' + prefix + '\')">☁ NAS</button>' +
+        '<label class="date-inline-label">📅 拍照日期</label>' +
+        '<input type="date" class="date-inline-input" id="' + prefix + 'ImgDate" value="' + escAttr(dateVal) + '" onchange="setIssueImageDate(\'' + prefix + '\', this.value)">' +
+      '</div>' +
+      '<div class="qc-issue-img-status" id="' + prefix + 'ImgStatus"></div>' +
+    '</div>' +
+    '<input type="file" id="' + prefix + 'FileInput" accept="image/*" multiple style="display:none;" onchange="onIssueFileChange(event, \'' + prefix + '\')">';
+  // 为每张 path 类型的缩略图异步加载 signed URL（并绑定点击全屏）
+  imgs.forEach(function(im, i){
+    if(!im.base64 && im.path && im.path.indexOf('data:image') !== 0){
+      loadIssueThumbImage(prefix, i, im.path, im.name);
+    }
+  });
+}
+
+// 点击缩略图：base64→直接全屏；path→转 signed URL 后全屏
+window._qcOpenThumb = function(prefix, i){
+  var im = (_issueImages[prefix] || [])[i];
+  if(!im) return;
+  if(im.base64){ openImageFullscreen(im.base64); return; }
+  if(im.path){ openImageFullscreenByPath(im.path); }
+};
+
+// 统一图片路径 → 可显示 URL（对齐 order 列表的"秒显示"逻辑）
+// 优先走 common.js 的 resolveImageUrl（一加载就有，含 ①window.supabase.sign  ② REST 直签  ③按款号猜测路径多轮 fallback）
+// 失败再回退 SupabaseSubmit.getSignedUrl / App.utils.getSignedUrl
+// opts: { hintStyleNo: string, requireReady: boolean }
+function _resolvePicUrl(path, opts){
+  opts = opts || {};
+  return new Promise(function(resolve){
+    if(!path){ resolve(''); return; }
+    if(typeof path === 'string' && (path.indexOf('data:image') === 0 || /^https?:\/\//i.test(path))){ resolve(path); return; }
+    var done = function(url){ if(url) resolve(String(url)); else resolve(''); };
+    // 1) resolveImageUrl（含 REST 直签，不依赖 module，最快）
+    if(window.resolveImageUrl && typeof window.resolveImageUrl === 'function'){
+      try{
+        var p = window.resolveImageUrl(path, { hintStyleNo: opts.hintStyleNo || '' });
+        if(p && typeof p.then === 'function'){
+          p.then(function(url){
+            if(url){ done(url); return; }
+            step2Fallback();
+          }).catch(function(){ step2Fallback(); });
+          return;
+        } else if(p){ done(p); return; }
+      }catch(_){ step2Fallback(); }
+    } else {
+      step2Fallback();
+    }
+    function step2Fallback(){
+      if(window.SupabaseSubmit && typeof SupabaseSubmit.getSignedUrl === 'function'){
+        SupabaseSubmit.getSignedUrl(path).then(function(u){ if(u) done(u); else step3Fallback(); }).catch(function(){ step3Fallback(); });
+        return;
+      }
+      step3Fallback();
+    }
+    function step3Fallback(){
+      if(App && App.utils && typeof App.utils.getSignedUrl === 'function'){
+        App.utils.getSignedUrl(path).then(function(u){ if(u) done(u); else done(''); }).catch(function(){ done(''); });
+        return;
+      }
+      // 三者都没有 → 等待 SupabaseSubmit 最多 20s（如果调用方要求立即就直接返回空）
+      if(opts.requireReady === false){
+        waitForSupabaseSubmit(20000).then(function(submit){
+          if(submit && typeof submit.getSignedUrl === 'function'){
+            submit.getSignedUrl(path).then(function(u){ if(u) done(u); else done(''); }).catch(function(){ done(''); });
+          } else done('');
+        });
+      } else {
+        done('');
+      }
+    }
+  });
+}
+
+// 异步加载单张缩略图（不破坏已有 base64 预览）
+function loadIssueThumbImage(prefix, idx, path, name){
+  var img = document.getElementById(prefix + 'ThumbImg' + idx);
+  var gallery = document.getElementById(prefix + 'Gallery');
+  var fallback = gallery ? gallery.children[idx] : null;
+  var imgEl = img || (fallback && fallback.querySelector('img'));
+  if(!imgEl) return;
+  if(typeof path === 'string' && path.indexOf('data:image') === 0){
+    imgEl.src = path;
+    imgEl.onclick = function(e){ e.stopPropagation(); openImageFullscreen(path); };
+    return;
+  }
+  imgEl.onclick = function(e){ e.stopPropagation(); openImageFullscreenByPath(path); };
+  imgEl.style.cursor = 'zoom-in';
+  // 兜底：先查 StyleImgCache 的相同 path 签名（瞬间显示）
+  try{
+    if(window.StyleImgCache){
+      var snap = JSON.parse(localStorage.getItem('styleImages') || '{}');
+      if(snap && typeof snap === 'object'){
+        for(var _k in snap){
+          var en = snap[_k];
+          if(en && (en.styleImg_path === path || en.fullImg_path === path)){
+            var _s = en.styleImg_signed || en.fullImg_signed;
+            if(_s){ imgEl.src = _s; break; }
+          }
+        }
+      }
+    }
+  }catch(_){}
+  // 对齐订单列表：resolveImageUrl（REST 直签 + 款号 fallback）→ 秒出 signed URL
+  _resolvePicUrl(path, { requireReady: false }).then(function(url){
+    if(url){ imgEl.src = url; imgEl.alt = ''; }
+    else imgEl.alt = (name || '加载失败');
+  });
+}
+
+function setIssueImageDate(prefix, date){
+  if(!Array.isArray(_issueImages[prefix])) _issueImages[prefix] = [];
+  _issueImages[prefix].forEach(function(im){ im.date = date; });
+}
+
+// 本地文件选择 → 上传（支持多选）
+function onIssueFileChange(e, prefix){
+  var files = e.target.files;
+  if(!files || files.length === 0) return;
+  // 串行上传每个文件
+  var arr = Array.prototype.slice.call(files);
+  (async function(){
+    for(var i = 0; i < arr.length; i++){
+      await uploadIssueImageFile(prefix, arr[i]);
+    }
+  })();
+  e.target.value = '';
+}
+
+// 上传逻辑：强制走 Supabase，失败时 base64 兜底（带警告）
+// 关键：无论上传成功与否，都保留 base64 供缩略图可见；成功后用 path 做共享字段
+async function uploadIssueImageFile(prefix, file){
+  var statusEl = document.getElementById(prefix + 'ImgStatus');
+  var fmtSize = (App && App.utils && typeof App.utils.formatSize === 'function') ? App.utils.formatSize(file.size) : (file.size + ' B');
+  if(file.size > 10 * 1024 * 1024){
+    if(statusEl) statusEl.textContent = '⚠ 图片超过 10MB 限制（' + fmtSize + '）';
+    try { if(App && App.toast) App.toast('图片超过 10MB 限制', 'error'); } catch(_) {}
+    return;
+  }
+  if(!Array.isArray(_issueImages[prefix])) _issueImages[prefix] = [];
+  // 取当前日期（如果已有图片带日期则沿用）
+  var curDate = _issueImages[prefix].length ? (_issueImages[prefix][0].date || '') : '';
+  if(statusEl) statusEl.textContent = '⏳ 上传中：' + (file.name || '');
+  // base64 即时预览
+  var base64DataUrl = null;
+  try { base64DataUrl = await fileToDataUrl(file); } catch(_e) {}
+  // 先以 base64 加入画廊（即时可见）
+  var tmpIdx = _issueImages[prefix].push({
+    path: base64DataUrl || file.name || '',
+    name: file.name || '',
+    base64: base64DataUrl,
+    date: curDate
+  }) - 1;
+  renderIssueImageBlock(prefix);
+  // 等待 SupabaseSubmit 加载
+  if(!window.SupabaseSubmit || typeof SupabaseSubmit.uploadPicture !== 'function'){
+    if(statusEl) statusEl.textContent = '⏳ 等待云端上传模块加载...';
+    var submitReady = await waitForSupabaseSubmit(8000);
+    if(!submitReady){
+      if(statusEl) statusEl.textContent = '⚠ 云端上传模块未就绪，仅本地保存（其他电脑看不到）';
+      try { if(App && App.toast) App.toast('云端上传模块未就绪，图片仅本地保存', 'warning'); } catch(_) {}
+      return;
+    }
+  }
+  try {
+    // 不传 styleNo，避免污染 StyleImgCache
+    var result = await SupabaseSubmit.uploadPicture(file, 'qcFieldIssue', null);
+    if(result && result.path){
+      // 关键：保留 base64 用作缩略图显示；path 保存 Supabase 存储路径，供 collectIssueImages 时写入
+      var curName = result.fileName || file.name || '';
+      _issueImages[prefix][tmpIdx] = {
+        path: result.path,
+        name: curName,
+        base64: base64DataUrl,   // ← 保留用于缩略图和点击全屏（本电脑立即可见）
+        date: curDate
+      };
+      renderIssueImageBlock(prefix);
+      if(statusEl) statusEl.textContent = '✓ 上传成功：' + curName;
+      try { if(App && App.toast) App.toast('✅ 上传成功', 'success'); } catch(_) {}
+    } else {
+      if(statusEl) statusEl.textContent = '⚠ 云端上传失败，仅本地保存（其他电脑看不到）';
+      try { if(App && App.toast) App.toast('云端上传失败，图片仅本地保存', 'warning'); } catch(_) {}
+    }
+  } catch(err){
+    if(statusEl) statusEl.textContent = '⚠ 上传失败：' + ((err && err.message) || err);
+    try { if(App && App.toast) App.toast('上传失败：' + ((err && err.message) || err), 'error'); } catch(_) {}
+  }
+}
+
+// NAS 选择问题图片（支持多选）
+async function nasPickIssueImage(prefix){
+  var btn = document.getElementById(prefix + 'NasBtn');
+  if(typeof App === 'undefined' || !App || typeof App.pickFromNas !== 'function'){
+    try { if(App && App.toast) App.toast('云盘 NAS 模块未加载', 'error'); } catch(_) {}
+    return;
+  }
+  try {
+    if(btn){ btn.disabled = true; btn.style.opacity = 0.6; btn.textContent = '⏳ 选择中...'; }
+    var picks = await App.pickFromNas({ multi:true, filter:'images', view:'large' });
+    if(!picks || picks.length === 0) return;
+    for(var i = 0; i < picks.length; i++){
+      if(btn) btn.textContent = '⬇ 下载 ' + (i+1) + '/' + picks.length + '...';
+      var got = await App.utils.nasFetchAsFile(picks[i].logicPath);
+      await uploadIssueImageFile(prefix, got.file);
+    }
+    try { if(App && App.toast) App.toast('✅ 已从 NAS 注入 ' + picks.length + ' 张', 'success'); } catch(_) {}
+  } catch(err){
+    try { if(App && App.toast) App.toast('NAS 选择失败：' + ((err && err.message) || err), 'error'); } catch(_) {}
+  } finally {
+    if(btn){ btn.disabled = false; btn.style.opacity = 1; btn.textContent = '☁ NAS'; }
+  }
+}
+
+// 删除固定问题图片中的第 idx 张
+function removeIssueImageAt(prefix, idx){
+  if(!Array.isArray(_issueImages[prefix])) return;
+  _issueImages[prefix].splice(idx, 1);
+  renderIssueImageBlock(prefix);
+}
+
+// 清除一个固定问题块的所有图片
+function clearIssueImage(prefix){
+  _issueImages[prefix] = [];
+  renderIssueImageBlock(prefix);
+}
+
+// 初始化固定问题图片块（依据记录数据回填，兼容旧单图格式）
+function initIssueImageBlocks(r){
+  var w = r && r.washing || {};
+  var g = r && r.garment || {};
+  function norm(prefix, src){
+    var imgs = normalizeImages(src);
+    _issueImages[prefix] = imgs.map(function(im){
+      return {
+        path: im.path || '',
+        name: im.name || '',
+        base64: (im.path && im.path.indexOf('data:image') === 0) ? im.path : null,
+        date: im.date || ''
+      };
+    });
+  }
+  norm('wFirstIssue', w.firstBatch && w.firstBatch.image);
+  norm('wBulkIssue',  w.bulkWashing && w.bulkWashing.image);
+  norm('gMatIssue',   g.materialsCheck && g.materialsCheck.image);
+  ['wFirstIssue','wBulkIssue','gMatIssue'].forEach(function(prefix){
+    renderIssueImageBlock(prefix);
+    var dateEl = document.getElementById(prefix + 'ImgDate');
+    if(dateEl && _issueImages[prefix].length) dateEl.value = _issueImages[prefix][0].date || '';
+  });
+}
+
+// 重置所有问题图片块
+function resetIssueImageBlocks(){
+  _issueImages = { wFirstIssue: [], wBulkIssue: [], gMatIssue: [] };
+  _issueRowImages = [];
+  ['wFirstIssue','wBulkIssue','gMatIssue'].forEach(function(prefix){ renderIssueImageBlock(prefix); });
+}
+
+// 收集固定问题图片数据（保存时用，返回数组）
+function collectIssueImages(){
+  var out = {};
+  ['wFirstIssue','wBulkIssue','gMatIssue'].forEach(function(prefix){
+    out[prefix] = (_issueImages[prefix] || []).map(function(im){
+      return { path: im.path || im.base64 || '', name: im.name || '', date: im.date || '' };
+    });
+  });
+  return out;
+}
+
+// ==================== 生产中问题表格行的图片（多图） ====================
+function setIssueRowImage(idx, imageData){
+  // 兼容单图/数组
+  if(Array.isArray(imageData)){
+    _issueRowImages[idx] = imageData.map(function(im){ return { path: im.path||'', name: im.name||'', base64: (im.path && im.path.indexOf('data:image')===0)?im.path:null, date: im.date||'' }; });
+  } else if(imageData && typeof imageData === 'object' && (imageData.path || imageData.name)){
+    _issueRowImages[idx] = [{ path: imageData.path||'', name: imageData.name||'', base64: (imageData.path && imageData.path.indexOf('data:image')===0)?imageData.path:null, date: imageData.date||'' }];
+  } else {
+    _issueRowImages[idx] = [];
+  }
+  refreshIssueRowImageCell(idx);
+}
+function refreshIssueRowImageCell(idx){
+  var tbody = document.getElementById('issueTableBody');
+  if(!tbody || !tbody.children[idx]) return;
+  var cell = tbody.children[idx].querySelector('.qc-issue-table-img');
+  if(!cell) return;
+  var imgs = Array.isArray(_issueRowImages[idx]) ? _issueRowImages[idx] : [];
+  imgs = imgs.filter(function(im){ return im && (im.path || im.base64); });
+  if(imgs.length === 0){
+    cell.innerHTML = '📷';
+    cell.onclick = function(){ openIssueRowImagePicker(idx); };
+    return;
+  }
+  // 显示第一张缩略图 + 数量角标
+  var first = imgs[0];
+  var src = first.base64 || '';   // 优先用 base64 即时显示
+  var badge = imgs.length > 1 ? '<span style="position:absolute;bottom:-2px;right:-2px;background:var(--qc-primary);color:#fff;border-radius:8px;font-size:9px;padding:0 4px;line-height:14px;z-index:2;">'+imgs.length+'</span>' : '';
+  if(src){
+    cell.innerHTML = '<img src="'+escAttr(src)+'">' + badge + '<button class="remove-btn" onclick="event.stopPropagation();clearIssueRowImage('+idx+')">&times;</button>';
+    var im = cell.querySelector('img');
+    if(im) im.onclick = function(e){ e.stopPropagation(); openRowImageGallery(idx); };
+  } else {
+    // 无 base64 但有 path：用 _resolvePicUrl（对齐订单，resolveImageUrl+REST 直签秒出）
+    cell.innerHTML = '<img alt="" style="width:100%;height:100%;object-fit:cover;" data-img-path="'+escAttr(first.path)+'">' + badge + '<button class="remove-btn" onclick="event.stopPropagation();clearIssueRowImage('+idx+')">&times;</button>';
+    var im2 = cell.querySelector('img');
+    if(im2){
+      im2.onclick = function(e){ e.stopPropagation(); openRowImageGallery(idx); };
+      _resolvePicUrl(first.path, { requireReady: false }).then(function(url){
+        if(url){ im2.src = url; }
+      });
+    }
+  }
+}
+// 打开行图片画廊（全屏，可查看所有图片）
+function openRowImageGallery(idx){
+  var imgs = Array.isArray(_issueRowImages[idx]) ? _issueRowImages[idx] : [];
+  if(imgs.length === 0) return;
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;';
+  var closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕ 关闭';
+  closeBtn.style.cssText = 'position:absolute;top:12px;right:20px;background:#fff;border:none;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:14px;';
+  closeBtn.onclick = function(){ document.body.removeChild(ov); };
+  ov.appendChild(closeBtn);
+  var gallery = document.createElement('div');
+  gallery.style.cssText = 'display:flex;flex-wrap:wrap;gap:10px;justify-content:center;overflow-y:auto;max-height:90vh;max-width:95vw;';
+  ov.appendChild(gallery);
+  imgs.forEach(function(im, i){
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'position:relative;';
+    var imgEl = document.createElement('img');
+    imgEl.style.cssText = 'max-width:300px;max-height:300px;object-fit:contain;border-radius:6px;border:1px solid #444;cursor:zoom-in;background:#fff;';
+    if(im.base64){
+      imgEl.src = im.base64;
+      imgEl.onclick = function(e){ e.stopPropagation(); openImageFullscreen(im.base64); };
+    } else if(im.path){
+      // 对齐订单：resolveImageUrl（REST 直签 + 款号 fallback）秒出 signed URL
+      var currentPath = im.path;
+      imgEl.onclick = function(e){ e.stopPropagation(); openImageFullscreenByPath(currentPath); };
+      _resolvePicUrl(currentPath, { requireReady: false }).then(function(url){
+        if(url){ imgEl.src = url; }
+      });
+    }
+    wrap.appendChild(imgEl);
+    if(im.name){ var lbl = document.createElement('div'); lbl.textContent = im.name; lbl.style.cssText='font-size:10px;color:#ccc;text-align:center;margin-top:2px;'; wrap.appendChild(lbl); }
+    gallery.appendChild(wrap);
+  });
+  ov.onclick = function(e){ if(e.target === ov) document.body.removeChild(ov); };
+  document.body.appendChild(ov);
+}
+function clearIssueRowImage(idx){
+  _issueRowImages[idx] = [];
+  refreshIssueRowImageCell(idx);
+}
+function removeIssueRowImageAt(idx, i){
+  if(!Array.isArray(_issueRowImages[idx])) return;
+  _issueRowImages[idx].splice(i, 1);
+  refreshIssueRowImageCell(idx);
+}
+async function uploadIssueRowImage(idx, file){
+  var statusEl = document.getElementById('issueRowImgStatus_' + idx);
+  if(!file) return;
+  if(file.size > 10 * 1024 * 1024){
+    try { if(App && App.toast) App.toast('图片超过 10MB 限制', 'error'); } catch(_) {}
+    return;
+  }
+  if(!Array.isArray(_issueRowImages[idx])) _issueRowImages[idx] = [];
+  var curDate = _issueRowImages[idx].length ? (_issueRowImages[idx][0].date || '') : '';
+  var base64DataUrl = null;
+  try { base64DataUrl = await fileToDataUrl(file); } catch(_e) {}
+  // 先以 base64 加入（即时可见）
+  var tmpIdx = _issueRowImages[idx].push({
+    path: base64DataUrl || file.name || '',
+    name: file.name || '',
+    base64: base64DataUrl,
+    date: curDate
+  }) - 1;
+  refreshIssueRowImageCell(idx);
+  // 等待 SupabaseSubmit
+  if(!window.SupabaseSubmit || typeof SupabaseSubmit.uploadPicture !== 'function'){
+    if(statusEl) statusEl.textContent = '⏳ 等待云端上传模块加载...';
+    var submitReady = await waitForSupabaseSubmit(8000);
+    if(!submitReady){
+      if(statusEl) statusEl.textContent = '⚠ 云端模块未就绪，仅本地';
+      return;
+    }
+  }
+  try {
+    var result = await SupabaseSubmit.uploadPicture(file, 'qcFieldIssue', null);
+    if(result && result.path){
+      // 关键：保留 base64 用作缩略图，path 用于共享
+      var _cur = {
+        path: result.path,
+        name: result.fileName || file.name || '',
+        base64: base64DataUrl,
+        date: curDate
+      };
+      _issueRowImages[idx][tmpIdx] = _cur;
+      refreshIssueRowImageCell(idx);
+      try { if(App && App.toast) App.toast('✅ 问题图片上传成功', 'success'); } catch(_) {}
+    } else {
+      if(statusEl) statusEl.textContent = '⚠ 上传失败，已用本地';
+    }
+  } catch(err){
+    if(statusEl) statusEl.textContent = '⚠ 上传失败：' + ((err && err.message) || err);
+  }
+}
+function onIssueRowFileChange(e, idx){
+  var files = e.target.files;
+  if(!files || files.length === 0) return;
+  var arr = Array.prototype.slice.call(files);
+  (async function(){
+    for(var i = 0; i < arr.length; i++){
+      await uploadIssueRowImage(idx, arr[i]);
+    }
+  })();
+  e.target.value = '';
+}
+async function nasPickIssueRowImage(idx){
+  if(typeof App === 'undefined' || !App || typeof App.pickFromNas !== 'function'){
+    try { if(App && App.toast) App.toast('云盘 NAS 模块未加载', 'error'); } catch(_) {}
+    return;
+  }
+  try {
+    var picks = await App.pickFromNas({ multi:true, filter:'images', view:'large' });
+    if(!picks || picks.length === 0) return;
+    for(var i = 0; i < picks.length; i++){
+      var got = await App.utils.nasFetchAsFile(picks[i].logicPath);
+      await uploadIssueRowImage(idx, got.file);
+    }
+    try { if(App && App.toast) App.toast('✅ 已从 NAS 注入 ' + picks.length + ' 张', 'success'); } catch(_) {}
+  } catch(err){
+    try { if(App && App.toast) App.toast('NAS 选择失败：' + ((err && err.message) || err), 'error'); } catch(_) {}
+  }
+}
+
+// 全屏查看图片
+function openImageFullscreen(dataUrl){
+  if(!dataUrl) return;
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:zoom-out;padding:20px;';
+  ov.onclick = function(){ document.body.removeChild(ov); };
+  var im = document.createElement('img');
+  im.src = dataUrl;
+  im.style.cssText = 'max-width:95%;max-height:95%;object-fit:contain;border-radius:6px;';
+  ov.appendChild(im);
+  document.body.appendChild(ov);
+}
+function openImageFullscreenByPath(path){
+  if(!path) return;
+  if(typeof path === 'string' && path.indexOf('data:image') === 0){ openImageFullscreen(path); return; }
+  if(typeof path === 'string' && /^https?:\/\//i.test(path)){ openImageFullscreen(path); return; }
+  // 先尝试本地缓存的 signed URL（StyleImgCache 或 localStorage.styleImages）
+  try{
+    var snap = JSON.parse(localStorage.getItem('styleImages') || '{}');
+    if(snap && typeof snap === 'object'){
+      for(var _k in snap){
+        var en = snap[_k];
+        if(en && (en.styleImg_path===path || en.fullImg_path===path)){
+          var u = en.styleImg_signed || en.fullImg_signed;
+          if(u){ openImageFullscreen(u); return; }
+        }
+      }
+    }
+  }catch(_){}
+  // 对齐订单：优先 resolveImageUrl（REST 直签 + 款号 fallback），不依赖 module
+  _resolvePicUrl(path, { requireReady: false }).then(function(url){
+    if(url) openImageFullscreen(url);
+    else try { if(App && App.toast) App.toast('图片暂时无法打开，请稍后重试', 'warning'); } catch(_e) {}
+  });
+}
+
+// ==================== 上线记录 ====================
+function addOnlineRow(date='',qc='',notes=''){
+  if(!date){
+    var n = new Date();
+    date = n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0');
+  }
+  var tbody = document.getElementById('onlineTableBody');
+  var tr = document.createElement('tr');
+  var idx = tbody.children.length + 1;
+  tr.innerHTML = '<td>'+idx+'</td><td><input type="date" value="'+escAttr(date)+'"></td><td><input type="text" value="'+escAttr(qc)+'" placeholder="QC姓名"></td><td><input type="text" value="'+escAttr(notes)+'" placeholder="查看情况/备注"></td><td><button class="qc-btn-icon danger" onclick="this.closest(\'tr\').remove();renumberOnline();">&times;</button></td>';
+  tbody.appendChild(tr);
+}
+function renumberOnline(){
+  document.querySelectorAll('#onlineTableBody tr').forEach((tr,i)=>{ tr.children[0].textContent = i+1; });
+}
+
+// ==================== 问题记录 ====================
+function addIssueRow(date='',issue='',rect='',status='open',resolveDate='', image){
+  if(!date){
+    var n = new Date();
+    date = n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0');
+  }
+  var tbody = document.getElementById('issueTableBody');
+  var tr = document.createElement('tr');
+  var idx = tbody.children.length;
+  tr.innerHTML =
+    '<td>'+(idx+1)+'</td>' +
+    '<td><input type="date" value="'+escAttr(date)+'"></td>' +
+    '<td><input type="text" value="'+escAttr(issue)+'" placeholder="问题描述"></td>' +
+    '<td><input type="text" value="'+escAttr(rect)+'" placeholder="整改措施"></td>' +
+    '<td><select onchange="onIssueStatusChange(this)"><option value="open" '+(status==='open'?'selected':'')+'>未解决</option><option value="resolved" '+(status==='resolved'?'selected':'')+'>已解决</option></select></td>' +
+    '<td><input type="date" value="'+escAttr(resolveDate)+'"></td>' +
+    '<td>' +
+      '<div class="qc-issue-table-img" onclick="openIssueRowImagePicker('+idx+')">📷</div>' +
+      '<input type="file" id="issueRowFileInput_'+idx+'" accept="image/*" multiple style="display:none;" onchange="onIssueRowFileChange(event, '+idx+')">' +
+      '<div class="qc-issue-img-status" id="issueRowImgStatus_'+idx+'" style="font-size:10px;"></div>' +
+    '</td>' +
+    '<td><button class="qc-btn-icon danger" onclick="removeIssueRow('+idx+')">&times;</button></td>';
+  tbody.appendChild(tr);
+  // 初始化该行图片状态（兼容单图/数组）
+  setIssueRowImage(idx, image);
+}
+function removeIssueRow(idx){
+  var tbody = document.getElementById('issueTableBody');
+  if(!tbody || !tbody.children[idx]) return;
+  if(!confirm('确认删除该问题？')) return;
+  // 先从 _issueRowImages 删除该索引，再删 DOM 行（保证后续索引对齐）
+  _issueRowImages.splice(idx, 1);
+  tbody.removeChild(tbody.children[idx]);
+  renumberIssue();
+}
+function rebuildIssueRowImages(){
+  // 仅用于 fillForm 重置后的兜底：以当前 DOM 行数为长度重排数组
+  var tbody = document.getElementById('issueTableBody');
+  if(!tbody) return;
+  var newArr = [];
+  for(var i = 0; i < tbody.children.length; i++){
+    newArr.push(Array.isArray(_issueRowImages[i]) ? _issueRowImages[i] : []);
+  }
+  _issueRowImages = newArr;
+}
+function openIssueRowImagePicker(idx){
+  var input = document.getElementById('issueRowFileInput_'+idx);
+  if(input) input.click();
+}
+function renumberIssue(){
+  document.querySelectorAll('#issueTableBody tr').forEach((tr,i)=>{
+    tr.children[0].textContent = i+1;
+    // 同步该行的 input id 与图片状态 idx
+    var fileInput = tr.querySelector('input[type=file]');
+    if(fileInput){
+      var newId = 'issueRowFileInput_'+i;
+      if(fileInput.id !== newId){
+        fileInput.id = newId;
+        fileInput.setAttribute('onchange', 'onIssueRowFileChange(event, '+i+')');
+      }
+    }
+    var imgCell = tr.querySelector('.qc-issue-table-img');
+    if(imgCell){
+      imgCell.setAttribute('onclick', 'openIssueRowImagePicker('+i+')');
+    }
+  });
+  rebuildIssueRowImages();
+}
+function onIssueStatusChange(sel){
+  // no-op, value read at save time
+}
+
+// 收集问题表格行（含图片数组）
+function collectIssueRows(){
+  var rows = [];
+  var tbody = document.getElementById('issueTableBody');
+  if(!tbody) return rows;
+  var trs = tbody.children;
+  for(var i = 0; i < trs.length; i++){
+    var inputs = trs[i].querySelectorAll('input[type=date], input[type=text]');
+    var sel = trs[i].querySelector('select');
+    var date = inputs[0] ? inputs[0].value : '';
+    var issue = inputs[1] ? inputs[1].value : '';
+    var rect = inputs[2] ? inputs[2].value : '';
+    var resolveDate = inputs[3] ? inputs[3].value : '';
+    if(!date && !issue && !rect) continue;
+    var imgs = Array.isArray(_issueRowImages[i]) ? _issueRowImages[i] : [];
+    var imageArr = imgs.filter(function(im){ return im && (im.path || im.base64); }).map(function(im){
+      return { path: im.path || im.base64 || '', name: im.name || '', date: im.date || date || '' };
+    });
+    rows.push({
+      date: date,
+      issue: issue,
+      rectification: rect,
+      status: sel ? sel.value : 'open',
+      resolvedDate: resolveDate,
+      image: imageArr  // 数组格式（多图）
+    });
+  }
+  return rows;
+}
+
+// ==================== 款式图：StyleImgCache 共享 + 本地/NAS 上传 ====================
+var _currentStyleImage = { path: '', name: '', base64: null }; // 当前表单内图片信息
+
+// 从 StyleImgCache 拉取该款号的图片（跨模块共享）
+// 从订单管理共享缓存拉取款式图（参考 order.html 的方式：getStyleImagesForStyleNo）
+function refreshStyleImageFromCache(styleNo){
+  if(!styleNo){ clearCurrentImage(); return; }
+  var box = document.getElementById('imagePreviewBox');
+  var img = document.getElementById('styleImagePreview');
+  var statusEl = document.getElementById('imageStatus');
+  if(!img) return;
+  // 优先用本地 StyleImgCache 秒显
+  if(window.StyleImgCache){
+    var entry = StyleImgCache.resolve(styleNo);
+    if(entry && (entry.styleImg_path || entry.fullImg_path)){
+      var path = entry.styleImg_path || entry.fullImg_path;
+      _currentStyleImage = { path: path, name: entry.styleImg_name || entry.fullImg_name || '', base64: null };
+      showImagePreviewByPath(path, _currentStyleImage.name);
+    } else {
+      if(statusEl) statusEl.textContent = '⏳ 正在从云端查找款式图...';
+    }
+  }
+  // 异步走 getStyleImagesForStyleNo 全量查找（含 Supabase Storage LIST）
+  if(window.getStyleImagesForStyleNo){
+    getStyleImagesForStyleNo(styleNo).then(function(r){
+      if(!r){
+        if(statusEl) statusEl.textContent = '该款号暂无款式图';
+        return;
+      }
+      var p = r.styleImg_path || r.fullImg_path || '';
+      if(!p){
+        if(statusEl) statusEl.textContent = '该款号暂无款式图';
+        return;
+      }
+      _currentStyleImage = { path: p, name: r.styleImg_name || r.fullImg_name || '', base64: null };
+      // 优先用已签好的 signed URL
+      if(r.styleImg_signed || r.fullImg_signed){
+        var signedUrl = r.styleImg_signed || r.fullImg_signed;
+        if(img){ img.src = signedUrl; img.onclick = function(){ openImageFullscreen(signedUrl); }; }
+        if(box) box.style.display = 'block';
+        if(statusEl) statusEl.textContent = '✓ 已加载款式图';
+      } else if(window.resolveImageUrl){
+        // 对齐订单：resolveImageUrl（REST 直签 + 款号 fallback）秒出
+        resolveImageUrl(p, { hintStyleNo: styleNo }).then(function(url){
+          if(url){
+            if(img){ img.src = url; img.onclick = function(){ openImageFullscreen(url); }; }
+            if(box) box.style.display = 'block';
+            if(statusEl) statusEl.textContent = '✓ 已加载款式图';
+          } else {
+            if(statusEl) statusEl.textContent = '⚠ 款式图加载失败';
+          }
+        }).catch(function(){ if(statusEl) statusEl.textContent = '⚠ 款式图加载失败'; });
+      }
+    }).catch(function(){ if(statusEl) statusEl.textContent = '⚠ 款式图加载失败'; });
+  }
+}
+
+// 通过路径显示图片：base64 直接 src；其余用 _resolvePicUrl（优先 resolveImageUrl，对齐订单）
+function showImagePreviewByPath(path, name){
+  var box = document.getElementById('imagePreviewBox');
+  var img = document.getElementById('styleImagePreview');
+  var statusEl = document.getElementById('imageStatus');
+  if(!box || !img) return;
+  if(!path){ clearCurrentImage(); return; }
+  // base64 data URL
+  if(typeof path === 'string' && path.indexOf('data:image') === 0){
+    img.src = path;
+    img.onclick = function(){ openImageFullscreen(path); };
+    box.style.display = 'block';
+    if(statusEl) statusEl.textContent = '✓ 已加载款式图' + (name ? '：'+name : '');
+    return;
+  }
+  // http(s) 已存在
+  if(typeof path === 'string' && /^https?:\/\//i.test(path)){
+    img.src = path;
+    img.onclick = function(){ openImageFullscreen(path); };
+    box.style.display = 'block';
+    if(statusEl) statusEl.textContent = '✓ 已加载款式图' + (name ? '：'+name : '');
+    return;
+  }
+  // 记录当前 img.src 是否已有可见内容（避免后续解析失败时覆盖）
+  var alreadyHasDisplayable = !!(img.src && img.src.length > 30 && img.complete && img.naturalWidth > 0);
+  box.style.display = 'block';
+  if(!alreadyHasDisplayable){ if(statusEl) statusEl.textContent = '⏳ 加载图片中...'; }
+  // 先用 StyleImgCache 的已有 signed URL（瞬时）
+  var hit = false;
+  try{
+    var sn = val('styleNo');
+    if(window.StyleImgCache && sn){
+      var ent = StyleImgCache.resolve(sn);
+      if(ent && (ent.styleImg_path === path || ent.fullImg_path === path)){
+        var signedUrl = ent.styleImg_signed || ent.fullImg_signed;
+        if(signedUrl){
+          img.src = signedUrl;
+          img.onclick = function(){ openImageFullscreenByPath(path); };
+          if(statusEl) statusEl.textContent = '✓ 已加载款式图（本地缓存）' + (name ? '：'+name : '');
+          hit = true;
+        }
+      }
+    }
+    if(!hit){
+      var snap = JSON.parse(localStorage.getItem('styleImages') || '{}');
+      if(snap && typeof snap === 'object'){
+        for(var _k in snap){
+          var en = snap[_k];
+          if(en && (en.styleImg_path === path || en.fullImg_path === path)){
+            var _s = en.styleImg_signed || en.fullImg_signed;
+            if(_s){
+              img.src = _s;
+              img.onclick = function(){ openImageFullscreenByPath(path); };
+              if(statusEl) statusEl.textContent = '✓ 已加载款式图（本地缓存）' + (name ? '：'+name : '');
+              hit = true; break;
+            }
+          }
+        }
+      }
+    }
+  }catch(_){}
+  // 核心：resolveImageUrl（REST 直签 + 款号 fallback）— 不依赖 module，秒出 signed URL
+  var hintSn = val('styleNo') || '';
+  _resolvePicUrl(path, { hintStyleNo: hintSn, requireReady: false }).then(function(url){
+    if(url){
+      img.src = url;
+      img.onclick = function(){ openImageFullscreen(url); };
+      if(statusEl) statusEl.textContent = '✓ 已加载款式图' + (name ? '：'+name : '');
+    } else if(!alreadyHasDisplayable && !hit){
+      if(statusEl) statusEl.textContent = '⚠ 云端未就绪，款式图显示受限制（可编辑保存，不影响数据）';
+    }
+  }).catch(function(){
+    if(!alreadyHasDisplayable && !hit){
+      if(statusEl) statusEl.textContent = '⚠ 云端未就绪，款式图显示受限制（可编辑保存，不影响数据）';
+    }
+  });
+}
+
+function clearCurrentImage(){
+  _currentStyleImage = { path: '', name: '', base64: null };
+  var box = document.getElementById('imagePreviewBox');
+  var img = document.getElementById('styleImagePreview');
+  var statusEl = document.getElementById('imageStatus');
+  if(box) box.style.display = 'none';
+  if(img) img.src = '';
+  if(statusEl) statusEl.textContent = '该款号暂无款式图';
+}
+
+// 本地电脑上传
+function handleImageUpload(e){
+  var file = e.target.files && e.target.files[0];
+  if(!file) return;
+  uploadStyleImageFile(file);
+  e.target.value = '';
+}
+
+// 共享上传逻辑：上传到 Supabase → 写入 StyleImgCache
+async function uploadStyleImageFile(file){
+  var statusEl = document.getElementById('imageStatus');
+  var styleNo = val('styleNo');
+  if(!styleNo){
+    if(statusEl) statusEl.textContent = '⚠ 请先输入款号再上传图片';
+    try { if(App && App.toast) App.toast('请先输入款号再上传图片', 'warning'); } catch(_) {}
+    return;
+  }
+  var fmtSize = (App && App.utils && typeof App.utils.formatSize === 'function') ? App.utils.formatSize(file.size) : (file.size + ' B');
+  if(file.size > 10 * 1024 * 1024){
+    if(statusEl) statusEl.textContent = '⚠ 图片超过 10MB 限制（当前 ' + fmtSize + '）';
+    try { if(App && App.toast) App.toast('图片超过 10MB 限制', 'error'); } catch(_) {}
+    return;
+  }
+  if(statusEl) statusEl.textContent = '⏳ 上传中：' + (file.name || '');
+  // 1) 先用本地预览
+  var base64DataUrl = null;
+  try {
+    base64DataUrl = await fileToDataUrl(file);
+    var box = document.getElementById('imagePreviewBox');
+    var img = document.getElementById('styleImagePreview');
+    if(box && img){ img.src = base64DataUrl; box.style.display = 'block'; }
+  } catch(_e) {}
+  // 2) 尝试 Supabase 上传（模块未就绪时等待加载完成，最多等 8s）
+  if(!window.SupabaseSubmit || typeof SupabaseSubmit.uploadPicture !== 'function'){
+    if(statusEl) statusEl.textContent = '⏳ 等待云端上传模块加载...';
+    var submitReady = await waitForSupabaseSubmit(8000);
+    if(!submitReady){
+      // 模块仍未就绪 → base64 兜底
+      _currentStyleImage = { path: base64DataUrl || '', name: file.name || '', base64: base64DataUrl };
+      if(statusEl) statusEl.textContent = '⚠ 云端上传模块未就绪，已用本地图片';
+      try { if(App && App.toast) App.toast('云端上传模块未就绪，图片仅本地保存', 'warning'); } catch(_) {}
+      return;
+    }
+  }
+  try {
+    var result = await SupabaseSubmit.uploadPicture(file, 'qcField', styleNo);
+    if(result && result.path){
+      _currentStyleImage = { path: result.path, name: result.fileName || file.name || '', base64: null };
+      if(statusEl) statusEl.textContent = '✓ 上传成功：' + _currentStyleImage.name;
+      // 同步到共享缓存
+      if(window.StyleImgCache){
+        StyleImgCache.updateIfChanged(styleNo, {
+          styleImg_path: result.path,
+          styleImg_name: _currentStyleImage.name
+        });
+      }
+      // 用 signed URL 替换 base64 预览
+      showImagePreviewByPath(result.path, _currentStyleImage.name);
+      try { if(App && App.toast) App.toast('✅ 上传成功', 'success'); } catch(_) {}
+    } else {
+      _currentStyleImage = { path: base64DataUrl || '', name: file.name || '', base64: base64DataUrl };
+      if(statusEl) statusEl.textContent = '⚠ 云端上传失败，已用本地图片';
+      try { if(App && App.toast) App.toast('云端上传失败，图片仅本地保存', 'warning'); } catch(_) {}
+    }
+  } catch(err){
+    _currentStyleImage = { path: base64DataUrl || '', name: file.name || '', base64: base64DataUrl };
+    if(statusEl) statusEl.textContent = '⚠ 上传失败：' + ((err && err.message) || err);
+    try { if(App && App.toast) App.toast('上传失败：' + ((err && err.message) || err), 'error'); } catch(_) {}
+  }
+}
+
+// 从云盘 NAS 选择图片
+async function uploadStyleImageFromNas(){
+  var styleNo = val('styleNo');
+  if(!styleNo){
+    var st = document.getElementById('imageStatus');
+    if(st) st.textContent = '⚠ 请先输入款号再选择图片';
+    try { if(App && App.toast) App.toast('请先输入款号再从 NAS 选择图片', 'warning'); } catch(_) {}
+    return;
+  }
+  var btn = document.getElementById('nasUploadBtn');
+  if(typeof App === 'undefined' || !App || typeof App.pickFromNas !== 'function'){
+    try { if(App && App.toast) App.toast('云盘 NAS 模块未加载', 'error'); } catch(_) {}
+    return;
+  }
+  try{
+    if(btn){ btn.disabled = true; btn.style.opacity = 0.6; btn.textContent = '⏳ 等待 NAS 选择...'; }
+    var picks = await App.pickFromNas({ multi:false, filter:'images', view:'large' });
+    if(!picks || picks.length === 0) return;
+    var pick = picks[0];
+    if(btn) btn.textContent = '⬇ 下载中「' + pick.name + '」...';
+    var got = await App.utils.nasFetchAsFile(pick.logicPath);
+    await uploadStyleImageFile(got.file);
+    try { if(App && App.toast) App.toast('✅ 已从 NAS 注入：' + pick.name, 'success'); } catch(_) {}
+  } catch(err){
+    try { if(App && App.toast) App.toast('NAS 选择失败：' + ((err && err.message) || err), 'error'); } catch(_) {}
+  } finally {
+    if(btn){ btn.disabled = false; btn.style.opacity = 1; btn.textContent = '☁ 从云盘 NAS 选择'; }
+  }
+}
+
+function fileToDataUrl(file){
+  return new Promise(function(resolve, reject){
+    var reader = new FileReader();
+    reader.onload = function(ev){ resolve(ev.target.result); };
+    reader.onerror = function(err){ reject(err); };
+    reader.readAsDataURL(file);
+  });
+}
+
+// 获取当前表单图片路径（保存到 record.styleImage 时使用）
+function getCurrentImage(){
+  return _currentStyleImage.path || _currentStyleImage.base64 || '';
+}
+
+// ==================== 表单收集/填充 ====================
+// 收集已勾选的QC报告问题类别标签（按勾选顺序）
+function collectSelectedTags(){
+  var tags = [];
+  document.querySelectorAll('#qcTagGroup input[type=checkbox]:checked').forEach(function(cb){
+    tags.push(cb.value);
+  });
+  return tags;
+}
+// 按 tags 数组回填勾选
+function setSelectedTags(tags){
+  var arr = Array.isArray(tags) ? tags : [];
+  document.querySelectorAll('#qcTagGroup input[type=checkbox]').forEach(function(cb){
+    cb.checked = arr.indexOf(cb.value) >= 0;
+  });
+}
+// ====== QC报告问题类别 标签库管理（可编辑/添加/删除）======
+var QC_TAG_LIB_KEY = 'qcTagLibrary';
+function getDefaultQcTags(){
+  return ['面料','里料','衬','牵带衬','垫肩','拉链','纽扣','气眼','铆钉','主唛','洗唛','尺码','吊牌','配比包装条码','独色独码条码','胶袋','纸箱','干燥剂','拷贝纸'];
+}
+function getQcTagLibrary(){
+  try{
+    var raw = localStorage.getItem(QC_TAG_LIB_KEY);
+    if(raw){
+      var arr = JSON.parse(raw);
+      if(Array.isArray(arr) && arr.length) return arr;
+    }
+  }catch(_e){}
+  return getDefaultQcTags();
+}
+function saveQcTagLibrary(arr){
+  try{ localStorage.setItem(QC_TAG_LIB_KEY, JSON.stringify(arr)); }catch(_e){}
+}
+// 渲染标签chip到 #qcTagGroup（保留已勾选状态）
+function renderQcTags(){
+  var group = document.getElementById('qcTagGroup');
+  if(!group) return;
+  var prev = collectSelectedTags();
+  var libs = getQcTagLibrary();
+  var html = libs.map(function(name){
+    var checked = prev.indexOf(name) >= 0 ? 'checked' : '';
+    return '<label class="qc-tag-chip"><input type="checkbox" value="'+escAttr(name)+'" '+checked+'><span>'+esc(name)+'</span></label>';
+  }).join('');
+  group.innerHTML = html;
+}
+function openQcTagManager(){
+  var modal = document.getElementById('qcTagModal');
+  var list = document.getElementById('qcTagManagerList');
+  if(!modal || !list) return;
+  list.innerHTML = '';
+  getQcTagLibrary().forEach(function(name){ addQcTagManagerRow(name); });
+  modal.style.display = 'block';
+}
+function closeQcTagManager(){
+  var modal = document.getElementById('qcTagModal');
+  if(modal) modal.style.display = 'none';
+}
+function addQcTagManagerRow(name){
+  var list = document.getElementById('qcTagManagerList');
+  if(!list) return;
+  var row = document.createElement('div');
+  row.className = 'qc-tag-mgr-row';
+  row.innerHTML = '<input type="text" value="'+escAttr(name||'')+'" placeholder="标签名"><button class="qc-btn qc-btn-danger qc-btn-sm" onclick="this.closest(\'.qc-tag-mgr-row\').remove()">删除</button>';
+  list.appendChild(row);
+}
+function saveQcTagManager(){
+  var list = document.getElementById('qcTagManagerList');
+  if(!list) return;
+  var arr = [];
+  list.querySelectorAll('input[type=text]').forEach(function(inp){
+    var v = inp.value.trim();
+    if(v && arr.indexOf(v) < 0) arr.push(v);
+  });
+  saveQcTagLibrary(arr);
+  renderQcTags();
+  closeQcTagManager();
+  if(App && App.toast) App.toast('标签库已更新', 'success');
+}
+function collectFormData(){
+  var onlineRecords = [];
+  document.querySelectorAll('#onlineTableBody tr').forEach(tr=>{
+    var inputs = tr.querySelectorAll('input');
+    if(inputs[0].value || inputs[1].value || inputs[2].value)
+      onlineRecords.push({date:inputs[0].value, qcName:inputs[1].value, notes:inputs[2].value});
+  });
+  var productionIssues = collectIssueRows();
+  var issueImgs = collectIssueImages();
+  var data = {
+    id: editingId || genId(),
+    factory: val('factory'),
+    qcName: val('qcName'),
+    orderNo: val('orderNo'),
+    styleNo: val('styleNo'),
+    deliveryDate: val('deliveryDate'),
+    styleImage: getCurrentImage(),
+    sizeSnapshot: collectSizeSnapshot(),
+    needWash: needWash,
+    washing: needWash ? {
+      sampleReceived: {date: val('w_sample_date'), confirmed: document.getElementById('w_sample_confirmed').checked},
+      firstBatch: {date: val('w_first_date'), quantity: val('w_first_qty'), issues: val('w_first_issues'), image: issueImgs.wFirstIssue},
+      bulkMethod: {date: val('w_method_date'), method: val('w_method_text'), confirmed: document.getElementById('w_method_confirmed').checked},
+      bulkWashing: {date: val('w_bulk_date'), endDate: val('w_bulk_end'), totalBatches: parseInt(val('w_bulk_total'))||0, issues: val('w_bulk_issues'), rectification: val('w_bulk_rect'), image: issueImgs.wBulkIssue},
+      bulkResolved: {date: val('w_resolve_date'), resolved: document.getElementById('w_resolved').checked}
+    } : null,
+    garment: {
+      sealedSample: {date: val('g_seal_date'), opinion: val('g_seal_opinion'), confirmed: document.getElementById('g_seal_confirmed').checked},
+      ppSample: {date: val('g_pp_date'), confirmed: document.getElementById('g_pp_confirmed').checked, notes: val('g_pp_notes')},
+      materialsCheck: {date: val('g_mat_date'), status: val('g_mat_status'), notes: val('g_mat_notes'), image: issueImgs.gMatIssue, tags: collectSelectedTags()},
+      cuttingDate: val('g_cut_date'),
+      sewStartDate: val('g_sew_start'),
+      sewEndDate: val('g_sew_end'),
+      finishDate: val('g_finish'),
+      packDate: val('g_pack'),
+      shipDate: val('g_ship'),
+      onlineRecords: onlineRecords,
+      productionIssues: productionIssues
+    },
+    createdAt: editingId ? (records.find(r=>r.id===editingId)?.createdAt || new Date().toISOString()) : new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  return data;
+}
+function val(id){ var el = document.getElementById(id); return el ? el.value.trim() : ''; }
+
+function fillForm(r){
+  editingId = r.id;
+  var banner = document.getElementById('editBanner');
+  var bannerText = document.getElementById('editBannerText');
+  if(banner){ banner.classList.add('show'); }
+  if(bannerText){ bannerText.textContent = (r.factory||'') + ' / ' + (r.styleNo||'') + ' / ' + (r.orderNo||''); }
+  setVal('factory', r.factory);
+  setVal('qcName', r.qcName);
+  setVal('styleNo', r.styleNo);
+  // 款号变化 → 重新填充订单号 datalist + 尺寸表 + 共享款式图
+  onStyleNoChange();
+  setVal('orderNo', r.orderNo);
+  // 若订单号非空但尺寸表未自动加载（如订单已被删除），重新尝试
+  if(r.orderNo){ refreshSizeMatrix(); }
+  // 订单号确定后，同步从订单实时拿 ETD（不要用记录自身旧值，避免与订单不符）
+  if(r.orderNo){
+    var _order = findOrderByNo(r.orderNo, r.styleNo);
+    if(_order){
+      var _etd = _order.etd || _order.deliveryDate || _order.shipDate || '';
+      if(_etd) setVal('deliveryDate', _etd);
+      else setVal('deliveryDate', r.deliveryDate || '');
+    } else {
+      setVal('deliveryDate', r.deliveryDate || '');
+    }
+  } else {
+    setVal('deliveryDate', r.deliveryDate || '');
+  }
+  // 若记录中的 ETD 和订单不一致，也以订单为准（刷新一次）
+  onOrderNoChange();
+  // 优先用记录自身的款式图；若没有则从共享缓存/订单管理回填
+  if(r.styleImage){
+    _currentStyleImage = { path: r.styleImage, name: '', base64: (r.styleImage.indexOf('data:image')===0 ? r.styleImage : null) };
+    showImagePreviewByPath(r.styleImage, '');
+  } else if(r.styleNo){
+    refreshStyleImageFromCache(r.styleNo);
+  } else {
+    clearCurrentImage();
+  }
+  // Wash
+  needWash = !!r.needWash;
+  document.getElementById('washToggle').classList.toggle('on', needWash);
+  document.getElementById('washLabel').textContent = needWash ? '是' : '否';
+  if(r.washing){
+    var w = r.washing;
+    setVal('w_sample_date', w.sampleReceived?.date||'');
+    document.getElementById('w_sample_confirmed').checked = !!w.sampleReceived?.confirmed;
+    setVal('w_first_date', w.firstBatch?.date||'');
+    setVal('w_first_qty', w.firstBatch?.quantity||'');
+    setVal('w_first_issues', w.firstBatch?.issues||'');
+    setVal('w_method_date', w.bulkMethod?.date||'');
+    setVal('w_method_text', w.bulkMethod?.method||'');
+    document.getElementById('w_method_confirmed').checked = !!w.bulkMethod?.confirmed;
+    setVal('w_bulk_date', w.bulkWashing?.date||'');
+    setVal('w_bulk_end', w.bulkWashing?.endDate||'');
+    setVal('w_bulk_total', w.bulkWashing?.totalBatches||'');
+    setVal('w_bulk_issues', w.bulkWashing?.issues||'');
+    setVal('w_bulk_rect', w.bulkWashing?.rectification||'');
+    setVal('w_resolve_date', w.bulkResolved?.date||'');
+    document.getElementById('w_resolved').checked = !!w.bulkResolved?.resolved;
+  }
+  // Garment
+  var g = r.garment;
+  setVal('g_seal_date', g?.sealedSample?.date||'');
+  setVal('g_seal_opinion', g?.sealedSample?.opinion||'');
+  document.getElementById('g_seal_confirmed').checked = !!g?.sealedSample?.confirmed;
+  setVal('g_pp_date', g?.ppSample?.date||'');
+  document.getElementById('g_pp_confirmed').checked = !!g?.ppSample?.confirmed;
+  setVal('g_pp_notes', g?.ppSample?.notes||'');
+  setVal('g_mat_date', g?.materialsCheck?.date||'');
+  setVal('g_mat_status', g?.materialsCheck?.status||'');
+  setVal('g_mat_notes', g?.materialsCheck?.notes||'');
+  setSelectedTags(g?.materialsCheck?.tags||[]);
+  setVal('g_cut_date', g?.cuttingDate||'');
+  setVal('g_sew_start', g?.sewStartDate||'');
+  setVal('g_sew_end', g?.sewEndDate||'');
+  setVal('g_finish', g?.finishDate||'');
+  setVal('g_pack', g?.packDate||'');
+  setVal('g_ship', g?.shipDate||'');
+  // Online records
+  document.getElementById('onlineTableBody').innerHTML = '';
+  if(g?.onlineRecords?.length){
+    g.onlineRecords.forEach(o => addOnlineRow(o.date, o.qcName, o.notes));
+  }
+  // Issues（含每行图片）
+  document.getElementById('issueTableBody').innerHTML = '';
+  _issueRowImages = [];
+  if(g?.productionIssues?.length){
+    g.productionIssues.forEach(i => addIssueRow(i.date, i.issue, i.rectification, i.status, i.resolvedDate, i.image));
+  }
+  // 问题图片块回填
+  initIssueImageBlocks(r);
+  switchTab('register');
+  window.scrollTo(0,0);
+}
+function setVal(id, v){ var el = document.getElementById(id); if(el) el.value = v||''; }
+
+function resetForm(){
+  editingId = null;
+  var banner = document.getElementById('editBanner');
+  if(banner){ banner.classList.remove('show'); }
+  document.querySelectorAll('#tab-register input[type=text],#tab-register input[type=date],#tab-register input[type=number],#tab-register textarea').forEach(el=>el.value='');
+  document.querySelectorAll('#tab-register input[type=checkbox]').forEach(el=>el.checked=false);
+  document.querySelectorAll('#tab-register select').forEach(el=>el.selectedIndex=0);
+  needWash = false;
+  document.getElementById('washToggle').classList.remove('on');
+  document.getElementById('washLabel').textContent = '否';
+  document.getElementById('washSection').style.display = 'none';
+  document.getElementById('onlineTableBody').innerHTML = '';
+  document.getElementById('issueTableBody').innerHTML = '';
+  // 清空尺寸表与图片
+  var sizeContainer = document.getElementById('sizeTableContainer');
+  if(sizeContainer) sizeContainer.innerHTML = '<div style="padding:12px;text-align:center;color:var(--qc-text-light);font-size:12px;background:var(--qc-gray-light);border:1px dashed var(--qc-border);border-radius:4px;">输入款号与订单号后自动加载</div>';
+  clearCurrentImage();
+  // 重置问题图片块
+  resetIssueImageBlocks();
+  // 重置 datalist
+  populateContactDatalists();
+  populateStyleNoDatalist();
+}
+
+function saveRecord(){
+  // 只读模式拦截
+  if(document.body.classList.contains('readonly-mode')){
+    if(App && App.toast) App.toast('当前为只读模式，如需修改请联系管理员', 'warning', 3000);
+    return;
+  }
+  if(!val('factory') || !val('qcName') || !val('orderNo') || !val('styleNo')){
+    alert('请填写必填项：服装厂名称、QC姓名、订单号、款号');
+    return;
+  }
+  var data = collectFormData();
+  var idx = records.findIndex(r=>r.id===data.id);
+  if(idx >= 0){ records[idx] = data; }
+  else { records.push(data); }
+  saveData();
+  resetForm();
+  if(App && App.toast) App.toast('保存成功！', 'success');
+  switchTab('query');
+}
+
+// ==================== 生成验货报告 ====================
+// 从通讯录按姓名查找电话号码
+// 通讯录记录：name=公司/名称，contactPerson=联系人，phone=电话
+// QC姓名优先匹配 contactPerson（联系人），其次 name，最后模糊包含
+function findContactPhone(name){
+  if(!name) return '';
+  name = String(name).trim();
+  if(!name) return '';
+  try{
+    var list = App.store.get('contacts', []) || [];
+    var norm = function(s){ return String(s || '').trim(); };
+    // 1) 联系人精确匹配
+    var hit = list.find(function(c){ return c && norm(c.contactPerson) === name && c.phone; });
+    // 2) 名称精确匹配
+    if(!hit) hit = list.find(function(c){ return c && norm(c.name) === name && c.phone; });
+    // 3) 联系人/名称包含匹配（如"张三"匹配"张三丰"以外的场景：通讯录写"张三 139xx"等）
+    if(!hit) hit = list.find(function(c){ return c && c.phone && (norm(c.contactPerson).indexOf(name) >= 0 || norm(c.name).indexOf(name) >= 0); });
+    return hit ? String(hit.phone) : '';
+  }catch(_e){ console.warn('[findContactPhone] 通讯录查询失败:', _e); return ''; }
+}
+// 将当前外勤登记信息（含勾选的问题类别）带入 QC-report.html
+// 注：款号缩略图短路径需要异步解析 signed URL，故为 async
+async function generateQCReport(){
+  // 必填校验：至少有服装厂/款号/订单号才有意义
+  if(!val('factory') || !val('styleNo') || !val('orderNo')){
+    alert('请先填写服装厂、款号、订单号，再生成验货报告');
+    return;
+  }
+  // 收集表单字段
+  var factory = val('factory');
+  var styleNo = val('styleNo');
+  var orderNo = val('orderNo');
+  var qcName = val('qcName');
+  var matNotes = val('g_mat_notes');
+  var tags = collectSelectedTags();
+  // 收集"生产中问题及整改"逐行（问题描述/整改措施/状态）
+  var prodIssues = [];
+  document.querySelectorAll('#issueTableBody tr').forEach(function(tr){
+    var ins = tr.querySelectorAll('input');
+    var sel = tr.querySelector('select');
+    var issue = ins[1] ? ins[1].value.trim() : '';
+    var rect = ins[2] ? ins[2].value.trim() : '';
+    var st = sel ? sel.value : '';
+    if(issue || rect) prodIssues.push({issue: issue, rect: rect, status: st});
+  });
+  // 从订单智能匹配：款式描述 + 订单数量
+  var styleDesc = '', orderQty = '';
+  try{
+    var order = findOrderByNo(orderNo, styleNo);
+    if(order){
+      styleDesc = order.styleDescription || order.styleName || '';
+      if(order.sizeMatrix && order.sizeMatrix.rows && order.sizeMatrix.sizes){
+        var sizes = order.sizeMatrix.sizes || [];
+        var rows = order.sizeMatrix.rows || [];
+        var total = 0;
+        rows.forEach(function(row){
+          var cartons = parseInt(row.noOfCartons) || 0;
+          sizes.forEach(function(s){
+            var q = parseInt((row.quantities || {})[s]) || 0;
+            total += (row.assType === 'SOLID') ? q : q * cartons;
+          });
+        });
+        if(total > 0) orderQty = String(total);
+      }
+    }
+  }catch(_e){}
+  // ===== 款号缩略图解析为可直接访问的 URL（signed URL / base64 / 完整 http） =====
+  // 优先级：① 当前编辑中的图（base64/path）→ ② 订单/款号共享缓存
+  var _thumbRaw = '';
+  try{ _thumbRaw = getCurrentImage() || ''; }catch(_e){}
+  if(!_thumbRaw && styleNo){
+    try{
+      if(typeof StyleImgCache !== 'undefined' && StyleImgCache){
+        var c = StyleImgCache.resolve(styleNo) || {};
+        _thumbRaw = c.styleImg_path || c.fullImg_path || '';
+      }
+    }catch(_e){}
+  }
+  var _thumbResolved = '';
+  if(_thumbRaw){
+    try{
+      if(typeof window.resolveImageUrl === 'function'){
+        _thumbResolved = (await window.resolveImageUrl(_thumbRaw, { hintStyleNo: styleNo, ttlSec: 86400 })) || '';
+      }else{
+        _thumbResolved = _thumbRaw; // 退化：直接用原值（base64/完整URL 不会坏；短路径只能碰运气相对路径）
+      }
+    }catch(_e){
+      console.warn('[generateQCReport] 缩略图解析失败，回退原值：', _thumbRaw, _e);
+      _thumbResolved = _thumbRaw;
+    }
+  }
+  // 组装 URL 参数
+  var params = [];
+  function push(k, v){ if(v !== '' && v !== null && v !== undefined) params.push(k + '=' + encodeURIComponent(v)); }
+  push('factory', factory);
+  push('styleNo', styleNo);
+  push('orderNo', orderNo);
+  push('styleDesc', styleDesc);
+  push('orderQty', orderQty);
+  push('qcName', qcName);
+  push('qcPhone', findContactPhone(qcName));
+  push('deliveryDate', val('deliveryDate'));
+  push('matNotes', matNotes);
+  push('tags', tags.join('|'));
+  if(prodIssues.length) push('prodIssues', JSON.stringify(prodIssues));
+  if(_thumbResolved) push('styleImg', _thumbResolved);
+  var url = 'QC-report.html?v=20260827c' + (params.length ? '&' + params.join('&') : '');
+  window.open(url, '_blank');
+}
+
+// 数据查询页"验货报告"按钮：根据记录 id 读取并跳转 QC-report.html
+async function openQcReportById(id){
+  // 1) 优先：脚本作用域的内存 records（let records = []；与 editRecord/viewRecord/renderQueryTable 一致）
+  var r = null;
+  try{
+    if(Array.isArray(records)){
+      r = records.find(function(x){ return x && x.id === id; }) || null;
+    }
+  }catch(_){}
+  // 2) 兜底：App.store（与 saveData 写库方式一致：App.store.set(STORAGE_KEY, records)）
+  if(!r){
+    try{
+      if(typeof App !== 'undefined' && App && App.store && typeof STORAGE_KEY !== 'undefined'){
+        var all = App.store.get(STORAGE_KEY);
+        if(Array.isArray(all)) r = all.find(function(x){ return x && x.id === id; }) || null;
+      }
+    }catch(_){}
+  }
+  // 3) 最终兜底：localStorage（兼容早期数据）
+  if(!r){
+    try{
+      var key = (typeof STORAGE_KEY !== 'undefined') ? STORAGE_KEY :
+                (typeof QC_STORAGE_KEY !== 'undefined') ? QC_STORAGE_KEY : 'qcFieldRecords';
+      var raw = localStorage.getItem(key);
+      if(raw){
+        var all2 = JSON.parse(raw);
+        if(Array.isArray(all2)) r = all2.find(function(x){ return x && x.id === id; }) || null;
+      }
+    }catch(_){}
+  }
+  if(!r){ alert('记录未找到（id=' + id + '）'); return; }
+  var url = await buildQcReportUrlFromRecordAsync(r);
+  window.open(url, '_blank');
+}
+
+// 根据记录对象构造 QC-report.html URL（与 generateQCReport 参数一致）—— async 版：短路径缩略图会解析成 signed URL
+async function buildQcReportUrlFromRecordAsync(r){
+  var factory = r.factory || '';
+  var styleNo = r.styleNo || '';
+  var orderNo = r.orderNo || '';
+  var qcName = r.qcName || '';
+  var garment = r.garment || {};
+  var matCheck = garment.materialsCheck || {};
+  var matNotes = matCheck.notes ? String(matCheck.notes) : '';
+  var tags = Array.isArray(matCheck.tags) ? matCheck.tags.slice() : [];
+  // 生产中问题及整改：garment.productionIssues（由 collectIssueRows → {date, issue, rectification, status, resolvedDate, image}）
+  var prodIssues = [];
+  if(Array.isArray(garment.productionIssues)){
+    garment.productionIssues.forEach(function(it){
+      var issue = (it.issue || '').toString().trim();
+      var rect = (it.rectification || '').toString().trim();
+      var st = (it.status || '').toString();
+      if(issue || rect) prodIssues.push({issue: issue, rect: rect, status: st});
+    });
+  }
+  // 款式描述 + 订单数量（从订单智能匹配）；交期优先记录值，缺失时回退订单 ETD
+  var styleDesc = '', orderQty = '', deliveryDate = r.deliveryDate || '';
+  try{
+    var order = findOrderByNo(orderNo, styleNo);
+    if(order){
+      styleDesc = order.styleDescription || order.styleName || '';
+      if(!deliveryDate) deliveryDate = order.etd || order.deliveryDate || order.shipDate || '';
+      if(order.sizeMatrix && order.sizeMatrix.rows && order.sizeMatrix.sizes){
+        var sizes = order.sizeMatrix.sizes || [];
+        var rows = order.sizeMatrix.rows || [];
+        var total = 0;
+        rows.forEach(function(row){
+          var cartons = parseInt(row.noOfCartons) || 0;
+          sizes.forEach(function(s){
+            var q = parseInt((row.quantities || {})[s]) || 0;
+            total += (row.assType === 'SOLID') ? q : q * cartons;
+          });
+        });
+        if(total > 0) orderQty = String(total);
+      }
+    }
+  }catch(_e){}
+  // ===== 款号缩略图：优先记录中保存的 styleImage，没有则款号共享缓存；短路径解析为 signed URL =====
+  var _thumbRaw = (r.styleImage && typeof r.styleImage === 'string') ? r.styleImage : '';
+  if(!_thumbRaw && styleNo){
+    try{
+      if(typeof StyleImgCache !== 'undefined' && StyleImgCache){
+        var c = StyleImgCache.resolve(styleNo) || {};
+        _thumbRaw = c.styleImg_path || c.fullImg_path || '';
+      }
+    }catch(_e){}
+  }
+  var _thumbResolved = '';
+  if(_thumbRaw){
+    try{
+      if(typeof window.resolveImageUrl === 'function'){
+        _thumbResolved = (await window.resolveImageUrl(_thumbRaw, { hintStyleNo: styleNo, ttlSec: 86400 })) || '';
+      }else{
+        _thumbResolved = _thumbRaw;
+      }
+    }catch(_e){
+      console.warn('[buildQcReportUrlFromRecordAsync] 缩略图解析失败，回退原值：', _thumbRaw, _e);
+      _thumbResolved = _thumbRaw;
+    }
+  }
+  var params = [];
+  function push(k, v){ if(v !== '' && v !== null && v !== undefined) params.push(k + '=' + encodeURIComponent(v)); }
+  push('factory', factory);
+  push('styleNo', styleNo);
+  push('orderNo', orderNo);
+  push('styleDesc', styleDesc);
+  push('orderQty', orderQty);
+  push('qcName', qcName);
+  push('qcPhone', findContactPhone(qcName));
+  push('deliveryDate', deliveryDate);
+  push('matNotes', matNotes);
+  if(tags.length) push('tags', tags.join('|'));
+  if(prodIssues.length) push('prodIssues', JSON.stringify(prodIssues));
+  if(_thumbResolved) push('styleImg', _thumbResolved);
+  return 'QC-report.html?v=20260827c' + (params.length ? '&' + params.join('&') : '');
+}
+// 兼容保留同步旧名（若有其他位置调用），返回 Promise
+function buildQcReportUrlFromRecord(r){ return buildQcReportUrlFromRecordAsync(r); }
+
+// ==================== 查询 ====================
+function setFilter(f){
+  currentFilter = f;
+  document.querySelectorAll('.qc-filter-chip').forEach(c=>c.classList.toggle('active', c.dataset.filter===f));
+  renderQueryTable();
+}
+
+function renderQueryTable(){
+  var search = (document.getElementById('searchInput').value||'').toLowerCase();
+  var filtered = records.filter(r=>{
+    if(search){
+      var text = (r.factory+' '+r.qcName+' '+r.orderNo+' '+r.styleNo).toLowerCase();
+      if(!text.includes(search)) return false;
+    }
+    var status = getOverallStatus(r);
+    if(currentFilter==='all') return true;
+    if(currentFilter==='progress') return status==='progress';
+    if(currentFilter==='issue') return status==='issue';
+    if(currentFilter==='done') return status==='done';
+    if(currentFilter==='overdue') return status==='overdue';
+    return true;
+  });
+  var container = document.getElementById('queryTableContainer');
+  if(filtered.length === 0){
+    container.innerHTML = '<div class="qc-empty-state"><div class="icon">📭</div><p>暂无数据，请前往"外勤登记"添加记录</p></div>';
+    return;
+  }
+  var html = '<table class="qc-data-table"><thead><tr>'+
+    '<th>服装厂</th><th>QC</th><th>订单号</th><th style="width:80px;">款式图</th><th>款号</th><th>交期</th><th>尺寸/数量</th><th>状态</th><th>进度</th><th>问题</th><th style="width:120px;">操作</th>'+
+  '</tr></thead><tbody>';
+  filtered.forEach(r=>{
+    var status = getOverallStatus(r);
+    var pct = getProgressPercent(r);
+    var issueCount = getIssueCount(r);
+    var sizeStr = formatSizeSnapshot(r.sizeSnapshot || r.sizes);
+    var statusMap = {done:['已完成','qc-status-done'],progress:['进行中','qc-status-progress'],issue:['有问题','qc-status-issue'],overdue:['已逾期','qc-status-overdue'],pending:['未开始','qc-status-pending']};
+    var pair = statusMap[status]||['未知','qc-status-pending'];
+    // 款式图缩略图：base64/http 直接 src；否则置空 + data-img-path 异步填 signed URL
+    var styleImgCell = '<div style="width:56px;height:70px;margin:0 auto;background:#f8f9fa;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#adb5bd;font-size:11px;border:1px solid var(--qc-border);">暂无</div>';
+    if(r.styleImage){
+      var _si = String(r.styleImage);
+      if(_si.indexOf('data:image')===0 || _si.indexOf('http')===0){
+        styleImgCell = '<img src="'+escAttr(_si)+'" style="display:block;width:56px;height:70px;object-fit:cover;margin:0 auto;border-radius:4px;border:1px solid var(--qc-border);cursor:zoom-in;" onclick="event.stopPropagation();openImageFullscreen(\''+escAttr(_si).replace(/'/g,'&#39;')+'\')">';
+      } else {
+        // 先尝试 StyleImgCache 快速回显 signed URL；不行就 data-img-path 后置解析
+        var snapUrl = '';
+        try{
+          if(window.StyleImgCache){
+            var ent = StyleImgCache.resolve(r.styleNo);
+            if(ent && (ent.styleImg_path===_si || ent.fullImg_path===_si)){ snapUrl = ent.styleImg_signed || ent.fullImg_signed || ''; }
+          }
+          if(!snapUrl){
+            var _cs = JSON.parse(localStorage.getItem('styleImages')||'{}');
+            if(_cs && typeof _cs === 'object'){
+              for(var _k in _cs){
+                var en2 = _cs[_k];
+                if(en2 && (en2.styleImg_path===_si || en2.fullImg_path===_si)){
+                  snapUrl = en2.styleImg_signed || en2.fullImg_signed || '';
+                  if(snapUrl) break;
+                }
+              }
+            }
+          }
+        }catch(_){}
+        if(snapUrl){
+          styleImgCell = '<img src="'+escAttr(snapUrl)+'" style="display:block;width:56px;height:70px;object-fit:cover;margin:0 auto;border-radius:4px;border:1px solid var(--qc-border);cursor:zoom-in;" onclick="event.stopPropagation();openImageFullscreenByPath(\''+escAttr(_si)+'\')">';
+        } else {
+          styleImgCell = '<img data-img-path="'+escAttr(_si)+'" src="" alt="..." style="display:block;width:56px;height:70px;object-fit:cover;margin:0 auto;border-radius:4px;border:1px solid var(--qc-border);cursor:zoom-in;background:#f8f9fa;" onclick="event.stopPropagation();openImageFullscreenByPath(\''+escAttr(_si)+'\')">';
+        }
+      }
+    }
+    html += '<tr>'+
+      '<td>'+esc(r.factory)+'</td>'+
+      '<td>'+esc(r.qcName)+'</td>'+
+      '<td>'+esc(r.orderNo)+'</td>'+
+      '<td>'+styleImgCell+'</td>'+
+      '<td>'+esc(r.styleNo)+'</td>'+
+      '<td>'+(r.deliveryDate||'-')+'</td>'+
+      '<td style="font-size:11px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+escAttr(sizeStr)+'">'+(esc(sizeStr)||'-')+'</td>'+
+      '<td><span class="qc-status-badge '+pair[1]+'">'+pair[0]+'</span></td>'+
+      '<td class="qc-progress-cell"><div style="font-size:11px;">'+pct+'%</div><div class="qc-progress-bar-mini"><div class="qc-progress-bar-fill" style="width:'+pct+'%;"></div></div></td>'+
+      '<td>'+(issueCount>0?'<span class="qc-status-badge qc-status-issue">'+issueCount+'</span>':'-')+'</td>'+
+      '<td>'+
+        '<button class="qc-btn-icon" title="查看" onclick="viewRecord(\''+r.id+'\')">👁</button>'+
+        '<button class="qc-btn-icon" title="编辑" onclick="editRecord(\''+r.id+'\')">✏</button>'+
+        '<button class="qc-btn-icon" title="验货报告" onclick="(async function(){await openQcReportById(\''+r.id+'\');})()" style="background:linear-gradient(180deg,#1f4582,#0f2b55);color:#f4e4b7;border-color:#c9a961;">📋</button>'+
+        '<button class="qc-btn-icon danger" title="删除" onclick="deleteRecord(\''+r.id+'\')">🗑</button>'+
+      '</td>'+
+    '</tr>';
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+  // 后置：把列表中所有 data-img-path 转成 signed URL
+  resolveQueryTableImages();
+}
+// 列表视图：异步解析所有 [data-img-path] 款式图缩略图为 signed URL（对齐订单：resolveImageUrl 优先）
+function resolveQueryTableImages(){
+  var imgs = document.querySelectorAll('#queryTableContainer img[data-img-path]');
+  if(imgs.length === 0) return;
+  imgs.forEach(function(img){
+    var path = img.getAttribute('data-img-path');
+    if(!path) return;
+    img.onclick = function(){ openImageFullscreenByPath(path); };
+    // 从父 tr 的款号列（第 5 列，index 4）提取 styleNo 作为 hint
+    var hintStyleNo = '';
+    try{
+      var tr = img.closest && img.closest('tr');
+      if(tr){
+        var td = tr.children && tr.children[4]; // 款号列（index 4）
+        if(td) hintStyleNo = (td.textContent || '').trim();
+      }
+    }catch(_){}
+    _resolvePicUrl(path, { hintStyleNo: hintStyleNo, requireReady: false }).then(function(url){
+      if(url){ img.src = url; img.alt = ''; }
+      else img.alt = '无图';
+    });
+  });
+}
+
+function editRecord(id){
+  // 只读模式拦截
+  if(document.body.classList.contains('readonly-mode')){
+    if(App && App.toast) App.toast('当前为只读模式，如需修改请联系管理员', 'warning', 3000);
+    return;
+  }
+  var r = records.find(x=>x.id===id);
+  if(r) fillForm(r);
+}
+function deleteRecord(id){
+  if(document.body.classList.contains('readonly-mode')){
+    if(App && App.toast) App.toast('当前为只读模式，如需修改请联系管理员', 'warning', 3000);
+    return;
+  }
+  if(!confirm('确认删除该条记录？此操作不可撤销。')) return;
+  records = records.filter(r=>r.id!==id);
+  saveData();
+  renderQueryTable();
+  if(App && App.toast) App.toast('已删除', 'success');
+}
+function viewRecord(id){
+  var r = records.find(x=>x.id===id);
+  if(!r) return;
+  showDetailModal(r);
+}
+
+// ==================== 状态计算 ====================
+function getStageStatus(r, key){
+  var w = r.washing, g = r.garment;
+  switch(key){
+    case 'w_sample':
+      if(!r.needWash) return 'na';
+      if(w?.sampleReceived?.confirmed) return 'done';
+      if(w?.sampleReceived?.date) return 'progress';
+      return 'pending';
+    case 'w_first':
+      if(!r.needWash) return 'na';
+      var fb = w?.firstBatch;
+      if(fb?.date && fb.issues) return 'issue';
+      if(fb?.date && fb.quantity) return 'done';
+      if(fb?.date) return 'progress';
+      return 'pending';
+    case 'w_method':
+      if(!r.needWash) return 'na';
+      if(w?.bulkMethod?.confirmed) return 'done';
+      if(w?.bulkMethod?.date) return 'progress';
+      return 'pending';
+    case 'w_bulk':
+      if(!r.needWash) return 'na';
+      var bw = w?.bulkWashing;
+      if(bw?.date && bw.issues && !w?.bulkResolved?.resolved) return 'issue';
+      if(bw?.date && !bw.issues) return 'done';
+      if(bw?.date) return 'progress';
+      return 'pending';
+    case 'w_resolve':
+      if(!r.needWash) return 'na';
+      if(w?.bulkResolved?.resolved) return 'done';
+      if(w?.bulkWashing?.issues) return 'issue';
+      if(w?.bulkWashing?.date) return 'progress';
+      return 'pending';
+    case 'g_seal':
+      if(g?.sealedSample?.confirmed) return 'done';
+      if(g?.sealedSample?.date) return 'progress';
+      return 'pending';
+    case 'g_pp':
+      if(g?.ppSample?.confirmed) return 'done';
+      if(g?.ppSample?.date) return 'progress';
+      return 'pending';
+    case 'g_mat':
+      if(g?.materialsCheck?.status==='inconsistent') return 'issue';
+      if(g?.materialsCheck?.status==='consistent') return 'done';
+      if(g?.materialsCheck?.date) return 'progress';
+      return 'pending';
+    case 'g_cut':
+      if(g?.cuttingDate) return 'done';
+      return 'pending';
+    case 'g_online':
+      if(g?.onlineRecords?.length>0) return 'done';
+      return 'pending';
+    case 'g_sew_start':
+      if(g?.sewStartDate) return 'done';
+      return 'pending';
+    case 'g_sew_end':
+      if(g?.sewEndDate) return 'done';
+      return 'pending';
+    case 'g_finish':
+      if(g?.finishDate) return 'done';
+      return 'pending';
+    case 'g_pack':
+      if(g?.packDate) return 'done';
+      return 'pending';
+    case 'g_ship':
+      if(g?.shipDate) return 'done';
+      return 'pending';
+    case 'g_issue':
+      var issues = g?.productionIssues||[];
+      if(issues.length===0) return 'pending';
+      if(issues.some(i=>i.status!=='resolved')) return 'issue';
+      return 'done';
+    default: return 'pending';
+  }
+}
+
+function getStageDate(r, key){
+  var w = r.washing, g = r.garment;
+  switch(key){
+    case 'w_sample': return w?.sampleReceived?.date||'';
+    case 'w_first': return w?.firstBatch?.date||'';
+    case 'w_method': return w?.bulkMethod?.date||'';
+    case 'w_bulk': return w?.bulkWashing?.date||'';
+    case 'w_resolve': return w?.bulkResolved?.date||'';
+    case 'g_seal': return g?.sealedSample?.date||'';
+    case 'g_pp': return g?.ppSample?.date||'';
+    case 'g_mat': return g?.materialsCheck?.date||'';
+    case 'g_cut': return g?.cuttingDate||'';
+    case 'g_online': return g?.onlineRecords?.length ? g.onlineRecords[g.onlineRecords.length-1].date : '';
+    case 'g_sew_start': return g?.sewStartDate||'';
+    case 'g_sew_end': return g?.sewEndDate||'';
+    case 'g_finish': return g?.finishDate||'';
+    case 'g_pack': return g?.packDate||'';
+    case 'g_ship': return g?.shipDate||'';
+    case 'g_issue': return g?.productionIssues?.length ? (g.productionIssues[g.productionIssues.length-1].resolvedDate||g.productionIssues[g.productionIssues.length-1].date) : '';
+    default: return '';
+  }
+}
+
+function getOverallStatus(r){
+  var allStages = (r.needWash ? [...STAGES_WASH, ...STAGES_GARMENT] : STAGES_GARMENT);
+  var statuses = allStages.map(s=>getStageStatus(r, s.key));
+  if(statuses.some(s=>s==='issue')) return 'issue';
+  if(statuses.every(s=>s==='done')) return 'done';
+  // Check overdue
+  if(r.deliveryDate){
+    var today = new Date(); today.setHours(0,0,0,0);
+    var dd = new Date(r.deliveryDate);
+    if(dd < today && statuses.some(s=>s!=='done')) return 'overdue';
+  }
+  if(statuses.some(s=>s==='progress')) return 'progress';
+  return 'pending';
+}
+
+function getProgressPercent(r){
+  var allStages = (r.needWash ? [...STAGES_WASH, ...STAGES_GARMENT] : STAGES_GARMENT);
+  var applicable = allStages.filter(s=>s.key.startsWith('g_') || r.needWash);
+  var done = applicable.filter(s=>getStageStatus(r,s.key)==='done').length;
+  return Math.round(done / applicable.length * 100);
+}
+
+function getIssueCount(r){
+  var count = 0;
+  var allStages = (r.needWash ? [...STAGES_WASH, ...STAGES_GARMENT] : STAGES_GARMENT);
+  allStages.forEach(s=>{
+    if(getStageStatus(r, s.key)==='issue') count++;
+  });
+  return count;
+}
+
+// ==================== 进度看板 ====================
+function renderDashboard(){
+  // Stats
+  var total = records.length;
+  var done = records.filter(r=>getOverallStatus(r)==='done').length;
+  var progress = records.filter(r=>getOverallStatus(r)==='progress').length;
+  var issue = records.filter(r=>getOverallStatus(r)==='issue').length;
+  var overdue = records.filter(r=>getOverallStatus(r)==='overdue').length;
+  document.getElementById('statsGrid').innerHTML =
+    '<div class="qc-stat-card"><div class="qc-stat-icon blue">📦</div><div class="qc-stat-info"><div class="qc-stat-value">'+total+'</div><div class="qc-stat-label">总款数</div></div></div>'+
+    '<div class="qc-stat-card"><div class="qc-stat-icon green">✅</div><div class="qc-stat-info"><div class="qc-stat-value">'+done+'</div><div class="qc-stat-label">已完成</div></div></div>'+
+    '<div class="qc-stat-card"><div class="qc-stat-icon blue">🔄</div><div class="qc-stat-info"><div class="qc-stat-value">'+progress+'</div><div class="qc-stat-label">进行中</div></div></div>'+
+    '<div class="qc-stat-card"><div class="qc-stat-icon red">⚠</div><div class="qc-stat-info"><div class="qc-stat-value">'+issue+'</div><div class="qc-stat-label">有问题</div></div></div>'+
+    '<div class="qc-stat-card"><div class="qc-stat-icon orange">⏰</div><div class="qc-stat-info"><div class="qc-stat-value">'+overdue+'</div><div class="qc-stat-label">已逾期</div></div></div>';
+  // Filters
+  var factories = [...new Set(records.map(r=>r.factory))].filter(Boolean);
+  var qcs = [...new Set(records.map(r=>r.qcName))].filter(Boolean);
+  var fFilter = document.getElementById('dashFactoryFilter');
+  var qFilter = document.getElementById('dashQcFilter');
+  var curF = fFilter.value, curQ = qFilter.value;
+  fFilter.innerHTML = '<option value="">全部服装厂</option>' + factories.map(f=>'<option value="'+esc(f)+'" '+(curF===f?'selected':'')+'>'+esc(f)+'</option>').join('');
+  qFilter.innerHTML = '<option value="">全部QC</option>' + qcs.map(q=>'<option value="'+esc(q)+'" '+(curQ===q?'selected':'')+'>'+esc(q)+'</option>').join('');
+  fFilter.value = curF; qFilter.value = curQ;
+
+  var fVal = fFilter.value, qVal = qFilter.value;
+  var filtered = records.filter(r=>{
+    if(fVal && r.factory!==fVal) return false;
+    if(qVal && r.qcName!==qVal) return false;
+    return true;
+  });
+
+  var container = document.getElementById('ganttContainer');
+  if(filtered.length === 0){
+    container.innerHTML = '<div class="qc-empty-state"><div class="icon">📊</div><p>暂无数据</p></div>';
+    return;
+  }
+
+  // Header
+  var html = '<div class="qc-gantt-container"><div class="qc-gantt-header">';
+  html += '<div class="qc-gantt-info">服装厂 / 款号</div>';
+  html += '<div class="qc-gantt-stages">';
+  html += '<div class="qc-gantt-stage check-col">最新检查</div>';
+  STAGES_WASH.forEach(s=>{ html += '<div class="qc-gantt-stage">'+s.short+'</div>'; });
+  STAGES_GARMENT.filter(s=>s.key!=='g_online').forEach(s=>{ html += '<div class="qc-gantt-stage">'+s.short+'</div>'; });
+  html += '</div><div class="qc-gantt-delivery">交期</div></div>';
+
+  // Rows
+  filtered.forEach(r=>{
+    var pct = getProgressPercent(r);
+    var today = new Date(); today.setHours(0,0,0,0);
+    var countdown = '', cdClass = 'ok';
+    if(r.deliveryDate){
+      var dd = new Date(r.deliveryDate);
+      var days = Math.ceil((dd - today) / (1000*60*60*24));
+      if(days < 0){ countdown = '逾期'+(-days)+'天'; cdClass='overdue'; }
+      else if(days <= 7){ countdown = '剩'+days+'天'; cdClass='soon'; }
+      else { countdown = '剩'+days+'天'; cdClass='ok'; }
+    }
+
+    html += '<div class="qc-gantt-row" onclick="viewRecord(\''+r.id+'\')" style="cursor:pointer;">';
+    html += '<div class="qc-gantt-info"><div class="factory">'+esc(r.factory)+'</div><div class="meta">'+esc(r.styleNo)+' | '+esc(r.qcName)+' | '+esc(r.orderNo)+'</div></div>';
+    html += '<div class="qc-gantt-stages">';
+    // 最新检查 column (first)
+    var onlineRecs = r.garment?.onlineRecords||[];
+    var latestRec = onlineRecs.length>0 ? onlineRecs[onlineRecs.length-1] : null;
+    if(latestRec){
+      html += '<div class="qc-gantt-stage check-col" title="最新检查 - '+esc(latestRec.qcName||'-')+' '+(latestRec.date||'')+'"><span class="stage-name">'+esc(latestRec.qcName||'-')+'</span><span class="stage-date">'+(latestRec.date?latestRec.date.slice(5):'')+'</span></div>';
+    } else {
+      html += '<div class="qc-gantt-stage check-col empty" title="最新检查 - 无记录"><span class="stage-name">-</span></div>';
+    }
+    STAGES_WASH.forEach(s=>{
+      if(!r.needWash){
+        html += '<div class="qc-gantt-stage na" title="不适用"><span class="stage-name">'+s.short+'</span></div>';
+      } else {
+        var st = getStageStatus(r, s.key);
+        var dt = getStageDate(r, s.key);
+        html += '<div class="qc-gantt-stage '+st+'" title="'+s.name+' - '+(st==='done'?'已完成':st==='progress'?'进行中':st==='issue'?'有问题':'未开始')+(dt?' ('+dt+')':'')+'"><span class="stage-name">'+s.short+'</span>'+(dt?'<span class="stage-date">'+dt.slice(5)+'</span>':'')+(st==='issue'?'<span class="issue-flag">!</span>':'')+'</div>';
+      }
+    });
+    STAGES_GARMENT.filter(s=>s.key!=='g_online').forEach(s=>{
+      var st = getStageStatus(r, s.key);
+      var dt = getStageDate(r, s.key);
+      html += '<div class="qc-gantt-stage '+st+'" title="'+s.name+' - '+(st==='done'?'已完成':st==='progress'?'进行中':st==='issue'?'有问题':'未开始')+(dt?' ('+dt+')':'')+'"><span class="stage-name">'+s.short+'</span>'+(dt?'<span class="stage-date">'+dt.slice(5)+'</span>':'')+(st==='issue'?'<span class="issue-flag">!</span>':'')+'</div>';
+    });
+    html += '</div>';
+    html += '<div class="qc-gantt-delivery"><div class="date">'+(r.deliveryDate||'-')+'</div><div class="countdown '+cdClass+'">'+countdown+'</div></div>';
+    html += '</div>';
+  });
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// ==================== 详情弹窗 ====================
+function showDetailModal(r){
+  document.getElementById('modalTitle').textContent = r.factory + ' - ' + r.styleNo;
+  var g = r.garment, w = r.washing;
+  var status = getOverallStatus(r);
+  var pct = getProgressPercent(r);
+  var statusMap = {done:'已完成',progress:'进行中',issue:'有问题',overdue:'已逾期',pending:'未开始'};
+  var matStatusMap = {consistent:'核对一致',inconsistent:'有差异',pending:'待核对'};
+
+  var html = '<div class="qc-detail-section"><h3>📋 基础信息</h3><div class="qc-detail-grid">';
+  html += detailItem('服装厂', r.factory);
+  html += detailItem('QC姓名', r.qcName);
+  html += detailItem('订单号', r.orderNo);
+  html += detailItem('款号', r.styleNo);
+  html += detailItem('交期', r.deliveryDate);
+  html += detailItem('状态', statusMap[status]||status);
+  html += detailItem('进度', pct+'%');
+  html += '</div></div>';
+
+  if(r.styleImage){
+    // r.styleImage 可能是 base64 data URL / 绝对 URL / Supabase path
+    var si = String(r.styleImage || '');
+    if(si.indexOf('data:image')===0 || si.indexOf('http')===0){
+      html += '<div class="qc-detail-section"><h3>📷 款式图</h3><img src="'+escAttr(si)+'" onclick="openImageFullscreen(\''+escAttr(si)+'\')" style="cursor:zoom-in;max-width:200px;max-height:280px;border-radius:6px;border:1px solid var(--qc-border);"></div>';
+    } else {
+      // Supabase Storage path → 交给 resolveModalImages 异步加载
+      html += '<div class="qc-detail-section"><h3>📷 款式图</h3><img data-img-path="'+escAttr(si)+'" src="" style="max-width:200px;min-width:160px;min-height:220px;max-height:280px;border-radius:6px;border:1px solid var(--qc-border);cursor:zoom-in;background:#f8f9fa;" alt="加载中..."></div>';
+    }
+  }
+
+  // 尺寸数量表（兼容旧 sizes 格式与新 sizeSnapshot 格式）
+  var snapshot = r.sizeSnapshot;
+  if(snapshot && snapshot.rows && snapshot.sizes && snapshot.rows.length){
+    html += '<div class="qc-detail-section"><h3>📏 订单各尺寸数量</h3><table class="qc-detail-table"><thead><tr>'+
+      '<th>包装ID</th><th>Ass.Type</th><th>Color Code</th><th>Color</th><th>箱数</th>' +
+      snapshot.sizes.map(function(s){ return '<th style="text-align:center;">'+esc(s)+'</th>'; }).join('') +
+      '<th style="text-align:center;">合计</th></tr></thead><tbody>';
+    var grandTotal = 0;
+    snapshot.rows.forEach(function(row){
+      html += '<tr>'+
+        '<td>'+esc(row.packageId || '-')+'</td>'+
+        '<td>'+esc(row.assType || '-')+'</td>'+
+        '<td>'+esc(row.colorCode || '-')+'</td>'+
+        '<td>'+esc(row.colorName || '-')+'</td>'+
+        '<td style="text-align:center;">'+(row.noOfCartons || '-')+'</td>' +
+        snapshot.sizes.map(function(s){
+          var q = (row.quantities && row.quantities[s]) || 0;
+          return '<td style="text-align:center;">'+(q > 0 ? q : '-')+'</td>';
+        }).join('') +
+        '<td style="text-align:center;font-weight:600;">'+(row.rowTotal || 0)+'</td>' +
+        '</tr>';
+      grandTotal += (row.rowTotal || 0);
+    });
+    html += '<tr style="background:#f8f9fa;font-weight:600;"><td colspan="'+(5+snapshot.sizes.length)+'" style="text-align:right;">总计</td><td style="text-align:center;">'+grandTotal+'</td></tr>';
+    html += '</tbody></table></div>';
+  } else if(r.sizes && r.sizes.length){
+    html += '<div class="qc-detail-section"><h3>📏 尺寸数量</h3><table class="qc-detail-table"><thead><tr><th>尺码</th><th>数量</th></tr></thead><tbody>';
+    var total = 0;
+    r.sizes.forEach(s=>{ html += '<tr><td>'+esc(s.size)+'</td><td>'+s.qty+'</td></tr>'; total += s.qty; });
+    html += '<tr><td style="font-weight:600;">合计</td><td style="font-weight:600;">'+total+'</td></tr>';
+    html += '</tbody></table></div>';
+  }
+
+  // Flow diagram
+  var allStages = r.needWash ? [...STAGES_WASH, ...STAGES_GARMENT] : STAGES_GARMENT;
+  html += '<div class="qc-detail-section"><h3>🔄 工序流程</h3><div class="qc-flow-diagram">';
+  allStages.forEach((s,i)=>{
+    if(i>0) html += '<span class="qc-flow-arrow">→</span>';
+    var st = getStageStatus(r, s.key);
+    html += '<span class="qc-flow-node '+st+'">'+s.short+'</span>';
+  });
+  html += '</div></div>';
+
+  // Washing details
+  if(r.needWash && w){
+    html += '<div class="qc-detail-section"><h3>🌊 水洗版块</h3><div class="qc-detail-grid">';
+    html += detailItem('水洗标样确认', (w.sampleReceived?.confirmed?'✅ 已确认':'⬜ 未确认')+(w.sampleReceived?.date?' ('+w.sampleReceived.date+')':''));
+    html += detailItem('头缸时间', w.firstBatch?.date||'-');
+    html += detailItem('头缸数量', w.firstBatch?.quantity||'-');
+    html += detailItem('头缸问题', w.firstBatch?.issues||'-');
+    if(normalizeImages(w.firstBatch?.image).length){
+      html += detailIssueImage(w.firstBatch.image, '头缸问题图片');
+    }
+    html += detailItem('大货水洗方法', (w.bulkMethod?.confirmed?'✅ ':'')+ (w.bulkMethod?.method||'-'));
+    html += detailItem('大货水洗时间', w.bulkWashing?.date||'-');
+    html += detailItem('大货水洗结束', w.bulkWashing?.endDate||'-');
+    html += detailItem('大货总缸数', w.bulkWashing?.totalBatches||'-');
+    html += detailItem('大货水洗问题', w.bulkWashing?.issues||'-');
+    if(normalizeImages(w.bulkWashing?.image).length){
+      html += detailIssueImage(w.bulkWashing.image, '大货水洗问题图片');
+    }
+    html += detailItem('问题整改', w.bulkWashing?.rectification||'-');
+    html += detailItem('大货问题解决', (w.bulkResolved?.resolved?'✅ 已解决':'⬜ 未解决')+(w.bulkResolved?.date?' ('+w.bulkResolved.date+')':''));
+    html += '</div></div>';
+  }
+
+  // Garment details
+  if(g){
+    html += '<div class="qc-detail-section"><h3>👕 服装版块</h3><div class="qc-detail-grid">';
+    html += detailItem('封样样衣', (g.sealedSample?.confirmed?'✅ 已确认':'⬜ 未确认')+(g.sealedSample?.date?' ('+g.sealedSample.date+')':''));
+    html += detailItem('封样意见', g.sealedSample?.opinion||'-');
+    html += detailItem('PP产前样', (g.ppSample?.confirmed?'✅ 已确认':'⬜ 未确认')+(g.ppSample?.date?' ('+g.ppSample.date+')':''));
+    html += detailItem('PP产前样备注', g.ppSample?.notes||'-');
+    html += detailItem('面里辅料核对', (matStatusMap[g.materialsCheck?.status]||'-')+(g.materialsCheck?.date?' ('+g.materialsCheck.date+')':''));
+    html += detailItem('辅料核对备注', g.materialsCheck?.notes||'-');
+    if(normalizeImages(g.materialsCheck?.image).length){
+      html += detailIssueImage(g.materialsCheck.image, '辅料核对图片');
+    }
+    html += detailItem('开裁时间', g.cuttingDate||'-');
+    html += detailItem('上机缝制', g.sewStartDate||'-');
+    html += detailItem('缝制结束', g.sewEndDate||'-');
+    html += detailItem('后道整理', g.finishDate||'-');
+    html += detailItem('包装日期', g.packDate||'-');
+    html += detailItem('出货日期', g.shipDate||'-');
+    html += '</div></div>';
+  }
+
+  // Online records
+  if(g?.onlineRecords?.length){
+    html += '<div class="qc-detail-section"><h3>🏭 上线记录</h3><table class="qc-detail-table"><thead><tr><th>序号</th><th>日期</th><th>QC姓名</th><th>查看备注</th></tr></thead><tbody>';
+    g.onlineRecords.forEach((o,i)=>{
+      html += '<tr><td>'+(i+1)+'</td><td>'+(o.date||'-')+'</td><td>'+(esc(o.qcName)||'-')+'</td><td>'+(esc(o.notes)||'-')+'</td></tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+
+  // Production issues
+  if(g?.productionIssues?.length){
+    html += '<div class="qc-detail-section"><h3>⚠ 生产问题及整改</h3><table class="qc-detail-table"><thead><tr><th>序号</th><th>发现日期</th><th>问题描述</th><th>整改措施</th><th>状态</th><th>解决日期</th><th>问题图片</th></tr></thead><tbody>';
+    g.productionIssues.forEach((p,i)=>{
+      html += '<tr><td>'+(i+1)+'</td><td>'+(p.date||'-')+'</td><td>'+(esc(p.issue)||'-')+'</td><td>'+(esc(p.rectification)||'-')+'</td><td>'+(p.status==='resolved'?'<span class="qc-status-badge qc-status-done">已解决</span>':'<span class="qc-status-badge qc-status-issue">未解决</span>')+'</td><td>'+(p.resolvedDate||'-')+'</td><td>'+detailIssueImageCell(p.image)+'</td></tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+
+  // Action buttons
+  html += '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;"><button class="qc-btn qc-btn-primary" onclick="closeModal();editRecord(\''+r.id+'\')">编辑</button><button class="qc-btn qc-btn-outline" onclick="closeModal()">关闭</button></div>';
+
+  document.getElementById('modalBody').innerHTML = html;
+  document.getElementById('detailModal').classList.add('show');
+  // 异步解析所有 Supabase 路径的图片
+  setTimeout(resolveModalImages, 50);
+}
+function detailItem(label, value){
+  return '<div class="qc-detail-item"><span class="label">'+label+'</span><span class="value">'+esc(String(value||'-'))+'</span></div>';
+}
+// 详情弹窗：渲染一个固定问题图片块（支持多图数组）
+function detailIssueImage(imgData, label){
+  // 兼容旧单图格式（对象）和新多图格式（数组）
+  var imgs = normalizeImages(imgData);
+  if(imgs.length === 0) return '';
+  var dateStr = imgs[0].date ? ' (' + imgs[0].date + ')' : '';
+  var html = '<div class="qc-detail-item" style="grid-column:1/-1;">'+
+    '<span class="label">'+esc(label)+dateStr+'（'+imgs.length+'张）</span>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;">';
+  imgs.forEach(function(im, i){
+    var p = im.path;
+    if(!p) return;
+    if(typeof p === 'string' && p.indexOf('data:image') === 0){
+      html += '<img src="'+escAttr(p)+'" style="max-width:160px;max-height:200px;border-radius:6px;border:1px solid var(--qc-border);cursor:zoom-in;" onclick="openImageFullscreen(\''+escAttr(p)+'\')">';
+    } else {
+      html += '<img data-img-path="'+escAttr(p)+'" src="" style="max-width:160px;max-height:200px;border-radius:6px;border:1px solid var(--qc-border);cursor:zoom-in;background:#f8f9fa;" alt="加载中..." title="'+escAttr(im.name||'')+'">';
+    }
+  });
+  html += '</div></div>';
+  return html;
+}
+// 详情弹窗：生产问题表格中的图片单元格（支持多图数组）
+function detailIssueImageCell(imgData){
+  var imgs = normalizeImages(imgData);
+  if(imgs.length === 0) return '-';
+  var html = '';
+  imgs.forEach(function(im, i){
+    var p = im.path;
+    if(!p) return;
+    if(typeof p === 'string' && p.indexOf('data:image') === 0){
+      html += '<img src="'+escAttr(p)+'" style="width:46px;height:46px;object-fit:cover;border-radius:4px;border:1px solid var(--qc-border);cursor:zoom-in;margin-right:2px;" onclick="openImageFullscreen(\''+escAttr(p)+'\')" title="'+escAttr(im.date||'')+'">';
+    } else {
+      html += '<img data-img-path="'+escAttr(p)+'" src="" style="width:46px;height:46px;object-fit:cover;border-radius:4px;border:1px solid var(--qc-border);background:#f8f9fa;cursor:zoom-in;margin-right:2px;" alt="..." title="'+escAttr(im.date||'')+'">';
+    }
+  });
+  return html || '-';
+}
+// 详情弹窗渲染后：解析所有 [data-img-path] 为 signed URL
+function resolveModalImages(){
+  var imgs = document.querySelectorAll('#modalBody img[data-img-path]');
+  if(imgs.length === 0) return;
+  // 从 modalTitle 提取款号（格式 "工厂 - 款号"）给 resolveImageUrl 用（款号 fallback 路径匹配非常关键）
+  var sn = '';
+  try{
+    var modalTitle = document.getElementById('modalTitle');
+    if(modalTitle){
+      var parts = modalTitle.textContent.split(/\s*-\s*/);
+      if(parts.length >= 2) sn = (parts[parts.length-1] || '').trim();
+    }
+  }catch(_){}
+  imgs.forEach(function(img){
+    var path = img.getAttribute('data-img-path');
+    if(!path) return;
+    // 点击全屏
+    img.onclick = function(){ openImageFullscreenByPath(path); };
+    img.style.cursor = 'zoom-in';
+    // 先尝试 StyleImgCache signed URL 兜底（款号 → 款式图快速回显）
+    try{
+      if(window.StyleImgCache && sn){
+        var ent = StyleImgCache.resolve(sn);
+        if(ent && (ent.styleImg_path === path || ent.fullImg_path === path)){
+          var signedUrl = ent.styleImg_signed || ent.fullImg_signed;
+          if(signedUrl){ img.src = signedUrl; }
+        }
+      }
+    }catch(_){}
+    // 本地缓存：styleImages 同 path 的 signed URL 立即填
+    try{
+      var cache = JSON.parse(localStorage.getItem('styleImages') || '{}');
+      if(cache && typeof cache === 'object'){
+        for(var _k in cache){
+          var en = cache[_k];
+          if(en && (en.styleImg_path === path || en.fullImg_path === path)){
+            var _s = en.styleImg_signed || en.fullImg_signed;
+            if(_s){ img.src = _s; break; }
+          }
+        }
+      }
+    }catch(_){}
+    // 核心：resolveImageUrl（REST 直签 + 款号 fallback）— 对齐订单列表速度
+    _resolvePicUrl(path, { hintStyleNo: sn, requireReady: false }).then(function(url){
+      if(url){ img.src = url; img.alt = ''; }
+      else img.alt = '加载失败';
+    });
+  });
+}
+function closeModal(){
+  document.getElementById('detailModal').classList.remove('show');
+}
+
+// ==================== 工具 ====================
+function esc(s){
+  if(s==null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function escAttr(s){
+  if(s==null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ==================== 初始化 ====================
+function init(){
+  loadData();
+  updateCount();
+  populateContactDatalists();
+  populateStyleNoDatalist();
+  renderQcTags();
+  // 初始化三个固定问题图片块（空白状态）
+  ['wFirstIssue','wBulkIssue','gMatIssue'].forEach(function(prefix){
+    renderIssueImageBlock(prefix);
+  });
+}
+
+init();
+</script>
+</body>
+</html>
