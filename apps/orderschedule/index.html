@@ -1168,36 +1168,13 @@
     </style>
 </head>
 <body>
-    <!-- 登录窗口 -->
-    <div id="login-overlay" class="login-overlay show">
-        <div class="login-container">
-            <div class="login-header">
-                <h1>🔐 生产订单管理系统</h1>
-                <p>请输入用户名和密码登录</p>
-            </div>
-            <form class="login-form" onsubmit="return login(event)">
-                <div class="form-group">
-                    <label for="login-username">用户名</label>
-                    <input type="text" id="login-username" placeholder="请输入用户名" required value="anny">
-                </div>
-                <div class="form-group">
-                    <label for="login-password">密码</label>
-                    <input type="password" id="login-password" placeholder="请输入密码" required>
-                </div>
-                <button type="submit">登录</button>
-            </form>
-            <div id="login-error" class="login-error">用户名或密码错误！</div>
-        </div>
-    </div>
-
-    <div id="app-container" class="container" style="display: none;">
+    <div id="app-container" class="container">
         <!-- 头部 -->
         <div class="header">
             <div class="header-content">
                 <h1>📋 生产订单管理系统</h1>
                 <p>订单录入 | 生产跟踪 | 收款开票 | 汇总统计</p>
             </div>
-            <button class="btn btn-danger" onclick="logout()">🚪 退出</button>
             <div class="dropdown">
                 <button class="btn btn-success dropdown-toggle" onclick="toggleDropdown()">⚙️ 数据管理</button>
                 <div id="data-management-dropdown" class="dropdown-content">
@@ -4282,9 +4259,6 @@
 
         // ==================== 初始化 ====================
         document.addEventListener('DOMContentLoaded', function() {
-            // 检查登录状态
-            checkLoginStatus();
-            
             // 初始化年份选择器（2020年开始往后15年）
             const yearSelect = document.getElementById('customer-filter-year');
             if (yearSelect) {
