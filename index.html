@@ -346,73 +346,88 @@ body {
   color: #64748b;
 }
 
-/* ===== 应用网格 ===== */
-.apps-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 20px;
+/* ===== macOS 风格分类布局 ===== */
+.category-section {
+  margin-bottom: 48px;
 }
-.app-card {
-  background: #fff;
-  border-radius: 16px;
-  padding: 24px;
-  cursor: pointer;
-  transition: all 0.25s ease;
-  border: 1px solid #e2e8f0;
-  position: relative;
-  overflow: hidden;
-}
-.app-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 32px rgba(0,0,0,0.1);
-  border-color: #cbd5e1;
-}
-.app-card::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 4px;
-  background: var(--card-accent, #3b82f6);
-  opacity: 0;
-  transition: opacity 0.25s;
-}
-.app-card:hover::before { opacity: 1; }
-
-.app-icon {
-  width: 56px; height: 56px;
-  border-radius: 14px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 28px;
-  margin-bottom: 16px;
-  background: var(--icon-bg, #eff6ff);
-  color: var(--icon-color, #3b82f6);
-}
-.app-name {
-  font-size: 18px;
-  font-weight: 600;
-  color: #1e293b;
-  margin-bottom: 6px;
-}
-.app-desc {
-  font-size: 14px;
-  color: #64748b;
-  line-height: 1.5;
-  margin-bottom: 16px;
-  min-height: 42px;
-}
-.app-arrow {
+.category-header {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #f1f5f9;
+}
+.category-icon {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  background: var(--cat-bg, #f0f9ff);
+  flex-shrink: 0;
+}
+.category-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: 0.5px;
+}
+.category-count {
   font-size: 13px;
-  color: #3b82f6;
+  color: #94a3b8;
+  font-weight: 400;
+  margin-left: 8px;
+}
+
+/* macOS Launchpad 风格应用网格 */
+.apps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 28px 20px;
+  padding: 8px 0;
+}
+.app-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 12px 8px;
+  border-radius: 16px;
+}
+.app-card:hover {
+  background: rgba(255, 255, 255, 0.6);
+  transform: scale(1.08);
+}
+.app-card:active {
+  transform: scale(0.95);
+}
+
+.app-icon {
+  width: 72px; height: 72px;
+  border-radius: 18px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 36px;
+  margin-bottom: 12px;
+  background: var(--icon-bg, #eff6ff);
+  color: var(--icon-color, #3b82f6);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.4);
+  transition: all 0.2s ease;
+}
+.app-card:hover .app-icon {
+  box-shadow: 0 8px 28px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.4);
+}
+.app-name {
+  font-size: 14px;
   font-weight: 500;
+  color: #334155;
+  text-shadow: 0 1px 2px rgba(255,255,255,0.5);
 }
-.app-arrow svg {
-  transition: transform 0.2s;
-}
-.app-card:hover .app-arrow svg {
-  transform: translateX(4px);
+.app-card:hover .app-name {
+  color: #1e293b;
 }
 
 /* ===== 加载状态 ===== */
@@ -624,6 +639,14 @@ body {
   color: #1e293b;
 }
 .perm-table tr:last-child td { border-bottom: none; }
+.perm-category-row td {
+  background: #f8fafc;
+  font-weight: 700;
+  font-size: 14px;
+  color: #475569;
+  padding: 10px 12px;
+  border-bottom: 2px solid #e2e8f0;
+}
 .perm-app-cell {
   display: flex;
   align-items: center;
@@ -1127,35 +1150,54 @@ async function loadUserApps(user) {
   }
 }
 
-/* ===== 渲染应用卡片 ===== */
+/* ===== 渲染应用卡片（按分类分组，macOS Launchpad 风格） ===== */
 function renderApps(apps) {
   if (!apps || apps.length === 0) {
     renderEmpty();
     return;
   }
 
+  const categories = (APP_CONFIG.categories || []);
   const sorted = [...apps].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
 
-  appsContainer.innerHTML = '<div class="apps-grid">' +
-    sorted.map(app => {
-      const permBadge = app.permission === 'read'
-        ? '<span style="display:inline-block; font-size:11px; padding:2px 8px; background:#e0f2fe; color:#0284c7; border-radius:20px; margin-left:6px; vertical-align:middle;">只读</span>'
-        : '';
-      return `
-      <div class="app-card" style="--card-accent:${app.color};--icon-bg:${hexToRgba(app.color, 0.1)};--icon-color:${app.color};"
-           onclick="openApp('${app.url}', '${app.name}', '${app.permission}')">
-        <div class="app-icon">${app.icon}</div>
-        <div class="app-name">${escapeHtml(app.name)}${permBadge}</div>
-        <div class="app-desc">${escapeHtml(app.description || '')}</div>
-        <div class="app-arrow">
-          打开应用
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M5 12h14M12 5l7 7-7 7"/>
-          </svg>
+  let html = '';
+
+  categories.forEach(cat => {
+    const catApps = sorted.filter(app => app.category === cat.id);
+    if (catApps.length === 0) return;
+
+    html += `
+      <div class="category-section">
+        <div class="category-header">
+          <div class="category-icon" style="background:${hexToRgba(cat.color, 0.12)};">${cat.icon}</div>
+          <div class="category-name">${escapeHtml(cat.name)}<span class="category-count">${catApps.length} 个应用</span></div>
+        </div>
+        <div class="apps-grid">
+          ${catApps.map(app => {
+            const permBadge = app.permission === 'read'
+              ? '<span style="display:inline-block; font-size:10px; padding:1px 6px; background:#e0f2fe; color:#0284c7; border-radius:10px; margin-top:4px;">只读</span>'
+              : '';
+            return `
+              <div class="app-card" style="--icon-bg:${hexToRgba(app.color, 0.1)};--icon-color:${app.color};"
+                   onclick="openApp('${app.url}', '${app.name}', '${app.permission}')">
+                <div class="app-icon">${app.icon}</div>
+                <div class="app-name">${escapeHtml(app.name)}</div>
+                ${permBadge}
+              </div>
+            `;
+          }).join('')}
         </div>
       </div>
-    `;}).join('') +
-    '</div>';
+    `;
+  });
+
+  appsContainer.innerHTML = html || `
+    <div class="empty-state">
+      <div class="empty-icon">📭</div>
+      <div class="empty-title">暂无可用应用</div>
+      <div class="empty-desc">请联系管理员为您分配应用访问权限</div>
+    </div>
+  `;
 }
 
 /* ===== 空状态 ===== */
@@ -1324,7 +1366,43 @@ function showPermissionEditorForEmail(email) {
   selectedUserLabel.textContent = `— ${email}`;
 
   const apps = APP_CONFIG.apps || [];
+  const categories = APP_CONFIG.categories || [];
   const cached = permissionCache[email] || {};
+
+  let rowsHtml = '';
+  categories.forEach(cat => {
+    const catApps = apps.filter(a => a.category === cat.id).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    if (catApps.length === 0) return;
+
+    rowsHtml += `
+      <tr class="perm-category-row">
+        <td colspan="2">${cat.icon} ${escapeHtml(cat.name)}</td>
+      </tr>
+    `;
+    catApps.forEach(app => {
+      const perm = cached[app.id] || 'none';
+      rowsHtml += `
+        <tr>
+          <td>
+            <div class="perm-app-cell">
+              <div class="perm-app-icon" style="background:${hexToRgba(app.color, 0.1)};">${app.icon}</div>
+              <div>
+                <div class="perm-app-name">${escapeHtml(app.name)}</div>
+                <div style="font-size:12px; color:#64748b; margin-top:2px;">${escapeHtml(app.description || '')}</div>
+              </div>
+            </div>
+          </td>
+          <td style="text-align:right;">
+            <select class="perm-select ${perm}" data-app-id="${app.id}" onchange="onPermissionChange(this)">
+              <option value="none" ${perm === 'none' ? 'selected' : ''}>不显示</option>
+              <option value="read" ${perm === 'read' ? 'selected' : ''}>只读</option>
+              <option value="write" ${perm === 'write' ? 'selected' : ''}>读写</option>
+            </select>
+          </td>
+        </tr>
+      `;
+    });
+  });
 
   permSectionEl.innerHTML = `
     <table class="perm-table">
@@ -1335,28 +1413,7 @@ function showPermissionEditorForEmail(email) {
         </tr>
       </thead>
       <tbody>
-        ${apps.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)).map(app => {
-          const perm = cached[app.id] || 'none';
-          return `
-          <tr>
-            <td>
-              <div class="perm-app-cell">
-                <div class="perm-app-icon" style="background:${hexToRgba(app.color, 0.1)};">${app.icon}</div>
-                <div>
-                  <div class="perm-app-name">${escapeHtml(app.name)}</div>
-                  <div style="font-size:12px; color:#64748b; margin-top:2px;">${escapeHtml(app.description || '')}</div>
-                </div>
-              </div>
-            </td>
-            <td style="text-align:right;">
-              <select class="perm-select ${perm}" data-app-id="${app.id}" onchange="onPermissionChange(this)">
-                <option value="none" ${perm === 'none' ? 'selected' : ''}>不显示</option>
-                <option value="read" ${perm === 'read' ? 'selected' : ''}>只读</option>
-                <option value="write" ${perm === 'write' ? 'selected' : ''}>读写</option>
-              </select>
-            </td>
-          </tr>
-        `;}).join('')}
+        ${rowsHtml}
       </tbody>
     </table>
   `;
