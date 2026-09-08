@@ -1082,14 +1082,14 @@ async function loadUserApps(user) {
 
   // 普通用户从数据库读取权限
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('user_app_permissions')
       .select('app_id, permission')
       .eq('user_id', user.id);
 
     if (error) {
-      console.warn('[perms] 读取权限失败，显示所有应用:', error.message);
-      renderApps(apps.map(a => ({ ...a, permission: 'write' })));
+      console.warn('[perms] 读取权限失败:', error.message);
+      renderEmpty();
       return;
     }
 
@@ -1105,7 +1105,7 @@ async function loadUserApps(user) {
         const perm = permMap[app.id];
         return perm === 'read' || perm === 'write';
       })
-      .map(app => ({ ...app, permission: permMap[app.id] || 'write' }));
+      .map(app => ({ ...app, permission: permMap[app.id] }));
 
     if (visibleApps.length === 0) {
       renderEmpty();
@@ -1114,7 +1114,7 @@ async function loadUserApps(user) {
     }
   } catch (err) {
     console.error('[perms] 加载失败:', err);
-    renderApps(apps.map(a => ({ ...a, permission: 'write' })));
+    renderEmpty();
   }
 }
 
