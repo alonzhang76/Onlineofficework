@@ -229,10 +229,15 @@ body {
 }
 
 /* ===== Dashboard 样式 ===== */
-.dashboard-view { display: none; min-height: 100vh; }
+.dashboard-view {
+  display: none;
+  min-height: 100vh;
+  background: linear-gradient(180deg, rgba(30, 64, 175, 0.88) 0%, rgba(15, 23, 42, 0.92) 100%);
+}
 .dashboard-header {
-  background: #fff;
-  border-bottom: 1px solid #e2e8f0;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
   padding: 0 32px;
   height: 64px;
   display: flex;
@@ -338,17 +343,29 @@ body {
 .welcome-title {
   font-size: 28px;
   font-weight: 700;
-  color: #1e293b;
+  color: #ffffff;
   margin-bottom: 6px;
 }
 .welcome-subtitle {
   font-size: 15px;
-  color: #64748b;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 /* ===== macOS 风格分类布局 ===== */
+.categories-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  margin-bottom: 48px;
+}
 .category-section {
   margin-bottom: 48px;
+}
+.categories-grid .category-section {
+  margin-bottom: 0;
+}
+.category-section.full-width {
+  grid-column: 1 / -1;
 }
 .category-header {
   display: flex;
@@ -356,7 +373,7 @@ body {
   gap: 10px;
   margin-bottom: 24px;
   padding-bottom: 12px;
-  border-bottom: 2px solid #f1f5f9;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.12);
 }
 .category-icon {
   width: 40px; height: 40px;
@@ -365,18 +382,18 @@ body {
   align-items: center;
   justify-content: center;
   font-size: 22px;
-  background: var(--cat-bg, #f0f9ff);
+  background: var(--cat-bg, rgba(255,255,255,0.15));
   flex-shrink: 0;
 }
 .category-name {
   font-size: 20px;
   font-weight: 700;
-  color: #1e293b;
+  color: #ffffff;
   letter-spacing: 0.5px;
 }
 .category-count {
   font-size: 13px;
-  color: #94a3b8;
+  color: rgba(255, 255, 255, 0.5);
   font-weight: 400;
   margin-left: 8px;
 }
@@ -399,7 +416,7 @@ body {
   border-radius: 16px;
 }
 .app-card:hover {
-  background: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.12);
   transform: scale(1.08);
 }
 .app-card:active {
@@ -412,34 +429,34 @@ body {
   display: flex; align-items: center; justify-content: center;
   font-size: 36px;
   margin-bottom: 12px;
-  background: var(--icon-bg, #eff6ff);
-  color: var(--icon-color, #3b82f6);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.4);
+  background: var(--icon-bg, rgba(255,255,255,0.15));
+  color: var(--icon-color, #60a5fa);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.2);
   transition: all 0.2s ease;
 }
 .app-card:hover .app-icon {
-  box-shadow: 0 8px 28px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.4);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2);
 }
 .app-name {
   font-size: 14px;
   font-weight: 500;
-  color: #334155;
-  text-shadow: 0 1px 2px rgba(255,255,255,0.5);
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 3px rgba(0,0,0,0.4);
 }
 .app-card:hover .app-name {
-  color: #1e293b;
+  color: #ffffff;
 }
 
 /* ===== 加载状态 ===== */
 .loading-state {
   text-align: center;
   padding: 80px 20px;
-  color: #64748b;
+  color: rgba(255,255,255,0.7);
 }
 .loading-spinner {
   width: 40px; height: 40px;
-  border: 3px solid #e2e8f0;
-  border-top-color: #3b82f6;
+  border: 3px solid rgba(255,255,255,0.2);
+  border-top-color: #60a5fa;
   border-radius: 50%;
   margin: 0 auto 16px;
   animation: spin 0.8s linear infinite;
@@ -457,12 +474,12 @@ body {
 .empty-title {
   font-size: 18px;
   font-weight: 600;
-  color: #1e293b;
+  color: #ffffff;
   margin-bottom: 8px;
 }
 .empty-desc {
   font-size: 14px;
-  color: #64748b;
+  color: rgba(255,255,255,0.6);
 }
 
 /* ===== 管理员面板 ===== */
@@ -1160,25 +1177,21 @@ function renderApps(apps) {
   const categories = (APP_CONFIG.categories || []);
   const sorted = [...apps].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
 
-  let html = '';
-
-  categories.forEach(cat => {
-    const catApps = sorted.filter(app => app.category === cat.id);
-    if (catApps.length === 0) return;
-
-    html += `
+  // 构建每个分类的 HTML 片段
+  function buildCategoryHtml(cat, catApps) {
+    return `
       <div class="category-section">
         <div class="category-header">
-          <div class="category-icon" style="background:${hexToRgba(cat.color, 0.12)};">${cat.icon}</div>
+          <div class="category-icon" style="background:${hexToRgba(cat.color, 0.15)};">${cat.icon}</div>
           <div class="category-name">${escapeHtml(cat.name)}<span class="category-count">${catApps.length} 个应用</span></div>
         </div>
         <div class="apps-grid">
           ${catApps.map(app => {
             const permBadge = app.permission === 'read'
-              ? '<span style="display:inline-block; font-size:10px; padding:1px 6px; background:#e0f2fe; color:#0284c7; border-radius:10px; margin-top:4px;">只读</span>'
+              ? '<span style="display:inline-block; font-size:10px; padding:1px 6px; background:rgba(255,255,255,0.15); color:#7dd3fc; border-radius:10px; margin-top:4px;">只读</span>'
               : '';
             return `
-              <div class="app-card" style="--icon-bg:${hexToRgba(app.color, 0.1)};--icon-color:${app.color};"
+              <div class="app-card" style="--icon-bg:${hexToRgba(app.color, 0.12)};--icon-color:${app.color};"
                    onclick="openApp('${app.url}', '${app.name}', '${app.permission}')">
                 <div class="app-icon">${app.icon}</div>
                 <div class="app-name">${escapeHtml(app.name)}</div>
@@ -1189,6 +1202,39 @@ function renderApps(apps) {
         </div>
       </div>
     `;
+  }
+
+  // 将分类分为：大分类（>=3个应用，独占整行）和小分类（<=2个应用，并排放）
+  const bigCats = [];
+  const smallCats = [];
+
+  categories.forEach(cat => {
+    const catApps = sorted.filter(app => app.category === cat.id);
+    if (catApps.length === 0) return;
+    if (catApps.length <= 2) {
+      smallCats.push({ cat, catApps });
+    } else {
+      bigCats.push({ cat, catApps });
+    }
+  });
+
+  let html = '';
+
+  // 小分类并排显示
+  if (smallCats.length >= 2) {
+    html += '<div class="categories-grid">';
+    smallCats.forEach(({ cat, catApps }) => {
+      html += buildCategoryHtml(cat, catApps);
+    });
+    html += '</div>';
+  } else if (smallCats.length === 1) {
+    // 只有一个小分类，直接显示
+    html += buildCategoryHtml(smallCats[0].cat, smallCats[0].catApps);
+  }
+
+  // 大分类独占整行
+  bigCats.forEach(({ cat, catApps }) => {
+    html += buildCategoryHtml(cat, catApps);
   });
 
   appsContainer.innerHTML = html || `
