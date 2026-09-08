@@ -1,0 +1,12 @@
+# TRAE 内部文件
+.trae-html-share-packages/
+.trae/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
