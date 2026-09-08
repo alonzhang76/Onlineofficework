@@ -853,14 +853,14 @@ body {
   </div>
 </div>
 
-<!-- Supabase SDK -->
-<script src="https://esm.sh/@supabase/supabase-js@2"></script>
+<!-- Supabase SDK (UMD build) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* ===== 配置 ===== */
 const SUPABASE_URL = "https://ugoyacuagslqhqguxyqe.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVnb3lhY3VhZ3NscWhxZ3V4eXFlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY5MzI5NTUsImV4cCI6MjEwMjUwODk1NX0._GdWOGWblSpOYm3y8f_d3aVQszfn2YbRjHN0FqZiLtI";
 
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
@@ -951,7 +951,7 @@ async function handleLogin(event) {
   setDebug('');
 
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
 
     if (error) {
       const em = (error.message || '').toLowerCase();
@@ -984,7 +984,7 @@ async function handleLogin(event) {
     const userIsAdmin = checkIsAdmin(data.user);
     if (role === 'admin' && !userIsAdmin) {
       setMessage('该账号没有管理员权限', 'error');
-      await supabase.auth.signOut();
+      await supabaseClient.auth.signOut();
       loginBtn.disabled = false;
       loginBtn.textContent = '登 录';
       return false;
@@ -1011,7 +1011,7 @@ async function handleLogin(event) {
 async function handleLogout() {
   closeAdminPanel();
   try {
-    await supabase.auth.signOut();
+    await supabaseClient.auth.signOut();
   } catch (e) { /* 忽略 */ }
   try {
     const keys = Object.keys(localStorage);
@@ -1247,8 +1247,8 @@ async function findUserByEmail() {
 
   try {
     // 调用 RPC 函数读取用户权限
-    const { data, error } = await supabase.rpc('get_user_permissions', {
-      user_email: email
+    const { data, error } = await supabaseClient.rpc('portal_get_user_permissions', {
+      p_user_email: email
     });
 
     if (error) {
@@ -1389,7 +1389,7 @@ async function savePermissions() {
     const email = selectedUserId;
     const perms = permissionCache[email] || {};
 
-    const { data, error } = await supabase.rpc('portal_set_app_permissions_batch', {
+    const { data, error } = await supabaseClient.rpc('portal_set_app_permissions_batch', {
       p_user_email: email,
       p_perms: perms
     });
@@ -1438,7 +1438,7 @@ function hexToRgba(hex, alpha) {
 (async function init() {
   await loadAppConfig();
   try {
-    const { data, error } = await supabase.auth.getUser();
+    const { data, error } = await supabaseClient.auth.getUser();
     if (data && data.user && !error) {
       showDashboard(data.user);
     } else {
@@ -1450,7 +1450,7 @@ function hexToRgba(hex, alpha) {
 })();
 
 // 监听认证状态变化
-supabase.auth.onAuthStateChange((event, session) => {
+supabaseClient.auth.onAuthStateChange((event, session) => {
   if (event === 'SIGNED_OUT') {
     currentUser = null;
     isAdmin = false;
