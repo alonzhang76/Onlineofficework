@@ -1206,7 +1206,7 @@ async function loadUserList() {
     // 但最实用的是：提供一个输入框让管理员输入用户邮箱来添加
     
     // 先查已有权限的用户
-    const { data: permData, error } = await supabase
+    const { data: permData, error } = await supabaseClient
       .from('user_app_permissions')
       .select('user_id')
       .eq('user_id', currentUser.id); // 占位：实际需要能读所有用户

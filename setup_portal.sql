@@ -97,9 +97,9 @@ create or replace function public.portal_set_app_permissions_batch(
 )
 returns boolean as $$
 declare
-  target_user_id uuid;
-  app_id text;
-  perm text;
+  v_target_user_id uuid;
+  v_app_id text;
+  v_perm text;
 begin
   -- 校验：调用者必须是管理员
   if not public.portal_is_admin(auth.uid()) then
@@ -107,21 +107,21 @@ begin
   end if;
 
   -- 根据邮箱查找用户
-  select id into target_user_id
+  select id into v_target_user_id
   from auth.users
   where email = p_user_email;
 
-  if target_user_id is null then
+  if v_target_user_id is null then
     raise exception 'User not found: %', p_user_email;
   end if;
 
   -- 遍历 JSON 键值对
-  for app_id, perm in select * from jsonb_each_text(p_perms) loop
+  for v_app_id, v_perm in select * from jsonb_each_text(p_perms) loop
     insert into public.user_app_permissions (user_id, app_id, permission, updated_at)
-    values (target_user_id, app_id, perm::app_permission, now())
+    values (v_target_user_id, v_app_id, v_perm::app_permission, now())
     on conflict (user_id, app_id)
     do update set
-      permission = perm::app_permission,
+      permission = v_perm::app_permission,
       updated_at = now();
   end loop;
 
@@ -136,25 +136,25 @@ returns table (
   permission app_permission
 ) as $$
 declare
-  target_user_id uuid;
+  v_target_user_id uuid;
 begin
   -- 校验：调用者必须是管理员
   if not public.portal_is_admin(auth.uid()) then
     raise exception 'Permission denied: admin only';
   end if;
 
-  select id into target_user_id
+  select id into v_target_user_id
   from auth.users
   where email = p_user_email;
 
-  if target_user_id is null then
+  if v_target_user_id is null then
     raise exception 'User not found: %', p_user_email;
   end if;
 
   return query
     select p.app_id, p.permission
     from public.user_app_permissions p
-    where p.user_id = target_user_id;
+    where p.user_id = v_target_user_id;
 end;
 $$ language plpgsql security definer;
 
