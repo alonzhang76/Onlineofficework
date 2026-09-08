@@ -47,6 +47,24 @@
     return false;
   }
 
+  // 判断值是否为"空"（空数组 / 空对象 / 空字符串 / null / undefined）
+  // 用于迁移时的冲突仲裁，防止云端或本地的过期空值覆盖真实数据
+  function isEmptyValue(val) {
+    if (val === null || val === undefined) return true;
+    if (typeof val === 'string') {
+      if (val === '') return true;
+      try { val = JSON.parse(val); } catch (e) { return false; }
+    }
+    if (Array.isArray(val)) return val.length === 0;
+    if (typeof val === 'object') {
+      for (var k in val) {
+        if (Object.prototype.hasOwnProperty.call(val, k)) return false;
+      }
+      return true;
+    }
+    return false;
+  }
+
   function prefixKey(key) { return APP_ID + '__' + key; }
   function unprefixKey(storeKey) {
     var prefix = APP_ID + '__';
@@ -215,51 +233,77 @@
   // ===== 迁移 localStorage → Supabase =====
   async function migrateLocalStorage() {
     try {
-      // 查询云端已有的 key
-      var existingKeys = new Set();
+      // 查询云端已有的 key 及内容
+      var existing = {};
       try {
-        var result = await sb.from(TABLE).select('store_key');
-        if (result.data) {
-          result.data.forEach(function (row) { existingKeys.add(row.store_key); });
+        var result = await sb.from(TABLE).select('store_key, payload');
+        if (result.data && !result.error) {
+          result.data.forEach(function (row) { existing[row.store_key] = row.payload; });
         }
       } catch (e) {}
 
-      var migrated = 0;
+      var migrated = 0, rescued = 0;
       var keys = Object.keys(localStorage);
       for (var i = 0; i < keys.length; i++) {
         var key = keys[i];
         if (shouldSkip(key)) continue;
 
         var prefixedKey = prefixKey(key);
-        if (existingKeys.has(prefixedKey)) {
-          // 云端已有，用云端数据更新本地
-          if (cache[key] !== undefined) {
-            var cloudVal = cache[key];
-            var raw = typeof cloudVal === 'string' ? cloudVal : JSON.stringify(cloudVal);
-            _origSetItem(key, raw);
+        var raw = _origGetItem(key);
+        var localVal;
+        try { localVal = (raw === null || raw === undefined) ? undefined : JSON.parse(raw); } catch (e) { localVal = raw; }
+
+        if (existing[prefixedKey] !== undefined) {
+          var cloudVal = existing[prefixedKey];
+          var cloudEmpty = isEmptyValue(cloudVal);
+          var localEmpty = isEmptyValue(localVal);
+
+          if (cloudEmpty && !localEmpty) {
+            // 云端为空而本地有真实数据 → 以上传本地为准（数据抢救，
+            // 避免云端被误写的空值在加载时清空本地真实数据）
+            try {
+              var rescueResult = await sb.from(TABLE).upsert({
+                store_key: prefixedKey,
+                payload: localVal,
+                updated_at: new Date().toISOString()
+              }, { onConflict: 'store_key' });
+              if (!rescueResult.error) {
+                cache[key] = localVal;
+                rescued++;
+              }
+            } catch (e) {}
+            continue;
           }
+
+          if (!cloudEmpty) {
+            // 云端为准：将云端数据恢复到本地与缓存
+            // （修复云端加载完成前应用初始化写入的过期空值残留）
+            var rawC = typeof cloudVal === 'string' ? cloudVal : JSON.stringify(cloudVal);
+            if (_origGetItem(key) !== rawC) {
+              _origSetItem(key, rawC);
+            }
+            cache[key] = cloudVal;
+          }
+          // 两者皆空 → 无需处理
           continue;
         }
 
-        var raw = _origGetItem(key);
-        if (!raw) continue;
-
-        var payload;
-        try { payload = JSON.parse(raw); } catch (e) { payload = raw; }
+        if (raw === null || raw === undefined || raw === '') continue;
 
         try {
           var upsertResult = await sb.from(TABLE).upsert({
             store_key: prefixedKey,
-            payload: payload,
+            payload: localVal,
             updated_at: new Date().toISOString()
           }, { onConflict: 'store_key' });
           if (!upsertResult.error) {
-            cache[key] = payload;
+            cache[key] = localVal;
             migrated++;
           }
         } catch (e) {}
       }
       if (migrated > 0) console.log('[SupabaseSync] Migrated', migrated, 'keys to cloud');
+      if (rescued > 0) console.log('[SupabaseSync] Rescued', rescued, 'keys from local (cloud was empty)');
     } catch (e) {
       console.warn('[SupabaseSync] Migration error:', e);
     }
@@ -297,6 +341,14 @@
       var key = keys[i];
       var value = pendingWrites[key];
       delete pendingWrites[key];
+      // 防护：队列值为空而本地当前值非空时跳过
+      // （避免云端加载完成前应用初始化误写的空数组覆盖云端真实数据）
+      if (isEmptyValue(value)) {
+        var raw = _origGetItem(key);
+        var cur;
+        try { cur = (raw === null || raw === undefined) ? undefined : JSON.parse(raw); } catch (e) { cur = raw; }
+        if (!isEmptyValue(cur)) continue;
+      }
       await syncToCloud(key, value);
     }
   }
@@ -384,6 +436,72 @@
       sb.from(TABLE).delete().eq('store_key', prefixKey(key)).then(function () {});
     }
   };
+
+  // ===== 拦截直接属性访问（localStorage.key = value / var v = localStorage.key）=====
+  // 部分应用（如外贸出口管理系统的订单管理）使用属性式读写而非 getItem/setItem，
+  // 上述方法补丁无法覆盖，这里用 Proxy 包装 window.localStorage 统一拦截，
+  // 保证属性式读写同样走缓存并同步到云端。
+  var storageProxy = (function () {
+    var nativeStorage = window.localStorage;
+    var METHOD_NAMES = { getItem: 1, setItem: 1, removeItem: 1, clear: 1, key: 1, length: 1 };
+    var boundKeyFn = nativeStorage.key.bind(nativeStorage);
+    var boundClearFn = nativeStorage.clear.bind(nativeStorage);
+
+    // 判断某命名存储项是否有值（本地原生 或 云端缓存）
+    function hasValue(prop) {
+      if (_origGetItem(prop) !== null) return true;
+      return Object.prototype.hasOwnProperty.call(cache, prop) && cache[prop] !== undefined;
+    }
+
+    if (typeof Proxy === 'undefined') return nativeStorage; // 极旧浏览器回退
+
+    return new Proxy(nativeStorage, {
+      get: function (target, prop) {
+        if (typeof prop === 'symbol') return Reflect.get(target, prop);
+        if (prop === 'length') return target.length;
+        if (prop === 'key') return boundKeyFn;
+        if (prop === 'clear') return boundClearFn;
+        if (prop === 'getItem' || prop === 'setItem' || prop === 'removeItem') {
+          return Reflect.get(target, prop);
+        }
+        if (/^\d+$/.test(prop)) return Reflect.get(target, prop); // 数字索引
+        if (hasValue(prop)) {
+          // 走带云端缓存的读取逻辑（等同 patched getItem）
+          return Reflect.get(target, 'getItem')(prop);
+        }
+        return undefined; // 与原生行为一致：不存在的命名属性返回 undefined
+      },
+      set: function (target, prop, value) {
+        if (typeof prop === 'symbol') { Reflect.set(target, prop, value); return true; }
+        if (METHOD_NAMES[prop]) { Reflect.set(target, prop, value); return true; }
+        // 属性赋值 → 等同 patched setItem：写本地 + 更新缓存 + 同步云端
+        Reflect.get(target, 'setItem')(prop, value);
+        return true;
+      },
+      has: function (target, prop) {
+        if (typeof prop === 'symbol') return Reflect.has(target, prop);
+        if (METHOD_NAMES[prop] || /^\d+$/.test(prop)) return Reflect.has(target, prop);
+        return hasValue(prop);
+      },
+      deleteProperty: function (target, prop) {
+        if (typeof prop === 'symbol') { Reflect.deleteProperty(target, prop); return true; }
+        if (METHOD_NAMES[prop]) return true;
+        // delete localStorage.xxx → 等同 patched removeItem（含云端删除）
+        Reflect.get(target, 'removeItem')(prop);
+        return true;
+      }
+    });
+  })();
+
+  // 用代理替换 window.localStorage（方法调用与属性式读写都会经过补丁）
+  try {
+    Object.defineProperty(window, 'localStorage', {
+      get: function () { return storageProxy; },
+      configurable: true
+    });
+  } catch (e) {
+    console.warn('[SupabaseSync] 无法拦截 localStorage 属性式访问（getItem/setItem 同步不受影响）:', e);
+  }
 
   // ===== 启动 =====
   init();
