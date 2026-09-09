@@ -728,6 +728,113 @@
 
         }
     </style>
+    <style>
+        /* ===== Safari/移动端兼容性修复 ===== */
+        /* 修复 iOS Safari 的 100vh 问题 */
+        .h-screen, .min-h-screen { height: 100vh; height: 100dvh; }
+        .max-h-\[70vh\], .table-container { max-height: 70vh; max-height: 70dvh; }
+
+        /* 修复 z-45 和 z-[1000] 不被 Tailwind JIT 支持的问题 */
+        .z-45 { z-index: 45; }
+        .z-\[1000\] { z-index: 1000; }
+
+        /* 修复 iOS Safari 的 sticky 定位 */
+        .purchase-order-table thead th {
+            position: -webkit-sticky;
+            position: sticky;
+        }
+
+        /* 移动端响应式布局 */
+        @media (max-width: 768px) {
+            /* 侧边栏在手机上变为顶部水平导航 */
+            #sidebar {
+                position: fixed !important;
+                top: 0;
+                left: 0;
+                right: 0;
+                width: 100% !important;
+                height: auto !important;
+                max-height: 50vh;
+                max-height: 50dvh;
+                z-index: 100;
+                border-right: none !important;
+                border-bottom: 1px solid #e5e7eb;
+                opacity: 1 !important;
+            }
+            #sidebar.collapsed {
+                height: 56px !important;
+                max-height: 56px;
+                overflow: hidden;
+            }
+            #sidebar nav {
+                display: flex !important;
+                flex-direction: row;
+                flex-wrap: wrap;
+                overflow-x: auto;
+                overflow-y: hidden;
+                padding: 8px !important;
+                gap: 4px !important;
+            }
+            #sidebar .nav-link {
+                white-space: nowrap;
+                padding: 8px 12px;
+                font-size: 13px;
+            }
+            #sidebar .nav-link span {
+                font-size: 12px;
+            }
+            /* 侧边栏 toggle 在手机上隐藏 */
+            #sidebar-toggle { display: none !important; }
+            /* main 内容区域不加 overflow-hidden 避免双层滚动 */
+            main { overflow: visible !important; }
+            /* flex 容器改为纵向 */
+            .flex.h-screen, .flex.h-screen > div {
+                flex-direction: column !important;
+                height: auto !important;
+                min-height: 100vh;
+                min-height: 100dvh;
+                overflow: visible !important;
+            }
+            /* 表格容器水平滚动 */
+            .table-container {
+                overflow-x: auto !important;
+                max-height: none !important;
+            }
+            /* 模态框适配手机 */
+            .modal-content, [class*="max-w-lg"], [class*="sm:max-w"] {
+                width: 95% !important;
+                max-width: 95vw !important;
+                margin: 0 auto;
+            }
+            /* 产品行 7 列改为 2 列 */
+            .product-row[style*="grid-template-columns: repeat(7"] {
+                grid-template-columns: repeat(2, 1fr) !important;
+            }
+            /* 表格冻结列取消，改为水平滚动 */
+            .purchase-order-table th:nth-child(n),
+            .purchase-order-table td:nth-child(n) {
+                position: static !important;
+                z-index: auto !important;
+            }
+            /* 统计卡片 */
+            .grid { grid-template-columns: repeat(2, 1fr) !important; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+            /* 过滤栏 */
+            .flex-wrap { flex-direction: column !important; }
+            .filter-group, .filter-bar > * { width: 100% !important; min-width: 0 !important; }
+        }
+
+        @media (max-width: 480px) {
+            /* 超小屏幕下统计卡片单列 */
+            .grid { grid-template-columns: 1fr !important; }
+            .stats-grid { grid-template-columns: 1fr !important; }
+        }
+
+        /* 修复 Safari 中的 backdrop-filter */
+        @supports not (backdrop-filter: blur(10px)) {
+            .backdrop-blur { background-color: rgba(255,255,255,0.95) !important; }
+        }
+    </style>
 </head>
 <body class="bg-gray-50 font-sans">
     <!-- 管理抬头公司模态框 -->
@@ -2327,28 +2434,45 @@
             
             // 从本地存储读取状态
             const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
-            
+            const isMobileInit = window.innerWidth <= 768;
+
             // 初始化侧边栏状态
             if (isCollapsed) {
-                sidebar.style.width = '0';
-                sidebar.style.opacity = '0';
-                toggleArrow.style.transform = 'rotate(0deg)';
+                if (isMobileInit) {
+                    sidebar.classList.add('collapsed');
+                    toggleArrow.style.transform = 'rotate(0deg)';
+                } else {
+                    sidebar.style.width = '0';
+                    sidebar.style.opacity = '0';
+                    toggleArrow.style.transform = 'rotate(0deg)';
+                }
             }
             
             // 点击切换侧边栏
             toggleBtn.addEventListener('click', function() {
-                const isCurrentlyCollapsed = sidebar.style.width === '0' || sidebar.style.opacity === '0';
-                
+                const isMobile = window.innerWidth <= 768;
+                const isCurrentlyCollapsed = sidebar.style.width === '0' || sidebar.style.opacity === '0' || sidebar.classList.contains('collapsed');
+
                 if (isCurrentlyCollapsed) {
                     // 展开侧边栏
-                    sidebar.style.width = '16rem';
-                    sidebar.style.opacity = '1';
+                    if (isMobile) {
+                        sidebar.classList.remove('collapsed');
+                        sidebar.style.width = '';
+                        sidebar.style.opacity = '1';
+                    } else {
+                        sidebar.style.width = '16rem';
+                        sidebar.style.opacity = '1';
+                    }
                     toggleArrow.style.transform = 'rotate(180deg)';
                     localStorage.setItem('sidebarCollapsed', 'false');
                 } else {
                     // 收起侧边栏
-                    sidebar.style.width = '0';
-                    sidebar.style.opacity = '0';
+                    if (isMobile) {
+                        sidebar.classList.add('collapsed');
+                    } else {
+                        sidebar.style.width = '0';
+                        sidebar.style.opacity = '0';
+                    }
                     toggleArrow.style.transform = 'rotate(0deg)';
                     localStorage.setItem('sidebarCollapsed', 'true');
                 }
@@ -8217,7 +8341,12 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
                  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
                  overflow: hidden;
                  max-height: 90vh;
+                 max-height: 90dvh;
                  overflow-y: auto;
+                 width: 95%;
+                 max-width: 600px;
+                 margin: 0 auto;
+                 -webkit-overflow-scrolling: touch;
              }
              
              .modal-header {
