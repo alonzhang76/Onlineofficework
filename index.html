@@ -176,6 +176,65 @@ body {
   background: #0f766e;
   color: #fff;
 }
+/* 密码输入框容器 */
+.pwd-wrapper {
+  position: relative;
+}
+.pwd-wrapper .form-input {
+  padding-right: 44px;
+}
+.pwd-toggle {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.6);
+  transition: color 0.2s;
+}
+.pwd-toggle:hover {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+/* 自动登录勾选框 */
+.login-options {
+  display: flex;
+  align-items: center;
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+.auto-login-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.8);
+  user-select: none;
+}
+.auto-login-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
+.login-btn-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+.login-btn-row .login-btn {
+  flex: 1;
+  margin-top: 0;
+}
 .login-btn {
   width: 100%;
   padding: 13px;
@@ -810,10 +869,28 @@ body {
       </div>
       <div class="form-group">
         <label class="form-label" for="password">密码</label>
-        <input type="password" class="form-input" id="password" name="password"
-               placeholder="请输入密码" autocomplete="current-password" required>
+        <div class="pwd-wrapper">
+          <input type="password" class="form-input" id="password" name="password"
+                 placeholder="请输入密码" autocomplete="current-password" required>
+          <button type="button" class="pwd-toggle" id="pwdToggle" onclick="togglePassword()" aria-label="切换密码显示">
+            <svg id="eyeOpen" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+            <svg id="eyeClosed" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-10-8-10-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 10 8 10 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+              <line x1="1" y1="1" x2="23" y2="23"></line>
+            </svg>
+          </button>
+        </div>
       </div>
-      <button type="submit" class="login-btn" id="loginBtn">登 录</button>
+      <div class="login-btn-row">
+        <label class="auto-login-label">
+          <input type="checkbox" class="auto-login-checkbox" id="autoLogin">
+          <span>自动登录</span>
+        </label>
+        <button type="submit" class="login-btn" id="loginBtn">登 录</button>
+      </div>
       <div class="login-message" id="loginMessage" role="status" aria-live="polite"></div>
       <div class="debug-panel" id="debugPanel"></div>
     </form>
@@ -968,6 +1045,43 @@ function setDebug(text) {
   debugPanel.textContent = text || '';
 }
 
+/* ===== 切换密码显示 ===== */
+function togglePassword() {
+  const pwd = document.getElementById('password');
+  const eyeOpen = document.getElementById('eyeOpen');
+  const eyeClosed = document.getElementById('eyeClosed');
+  if (pwd.type === 'password') {
+    pwd.type = 'text';
+    eyeOpen.style.display = 'none';
+    eyeClosed.style.display = 'block';
+  } else {
+    pwd.type = 'password';
+    eyeOpen.style.display = 'block';
+    eyeClosed.style.display = 'none';
+  }
+}
+
+/* ===== 保存/恢复自动登录信息 ===== */
+function saveAutoLogin(role, email, password) {
+  try {
+    localStorage.setItem('portal_autologin', JSON.stringify({ role, email, password }));
+  } catch (e) { /* 忽略 */ }
+}
+function clearAutoLogin() {
+  try {
+    localStorage.removeItem('portal_autologin');
+  } catch (e) { /* 忽略 */ }
+}
+function restoreAutoLogin() {
+  try {
+    const raw = localStorage.getItem('portal_autologin');
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
+}
+
 /* ===== 登录 ===== */
 async function handleLogin(event) {
   if (event && event.preventDefault) event.preventDefault();
@@ -975,6 +1089,7 @@ async function handleLogin(event) {
   const role = roleSelect.value;
   const email = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value;
+  const autoLogin = document.getElementById('autoLogin').checked;
 
   if (!email || !password) {
     setMessage('请输入邮箱和密码', 'error');
@@ -1030,6 +1145,13 @@ async function handleLogin(event) {
       return false;
     }
 
+    // 保存或清除自动登录信息
+    if (autoLogin) {
+      saveAutoLogin(role, email, password);
+    } else {
+      clearAutoLogin();
+    }
+
     setMessage('登录成功，正在跳转…', 'success');
     setTimeout(() => showDashboard(data.user), 300);
     return false;
@@ -1050,6 +1172,7 @@ async function handleLogin(event) {
 /* ===== 退出登录 ===== */
 async function handleLogout() {
   closeAdminPanel();
+  clearAutoLogin();
   try {
     await supabaseClient.auth.signOut();
   } catch (e) { /* 忽略 */ }
@@ -1070,12 +1193,23 @@ async function handleLogout() {
 function showLogin() {
   loginView.style.display = 'flex';
   dashboardView.style.display = 'none';
-  document.getElementById('email').value = '';
-  document.getElementById('password').value = '';
   loginBtn.disabled = false;
   loginBtn.textContent = '登 录';
   setMessage('');
   setDebug('');
+
+  // 恢复自动登录信息
+  const saved = restoreAutoLogin();
+  if (saved && saved.email) {
+    roleSelect.value = saved.role || 'user';
+    document.getElementById('email').value = saved.email || '';
+    document.getElementById('password').value = saved.password || '';
+    document.getElementById('autoLogin').checked = true;
+  } else {
+    document.getElementById('email').value = '';
+    document.getElementById('password').value = '';
+    document.getElementById('autoLogin').checked = false;
+  }
 }
 
 function showDashboard(user) {
@@ -1554,7 +1688,18 @@ function hexToRgba(hex, alpha) {
     if (data && data.user && !error) {
       showDashboard(data.user);
     } else {
-      showLogin();
+      // 尝试自动登录
+      const saved = restoreAutoLogin();
+      if (saved && saved.email && saved.password) {
+        roleSelect.value = saved.role || 'user';
+        document.getElementById('email').value = saved.email;
+        document.getElementById('password').value = saved.password;
+        document.getElementById('autoLogin').checked = true;
+        // 自动提交登录
+        handleLogin({ preventDefault: () => {} });
+      } else {
+        showLogin();
+      }
     }
   } catch (e) {
     showLogin();
