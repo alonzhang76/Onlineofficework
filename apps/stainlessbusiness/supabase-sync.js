@@ -216,6 +216,8 @@
             }
           });
           console.log('[SupabaseSync] Loaded', Object.keys(cache).length, 'keys from cloud');
+          // 云端键建立属性访问器（保证 localStorage.key 属性式读写可走缓存）
+          ensureAccessorsForKeys(Object.keys(cache));
         }
       } catch (e) {
         console.warn('[SupabaseSync] Cloud load error:', e);
@@ -263,6 +265,7 @@
         if (origKey && cache[origKey] === undefined) {
           cache[origKey] = row.payload;
           cacheTs[origKey] = row.updated_at;
+          defineKeyAccessor(origKey);
         }
       });
       console.log('[SupabaseSync] REST loaded', Object.keys(cache).length, 'keys');
@@ -337,6 +340,7 @@
               }, { onConflict: 'store_key' });
               if (!rescueResult.error) {
                 cache[key] = localVal;
+                defineKeyAccessor(key);
                 rescued++;
               }
             } catch (e) {}
@@ -352,6 +356,7 @@
             }
             cache[key] = cloudVal;
             cacheTs[key] = new Date().toISOString();
+            defineKeyAccessor(key);
             // 丢弃云端加载前排队的过期写入，防止其稍后覆盖云端真实数据
             // （如页面初始化代码误写的示例数据/空数组）
             delete pendingWrites[key];
@@ -370,6 +375,7 @@
           }, { onConflict: 'store_key' });
           if (!upsertResult.error) {
             cache[key] = localVal;
+            defineKeyAccessor(key);
             migrated++;
           }
         } catch (e) {}
@@ -468,6 +474,8 @@
         if (isChanged) {
           cache[origKey] = newVal;
           cacheTs[origKey] = row.updated_at;
+          // 为该键建立属性访问器
+          defineKeyAccessor(origKey);
           // 同步到原生 localStorage（使用重映射后的本地键名）
           var raw = typeof newVal === 'string' ? newVal : JSON.stringify(newVal);
           _origSetItem(toLocalKey(origKey), raw);
@@ -502,6 +510,9 @@
     // 更新内存缓存（使用原始 key）
     try { cache[key] = JSON.parse(value); } catch (e) { cache[key] = value; }
 
+    // 为该键建立属性访问器（保证 localStorage.key = value 形式的写入也被拦截）
+    defineKeyAccessor(key);
+
     // 异步同步到云端（使用原始 key → store_key 为 APP_ID__key）
     if (!shouldSkip(key)) {
       syncToCloud(key, cache[key]);
@@ -519,71 +530,62 @@
     }
   };
 
-  // ===== 拦截直接属性访问（localStorage.key = value / var v = localStorage.key）=====
-  // 部分应用（如外贸出口管理系统的订单管理）使用属性式读写而非 getItem/setItem，
-  // 上述方法补丁无法覆盖，这里用 Proxy 包装 window.localStorage 统一拦截，
-  // 保证属性式读写同样走缓存并同步到云端。
-  var storageProxy = (function () {
-    var nativeStorage = window.localStorage;
-    var METHOD_NAMES = { getItem: 1, setItem: 1, removeItem: 1, clear: 1, key: 1, length: 1 };
-    var boundKeyFn = nativeStorage.key.bind(nativeStorage);
-    var boundClearFn = nativeStorage.clear.bind(nativeStorage);
+  // ===== 属性式访问桥接（Safari 安全方案，不替换 window.localStorage）=====
+  // 部分应用（如外贸出口管理系统）使用 localStorage.key = value / localStorage.key
+  // 这类属性式读写。此前版本用 Proxy 整体替换 window.localStorage 来拦截，
+  // 但该做法在 Safari/WebKit 上会导致第三方脚本（React 打包代码、supabase-js 等）
+  // 行为异常甚至整页失效，且会引发不可预知的兼容性问题。
+  //
+  // 现改为：在原生 Storage 实例上为每个已知数据键定义 get/set 访问器（ES5 语法，
+  // 全浏览器兼容，与 clothing 的 localstorage-patch.js 同一安全模式）。
+  // 属性式读写经访问器路由到上面已补丁的 getItem/setItem（含云端缓存与同步）。
+  var nativeStorage = window.localStorage;
+  var accessorDefined = {};
 
-    // 判断某命名存储项是否有值（本地原生 或 云端缓存）
-    function hasValue(prop) {
-      if (_origGetItem(toLocalKey(prop)) !== null) return true;
-      return Object.prototype.hasOwnProperty.call(cache, prop) && cache[prop] !== undefined;
+  function defineKeyAccessor(key) {
+    if (!key || accessorDefined[key] || shouldSkip(key)) return;
+    try {
+      var descriptor = Object.getOwnPropertyDescriptor(nativeStorage, key);
+      // 若该属性已存在且不可配置，则跳过（回退到方法式访问）
+      if (descriptor && descriptor.configurable === false) return;
+      Object.defineProperty(nativeStorage, key, {
+        configurable: true,
+        enumerable: true,
+        get: function () { return nativeStorage.getItem(key); },
+        set: function (value) { nativeStorage.setItem(key, value); }
+      });
+      accessorDefined[key] = true;
+    } catch (e) {
+      // 个别环境不允许重定义，忽略即可（方法式读写不受影响）
     }
-
-    if (typeof Proxy === 'undefined') return nativeStorage; // 极旧浏览器回退
-
-    return new Proxy(nativeStorage, {
-      get: function (target, prop) {
-        if (typeof prop === 'symbol') return Reflect.get(target, prop);
-        if (prop === 'length') return target.length;
-        if (prop === 'key') return boundKeyFn;
-        if (prop === 'clear') return boundClearFn;
-        if (prop === 'getItem' || prop === 'setItem' || prop === 'removeItem') {
-          return Reflect.get(target, prop);
-        }
-        if (/^\d+$/.test(prop)) return Reflect.get(target, prop); // 数字索引
-        if (hasValue(prop)) {
-          // 走带云端缓存的读取逻辑（等同 patched getItem）
-          return Reflect.get(target, 'getItem')(prop);
-        }
-        return undefined; // 与原生行为一致：不存在的命名属性返回 undefined
-      },
-      set: function (target, prop, value) {
-        if (typeof prop === 'symbol') { Reflect.set(target, prop, value); return true; }
-        if (METHOD_NAMES[prop]) { Reflect.set(target, prop, value); return true; }
-        // 属性赋值 → 等同 patched setItem：写本地 + 更新缓存 + 同步云端
-        Reflect.get(target, 'setItem')(prop, value);
-        return true;
-      },
-      has: function (target, prop) {
-        if (typeof prop === 'symbol') return Reflect.has(target, prop);
-        if (METHOD_NAMES[prop] || /^\d+$/.test(prop)) return Reflect.has(target, prop);
-        return hasValue(prop);
-      },
-      deleteProperty: function (target, prop) {
-        if (typeof prop === 'symbol') { Reflect.deleteProperty(target, prop); return true; }
-        if (METHOD_NAMES[prop]) return true;
-        // delete localStorage.xxx → 等同 patched removeItem（含云端删除）
-        Reflect.get(target, 'removeItem')(prop);
-        return true;
-      }
-    });
-  })();
-
-  // 用代理替换 window.localStorage（方法调用与属性式读写都会经过补丁）
-  try {
-    Object.defineProperty(window, 'localStorage', {
-      get: function () { return storageProxy; },
-      configurable: true
-    });
-  } catch (e) {
-    console.warn('[SupabaseSync] 无法拦截 localStorage 属性式访问（getItem/setItem 同步不受影响）:', e);
   }
+
+  // 为一批键建立属性访问器（键来源：原生存储、云端缓存）
+  function ensureAccessorsForKeys(keys) {
+    for (var i = 0; i < keys.length; i++) {
+      defineKeyAccessor(keys[i]);
+    }
+  }
+
+  // 启动时：为原生 localStorage 中已存在的数据键建立访问器
+  // （对 stainlessbusiness，sb_contacts 等重映射键需还原为原始逻辑键名）
+  (function defineAccessorsForExistingNativeKeys() {
+    try {
+      var nativeKeys = Object.keys(nativeStorage);
+      for (var i = 0; i < nativeKeys.length; i++) {
+        var nativeKey = nativeKeys[i];
+        var logicalKey;
+        if (REMAP_REVERSE[nativeKey] !== undefined) {
+          logicalKey = REMAP_REVERSE[nativeKey]; // sb_contacts → contacts
+        } else if (REMAP_ORIGINALS[nativeKey]) {
+          continue; // 该键名已被本应用重映射，物理数据属于其他应用（如 clothing）
+        } else {
+          logicalKey = nativeKey;
+        }
+        defineKeyAccessor(logicalKey);
+      }
+    } catch (e) {}
+  })();
 
   // ===== 启动 =====
   init();

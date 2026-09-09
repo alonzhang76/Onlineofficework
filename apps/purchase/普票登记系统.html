@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 	<script>window.SUPABASE_APP_ID='purchase';</script>
@@ -1676,6 +1676,21 @@
             // 加载发票数据（使用filterInvoices而不是loadInvoiceData来显示统计条和分页）
             currentSearchTerm = '';
             filterInvoices(currentSearchTerm);
+
+            // 监听 Supabase 云端数据到达：首屏渲染早于云端数据返回，需在数据到达后刷新
+            window.addEventListener('cloud-data-updated', function (e) {
+                const changedKeys = (e && e.detail && e.detail.keys) || [];
+                try {
+                    // 备忘录数据
+                    if (changedKeys.includes('memoData') && typeof renderMemoList === 'function') {
+                        const fresh = JSON.parse(localStorage.getItem('memoData') || '[]');
+                        if (Array.isArray(fresh)) {
+                            memoData = fresh;
+                            renderMemoList();
+                        }
+                    }
+                } catch (err) { console.warn('云端数据刷新失败:', err); }
+            });
         });
 
         // 初始化页面

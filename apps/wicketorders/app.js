@@ -458,6 +458,11 @@ class PageController {
         } else if (tabName === 'memo') {
             // 渲染备忘录列表
             renderMemoList();
+        } else if (tabName === 'business') {
+            // 切换到业务跟踪时重新加载列表（确保显示云端同步后的最新数据）
+            if (typeof loadBusinessList === 'function') {
+                loadBusinessList();
+            }
         } else if (tabName === 'report') {
             // 更新报表统计数据
             updateReportStatistics();
@@ -10901,3 +10906,87 @@ if (document.readyState === 'loading') {
     // 更新国家筛选选项
     updateCountryFilterOptions();
 }
+
+// ==================== Supabase 云端数据到达后自动重渲染 ====================
+// supabase-sync.js 云端数据同步到本地后会派发 cloud-data-updated 事件。
+// 首次加载时各标签页渲染早于云端数据返回，需在数据到达后刷新当前可见标签页。
+(function setupCloudUpdateHandler() {
+    // 强制从存储重读某标签页的分页数据（云端数据到达后，分页缓存可能仍是旧数据）
+    function reloadPagination(pName, getterName) {
+        try {
+            if (typeof storage === 'undefined' || !paginations[pName]) return;
+            if (typeof storage[getterName] !== 'function') return;
+            var latest = storage[getterName]();
+            if (Array.isArray(latest) && typeof paginations[pName].setData === 'function') {
+                paginations[pName].setData(latest);
+            }
+        } catch (err) { console.warn('[CloudUpdate] 重读分页数据失败:', pName, err); }
+    }
+
+    // 存储键 → 该标签页的重渲染函数
+    var keyRenderers = {
+        orderRecords: function () {
+            reloadPagination('order', 'getOrderRecords');
+            if (pageController && typeof pageController.renderOrderTable === 'function') pageController.renderOrderTable();
+        },
+        exportRecords: function () {
+            reloadPagination('export', 'getExportRecords');
+            if (pageController && typeof pageController.renderExportTable === 'function') pageController.renderExportTable();
+        },
+        receiptRecords: function () {
+            reloadPagination('receipt', 'getReceiptRecords');
+            if (pageController && typeof pageController.renderReceiptTable === 'function') pageController.renderReceiptTable();
+        },
+        invoiceRecords: function () {
+            reloadPagination('invoice', 'getInvoiceRecords');
+            if (pageController && typeof pageController.renderInvoiceTable === 'function') pageController.renderInvoiceTable();
+        },
+        indexPaymentRecords: function () {
+            reloadPagination('payment', 'getPaymentRecords');
+            if (pageController && typeof pageController.renderPaymentTable === 'function') pageController.renderPaymentTable();
+        },
+        customerRecords: function () {
+            reloadPagination('customer', 'getCustomerRecords');
+            if (pageController && typeof pageController.renderCustomerTable === 'function') pageController.renderCustomerTable();
+        },
+        memoRecords: function () {
+            if (typeof renderMemoList === 'function') renderMemoList();
+        },
+        businessRecords: function () {
+            if (typeof loadBusinessList === 'function') loadBusinessList();
+        }
+    };
+
+    window.addEventListener('cloud-data-updated', function (e) {
+        var changedKeys = (e && e.detail && e.detail.keys) || [];
+        if (changedKeys.length === 0) return;
+
+        var activeTab = (pageController && pageController.currentActiveTab) || 'order';
+        // 标签页 → 该页关心的存储键
+        var tabKeys = {
+            order: ['orderRecords'],
+            export: ['exportRecords'],
+            receipt: ['receiptRecords'],
+            invoice: ['invoiceRecords'],
+            payment: ['indexPaymentRecords'],
+            customer: ['customerRecords'],
+            memo: ['memoRecords'],
+            business: ['businessRecords'],
+            report: ['orderRecords', 'exportRecords', 'receiptRecords', 'invoiceRecords', 'indexPaymentRecords']
+        };
+        var keysOfCurrentTab = tabKeys[activeTab] || [];
+        var hitKeys = changedKeys.filter(function (k) { return keysOfCurrentTab.indexOf(k) >= 0; });
+
+        hitKeys.forEach(function (k) {
+            var renderer = keyRenderers[k];
+            if (renderer) {
+                try { renderer(); } catch (err) { console.warn('[CloudUpdate] 重渲染失败:', k, err); }
+            }
+        });
+
+        // 报表统计受多张表影响，任何业务键变化时若在报表页则刷新
+        if (activeTab === 'report' && typeof updateReportStatistics === 'function') {
+            try { updateReportStatistics(); } catch (err) {}
+        }
+    });
+})();
