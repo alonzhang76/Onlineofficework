@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 	<script>window.SUPABASE_APP_ID='wicketorders';</script>
-	<script src="../supabase-sync.js"></script>
+	<script src="../supabase-sync.js?v=20260909c"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>外贸出口管理系统</title>
@@ -2359,10 +2359,10 @@
             const currentMonth = now.getMonth() + 1;
             
             // 获取收汇记录
-            const receiptRecords = JSON.parse(localStorage.receiptRecords || '[]');
+            const receiptRecords = JSON.parse(localStorage.getItem('receiptRecords') || '[]');
             
             // 获取付款记录
-            const paymentRecords = JSON.parse(localStorage.indexPaymentRecords || '[]');
+            const paymentRecords = JSON.parse(localStorage.getItem('indexPaymentRecords') || '[]');
             
             // 计算收汇统计
             let monthlyReceipt = 0;
@@ -2448,11 +2448,11 @@
         // 生成订单动态提醒
         function generateOrderReminders() {
             // 获取所有相关记录
-            const receiptRecords = JSON.parse(localStorage.receiptRecords || '[]');
-            const paymentRecords = JSON.parse(localStorage.indexPaymentRecords || '[]');
-            const exportRecords = JSON.parse(localStorage.exportRecords || '[]');
-            const invoiceRecords = JSON.parse(localStorage.invoiceRecords || '[]');
-            const orderRecords = JSON.parse(localStorage.orderRecords || '[]');
+            const receiptRecords = JSON.parse(localStorage.getItem('receiptRecords') || '[]');
+            const paymentRecords = JSON.parse(localStorage.getItem('indexPaymentRecords') || '[]');
+            const exportRecords = JSON.parse(localStorage.getItem('exportRecords') || '[]');
+            const invoiceRecords = JSON.parse(localStorage.getItem('invoiceRecords') || '[]');
+            const orderRecords = JSON.parse(localStorage.getItem('orderRecords') || '[]');
             
             // 创建订单映射，方便后续处理
             const orderMap = {};
@@ -2832,9 +2832,9 @@
         // 生成欠款统计
         function generateDebtStatistics() {
             // 获取订单记录
-            const orderRecords = JSON.parse(localStorage.orderRecords || '[]');
+            const orderRecords = JSON.parse(localStorage.getItem('orderRecords') || '[]');
             // 获取收汇记录
-            const receiptRecords = JSON.parse(localStorage.receiptRecords || '[]');
+            const receiptRecords = JSON.parse(localStorage.getItem('receiptRecords') || '[]');
             
             console.log('订单记录数量:', orderRecords.length);
             console.log('收汇记录数量:', receiptRecords.length);
@@ -3194,14 +3194,14 @@
                 backupTime: new Date().toISOString(),
                 version: '1.1',
                 data: {
-                    orderRecords: JSON.parse(localStorage.orderRecords || '[]'),
-                    customerRecords: JSON.parse(localStorage.customerRecords || '[]'),
-                    exportRecords: JSON.parse(localStorage.exportRecords || '[]'),
-                    invoiceRecords: JSON.parse(localStorage.invoiceRecords || '[]'),
-                    receiptRecords: JSON.parse(localStorage.receiptRecords || '[]'),
-                    paymentRecords: JSON.parse(localStorage.indexPaymentRecords || '[]'),
-                    memoRecords: JSON.parse(localStorage.memoRecords || '[]'),
-                    orderLabelsData: JSON.parse(localStorage.orderLabelsData || '[]'),
+                    orderRecords: JSON.parse(localStorage.getItem('orderRecords') || '[]'),
+                    customerRecords: JSON.parse(localStorage.getItem('customerRecords') || '[]'),
+                    exportRecords: JSON.parse(localStorage.getItem('exportRecords') || '[]'),
+                    invoiceRecords: JSON.parse(localStorage.getItem('invoiceRecords') || '[]'),
+                    receiptRecords: JSON.parse(localStorage.getItem('receiptRecords') || '[]'),
+                    paymentRecords: JSON.parse(localStorage.getItem('indexPaymentRecords') || '[]'),
+                    memoRecords: JSON.parse(localStorage.getItem('memoRecords') || '[]'),
+                    orderLabelsData: JSON.parse(localStorage.getItem('orderLabelsData') || '[]'),
                     businessRecords: JSON.parse(localStorage.getItem('businessRecords') || '[]'),
                     // 报价系统数据
                     quotationRecords: JSON.parse(localStorage.getItem('quotationRecords') || '[]'),
@@ -3254,14 +3254,14 @@
                         }
                         
                         // 恢复所有数据
-                        localStorage.orderRecords = JSON.stringify(data.data.orderRecords || []);
-                        localStorage.customerRecords = JSON.stringify(data.data.customerRecords || []);
-                        localStorage.exportRecords = JSON.stringify(data.data.exportRecords || []);
-                        localStorage.invoiceRecords = JSON.stringify(data.data.invoiceRecords || []);
-                        localStorage.receiptRecords = JSON.stringify(data.data.receiptRecords || []);
-                        localStorage.indexPaymentRecords = JSON.stringify(data.data.paymentRecords || []);
-                        localStorage.memoRecords = JSON.stringify(data.data.memoRecords || []);
-                        localStorage.orderLabelsData = JSON.stringify(data.data.orderLabelsData || []);
+                        localStorage.setItem('orderRecords', JSON.stringify(data.data.orderRecords || []));
+                        localStorage.setItem('customerRecords', JSON.stringify(data.data.customerRecords || []));
+                        localStorage.setItem('exportRecords', JSON.stringify(data.data.exportRecords || []));
+                        localStorage.setItem('invoiceRecords', JSON.stringify(data.data.invoiceRecords || []));
+                        localStorage.setItem('receiptRecords', JSON.stringify(data.data.receiptRecords || []));
+                        localStorage.setItem('indexPaymentRecords', JSON.stringify(data.data.paymentRecords || []));
+                        localStorage.setItem('memoRecords', JSON.stringify(data.data.memoRecords || []));
+                        localStorage.setItem('orderLabelsData', JSON.stringify(data.data.orderLabelsData || []));
                         localStorage.setItem('businessRecords', JSON.stringify(data.data.businessRecords || []));
                         // 恢复报价系统数据
                         localStorage.setItem('quotationRecords', JSON.stringify(data.data.quotationRecords || []));
@@ -3313,7 +3313,7 @@
                 if (!checkbox.id || checkbox.id !== 'selectAllExports') {
                     const recordId = checkbox.getAttribute('data-id');
                     if (recordId) {
-                        const exportRecords = JSON.parse(localStorage.exportRecords || '[]');
+                        const exportRecords = JSON.parse(localStorage.getItem('exportRecords') || '[]');
                         const record = exportRecords.find(r => r.id == recordId);
                         if (record) {
                             selectedRecords.push(record);
@@ -3331,7 +3331,7 @@
             const orderNos = selectedRecords.map(r => r.orderNo).join(',');
             
             // 从orderLabelsData中查找匹配的订单记录
-            const orderLabelsData = JSON.parse(localStorage.orderLabelsData || '[]');
+            const orderLabelsData = JSON.parse(localStorage.getItem('orderLabelsData') || '[]');
             const selectedOrderNos = orderNos.split(',').map(no => no.trim()).filter(Boolean);
             
             // 收集所有订单号用于查找
@@ -5100,7 +5100,7 @@
             if (!suggestionsDiv) return;
             
             const inputValue = value.toLowerCase();
-            const exportRecords = JSON.parse(localStorage.exportRecords || '[]');
+            const exportRecords = JSON.parse(localStorage.getItem('exportRecords') || '[]');
             
             // 筛选匹配的订单号
             const matchedOrders = exportRecords.filter(record => 
@@ -5217,7 +5217,7 @@
             }
             
             // 使用storage保存记录，每个产品作为单独一行
-            const records = JSON.parse(localStorage.invoiceRecords || '[]');
+            const records = JSON.parse(localStorage.getItem('invoiceRecords') || '[]');
             
             items.forEach((item, index) => {
                 const record = {
@@ -5232,7 +5232,7 @@
                 records.push(record);
             });
             
-            localStorage.invoiceRecords = JSON.stringify(records);
+            localStorage.setItem('invoiceRecords', JSON.stringify(records));
             
             // 更新分页数据并刷新表格和报表
             if (typeof paginations !== 'undefined' && paginations.invoice) {
@@ -5262,6 +5262,127 @@
             // 清空开票金额
             document.getElementById('invoiceAmount').value = '';
         }
+    </script>
+
+    <style>
+        /* ===== 手机端适配：标签栏固定在页面下方，可左右滑动选择（与 wage 应用一致）===== */
+        @media (max-width: 768px) {
+            html, body { overflow-x: hidden; }
+            .top-nav {
+                top: auto !important;
+                bottom: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                height: 60px !important;
+                min-height: 60px !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+                white-space: normal;
+                z-index: 1000;
+                border-top: 1px solid rgba(255,255,255,0.25);
+                box-shadow: 0 -2px 8px rgba(0,0,0,0.25);
+            }
+            .top-nav-content {
+                height: 60px;
+                justify-content: flex-start;
+                align-items: center;
+                flex-wrap: nowrap;
+            }
+            /* 隐藏标题，把空间留给标签栏 */
+            .top-nav-content > h1 { display: none !important; }
+            .nav-tabs {
+                flex: 1 1 auto !important;
+                display: flex !important;
+                flex-direction: row;
+                align-items: center;
+                height: 60px !important;
+                overflow-x: auto !important;
+                overflow-y: hidden !important;
+                -webkit-overflow-scrolling: touch;
+                touch-action: pan-x;
+                gap: 0 !important;
+                scrollbar-width: none;
+            }
+            .nav-tabs::-webkit-scrollbar { display: none; }
+            .nav-tab {
+                flex: 0 0 auto;
+                display: flex !important;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 2px;
+                min-width: 62px;
+                height: 60px !important;
+                padding: 4px 8px !important;
+                font-size: 11px !important;
+                border-radius: 0 !important;
+                line-height: 1.2;
+            }
+            .nav-tab span { margin: 0 !important; font-size: 17px; }
+            .nav-tab.active {
+                background: rgba(255,255,255,0.22) !important;
+                color: #ffffff !important;
+                box-shadow: inset 0 3px 0 #d4edda;
+            }
+            /* 数据管理按钮并入底栏 */
+            .top-nav-content > .relative { margin-left: 0 !important; flex: 0 0 auto; padding-right: 4px; }
+            #dataManagementBtn { padding: 6px 8px !important; font-size: 11px !important; height: auto; }
+            #dataManagementMenu { bottom: 66px; top: auto !important; }
+            /* 主内容区避让底部标签栏 */
+            .full-width-container { padding-bottom: 88px !important; }
+        }
+    </style>
+
+    <script>
+        // ===== 手机端：在内容区左右滑动切换标签页 =====
+        (function initMobileTabSwipe() {
+            var order = ['memo', 'business', 'payment', 'invoice', 'export', 'receipt', 'order', 'customer', 'report'];
+            var startX = 0, startY = 0, tracking = false;
+
+            // 触点位于横向滚动容器（表格等）内时不触发切换手势，避免与表格横滑冲突
+            function insideHorizontalScroller(el) {
+                while (el && el !== document.body) {
+                    if (el.nodeType === 1) {
+                        var cls = el.classList || [];
+                        if (cls.contains('table-container') || cls.contains('overflow-x-auto') || cls.contains('nav-tabs')) return true;
+                        var st = window.getComputedStyle(el);
+                        if (st && (st.overflowX === 'auto' || st.overflowX === 'scroll') && el.scrollWidth > el.clientWidth + 4) return true;
+                    }
+                    el = el.parentElement;
+                }
+                return false;
+            }
+
+            document.addEventListener('touchstart', function (e) {
+                if (e.touches.length !== 1) { tracking = false; return; }
+                var t = e.touches[0];
+                startX = t.clientX; startY = t.clientY;
+                tracking = !insideHorizontalScroller(e.target);
+            }, { passive: true });
+
+            document.addEventListener('touchend', function (e) {
+                if (!tracking) return;
+                tracking = false;
+                var t = e.changedTouches[0];
+                var dx = t.clientX - startX, dy = t.clientY - startY;
+                if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+                // 模态框打开时不切换
+                var openModal = document.querySelector('.modal-overlay:not(.hidden)');
+                if (openModal) return;
+                var active = document.querySelector('.nav-tab.active');
+                var cur = active ? order.indexOf(active.getAttribute('data-tab')) : -1;
+                if (cur === -1) cur = order.indexOf('order');
+                var next = dx < 0 ? cur + 1 : cur - 1;
+                if (next < 0 || next >= order.length) return;
+                if (typeof pageController !== 'undefined' && typeof pageController.switchTab === 'function') {
+                    pageController.switchTab(order[next]);
+                    var act = document.querySelector('.nav-tab.active');
+                    if (act && act.scrollIntoView) {
+                        try { act.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' }); } catch (err) {}
+                    }
+                }
+            }, { passive: true });
+        })();
     </script>
 </body>
 </html>

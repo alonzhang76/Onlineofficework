@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 	<script>window.SUPABASE_APP_ID='wicketorders';</script>
-	<script src="../supabase-sync.js"></script>
+	<script src="../supabase-sync.js?v=20260909c"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Delivery Notice</title>
@@ -1186,8 +1186,8 @@
             
             // 优先从订单记录获取完整数据
             const orderNos = data.orderNo.split(',').map(s => s.trim()).filter(s => s);
-            const orderRecords = JSON.parse(localStorage.orderRecords || '[]');
-            const orderLabelsData = JSON.parse(localStorage.orderLabelsData || '[]');
+            const orderRecords = JSON.parse(localStorage.getItem('orderRecords') || '[]');
+            const orderLabelsData = JSON.parse(localStorage.getItem('orderLabelsData') || '[]');
             
             console.log('订单号列表:', orderNos);
             console.log('订单记录总数:', orderRecords.length);
@@ -1605,7 +1605,7 @@
         function getTransportModeFromOrderRecords(orderNo) {
             if (!orderNo) return '';
             
-            const orderRecords = JSON.parse(localStorage.orderRecords || '[]');
+            const orderRecords = JSON.parse(localStorage.getItem('orderRecords') || '[]');
             console.log('Searching for orderNo:', orderNo, 'Total records:', orderRecords.length);
             
             const record = orderRecords.find(r => {

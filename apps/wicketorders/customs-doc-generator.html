@@ -3,7 +3,7 @@
 <html lang="zh-CN">
 <head>
 	<script>window.SUPABASE_APP_ID='wicketorders';</script>
-	<script src="../supabase-sync.js"></script>
+	<script src="../supabase-sync.js?v=20260909c"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>报关文件自动生成系统 | Customs Document Generator</title>
@@ -2663,7 +2663,7 @@ function removeProductRow(btn) {
 
 function getCurrencyByOrderNo(orderNo) {
   if (!orderNo) return '';
-  const orders = JSON.parse(localStorage.orderRecords || '[]');
+  const orders = JSON.parse(localStorage.getItem('orderRecords') || '[]');
   const lowerOrderNo = orderNo.toLowerCase().trim();
   
   for (const o of orders) {
@@ -3135,7 +3135,7 @@ function applySortForOrders(orders, column, direction) {
 
 function filterOrderList() {
   const keyword = document.getElementById('orderSearchInput').value.trim().toLowerCase();
-  const orders = JSON.parse(localStorage.orderRecords || '[]');
+  const orders = JSON.parse(localStorage.getItem('orderRecords') || '[]');
   
   // 按订单日期倒序排列，与index.html订单管理页面保持一致
   const sortedOrders = applySortForOrders(orders, 'orderDate', 'desc');
@@ -3180,7 +3180,7 @@ function renderOrderList(orders) {
 }
 
 function toggleOrderSelection(orderId) {
-  const orders = JSON.parse(localStorage.orderRecords || '[]');
+  const orders = JSON.parse(localStorage.getItem('orderRecords') || '[]');
   const order = orders.find(o => o.id === orderId);
   
   if (order) {
@@ -3197,7 +3197,7 @@ function toggleOrderSelection(orderId) {
 
 function toggleAllOrderCheckboxes(checkbox) {
   const allCheckboxes = document.querySelectorAll('.order-checkbox');
-  const orders = JSON.parse(localStorage.orderRecords || '[]');
+  const orders = JSON.parse(localStorage.getItem('orderRecords') || '[]');
   
   if (checkbox.checked) {
     // 全选
@@ -5140,7 +5140,7 @@ function printDoc(id) {
   const idoc = iframe.contentWindow.document;
   idoc.write('<!DOCTYPE html><html><head>
 	<script>window.SUPABASE_APP_ID='wicketorders';</script>
-	<script src="../supabase-sync.js"></script><meta charset="UTF-8"><title>Print</title>');
+	<script src="../supabase-sync.js?v=20260909c"></script><meta charset="UTF-8"><title>Print</title>');
   idoc.write('<meta name="viewport" content="width=device-width, initial-scale=1.0">');
   idoc.write('<style>');
   // 基础样式 - 与页面显示一致，允许换行，英文字体优先使用Arial
@@ -5344,7 +5344,7 @@ function generateAllPDF() {
   
   idoc.write('<!DOCTYPE html><html><head>
 	<script>window.SUPABASE_APP_ID='wicketorders';</script>
-	<script src="../supabase-sync.js"></script><meta charset="UTF-8"><title>' + fileName + '</title>');
+	<script src="../supabase-sync.js?v=20260909c"></script><meta charset="UTF-8"><title>' + fileName + '</title>');
   idoc.write('<meta name="viewport" content="width=device-width, initial-scale=1.0">');
   idoc.write('<style>');
   
@@ -5452,7 +5452,7 @@ function fallbackPrintWindow(id) {
   if (!w) { alert('打印窗口被浏览器拦截，请允许弹出窗口。'); return; }
   w.document.write('<!DOCTYPE html><html><head>
 	<script>window.SUPABASE_APP_ID='wicketorders';</script>
-	<script src="../supabase-sync.js"></script><meta charset="UTF-8"><title>Print</title><style>body{font-family:Arial,sans-serif;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #333;padding:8px}input,select,textarea{border:none;border-bottom:1px solid #000;background:transparent;outline:none}</style></head><body>');
+	<script src="../supabase-sync.js?v=20260909c"></script><meta charset="UTF-8"><title>Print</title><style>body{font-family:Arial,sans-serif;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #333;padding:8px}input,select,textarea{border:none;border-bottom:1px solid #000;background:transparent;outline:none}</style></head><body>');
   w.document.write(el.innerHTML);
   w.document.write('</body></html>');
   w.document.close();

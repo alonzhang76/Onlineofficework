@@ -1,98 +1,86 @@
 // 存储管理对象
 const storage = {
     // 初始化存储结构
+    // 注意：必须使用 localStorage.getItem/setItem 方法式读写（方法式读写才会经过
+    // supabase-sync.js 的拦截与云端同步）；localStorage.key = value 属性式写法
+    // 在 Chromium/Safari 上无法被拦截，会导致云端数据不显示，禁止使用。
     init() {
-        if (!localStorage.orderRecords) {
-            localStorage.orderRecords = JSON.stringify([]);
-        }
-        if (!localStorage.exportRecords) {
-            localStorage.exportRecords = JSON.stringify([]);
-        }
-        if (!localStorage.receiptRecords) {
-            localStorage.receiptRecords = JSON.stringify([]);
-        }
-        if (!localStorage.invoiceRecords) {
-            localStorage.invoiceRecords = JSON.stringify([]);
-        }
-        if (!localStorage.indexPaymentRecords) {
-            localStorage.indexPaymentRecords = JSON.stringify([]);
-        }
-        if (!localStorage.customerRecords) {
-            localStorage.customerRecords = JSON.stringify([]);
-        }
-        if (!localStorage.memoRecords) {
-            localStorage.memoRecords = JSON.stringify([]);
-        }
+        const initKeys = ['orderRecords', 'exportRecords', 'receiptRecords', 'invoiceRecords', 'indexPaymentRecords', 'customerRecords', 'memoRecords'];
+        initKeys.forEach(k => {
+            if (localStorage.getItem(k) === null || localStorage.getItem(k) === undefined) {
+                localStorage.setItem(k, JSON.stringify([]));
+            }
+        });
     },
-    
+
     // 获取订单记录
     get orderRecords() {
-        return JSON.parse(localStorage.orderRecords || '[]');
+        return JSON.parse(localStorage.getItem('orderRecords') || '[]');
     },
-    
+
     // 设置订单记录
     set orderRecords(records) {
-        localStorage.orderRecords = JSON.stringify(records);
+        localStorage.setItem('orderRecords', JSON.stringify(records));
     },
-    
+
     // 获取出口记录
     get exportRecords() {
-        return JSON.parse(localStorage.exportRecords || '[]');
+        return JSON.parse(localStorage.getItem('exportRecords') || '[]');
     },
-    
+
     // 设置出口记录
     set exportRecords(records) {
-        localStorage.exportRecords = JSON.stringify(records);
+        localStorage.setItem('exportRecords', JSON.stringify(records));
     },
-    
+
     // 获取收汇记录
     get receiptRecords() {
-        return JSON.parse(localStorage.receiptRecords || '[]');
+        return JSON.parse(localStorage.getItem('receiptRecords') || '[]');
     },
-    
+
     // 设置收汇记录
     set receiptRecords(records) {
-        localStorage.receiptRecords = JSON.stringify(records);
+        localStorage.setItem('receiptRecords', JSON.stringify(records));
     },
-    
+
     // 获取开票记录
     get invoiceRecords() {
-        return JSON.parse(localStorage.invoiceRecords || '[]');
+        return JSON.parse(localStorage.getItem('invoiceRecords') || '[]');
     },
-    
+
     // 设置开票记录
     set invoiceRecords(records) {
-        localStorage.invoiceRecords = JSON.stringify(records);
+        localStorage.setItem('invoiceRecords', JSON.stringify(records));
     },
-    
+
     // 获取付款记录
     get paymentRecords() {
-        return JSON.parse(localStorage.indexPaymentRecords || '[]');
+        return JSON.parse(localStorage.getItem('indexPaymentRecords') || '[]');
     },
-    
+
     // 设置付款记录
     set paymentRecords(records) {
-        localStorage.indexPaymentRecords = JSON.stringify(records);
+        localStorage.setItem('indexPaymentRecords', JSON.stringify(records));
     },
-    
+
     // 获取客户记录
     get customerRecords() {
-        return JSON.parse(localStorage.customerRecords || '[]');
+        return JSON.parse(localStorage.getItem('customerRecords') || '[]');
     },
-    
+
     // 设置客户记录
     set customerRecords(records) {
-        localStorage.customerRecords = JSON.stringify(records);
+        localStorage.setItem('customerRecords', JSON.stringify(records));
     },
-    
+
     // 获取备忘录记录
     get memoRecords() {
-        return JSON.parse(localStorage.memoRecords || '[]');
+        return JSON.parse(localStorage.getItem('memoRecords') || '[]');
     },
-    
+
     // 设置备忘录记录
     set memoRecords(records) {
-        localStorage.memoRecords = JSON.stringify(records);
+        localStorage.setItem('memoRecords', JSON.stringify(records));
     },
     
     // 获取所有订单记录

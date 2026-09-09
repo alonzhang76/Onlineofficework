@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Accessor Test 2</title></head>
+<body>
+<pre id="out">running...</pre>
+<script>
+var out = [];
+function log(m) {
+  out.push(m);
+  try { document.getElementById('out').textContent = out.join('\n'); } catch (e) {}
+  try { window.__testLog = out.join('\n'); } catch (e) {}
+}
+
+// Test A: defineProperty on EXISTING named property
+try {
+  localStorage.setItem('tacc', 'v1');
+  Object.defineProperty(localStorage, 'tacc', {
+    configurable: true, enumerable: true,
+    get: function () { return localStorage.getItem('tacc'); },
+    set: function (v) { localStorage.setItem('tacc', v); }
+  });
+  log('A. defineProperty EXISTING key: OK');
+} catch (e) { log('A. defineProperty EXISTING key: THREW -> ' + e.message); }
+
+// Test B: defineProperty on NEW (non-existent) key
+try {
+  Object.defineProperty(localStorage, 'tnew', {
+    configurable: true, enumerable: true,
+    get: function () { return localStorage.getItem('tnew'); },
+    set: function (v) { localStorage.setItem('tnew', v); }
+  });
+  log('B. defineProperty NEW key: OK');
+} catch (e) { log('B. defineProperty NEW key: THREW -> ' + e.message); }
+
+// Test C: if accessor exists on tnew, method-style setItem (recursion check)
+try { localStorage.setItem('tnew', 'v1'); log('C. setItem on accessor key: OK, stored=' + localStorage.getItem('tnew')); }
+catch (e) { log('C. setItem on accessor key: THREW -> ' + e.message); }
+
+// Test D: property-style write on accessor key
+try { localStorage.tnew = 'v2'; log('D. property write on accessor key: OK, stored=' + localStorage.getItem('tnew')); }
+catch (e) { log('D. property write on accessor key: THREW -> ' + e.message); }
+
+// Test E: property-style READ of non-accessorized existing key
+try { localStorage.setItem('tplain', 'p1'); log('E. property read plain key: ' + localStorage.tplain); }
+catch (e) { log('E. property read plain key: THREW -> ' + e.message); }
+
+// Test F: descriptor of named property
+try {
+  var d = Object.getOwnPropertyDescriptor(localStorage, 'tplain');
+  log('F. descriptor of named prop: ' + (d ? ('configurable=' + d.configurable + ' hasGet=' + !!d.get + ' hasValue=' + ('value' in d)) : 'undefined'));
+} catch (e) { log('F. descriptor: THREW -> ' + e.message); }
+
+try { localStorage.removeItem('tacc'); localStorage.removeItem('tnew'); localStorage.removeItem('tplain'); } catch (e) {}
+log('DONE');
+</script>
+</body>
+</html>
