@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
@@ -10,7 +10,43 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
     <!-- Supabase 数据同步（自动匿名登录 + localStorage 拦截同步） -->
     <script>window.SUPABASE_APP_ID='stainlessbusiness';</script>
-    <script src="./supabase-sync.js?v=20260909c"></script>
+    <script src="./supabase-sync.js?v=20260909d"></script>
+    <!-- 手机端表格横向滑动：antd 表格默认不启用 scroll，通过 CSS 让 .ant-table-content 可横向滚动 -->
+    <style>
+      @media (max-width: 768px) {
+        .ant-table-content {
+          overflow-x: auto !important;
+          -webkit-overflow-scrolling: touch;
+          touch-action: pan-x pan-y;
+          overscroll-behavior-x: contain;
+        }
+        .ant-table-content > table {
+          min-width: 100%;
+          width: max-content;
+        }
+      }
+    </style>
+    <!-- 首次云端数据同步完成后自动刷新一次：
+         React 应用在挂载时一次性读取 localStorage，而云端数据到达较晚；
+         同步层已把云端数据写入原生 localStorage，刷新后即可读到完整数据。
+         sessionStorage 标记保证每个会话最多刷新一次。 -->
+    <script>
+      (function () {
+        var DONE = '__sbCloudReloaded';
+        window.addEventListener('cloud-data-updated', function (e) {
+          try {
+            var detail = (e && e.detail) || {};
+            if (!detail.initial) return;
+            if (sessionStorage.getItem(DONE)) return;
+            var keys = detail.keys || [];
+            if (!keys.length) return;
+            sessionStorage.setItem(DONE, '1');
+            console.log('[SB] 云端数据已同步，自动刷新页面一次');
+            location.reload();
+          } catch (err) {}
+        });
+      })();
+    </script>
     <script defer src="./assets/index-BUzWo_C6.js"></script>
     <link rel="stylesheet" href="./assets/index-D8fI8zIA.css">
   </head>

@@ -29,6 +29,13 @@
   var REFRESH_INTERVAL = 30000; // 30 秒刷新一次
   var SKIP_WRITE_WINDOW = 10000; // 10 秒内自己写入的 key 跳过云端覆盖
 
+  // 专用数据同步账号（authenticated 角色）。
+  // 项目未开启匿名登录，匿名角色对 app_data_store 表被 RLS 拦截（读 0 行/写 42501），
+  // 因此所有应用统一用此账号静默登录。账号在 Supabase Dashboard 确认邮箱后生效；
+  // 若项目开启"自动确认注册"则首端会自动 signUp 建号。
+  var SYNC_ACCOUNT_EMAIL = 'sync@lori.app';
+  var SYNC_ACCOUNT_PASSWORD = 'LoriSync2026!';
+
   // ===== 状态 =====
   var sb = null;
   var cache = {};       // 内存缓存：原始key → 值
@@ -103,12 +110,19 @@
   }
 
   // ===== 保存原始 localStorage 方法 =====
-  var _origGetItem = localStorage.getItem.bind(localStorage);
-  var _origSetItem = localStorage.setItem.bind(localStorage);
-  var _origRemoveItem = localStorage.removeItem.bind(localStorage);
+  // 关键：补丁打在 Storage.prototype 上而不是 localStorage 实例上。
+  // 在 Storage 实例上赋值（localStorage.getItem = fn）属于未定义行为：
+  //   - Chromium 会存为自有属性，且 getItem/setItem 等名字会混入 Object.keys(localStorage)；
+  //   - WebKit(Safari) 的 Storage 命名属性 setter 可能把值序列化成字符串存储，
+  //     导致 localStorage.getItem 变成字符串、调用即崩溃。
+  // 打在原型上则所有浏览器行为一致、不污染键枚举、也不会影响方法名。
+  var _lsInstance = window.localStorage;
+  var _StorageProto = Object.getPrototypeOf(_lsInstance); // Storage.prototype
+  var _origGetItem = _StorageProto.getItem;
+  var _origSetItem = _StorageProto.setItem;
+  var _origRemoveItem = _StorageProto.removeItem;
 
-  // Storage 实例上的方法名。方法补丁赋值会让这些名字出现在 Object.keys(localStorage) 中，
-  // 迁移/枚举时必须当作保留名跳过，绝不能当作数据键读写（否则会引发递归或覆盖补丁方法）。
+  // Storage 实例上的方法名（仅用于迁移枚举时的防御性过滤；原型补丁不会产生自有方法名）
   var RESERVED_KEYS = ['getItem', 'setItem', 'removeItem', 'key', 'clear', 'length'];
   function isReservedKey(key) {
     return RESERVED_KEYS.indexOf(key) >= 0;
@@ -160,33 +174,43 @@
     });
   }
 
-  // ===== 匿名登录 =====
+  // ===== 登录 =====
   async function ensureAuth() {
     if (!sb || !sb.auth) return null;
     try {
       var result = await sb.auth.getUser();
       if (result.data && result.data.user) return result.data.user;
-      // 尝试匿名登录
-      var anonResult = await sb.auth.signInAnonymously();
-      if (anonResult.data && anonResult.data.user) {
-        console.log('[SupabaseSync] Anonymous auth OK');
-        return anonResult.data.user;
-      }
-      if (anonResult.error) {
-        console.warn('[SupabaseSync] Anonymous auth failed:', anonResult.error.message);
-        // 如果匿名登录不可用，尝试用固定邮箱登录（匿名登录的回退方案）
-        try {
-          var signInResult = await sb.auth.signInWithPassword({
-            email: 'guest@stainless.app',
-            password: 'guest2026'
-          });
-          if (signInResult.data && signInResult.data.user) {
-            console.log('[SupabaseSync] Guest auth OK');
-            return signInResult.data.user;
-          }
-        } catch (e2) {
-          console.warn('[SupabaseSync] Guest auth also failed:', e2.message);
+
+      // 尝试专用数据同步账号（authenticated 角色，绕开匿名 RLS 限制）
+      try {
+        var signInResult = await sb.auth.signInWithPassword({
+          email: SYNC_ACCOUNT_EMAIL,
+          password: SYNC_ACCOUNT_PASSWORD
+        });
+        if (signInResult.data && signInResult.data.user) {
+          console.log('[SupabaseSync] Sync account auth OK');
+          return signInResult.data.user;
         }
+        var msg = signInResult.error ? signInResult.error.message : '';
+        // 账号不存在（新项目首次运行）→ 尝试自动注册
+        if (msg.indexOf('Invalid login credentials') >= 0) {
+          var signUpResult = await sb.auth.signUp({
+            email: SYNC_ACCOUNT_EMAIL,
+            password: SYNC_ACCOUNT_PASSWORD
+          });
+          if (signUpResult.data && signUpResult.data.session && signUpResult.data.session.user) {
+            console.log('[SupabaseSync] Sync account created & signed in');
+            return signUpResult.data.session.user;
+          }
+          if (signUpResult.data && signUpResult.data.user) {
+            // 注册成功但需邮箱确认：管理员在 Supabase 执行 SQL 确认后生效
+            console.warn('[SupabaseSync] Sync account created but email not confirmed. Cloud sync disabled until confirmed.');
+            return null;
+          }
+        }
+        console.warn('[SupabaseSync] Sync account auth failed:', msg, '— 云端同步不可用，请检查 Supabase 账号确认状态/RLS 策略');
+      } catch (e2) {
+        console.warn('[SupabaseSync] Auth error:', e2 && e2.message);
       }
       return null;
     } catch (e) {
@@ -251,7 +275,7 @@
       try {
         var allKeys = Object.keys(cache);
         if (allKeys.length > 0) {
-          window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { keys: allKeys } }));
+          window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { keys: allKeys, initial: true } }));
         }
       } catch (e) {}
 
@@ -289,11 +313,11 @@
       for (var rk = 0; rk < remapKeys.length; rk++) {
         var orig = remapKeys[rk];
         var localK = LOCAL_KEY_REMAP[orig];
-        var oldRaw = _origGetItem(orig);
-        var newRaw = _origGetItem(localK);
+        var oldRaw = nativeGet(orig);
+        var newRaw = nativeGet(localK);
         // 只有当旧键有值且新键无值时才搬迁，避免覆盖已有新数据
         if (oldRaw !== null && oldRaw !== '' && (newRaw === null || newRaw === '')) {
-          _origSetItem(localK, oldRaw);
+          nativeSet(localK, oldRaw);
           console.log('[SupabaseSync] Local key migrated:', orig, '→', localK);
         }
         // 旧键保留给其他应用，不删除（可能属于 clothing 等）
@@ -330,7 +354,7 @@
         if (shouldSkip(key)) continue;
 
         var prefixedKey = prefixKey(key);
-        var raw = _origGetItem(nativeKey);
+        var raw = nativeGet(nativeKey);
         var localVal;
         try { localVal = (raw === null || raw === undefined) ? undefined : JSON.parse(raw); } catch (e) { localVal = raw; }
 
@@ -362,8 +386,8 @@
             // 云端为准：将云端数据恢复到本地与缓存
             // （修复云端加载完成前应用初始化写入的过期空值残留）
             var rawC = typeof cloudVal === 'string' ? cloudVal : JSON.stringify(cloudVal);
-            if (_origGetItem(nativeKey) !== rawC) {
-              _origSetItem(nativeKey, rawC);
+            if (nativeGet(nativeKey) !== rawC) {
+              nativeSet(nativeKey, rawC);
             }
             cache[key] = cloudVal;
             cacheTs[key] = new Date().toISOString();
@@ -447,7 +471,7 @@
       // 防护2：队列值为空而本地当前值非空时跳过
       // （避免云端加载完成前应用初始化误写的空数组覆盖云端真实数据）
       if (isEmptyValue(value)) {
-        var raw = _origGetItem(toLocalKey(key));
+        var raw = nativeGet(toLocalKey(key));
         var cur;
         try { cur = (raw === null || raw === undefined) ? undefined : JSON.parse(raw); } catch (e) { cur = raw; }
         if (!isEmptyValue(cur)) continue;
@@ -491,7 +515,7 @@
           cacheTs[origKey] = row.updated_at;
           // 同步到原生 localStorage（使用重映射后的本地键名）
           var raw = typeof newVal === 'string' ? newVal : JSON.stringify(newVal);
-          _origSetItem(toLocalKey(origKey), raw);
+          nativeSet(toLocalKey(origKey), raw);
           changedKeys.push(origKey);
         }
       });
@@ -505,52 +529,65 @@
     }
   }
 
-  // ===== 拦截 localStorage =====
-  localStorage.getItem = function (key) {
-    // 优先从缓存读取（缓存使用原始 key）
-    if (cache[key] !== undefined) {
-      var val = cache[key];
-      return typeof val === 'string' ? val : JSON.stringify(val);
+  // ===== 原生 localStorage 读写小工具（显式绑定到 localStorage 实例） =====
+  function nativeGet(k) { return _origGetItem.call(_lsInstance, k); }
+  function nativeSet(k, v) { return _origSetItem.call(_lsInstance, k, v); }
+  function nativeRemove(k) { return _origRemoveItem.call(_lsInstance, k); }
+
+  // ===== 拦截 localStorage / sessionStorage（在 Storage.prototype 上打补丁）=====
+  // 说明：只拦截 localStorage 实例（this === _lsInstance）；sessionStorage 原样透传。
+  _StorageProto.getItem = function (key) {
+    if (this === _lsInstance) {
+      // 优先从缓存读取（缓存使用原始 key）
+      if (cache[key] !== undefined) {
+        var val = cache[key];
+        return typeof val === 'string' ? val : JSON.stringify(val);
+      }
+      // 回退到原生 localStorage（可能被重映射为不同的本地键名）
+      return _origGetItem.call(this, toLocalKey(key));
     }
-    // 回退到原生 localStorage（可能被重映射为不同的本地键名）
-    return _origGetItem(toLocalKey(key));
+    return _origGetItem.call(this, key);
   };
 
-  localStorage.setItem = function (key, value) {
-    // 写入原生 localStorage（使用重映射后的本地键名，避免与其他应用冲突）
-    _origSetItem(toLocalKey(key), value);
+  _StorageProto.setItem = function (key, value) {
+    if (this === _lsInstance) {
+      // 写入原生 localStorage（使用重映射后的本地键名，避免与其他应用冲突）
+      _origSetItem.call(this, toLocalKey(key), value);
 
-    // 更新内存缓存（使用原始 key）
-    try { cache[key] = JSON.parse(value); } catch (e) { cache[key] = value; }
+      // 更新内存缓存（使用原始 key）
+      try { cache[key] = JSON.parse(value); } catch (e) { cache[key] = value; }
 
-    // 异步同步到云端（使用原始 key → store_key 为 APP_ID__key）
-    if (!shouldSkip(key)) {
-      syncToCloud(key, cache[key]);
+      // 异步同步到云端（使用原始 key → store_key 为 APP_ID__key）
+      if (!shouldSkip(key)) {
+        syncToCloud(key, cache[key]);
+      }
+      return;
     }
+    return _origSetItem.call(this, key, value);
   };
 
-  localStorage.removeItem = function (key) {
-    _origRemoveItem(toLocalKey(key));
-    delete cache[key];
-    delete cacheTs[key];
-    recentWrites[key] = Date.now();
+  _StorageProto.removeItem = function (key) {
+    if (this === _lsInstance) {
+      _origRemoveItem.call(this, toLocalKey(key));
+      delete cache[key];
+      delete cacheTs[key];
+      recentWrites[key] = Date.now();
 
-    if (sb && initialized && !shouldSkip(key)) {
-      sb.from(TABLE).delete().eq('store_key', prefixKey(key)).then(function () {});
+      if (sb && initialized && !shouldSkip(key)) {
+        sb.from(TABLE).delete().eq('store_key', prefixKey(key)).then(function () {});
+      }
+      return;
     }
+    return _origRemoveItem.call(this, key);
   };
 
   // ===== 属性式访问说明（重要） =====
-  // 部分应用曾使用 localStorage.key = value 这类属性式读写。经实测：
-  //   1) Chromium 明确禁止在 Storage 上 defineProperty 访问器
-  //      （报错 "Accessor properties are not allowed"），访问器方案完全不可用；
-  //   2) 更危险的是：localStorage.getItem = function... 这类方法补丁赋值会让
-  //      'getItem'/'setItem'/'removeItem' 出现在 Object.keys(localStorage) 中，
-  //      若为这些名字建立访问器，会导致 getItem 无限递归调用自身，
-  //      抛出 "Maximum call stack size exceeded"，令整页脚本崩溃。
-  // 因此本层只采用方法式拦截（getItem/setItem/removeItem），
-  // 应用代码必须使用 localStorage.getItem('key') / setItem('key', value) 方法式读写。
-  // Storage 实例上的方法名（RESERVED_KEYS，见文件前部），禁止当作数据键处理。
+  // 本层在 Storage.prototype 上补丁 getItem/setItem/removeItem，
+  // 只拦截"方法式"读写：localStorage.getItem('key') / setItem('key', v)。
+  // 应用代码必须使用方法式读写；localStorage.key = value 这类属性式写入
+  // 走 Storage 命名属性 setter，不经原型补丁，不会同步到云端。
+  // 历史上访问器/实例方法补丁方案在 Chromium 与 WebKit 行为不一致
+  // （递归、方法名混入键枚举、WebKit 赋值被序列化等），均已废弃。
 
   // ===== 启动 =====
   init();

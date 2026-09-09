@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 	<script>window.SUPABASE_APP_ID='purchase';</script>
-	<script src="../supabase-sync.js?v=20260909c"></script>
+	<script src="../supabase-sync.js?v=20260909d"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ProcurePay - 采购付款发票管理系统</title>
@@ -2603,46 +2603,55 @@
             // supabase-sync.js 在云端数据同步到本地后派发 cloud-data-updated 事件；
             // 首次加载时 renderPurchaseOrderList 可能在云端数据到达前执行，需在数据到达后重新渲染。
             window.addEventListener('cloud-data-updated', function (e) {
-                const currentCompany = getCurrentCompany();
-                const relevantKeys = [
-                    `purchaseOrders_${currentCompany}`,
-                    `${currentCompany}-invoices`,
-                    `${currentCompany}-payments`
-                ];
-                const changedKeys = (e.detail && e.detail.keys) || [];
-                const hasRelevantChange = changedKeys.some(k => relevantKeys.includes(k));
-                if (hasRelevantChange) {
-                    // 仅在采购管理页可见时重渲染，避免不必要的 DOM 操作
-                    const procPage = document.getElementById('procurement-page');
-                    if (procPage && !procPage.classList.contains('hidden') && typeof renderPurchaseOrderList === 'function') {
-                        renderPurchaseOrderList();
+                const changedKeys = (e && e.detail && e.detail.keys) || [];
+                if (!changedKeys.length) return;
+                // 每段渲染独立 try/catch：任何一个页面的渲染异常都不应阻断其余页面的云端刷新
+                let currentCompany;
+                try { currentCompany = (typeof getCurrentCompany === 'function') ? getCurrentCompany() : 'companyA'; } catch (err) { currentCompany = 'companyA'; }
+                try {
+                    const relevantKeys = [
+                        `purchaseOrders_${currentCompany}`,
+                        `${currentCompany}-invoices`,
+                        `${currentCompany}-payments`
+                    ];
+                    const hasRelevantChange = changedKeys.some(k => relevantKeys.includes(k));
+                    if (hasRelevantChange) {
+                        // 仅在采购管理页可见时重渲染，避免不必要的 DOM 操作
+                        const procPage = document.getElementById('procurement-page');
+                        if (procPage && !procPage.classList.contains('hidden') && typeof renderPurchaseOrderList === 'function') {
+                            renderPurchaseOrderList();
+                        }
+                        if (typeof updateDetailedPurchaseReport === 'function') {
+                            updateDetailedPurchaseReport();
+                        }
                     }
-                    if (typeof updateDetailedPurchaseReport === 'function') {
-                        updateDetailedPurchaseReport();
+                } catch (err) { console.warn('[CloudUpdate] 采购/报表刷新失败:', err); }
+                try {
+                    // 云端供应商数据到达后：刷新全局变量（脚本初始化时云端数据尚未加载）
+                    if (changedKeys.includes('suppliers')) {
+                        if (typeof refreshSuppliersFromStorage === 'function') {
+                            refreshSuppliersFromStorage();
+                        }
+                        const supPage = document.getElementById('suppliers-page');
+                        if (supPage && !supPage.classList.contains('hidden') && typeof renderSuppliers === 'function') {
+                            renderSuppliers();
+                        }
                     }
-                }
-                // 云端供应商数据到达后：刷新全局变量（脚本初始化时云端数据尚未加载）
-                if (changedKeys.includes('suppliers')) {
-                    if (typeof refreshSuppliersFromStorage === 'function') {
-                        refreshSuppliersFromStorage();
+                } catch (err) { console.warn('[CloudUpdate] 供应商刷新失败:', err); }
+                try {
+                    // 云端备忘录数据到达后：待办事项 + 记事本（仅在备忘录页可见时刷新）
+                    const memoKeys = [
+                        `procurementTodos_${currentCompany}`,
+                        `procurement-notepad-content_${currentCompany}`
+                    ];
+                    const memoChanged = changedKeys.some(k => memoKeys.includes(k));
+                    if (memoChanged) {
+                        const dashPage = document.getElementById('dashboard-page');
+                        if (dashPage && !dashPage.classList.contains('hidden') && typeof refreshDashboardMemo === 'function') {
+                            refreshDashboardMemo();
+                        }
                     }
-                    const supPage = document.getElementById('suppliers-page');
-                    if (supPage && !supPage.classList.contains('hidden') && typeof renderSuppliers === 'function') {
-                        renderSuppliers();
-                    }
-                }
-                // 云端备忘录数据到达后：待办事项 + 记事本（仅在备忘录页可见时刷新）
-                const memoKeys = [
-                    `procurementTodos_${currentCompany}`,
-                    `procurement-notepad-content_${currentCompany}`
-                ];
-                const memoChanged = changedKeys.some(k => memoKeys.includes(k));
-                if (memoChanged) {
-                    const dashPage = document.getElementById('dashboard-page');
-                    if (dashPage && !dashPage.classList.contains('hidden') && typeof refreshDashboardMemo === 'function') {
-                        refreshDashboardMemo();
-                    }
-                }
+                } catch (err) { console.warn('[CloudUpdate] 备忘录刷新失败:', err); }
             });
             
             // 设置选项卡切换

@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 	<script>window.SUPABASE_APP_ID='wicketorders';</script>
-	<script src="../supabase-sync.js?v=20260909c"></script>
+	<script src="../supabase-sync.js?v=20260909d"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>外贸出口管理系统</title>
@@ -689,6 +689,17 @@
             margin-bottom: 1rem;
             /* 确保表格容器有固定宽度，以便产生横向滚动 */
             position: relative;
+            /* 手机端：允许触摸横向滚动，边缘时由容器消化手势而不触发页面前进/后退 */
+            -webkit-overflow-scrolling: touch;
+            touch-action: pan-x pan-y;
+            overscroll-behavior-x: contain;
+        }
+
+        /* Tailwind 的 .overflow-x-auto 容器同样需要触摸滚动属性（手机端表格横向滑动） */
+        .overflow-x-auto {
+            -webkit-overflow-scrolling: touch;
+            touch-action: pan-x pan-y;
+            overscroll-behavior-x: contain;
         }
 
         .data-table {
