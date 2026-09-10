@@ -5138,19 +5138,34 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
                     return;
                 }
                 
-                // 序列化并编码数据
-                let encodedData;
+                // 序列化合同数据
+                let contractJson;
                 try {
-                    encodedData = encodeURIComponent(JSON.stringify(contractData));
-                    console.log('Successfully encoded contract data');
+                    contractJson = JSON.stringify(contractData);
+                    console.log('Successfully serialized contract data');
                 } catch (jsonError) {
                     console.error('Error encoding contract data:', jsonError);
                     alert('生成合同失败：数据编码错误');
                     return;
                 }
-                
-                // 打开新合同页面
-                const contractPageUrl = `procurement contract.html?data=${encodedData}`;
+
+                // 优先通过 sessionStorage 传递数据（window.open 打开的同域新标签页会复制会话存储）。
+                // 不能把整份订单 JSON 拼进 URL：iPad/iPhone Safari 对 URL 长度限制远低于桌面 Chrome，
+                // 产品明细较多时超长 URL 会直接导致合同页打开为空白页。
+                let useStorage = false;
+                try {
+                    sessionStorage.setItem('purchaseContractPayload', contractJson);
+                    useStorage = true;
+                } catch (storageError) {
+                    console.warn('sessionStorage unavailable, fallback to URL data param:', storageError);
+                }
+                // 个别 Safari 弹窗场景不复制会话存储时，合同页可从 opener 内存兜底读取
+                try { window.__purchaseContractData = contractData; } catch (e) {}
+
+                // 打开新合同页面（存储通道用短地址；存储不可用时才退回旧的 URL 传参方式）
+                const contractPageUrl = useStorage
+                    ? 'procurement contract.html'
+                    : `procurement contract.html?data=${encodeURIComponent(contractJson)}`;
                 
                 // 检查window.open是否可用
                 if (typeof window.open === 'function') {

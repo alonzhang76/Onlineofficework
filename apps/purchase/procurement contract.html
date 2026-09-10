@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 	<script>window.SUPABASE_APP_ID='purchase';</script>
@@ -337,10 +337,50 @@
     </div>
     
     <script>
-        // 从URL参数获取合同数据
-        const urlParams = new URLSearchParams(window.location.search);
-        const contractData = JSON.parse(decodeURIComponent(urlParams.get('data')));
-        
+        // 获取合同数据（按优先级依次尝试，任一通道成功即可）：
+        // 1) sessionStorage —— 主通道。数据由采购管理页写入，避免把整份订单拼进 URL
+        //    （iPad/iPhone Safari 对超长 URL 限制严格，会直接打开空白页）
+        // 2) window.opener 内存 —— 个别 Safari 弹窗不复制会话存储时的兜底
+        // 3) URL 参数 data —— 兼容旧链接
+        function loadContractData() {
+            try {
+                var raw = sessionStorage.getItem('purchaseContractPayload');
+                if (raw) return JSON.parse(raw);
+            } catch (e) {
+                console.warn('读取 sessionStorage 合同数据失败:', e);
+            }
+            try {
+                if (window.opener && !window.opener.closed && window.opener.__purchaseContractData) {
+                    return window.opener.__purchaseContractData;
+                }
+            } catch (e) {
+                console.warn('读取打开者窗口合同数据失败:', e);
+            }
+            try {
+                var p = new URLSearchParams(window.location.search).get('data');
+                if (p) return JSON.parse(decodeURIComponent(p));
+            } catch (e) {
+                console.warn('解析 URL 合同数据失败:', e);
+            }
+            return null;
+        }
+
+        // 数据异常时给出可见提示，避免页面静默空白
+        function showContractError(msg) {
+            var box = document.createElement('div');
+            box.style.cssText = 'max-width:560px;margin:80px auto;padding:24px;font-size:14px;line-height:1.8;color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;';
+            box.innerHTML = '<strong style="font-size:16px;">合同数据加载失败</strong><br><br>'
+                + msg
+                + '<br><br>请返回「采购管理」页面，重新点击该订单的「生成采购合同」按钮。';
+            document.body.appendChild(box);
+        }
+
+        const contractData = loadContractData();
+        if (!contractData) {
+            showContractError('未接收到合同数据（可能因浏览器拦截新窗口或地址过长被截断）。');
+            throw new Error('No contract data received');
+        }
+
         // 填充合同信息
         document.getElementById('contractNumber').textContent = contractData.contractNumber;
         document.getElementById('orderDate').textContent = contractData.orderDate;
@@ -375,7 +415,7 @@
         const productsTableBody = document.getElementById('productsTableBody');
         let totalQuantity = 0;
         
-        contractData.products.forEach(product => {
+        (contractData.products || []).forEach(product => {
             // 累加数量
             const quantity = parseFloat(product.quantity) || 0;
             totalQuantity += quantity;
