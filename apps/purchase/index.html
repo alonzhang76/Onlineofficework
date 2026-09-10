@@ -5162,26 +5162,40 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
                 // 个别 Safari 弹窗场景不复制会话存储时，合同页可从 opener 内存兜底读取
                 try { window.__purchaseContractData = contractData; } catch (e) {}
 
-                // 打开新合同页面（存储通道用短地址；存储不可用时才退回旧的 URL 传参方式）
+                // 打开新合同页面（存储通道用短地址；存储不可用时才退回旧的 URL 传参方式）。
+                // 文件名含空格，必须用 encodeURI 编码为 %20，否则 iPad Safari 会新建标签页但不跳转（停在 start page）。
+                const CONTRACT_PAGE = encodeURI('procurement contract.html');
                 const contractPageUrl = useStorage
-                    ? 'procurement contract.html'
-                    : `procurement contract.html?data=${encodeURIComponent(contractJson)}`;
-                
-                // 检查window.open是否可用
-                if (typeof window.open === 'function') {
+                    ? CONTRACT_PAGE
+                    : `${CONTRACT_PAGE}?data=${encodeURIComponent(contractJson)}`;
+
+                // iPad/iPhone Safari 对 window.open(url,'_blank') 限制严格：常出现"新建了标签页但停在
+                // Safari 起始页(start page)、不执行跳转"。用户手势内程序化点击 <a target="_blank">
+                // 被识别为正常链接跳转，最可靠；window.open 次之；都失败则当前标签页直接跳转
+                // （合同数据在 sessionStorage 中，同标签页跳转必然能读到）。
+                function openContractPage(url) {
                     try {
-                        window.open(contractPageUrl, '_blank');
-                        console.log('Contract page opened successfully');
-                        alert('采购合同生成成功！');
-                    } catch (windowError) {
-                        console.error('Error opening contract page:', windowError);
-                        // 提供备用方案
-                        alert('采购合同生成成功！请复制以下链接在新标签页中打开：\n' + contractPageUrl);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.target = '_blank';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        return;
+                    } catch (anchorError) {
+                        console.warn('Anchor open failed, try window.open:', anchorError);
                     }
-                } else {
-                    // 备用方案
-                    alert('采购合同生成成功！请复制以下链接在新标签页中打开：\n' + contractPageUrl);
+                    try {
+                        const win = window.open(url, '_blank');
+                        if (win) return;
+                    } catch (popupError) {
+                        console.warn('window.open failed, fallback to same-tab navigation:', popupError);
+                    }
+                    window.location.href = url;
                 }
+                openContractPage(contractPageUrl);
+                console.log('Contract page opened successfully');
+                alert('采购合同生成成功！');
             } catch (error) {
                 console.error('Error generating contract:', error);
                 alert('生成采购合同时发生错误');
