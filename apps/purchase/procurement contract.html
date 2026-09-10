@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 	<script>window.SUPABASE_APP_ID='purchase';</script>
-	<script src="../supabase-sync.js?v=20260910d"></script>
+	<script src="../supabase-sync.js?v=20260911a"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>采购合同</title>
@@ -338,14 +338,41 @@
     
     <script>
         // 获取合同数据（按优先级依次尝试，任一通道成功即可）：
-        // 1) sessionStorage —— 主通道。数据由采购管理页写入，避免把整份订单拼进 URL
-        //    （iPad/iPhone Safari 对超长 URL 限制严格，会直接打开空白页）
-        // 2) window.opener 内存 —— 个别 Safari 弹窗不复制会话存储时的兜底
-        // 3) URL 参数 data —— 兼容旧链接
+        // 1) localStorage —— 主通道。同源新标签页立即可见，iPad/iPhone Safari 行为一致
+        //    （Safari 新标签页不会可靠复制 sessionStorage，这是上一版空白的根因）
+        // 2) sessionStorage —— 同标签页跳转兜底
+        // 3) window.opener 内存 —— 弹窗隔离时的兜底
+        // 4) URL 参数 data —— 兼容旧链接
+        var LS_KEY = '__purchaseContractPayload';
+        var PAYLOAD_TTL_MS = 60 * 60 * 1000; // 临时数据 1 小时过期，避免读到上次遗留合同
+
+        function parsePayload(raw) {
+            if (!raw) return null;
+            var data = JSON.parse(raw);
+            // 支持 {ts, data} 时效包装与裸数据两种格式
+            if (data && Object.prototype.hasOwnProperty.call(data, 'data') && Object.prototype.hasOwnProperty.call(data, 'ts')) {
+                if (Date.now() - Number(data.ts) > PAYLOAD_TTL_MS) return null;
+                return data.data;
+            }
+            return data;
+        }
+
         function loadContractData() {
             try {
-                var raw = sessionStorage.getItem('purchaseContractPayload');
-                if (raw) return JSON.parse(raw);
+                var lsRaw = localStorage.getItem(LS_KEY);
+                var parsed = parsePayload(lsRaw);
+                if (parsed) {
+                    // 数据读取后不立即删除（合同页可能需要刷新后重新打印）；
+                    // 新鲜度由 1 小时 TTL 保证，且每次"生成合同"都会覆盖该键。
+                    return parsed;
+                }
+            } catch (e) {
+                console.warn('读取 localStorage 合同数据失败:', e);
+            }
+            try {
+                var ssRaw = sessionStorage.getItem('purchaseContractPayload');
+                var ssParsed = parsePayload(ssRaw);
+                if (ssParsed) return ssParsed;
             } catch (e) {
                 console.warn('读取 sessionStorage 合同数据失败:', e);
             }

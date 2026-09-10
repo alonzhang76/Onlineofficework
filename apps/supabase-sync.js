@@ -120,7 +120,7 @@
   }
 
   // 跳过同步的内部 key
-  var SKIP_KEYS = ['_lastLocalSave_', 'isLoggedIn', 'username', 'userPhone', 'sb-', 'supabase', 'reconciliation_'];
+  var SKIP_KEYS = ['_lastLocalSave_', 'isLoggedIn', 'username', 'userPhone', 'sb-', 'supabase', 'reconciliation_', '__purchaseContract'];
 
   // ===== 应用专属 localStorage 键名重映射 =====
   // 某些应用与其他应用共用同源 localStorage，键名冲突会导致本地数据互相覆盖。

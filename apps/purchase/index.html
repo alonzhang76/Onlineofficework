@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 	<script>window.SUPABASE_APP_ID='purchase';</script>
-	<script src="../supabase-sync.js?v=20260910d"></script>
+	<script src="../supabase-sync.js?v=20260911a"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ProcurePay - 采购付款发票管理系统</title>
@@ -5149,17 +5149,27 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
                     return;
                 }
 
-                // 优先通过 sessionStorage 传递数据（window.open 打开的同域新标签页会复制会话存储）。
-                // 不能把整份订单 JSON 拼进 URL：iPad/iPhone Safari 对 URL 长度限制远低于桌面 Chrome，
-                // 产品明细较多时超长 URL 会直接导致合同页打开为空白页。
+                // 带时间戳的包装格式，合同页据此做 1 小时时效校验
+                const contractPayload = JSON.stringify({ ts: Date.now(), data: contractData });
+                // 通过存储通道传递合同数据（不再把整份订单拼进 URL——iPad/iPhone Safari 对
+                // URL 长度限制严格，且新标签页不会可靠复制 sessionStorage）：
+                // 主通道 localStorage：同源新标签页立即可见，Safari 行为一致；
+                // 该键已在 supabase-sync.js 的 SKIP_KEYS 中（__purchaseContract），仅本地保存、不上云。
                 let useStorage = false;
                 try {
-                    sessionStorage.setItem('purchaseContractPayload', contractJson);
+                    localStorage.setItem('__purchaseContractPayload', contractPayload);
+                    useStorage = true;
+                } catch (lsError) {
+                    console.warn('localStorage unavailable, fallback to sessionStorage/URL:', lsError);
+                }
+                // 辅助通道：sessionStorage（同标签页跳转兜底）
+                try {
+                    sessionStorage.setItem('purchaseContractPayload', contractPayload);
                     useStorage = true;
                 } catch (storageError) {
-                    console.warn('sessionStorage unavailable, fallback to URL data param:', storageError);
+                    console.warn('sessionStorage unavailable:', storageError);
                 }
-                // 个别 Safari 弹窗场景不复制会话存储时，合同页可从 opener 内存兜底读取
+                // 辅助通道：opener 内存
                 try { window.__purchaseContractData = contractData; } catch (e) {}
 
                 // 打开新合同页面（存储通道用短地址；存储不可用时才退回旧的 URL 传参方式）。
