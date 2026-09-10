@@ -43,6 +43,81 @@
   var initialized = false;
   var initPromise = null;
   var recentWrites = {}; // 记录本地写入时间，防止云端旧数据覆盖
+  var authedUser = null;   // 当前认证用户（sync 账号或共享会话）
+  var authFailReason = ''; // 认证失败原因（用于手机端可见提示）
+
+  // ===== 手机端可见的云端同步状态徽标 =====
+  // 手机/微信 webview 中看不到 console，认证失败（邮箱未确认、RLS 拦截、无共享会话）
+  // 时用户只能看到"数据不显示"，无法定位原因。注入一个固定徽标提示连接状态。
+  var badgeEl = null;
+  function ensureBadge() {
+    if (badgeEl) return badgeEl;
+    try {
+      if (!document || !document.body) return null;
+    } catch (e) { return null; }
+    var el = document.createElement('div');
+    el.id = '__sb_sync_badge';
+    el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;padding:6px 10px;border-radius:14px;font-size:12px;line-height:1.4;font-family:-apple-system,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,0.25);max-width:80vw;word-break:break-all;cursor:pointer;-webkit-tap-highlight-color:transparent;';
+    el.addEventListener('click', function () {
+      if (el.getAttribute('data-state') === 'error') {
+        location.reload();
+      } else {
+        el.style.display = 'none';
+      }
+    });
+    document.body.appendChild(el);
+    badgeEl = el;
+    return el;
+  }
+  function showSyncStatus(state, msg) {
+    try {
+      // state: 'ok' 已连接 | 'warn' 未认证（仅本地） | 'error' 云端被拒
+      var el = ensureBadge();
+      if (!el) return;
+      el.setAttribute('data-state', state);
+      el.style.display = 'block';
+      if (state === 'ok') {
+        el.style.background = 'rgba(16,185,129,0.92)';
+        el.style.color = '#fff';
+        el.textContent = '☁️ 云端已连接';
+        clearTimeout(el._hideTimer);
+        el._hideTimer = setTimeout(function () { el.style.display = 'none'; }, 4000);
+      } else if (state === 'warn') {
+        el.style.background = 'rgba(245,158,11,0.95)';
+        el.style.color = '#fff';
+        el.textContent = '⚠️ 云端未连接（仅本机数据）' + (msg ? '：' + msg : '') + ' 点击刷新重试';
+      } else {
+        el.style.background = 'rgba(239,68,68,0.95)';
+        el.style.color = '#fff';
+        el.textContent = '❌ 云端数据被拒绝（RLS/账号未确认） 点击刷新';
+      }
+    } catch (e) {}
+  }
+  // DOM 就绪后再挂徽标（脚本在 head 中同步执行时 body 尚不存在，showSyncStatus 会静默失败，
+  // 因此注册一次性 DOMContentLoaded 回调按当时真实状态补挂）
+  var badgeBound = false;
+  function bindBadgeWhenReady() {
+    if (badgeBound) return;
+    badgeBound = true;
+    function showByState() {
+      if (authedUser && !cloudLoadDenied) {
+        showSyncStatus('ok');
+      } else if (authedUser && cloudLoadDenied) {
+        showSyncStatus('error');
+      } else {
+        showSyncStatus('warn', authFailReason || '无登录会话');
+      }
+    }
+    if (document && document.body) {
+      showByState();
+    } else if (document && document.addEventListener) {
+      document.addEventListener('DOMContentLoaded', showByState);
+      // 兜底：部分 webview 中 DOMContentLoaded 可能已错过
+      window.addEventListener('load', function () {
+        if (!badgeEl || badgeEl.style.display === 'none') { /* ok 徽标会自动隐藏，不强制重显 */ }
+      });
+    }
+  }
 
   // 跳过同步的内部 key
   var SKIP_KEYS = ['_lastLocalSave_', 'isLoggedIn', 'username', 'userPhone', 'sb-', 'supabase', 'reconciliation_'];
@@ -176,10 +251,14 @@
 
   // ===== 登录 =====
   async function ensureAuth() {
-    if (!sb || !sb.auth) return null;
+    if (!sb || !sb.auth) { authFailReason = '客户端未加载'; return null; }
     try {
       var result = await sb.auth.getUser();
-      if (result.data && result.data.user) return result.data.user;
+      if (result.data && result.data.user) {
+        authedUser = result.data.user;
+        authFailReason = '';
+        return authedUser;
+      }
 
       // 尝试专用数据同步账号（authenticated 角色，绕开匿名 RLS 限制）
       try {
@@ -189,9 +268,17 @@
         });
         if (signInResult.data && signInResult.data.user) {
           console.log('[SupabaseSync] Sync account auth OK');
-          return signInResult.data.user;
+          authedUser = signInResult.data.user;
+          authFailReason = '';
+          return authedUser;
         }
         var msg = signInResult.error ? signInResult.error.message : '';
+        // 邮箱未确认：账号已注册但管理员未在 Supabase 执行 SQL 确认
+        if (msg.indexOf('Email not confirmed') >= 0) {
+          authFailReason = 'sync账号邮箱未确认（需执行SQL）';
+          console.warn('[SupabaseSync] Sync account email NOT confirmed — 在 Supabase SQL Editor 执行: update auth.users set email_confirmed_at=now() where email=\'sync@lori.app\';');
+          return null;
+        }
         // 账号不存在（新项目首次运行）→ 尝试自动注册
         if (msg.indexOf('Invalid login credentials') >= 0) {
           var signUpResult = await sb.auth.signUp({
@@ -200,22 +287,73 @@
           });
           if (signUpResult.data && signUpResult.data.session && signUpResult.data.session.user) {
             console.log('[SupabaseSync] Sync account created & signed in');
-            return signUpResult.data.session.user;
+            authedUser = signUpResult.data.session.user;
+            authFailReason = '';
+            return authedUser;
           }
           if (signUpResult.data && signUpResult.data.user) {
             // 注册成功但需邮箱确认：管理员在 Supabase 执行 SQL 确认后生效
+            authFailReason = 'sync账号邮箱未确认（需执行SQL）';
             console.warn('[SupabaseSync] Sync account created but email not confirmed. Cloud sync disabled until confirmed.');
             return null;
           }
         }
+        authFailReason = 'sync账号登录失败';
         console.warn('[SupabaseSync] Sync account auth failed:', msg, '— 云端同步不可用，请检查 Supabase 账号确认状态/RLS 策略');
       } catch (e2) {
+        authFailReason = '认证请求异常';
         console.warn('[SupabaseSync] Auth error:', e2 && e2.message);
       }
       return null;
     } catch (e) {
+      authFailReason = '认证检查异常';
       console.warn('[SupabaseSync] Auth error:', e);
       return null;
+    }
+  }
+
+  // ===== 认证迟到后的补救：重新认证成功后，重新拉云端并刷新本地/界面 =====
+  // 场景：微信 webview 首次打开时无任何会话且 sync 账号暂不可用（网络抖动/SQL 刚执行），
+  // 定时重试在账号可用后自动把云端数据补拉回来，无需用户手动刷新。
+  var cloudLoadDenied = false; // 云端查询是否被 RLS 拒绝（42501 / 0行且未认证）
+  async function retryAuthAndReload() {
+    if (authedUser) return;
+    var user = await ensureAuth();
+    if (!user) return;
+    console.log('[SupabaseSync] Retry auth succeeded, reloading cloud data...');
+    try {
+      var result = await sb.from(TABLE).select('store_key, payload, updated_at');
+      if (result.error) {
+        console.warn('[SupabaseSync] Retry cloud load still failed:', result.error.message);
+        return;
+      }
+      var changedKeys = [];
+      result.data.forEach(function (row) {
+        var origKey = unprefixKey(row.store_key);
+        if (!origKey) return;
+        var newVal = row.payload;
+        var oldVal = cache[origKey];
+        var isChanged = oldVal === undefined;
+        if (!isChanged) {
+          try { isChanged = JSON.stringify(oldVal) !== JSON.stringify(newVal); } catch (e) { isChanged = true; }
+        }
+        if (isChanged) {
+          cache[origKey] = newVal;
+          cacheTs[origKey] = row.updated_at;
+          var raw = typeof newVal === 'string' ? newVal : JSON.stringify(newVal);
+          nativeSet(toLocalKey(origKey), raw);
+          changedKeys.push(origKey);
+        }
+      });
+      cloudLoadDenied = false;
+      showSyncStatus('ok');
+      // 补跑一次迁移（此时认证已可用，本地数据可上云）
+      try { await migrateLocalStorage(); } catch (e) {}
+      if (changedKeys.length > 0) {
+        window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { keys: changedKeys, initial: true } }));
+      }
+    } catch (e) {
+      console.warn('[SupabaseSync] Retry reload error:', e);
     }
   }
 
@@ -230,16 +368,21 @@
       sb = await loadSupabase();
       if (!sb) {
         console.error('[SupabaseSync] Supabase client load failed, using localStorage only');
+        bindBadgeWhenReady();
+        showSyncStatus('warn', '网络/CDN加载失败');
+        // 网络恢复后定时重试
+        setInterval(retryAuthAndReload, 30000);
         return false;
       }
 
       var user = await ensureAuth();
 
       // 从云端加载所有数据
+      var cloudRows = 0;
       try {
         var result = await sb.from(TABLE).select('store_key, payload, updated_at');
         if (result.data && !result.error) {
-          var cloudRows = result.data.length;
+          cloudRows = result.data.length;
           result.data.forEach(function (row) {
             var origKey = unprefixKey(row.store_key);
             if (origKey && cache[origKey] === undefined) {
@@ -250,12 +393,27 @@
           console.log('[SupabaseSync] Loaded', cloudRows, 'rows from cloud (cache total:', Object.keys(cache).length + ')');
         } else if (result.error) {
           console.error('[SupabaseSync] Cloud load FAILED:', result.error.message, '— 检查表 RLS 策略是否允许匿名访问');
+          var errMsg = result.error.message || '';
+          if (errMsg.indexOf('42501') >= 0 || errMsg.indexOf('permission') >= 0 || errMsg.indexOf('policy') >= 0 || errMsg.indexOf('row-level') >= 0) {
+            cloudLoadDenied = true;
+          }
         }
       } catch (e) {
         console.warn('[SupabaseSync] Cloud load error:', e);
         // REST API 回退
         await loadViaREST();
       }
+
+      // 未认证且云端 0 行：大概率是 RLS 拦截（anon 读 0 行无报错）或 sync 账号邮箱未确认。
+      // 手机/微信 webview 中给出可见提示；电脑端有共享会话时通常走到已认证分支。
+      if (!user) {
+        cloudLoadDenied = true;
+        console.warn('[SupabaseSync] 云端不可用：未认证。电脑 Chrome 可能因同源共享会话正常；手机/微信webview为独立环境，需在 Supabase 确认 sync 账号邮箱并配置 RLS 策略。');
+        // 每 30 秒重试一次认证（用户执行 SQL / 网络恢复 / 会话稍后出现后自动恢复）
+        setInterval(retryAuthAndReload, 30000);
+      }
+      // 按最终状态挂徽标（DOM 未就绪时内部会延迟到 DOMContentLoaded）
+      bindBadgeWhenReady();
 
       // 迁移 localStorage 中已有数据到云端
       await migrateLocalStorage();
