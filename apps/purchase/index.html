@@ -1,8 +1,8 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 	<script>window.SUPABASE_APP_ID='purchase';</script>
-	<script src="../supabase-sync.js?v=20260910c"></script>
+	<script src="../supabase-sync.js?v=20260910d"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ProcurePay - 采购付款发票管理系统</title>
@@ -737,6 +737,13 @@
         /* 修复 z-45 和 z-[1000] 不被 Tailwind JIT 支持的问题 */
         .z-45 { z-index: 45; }
         .z-\[1000\] { z-index: 1000; }
+
+        /* 模态框必须高于冻结表头（thead th z-index 60~73），否则表头会穿透显示在表单上 */
+        #newPurchaseOrderModal,
+        #create-invoice-from-order-modal { z-index: 1000 !important; }
+        /* 模态框内部滚动到边界时不把滚动链传给背后页面（鼠标滚轮/触摸均生效） */
+        #newPurchaseOrderModal > div,
+        #create-invoice-from-order-modal .modal-content { overscroll-behavior: contain; }
 
         /* 修复 iOS Safari 的 sticky 定位 */
         .purchase-order-table thead th {
@@ -3054,6 +3061,25 @@
         
         // 初始化新建采购订单模态框
         document.addEventListener('DOMContentLoaded', function() {
+            // 模态框打开时锁定背景滚动：监听模态框的 hidden 类变化，
+            // 任何路径（X按钮/遮罩点击/提交/取消）关闭都会自动解锁，避免遗漏。
+            (function setupModalScrollLock() {
+                const modalIds = ['newPurchaseOrderModal', 'create-invoice-from-order-modal'];
+                function sync() {
+                    const anyOpen = modalIds.some(function (id) {
+                        const m = document.getElementById(id);
+                        return !!m && !m.classList.contains('hidden');
+                    });
+                    document.body.style.overflow = anyOpen ? 'hidden' : '';
+                }
+                modalIds.forEach(function (id) {
+                    const modal = document.getElementById(id);
+                    if (modal) {
+                        new MutationObserver(sync).observe(modal, { attributes: true, attributeFilter: ['class'] });
+                    }
+                });
+            })();
+
             // 设置默认日期为今天
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('orderDate').value = today;

@@ -312,48 +312,39 @@
     }
   }
 
-  // ===== 认证迟到后的补救：重新认证成功后，重新拉云端并刷新本地/界面 =====
-  // 场景：微信 webview 首次打开时无任何会话且 sync 账号暂不可用（网络抖动/SQL 刚执行），
-  // 定时重试在账号可用后自动把云端数据补拉回来，无需用户手动刷新。
-  var cloudLoadDenied = false; // 云端查询是否被 RLS 拒绝（42501 / 0行且未认证）
+  // ===== 数据加载失败后的定时补救：纯 fetch REST 通道重拉并刷新本地/界面 =====
+  // 场景：微信 webview 首次打开时 postgrest 请求被 abort、网络抖动、或 sync 账号刚确认，
+  // 每 30 秒自动重拉；成功后写入原生 localStorage 并派发 cloud-data-updated 让界面重渲染。
+  var cloudLoadDenied = false; // 云端数据是否未能加载成功（无论认证/网络/RLS 原因）
   async function retryAuthAndReload() {
-    if (authedUser) return;
-    var user = await ensureAuth();
-    if (!user) return;
-    console.log('[SupabaseSync] Retry auth succeeded, reloading cloud data...');
-    try {
-      var result = await sb.from(TABLE).select('store_key, payload, updated_at');
-      if (result.error) {
-        console.warn('[SupabaseSync] Retry cloud load still failed:', result.error.message);
-        return;
-      }
-      var changedKeys = [];
-      result.data.forEach(function (row) {
-        var origKey = unprefixKey(row.store_key);
-        if (!origKey) return;
-        var newVal = row.payload;
-        var oldVal = cache[origKey];
-        var isChanged = oldVal === undefined;
-        if (!isChanged) {
-          try { isChanged = JSON.stringify(oldVal) !== JSON.stringify(newVal); } catch (e) { isChanged = true; }
-        }
-        if (isChanged) {
-          cache[origKey] = newVal;
-          cacheTs[origKey] = row.updated_at;
-          var raw = typeof newVal === 'string' ? newVal : JSON.stringify(newVal);
-          nativeSet(toLocalKey(origKey), raw);
+    // 已成功加载（cloudLoadDenied=false）则无需重试
+    if (!cloudLoadDenied) return;
+    console.log('[SupabaseSync] Retry: reloading cloud data via REST channel...');
+    var beforeCount = Object.keys(cache).length;
+    var ok = await restLoadAll();
+    if (!ok) return;
+    // 把云端数据写入原生 localStorage（保证不经 patch 读取的路径也能拿到）
+    var changedKeys = [];
+    Object.keys(cache).forEach(function (origKey) {
+      try {
+        var newVal = cache[origKey];
+        var raw = typeof newVal === 'string' ? newVal : JSON.stringify(newVal);
+        var localK = toLocalKey(origKey);
+        if (nativeGet(localK) !== raw) {
+          nativeSet(localK, raw);
           changedKeys.push(origKey);
         }
-      });
-      cloudLoadDenied = false;
-      showSyncStatus('ok');
-      // 补跑一次迁移（此时认证已可用，本地数据可上云）
-      try { await migrateLocalStorage(); } catch (e) {}
-      if (changedKeys.length > 0) {
-        window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { keys: changedKeys, initial: true } }));
-      }
-    } catch (e) {
-      console.warn('[SupabaseSync] Retry reload error:', e);
+      } catch (e) {}
+    });
+    if (Object.keys(cache).length > beforeCount) changedKeys = Object.keys(cache);
+    cloudLoadDenied = false;
+    showSyncStatus('ok');
+    // 补跑一次迁移（此时认证已可用，本地数据可上云）
+    try { await migrateLocalStorage(); } catch (e) {}
+    var keys = Object.keys(cache);
+    if (keys.length > 0) {
+      console.log('[SupabaseSync] Retry succeeded, dispatching cloud-data-updated with', keys.length, 'keys');
+      window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { keys: keys, initial: true } }));
     }
   }
 
@@ -366,53 +357,67 @@
       console.log('[SupabaseSync] Initializing for app:', APP_ID);
 
       sb = await loadSupabase();
-      if (!sb) {
-        console.error('[SupabaseSync] Supabase client load failed, using localStorage only');
-        bindBadgeWhenReady();
-        showSyncStatus('warn', '网络/CDN加载失败');
-        // 网络恢复后定时重试
-        setInterval(retryAuthAndReload, 30000);
-        return false;
-      }
+      var user = null;
+      var cloudOk = false; // 数据是否真正从云端加载成功（请求成功即可，0 行也算成功）
 
-      var user = await ensureAuth();
+      if (sb) {
+        user = await ensureAuth();
 
-      // 从云端加载所有数据
-      var cloudRows = 0;
-      try {
-        var result = await sb.from(TABLE).select('store_key, payload, updated_at');
-        if (result.data && !result.error) {
-          cloudRows = result.data.length;
-          result.data.forEach(function (row) {
-            var origKey = unprefixKey(row.store_key);
-            if (origKey && cache[origKey] === undefined) {
-              cache[origKey] = row.payload;
-              cacheTs[origKey] = row.updated_at;
+        // 从云端加载所有数据（supabase-js postgrest client）
+        try {
+          var result = await sb.from(TABLE).select('store_key, payload, updated_at');
+          if (result.data && !result.error) {
+            cloudOk = true;
+            var cloudRows = result.data.length;
+            result.data.forEach(function (row) {
+              var origKey = unprefixKey(row.store_key);
+              if (origKey && cache[origKey] === undefined) {
+                cache[origKey] = row.payload;
+                cacheTs[origKey] = row.updated_at;
+              }
+            });
+            console.log('[SupabaseSync] Loaded', cloudRows, 'rows from cloud via SDK (cache total:', Object.keys(cache).length + ')');
+          } else if (result.error) {
+            console.error('[SupabaseSync] SDK cloud load FAILED:', result.error.message);
+            var errMsg = result.error.message || '';
+            if (errMsg.indexOf('42501') >= 0 || errMsg.indexOf('permission') >= 0 || errMsg.indexOf('policy') >= 0 || errMsg.indexOf('row-level') >= 0) {
+              cloudLoadDenied = true;
             }
-          });
-          console.log('[SupabaseSync] Loaded', cloudRows, 'rows from cloud (cache total:', Object.keys(cache).length + ')');
-        } else if (result.error) {
-          console.error('[SupabaseSync] Cloud load FAILED:', result.error.message, '— 检查表 RLS 策略是否允许匿名访问');
-          var errMsg = result.error.message || '';
-          if (errMsg.indexOf('42501') >= 0 || errMsg.indexOf('permission') >= 0 || errMsg.indexOf('policy') >= 0 || errMsg.indexOf('row-level') >= 0) {
-            cloudLoadDenied = true;
           }
+        } catch (e) {
+          console.warn('[SupabaseSync] SDK cloud load threw:', e && e.message);
         }
-      } catch (e) {
-        console.warn('[SupabaseSync] Cloud load error:', e);
-        // REST API 回退
-        await loadViaREST();
+      } else {
+        console.error('[SupabaseSync] Supabase JS client (CDN) failed to load; will use pure-fetch REST channel');
       }
 
-      // 未认证且云端 0 行：大概率是 RLS 拦截（anon 读 0 行无报错）或 sync 账号邮箱未确认。
-      // 手机/微信 webview 中给出可见提示；电脑端有共享会话时通常走到已认证分支。
-      if (!user) {
-        cloudLoadDenied = true;
-        console.warn('[SupabaseSync] 云端不可用：未认证。电脑 Chrome 可能因同源共享会话正常；手机/微信webview为独立环境，需在 Supabase 确认 sync 账号邮箱并配置 RLS 策略。');
-        // 每 30 秒重试一次认证（用户执行 SQL / 网络恢复 / 会话稍后出现后自动恢复）
+      // SDK/CDN 未成功加载数据 → 纯 fetch REST 直连兜底（不依赖 supabase-js postgrest）。
+      // 微信 webview 等环境中 postgrest 请求会 ERR_ABORTED/Failed to fetch，但 auth 请求正常，
+      // 用原生 fetch 带 access_token 直连 /rest/v1 可稳定读取。
+      if (!cloudOk) {
+        console.warn('[SupabaseSync] SDK 数据加载未成功，尝试纯 fetch REST 兜底通道...');
+        var restOk = await restLoadAll();
+        if (restOk) {
+          cloudOk = true;
+          if (!user) user = authedUser;
+        }
+      }
+
+      // 状态判定与徽标
+      if (cloudOk) {
+        console.log('[SupabaseSync] Cloud data ready. User:', user ? 'authed' : 'none', 'cache keys:', Object.keys(cache).length);
+      } else {
+        // 数据没拿到：区分未认证（黄）与已认证但被拒/网络失败（红）
+        if (!authedUser) {
+          cloudLoadDenied = true;
+          console.warn('[SupabaseSync] 云端不可用：未认证。原因:', authFailReason || '无会话');
+        } else {
+          cloudLoadDenied = true;
+          console.warn('[SupabaseSync] 已认证但云端数据加载失败（网络/RLS）。');
+        }
+        // 每 30 秒重试（认证恢复 / 网络恢复后自动补拉数据）
         setInterval(retryAuthAndReload, 30000);
       }
-      // 按最终状态挂徽标（DOM 未就绪时内部会延迟到 DOMContentLoaded）
       bindBadgeWhenReady();
 
       // 迁移 localStorage 中已有数据到云端
@@ -443,25 +448,93 @@
     return initPromise;
   }
 
-  // ===== REST API 回退 =====
-  async function loadViaREST() {
+  // ===== 纯 fetch 的 REST 兜底通道 =====
+  // 背景：部分环境（微信 webview / 某些 X5·WKWebView）下 supabase-js 的 postgrest 查询
+  // 会 net::ERR_ABORTED / "Failed to fetch"，而同一时间 GoTrue 的 /auth/v1/token 请求却成功。
+  // 因此提供完全不依赖 supabase-js postgrest client 的原生 fetch 通道：
+  //   1) restLogin()  —— 优先复用 sb 会话 token，否则纯 fetch 用 sync 账号密码登录拿 access_token
+  //   2) restLoadAll() —— 带 access_token 直连 /rest/v1 拉全表
+  // 旧实现 loadViaREST 只带 apikey(anon) 不带用户 token，RLS 开启时永远读 0 行，等于无效回退。
+  var restToken = null;
+  async function restLogin() {
+    if (restToken) return restToken;
+    // 优先复用 supabase-js 已有会话的 token
     try {
-      var resp = await fetch(SUPABASE_URL + '/rest/v1/' + TABLE + '?select=store_key,payload,updated_at&apikey=' + encodeURIComponent(SUPABASE_KEY), { cache: 'no-store' });
-      if (!resp.ok) return;
+      if (sb && sb.auth) {
+        var s = await sb.auth.getSession();
+        if (s && s.data && s.data.session && s.data.session.access_token) {
+          restToken = s.data.session.access_token;
+          if (!authedUser && s.data.session.user) authedUser = s.data.session.user;
+          return restToken;
+        }
+      }
+    } catch (e) {}
+    // 纯 fetch 密码登录（不依赖 supabase-js）
+    try {
+      var resp = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=password', {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: SYNC_ACCOUNT_EMAIL, password: SYNC_ACCOUNT_PASSWORD })
+      });
+      if (resp.ok) {
+        var j = await resp.json();
+        if (j && j.access_token) {
+          restToken = j.access_token;
+          authedUser = j.user || { id: 'sync-rest' };
+          authFailReason = '';
+          console.log('[SupabaseSync] REST login OK (pure-fetch)');
+          return restToken;
+        }
+      } else {
+        var txt = '';
+        try { txt = await resp.text(); } catch (e2) {}
+        if (txt.indexOf('Email not confirmed') >= 0) authFailReason = 'sync账号邮箱未确认（需执行SQL）';
+        else authFailReason = '登录失败(' + resp.status + ')';
+        console.warn('[SupabaseSync] REST login failed', resp.status, txt.substring(0, 200));
+      }
+    } catch (e) {
+      authFailReason = '网络请求失败';
+      console.warn('[SupabaseSync] REST login error:', e && e.message);
+    }
+    return null;
+  }
+
+  async function restLoadAll() {
+    var token = await restLogin();
+    try {
+      var headers = { 'apikey': SUPABASE_KEY, 'Accept': 'application/json' };
+      // 关键：必须带用户 access_token，否则匿名角色在 RLS 下读 0 行
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+      var resp = await fetch(SUPABASE_URL + '/rest/v1/' + TABLE + '?select=store_key,payload,updated_at', {
+        headers: headers, cache: 'no-store'
+      });
+      if (!resp.ok) {
+        console.warn('[SupabaseSync] REST load HTTP', resp.status);
+        if (resp.status === 401 || resp.status === 403) cloudLoadDenied = true;
+        return false;
+      }
       var data = await resp.json();
-      if (!Array.isArray(data)) return;
+      if (!Array.isArray(data)) return false;
+      var n = 0;
       data.forEach(function (row) {
         var origKey = unprefixKey(row.store_key);
         if (origKey && cache[origKey] === undefined) {
           cache[origKey] = row.payload;
           cacheTs[origKey] = row.updated_at;
+          n++;
         }
       });
-      console.log('[SupabaseSync] REST loaded', Object.keys(cache).length, 'keys');
+      cloudLoadDenied = false;
+      console.log('[SupabaseSync] REST loaded', data.length, 'rows,', n, 'new into cache (cache total:', Object.keys(cache).length + ')');
+      return true;
     } catch (e) {
-      console.warn('[SupabaseSync] REST load failed:', e);
+      console.warn('[SupabaseSync] REST load failed:', e && e.message);
+      return false;
     }
   }
+
+  // 兼容旧调用名
+  function loadViaREST() { return restLoadAll(); }
 
   // ===== 迁移 localStorage → Supabase =====
   async function migrateLocalStorage() {
