@@ -71,6 +71,16 @@
       "sort_order": 4
     },
     {
+      "id": "incomeexpense",
+      "name": "收支表",
+      "description": "多公司财务收支追踪系统",
+      "url": "apps/incomeexpense/index.html",
+      "icon": "💰",
+      "color": "#0ea5e9",
+      "category": "furnace",
+      "sort_order": 5
+    },
+    {
       "id": "stainlessbusiness",
       "name": "不锈钢贸易管理",
       "description": "不锈钢进销存全流程系统",
