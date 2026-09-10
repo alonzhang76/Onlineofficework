@@ -788,11 +788,6 @@
 
         // 初始化应用
         function initializeApp() {
-            // 确保本地存储中的公司信息已初始化
-            if (!localStorage.getItem('currentCompany_statement')) {
-                localStorage.setItem('currentCompany_statement', 'company1');
-            }
-            
             // 初始化默认公司
             const currentCompany = getCurrentCompany();
             
@@ -1002,25 +997,20 @@
         }
         
         // 初始化本地存储
+        // 注意：本函数只更新 UI 显示，不再向 localStorage 写入空数组/默认日期。
+        // 原实现会在云端数据到达前写入空数组 [] 与今日日期，存在两类风险：
+        //   1) 空数组会被 supabase-sync.js 上传到云端，污染/覆盖云端真实数据；
+        //   2) 写入时间戳早于云端数据，flushPending 的过期跳过逻辑仅在 init() 完成后生效，
+        //      init() 未完成时空数组可能先上传到云端。
+        // 改为只读：缺失数据时不写入，等 cloud-data-updated 事件或用户操作再写入真实数据。
         function initializeLocalStorage(company) {
             // 确保公司参数存在
             company = company || getCurrentCompany();
-            
-            // 按公司初始化交易数据
-            const transactionKey = `transactions_${company}`;
-            if (!localStorage.getItem(transactionKey)) {
-                localStorage.setItem(transactionKey, JSON.stringify([]));
-            }
-            
-            // 按公司初始化更新时间
+
+            // 更新 UI 显示（若本地无 lastUpdated 则显示占位）
             const lastUpdatedKey = `lastUpdated_${company}`;
-            if (!localStorage.getItem(lastUpdatedKey)) {
-                const today = new Date().toISOString().split('T')[0];
-                localStorage.setItem(lastUpdatedKey, today);
-            }
-            
-            // 更新UI显示
-            document.getElementById('last-updated').textContent = localStorage.getItem(lastUpdatedKey);
+            const lastUpdated = localStorage.getItem(lastUpdatedKey);
+            document.getElementById('last-updated').textContent = lastUpdated || '—';
         }
         
         // 切换公司
@@ -2184,7 +2174,7 @@
                                 
                                 // 恢复当前公司设置
                                 if (data.currentCompany) {
-                                    localStorage.setItem('currentCompany_statement', data.currentCompany);
+                                    localStorage.setItem('currentCompany', data.currentCompany);
                                 }
                                 
                                 // 重新加载数据
@@ -4590,105 +4580,24 @@
                         
                         alert(`✅ Excel导入成功！\n成功导入: ${transactions.length} 条记录\n\n请查看页面底部的详细调试信息`);
                     } else {
-                        // 如果没有成功导入记录，创建一些示例数据
-                        const sampleTransactions = [
-                            {
-                                id: generateId(),
-                                type: 'expense',
-                                amount: 100,
-                                categoryId: 'raw-materials',
-                                categoryName: '原材料',
-                                date: new Date().toISOString().split('T')[0],
-                                description: '系统创建的示例支出',
-                                unit: '示例供应商',
-                                createdAt: new Date().toISOString()
-                            },
-                            {
-                                id: generateId(),
-                                type: 'income',
-                                amount: 1000,
-                                categoryId: 'salary',
-                                categoryName: '工资',
-                                date: new Date().toISOString().split('T')[0],
-                                description: '系统创建的示例收入',
-                                unit: '示例客户',
-                                createdAt: new Date().toISOString()
-                            }
-                        ];
-                        
-                        const company = getCurrentCompany();
-                        localStorage.setItem(`transactions_${company}`, JSON.stringify(sampleTransactions));
-                        
-                        if (typeof loadTransactions === 'function') {
-                            loadTransactions();
-                        }
-                        if (typeof updateFinancialSummary === 'function') {
-                            updateFinancialSummary();
-                        }
-                        
-                        alert(`⚠️ 没有从Excel文件中成功导入任何记录\n已创建2条示例记录供参考\n\n请查看页面底部的详细调试信息`);
+                        // 未导入任何记录时不再创建示例数据（避免污染本地与云端真实数据）
+                        alert(`⚠️ 没有从Excel文件中成功导入任何记录\n\n请检查文件格式后重试，页面底部有详细调试信息`);
                     }
-                    
+
                 } catch (error) {
                     log('导入过程中发生严重错误: ' + error.message, 'error');
                     console.error('Excel导入错误:', error);
-                    
-                    // 错误情况下也创建示例数据
-                    const sampleTransactions = [
-                        {
-                            id: generateId(),
-                            type: 'expense',
-                            amount: 50,
-                            categoryId: 'raw-materials',
-                            categoryName: '原材料',
-                            date: new Date().toISOString().split('T')[0],
-                            description: '系统恢复数据',
-                            unit: '系统',
-                            createdAt: new Date().toISOString()
-                        }
-                    ];
-                    
-                    const company = getCurrentCompany();
-                    localStorage.setItem(`transactions_${company}`, JSON.stringify(sampleTransactions));
-                    if (typeof loadTransactions === 'function') {
-                        loadTransactions();
-                    }
-                    if (typeof updateFinancialSummary === 'function') {
-                        updateFinancialSummary();
-                    }
-                    
-                    alert(`❌ 导入过程中发生错误\n错误信息: ${error.message}\n\n已创建1条示例记录\n请查看页面底部的详细调试信息`);
+
+                    // 错误情况下不再创建示例数据，避免覆盖本地/云端真实数据
+                    alert(`❌ 导入过程中发生错误\n错误信息: ${error.message}\n\n请查看页面底部的详细调试信息`);
                 }
             };
-            
+
             reader.onerror = function(error) {
                 log('文件读取失败: ' + (error.message || '未知错误'), 'error');
-                
-                // 读取失败时也创建示例数据
-                const sampleTransactions = [
-                    {
-                        id: generateId(),
-                        type: 'expense',
-                        amount: 50,
-                        categoryId: 'raw-materials',
-                        categoryName: '原材料',
-                        date: new Date().toISOString().split('T')[0],
-                        description: '文件读取失败时的示例',
-                        unit: '系统',
-                        createdAt: new Date().toISOString()
-                    }
-                ];
-                
-                const company = getCurrentCompany();
-                    localStorage.setItem(`transactions_${company}`, JSON.stringify(sampleTransactions));
-                if (typeof loadTransactions === 'function') {
-                    loadTransactions();
-                }
-                if (typeof updateFinancialSummary === 'function') {
-                    updateFinancialSummary();
-                }
-                
-                alert('❌ 文件读取失败\n\n已创建1条示例记录\n请查看页面底部的详细调试信息');
+
+                // 读取失败时不再创建示例数据，避免覆盖本地/云端真实数据
+                alert('❌ 文件读取失败\n\n请查看页面底部的详细调试信息');
             };
             
             // 开始读取文件
