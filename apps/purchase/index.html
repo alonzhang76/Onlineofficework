@@ -2891,7 +2891,7 @@
                         </div>
                         <div id="productList" class="space-y-4">
                             <!-- 第一个产品行 -->
-                            <div class="product-row" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px; padding: 12px; background-color: #f9fafb; border-radius: 8px;">
+                            <div class="product-row" style="display: grid; grid-template-columns: repeat(7, 1fr) 40px; gap: 12px; padding: 12px; background-color: #f9fafb; border-radius: 8px;">
                                 <div>
                                     <div class="relative">
                                         <input type="text" class="form-input product-name" placeholder="产品名称" required style="width: 100%;">
@@ -2936,6 +2936,9 @@
                                 </div>
                                 <div>
                                     <input type="text" class="form-input product-remark" placeholder="说明" style="width: 100%;">
+                                </div>
+                                <div class="flex items-center justify-center">
+                                    <button type="button" class="remove-product-btn" title="删除此行" style="background:#fee2e2;border:none;color:#dc2626;width:32px;height:32px;border-radius:6px;cursor:pointer;font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;">×</button>
                                 </div>
                             </div>
                         </div>
@@ -3506,26 +3509,25 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
             document.getElementById('addProductBtn').addEventListener('click', function() {
                 const productList = document.getElementById('productList');
                 const productRowTemplate = productList.firstElementChild.cloneNode(true);
-                
-                // 重置输入值
-                const inputs = productRowTemplate.querySelectorAll('input');
-                inputs.forEach(input => {
-                    if (input.type !== 'readonly') {
-                        input.value = '';
-                    }
-                });
-                
+
+                // 重置输入值（统一清空所有 input 与 select，含只读金额字段，金额由计算回填）
+                productRowTemplate.querySelectorAll('input, select').forEach(el => { el.value = ''; });
+
                 // 启用删除按钮
                 const removeBtn = productRowTemplate.querySelector('.remove-product-btn');
                 if (removeBtn) {
                     removeBtn.disabled = false;
-                    removeBtn.addEventListener('click', function() {
+                    removeBtn.onclick = function() {
                         productRowTemplate.remove();
                         calculateTotalAmount();
-                    });
+                        // 重新刷新所有行的删除按钮可用状态
+                        if (typeof bindDeleteEvents === 'function') bindDeleteEvents();
+                    };
                 }
-                
+
                 productList.appendChild(productRowTemplate);
+                // 重新绑定所有行的删除事件，确保首行按钮状态正确
+                if (typeof bindDeleteEvents === 'function') bindDeleteEvents();
             });
             
             // 保存采购订单
