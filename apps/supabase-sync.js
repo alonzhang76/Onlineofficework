@@ -426,6 +426,24 @@
       // 启动定时刷新
       setInterval(refreshFromCloud, REFRESH_INTERVAL);
 
+      // 失败写入定时补发：网络抖动/请求失败的写入不必等页面关闭才重试，
+      // 每 10 秒检查一次队列；初始化期间排队的写入也由此统一补发
+      setInterval(flushPending, 10000);
+
+      // 网络恢复：立即补发 + 立即拉取（手机/电脑端改动互相尽快可见）
+      window.addEventListener('online', function () {
+        flushPending();
+        refreshFromCloud();
+      });
+
+      // 标签页重新可见：立即补发 + 立即拉取，无需等 30 秒轮询
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) {
+          flushPending();
+          refreshFromCloud();
+        }
+      });
+
       // 页面关闭前刷新待处理写入
       window.addEventListener('beforeunload', flushPending);
 
