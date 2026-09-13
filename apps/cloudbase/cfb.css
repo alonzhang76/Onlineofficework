@@ -1,0 +1,234 @@
+/* ===== CloudBase 云存储文件中心（共享版 cfb.css）=====
+ * 被 orderschedule / wicketorders / wage 三个应用共用。
+ * 所有样式均以 #cloudfiles 为作用域，不会影响宿主应用。
+ * 宿主页面需提供一个容器（如 <div id="cloudfiles"></div>），
+ * cfb.js 会自动注入界面。
+ */
+#cloudfiles {
+    --cfb-primary: #004D6D;
+    --cfb-primary-hover: #00618a;
+    --cfb-primary-light: #e8f1f5;
+    --cfb-ink: #1a1a1a;
+    --cfb-ink-secondary: #4b5563;
+    --cfb-muted: #6b7280;
+    --cfb-border: #e5e7eb;
+    --cfb-border-light: #f3f4f6;
+    --cfb-radius: 4px;
+    --cfb-radius-lg: 6px;
+    --cfb-line: #e5e7eb;
+    --primary: var(--cfb-primary);
+    --border-light: var(--cfb-border-light);
+}
+#cloudfiles .card {
+    background: #fff;
+    border-radius: var(--cfb-radius-lg);
+    border: 1px solid var(--cfb-border);
+    padding: 12px;
+    margin-bottom: 12px;
+}
+#cloudfiles .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+#cloudfiles .card-title { font-size: 13px; font-weight: 600; color: var(--cfb-ink); }
+#cloudfiles .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border: 1px solid var(--cfb-border);
+    border-radius: var(--cfb-radius);
+    background: #fff;
+    color: var(--cfb-ink-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    font-family: inherit;
+    line-height: 1.4;
+}
+#cloudfiles .btn:hover { color: var(--cfb-primary); border-color: var(--cfb-primary); }
+#cloudfiles .btn.btn-primary { background: var(--cfb-primary); border-color: var(--cfb-primary); color: #fff; }
+#cloudfiles .btn.btn-primary:hover { background: var(--cfb-primary-hover); border-color: var(--cfb-primary-hover); color: #fff; }
+#cloudfiles .btn-sm { padding: 3px 6px; font-size: 11px; }
+#cloudfiles .btn-xs { padding: 1px 5px; font-size: 11px; line-height: 1.5; }
+#cloudfiles .form-input {
+    padding: 4px 8px;
+    border: 1px solid var(--cfb-border);
+    border-radius: var(--cfb-radius);
+    font-size: 12px;
+    font-family: inherit;
+    background: #fff;
+    color: var(--cfb-ink);
+}
+#cloudfiles .form-input:focus {
+    outline: none;
+    border-color: var(--cfb-primary);
+    box-shadow: 0 0 0 2px rgba(0,77,109,0.08);
+}
+
+/* ---- 分区域上传 ---- */
+#cloudfiles .cfb-zones { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; }
+#cloudfiles .cfb-zone {
+    border:1.5px dashed var(--cfb-line); border-radius:10px; background:#fafbfc;
+    padding:14px 10px; text-align:center; cursor:pointer; user-select:none;
+    transition:all .15s ease; position:relative; min-height:96px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+}
+#cloudfiles .cfb-zone:hover { border-color:var(--primary); background:#f0f7fb; }
+#cloudfiles .cfb-zone.dragover { border-color:var(--primary); background:#e8f1f5; transform:scale(1.02); }
+#cloudfiles .cfb-zone.zimg    { border-color:#99e6d5; } #cloudfiles .cfb-zone.zimg:hover    { background:#effdf9; border-color:#0d9488; }
+#cloudfiles .cfb-zone.zpdf    { border-color:#fca5a5; } #cloudfiles .cfb-zone.zpdf:hover    { background:#fef2f2; border-color:#dc2626; }
+#cloudfiles .cfb-zone.zexcel  { border-color:#a7dcb0; } #cloudfiles .cfb-zone.zexcel:hover  { background:#f0fdf4; border-color:#16a34a; }
+#cloudfiles .cfb-zone.zword   { border-color:#a9c4f7; } #cloudfiles .cfb-zone.zword:hover   { background:#eff6ff; border-color:#2563eb; }
+#cloudfiles .cfb-zone.zppt    { border-color:#f9bd8f; } #cloudfiles .cfb-zone.zppt:hover    { background:#fff7ed; border-color:#ea580c; }
+#cloudfiles .cfb-zone.zother  { border-color:#cbd5e1; }
+#cloudfiles .cfb-zone-ico { font-size:26px; line-height:1; }
+#cloudfiles .cfb-zone-name { font-size:13px; font-weight:600; color:#1f2937; }
+#cloudfiles .cfb-zone-ext { font-size:10.5px; color:#9ca3af; line-height:1.4; }
+#cloudfiles .cfb-zone-busy { position:absolute; inset:0; background:rgba(255,255,255,.85); border-radius:9px;
+    display:none; align-items:center; justify-content:center; font-size:12px; color:var(--primary); font-weight:600; }
+#cloudfiles .cfb-zone.busy .cfb-zone-busy { display:flex; }
+
+/* ---- 顶部工具栏 / 面包屑 ---- */
+#cloudfiles .cfb-topbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+#cloudfiles .cfb-status { font-size:12px; color:#64748b; display:inline-flex; align-items:center; gap:6px; }
+#cloudfiles .status-dot { width:8px; height:8px; border-radius:50%; background:#f59e0b; display:inline-block; }
+#cloudfiles .status-dot.ok { background:#10b981; } #cloudfiles .status-dot.err { background:#ef4444; } #cloudfiles .status-dot.warn { background:#f59e0b; }
+#cloudfiles .cfb-chips { display:flex; gap:6px; flex-wrap:wrap; margin:0 0 10px; }
+#cloudfiles .cfb-chip {
+    font-size:12px; padding:3px 10px; border-radius:999px; background:#eef2f7; color:#334155;
+    cursor:pointer; border:1px solid transparent; white-space:nowrap;
+}
+#cloudfiles .cfb-chip:hover { background:#e8f1f5; color:var(--primary); border-color:#cfe3ec; }
+#cloudfiles .cfb-breadcrumb {
+    display:flex; align-items:center; gap:2px; flex-wrap:wrap; font-size:13px;
+    background:#f8fafc; border:1px solid var(--cfb-line); border-radius:8px; padding:6px 10px; margin-bottom:10px;
+}
+#cloudfiles .cfb-breadcrumb a { color:var(--primary); text-decoration:none; cursor:pointer; padding:1px 4px; border-radius:4px; white-space:nowrap; }
+#cloudfiles .cfb-breadcrumb a:hover { background:#e8f1f5; }
+#cloudfiles .cfb-breadcrumb .sep { color:#cbd5e1; }
+#cloudfiles .cfb-breadcrumb .cur { color:#0f172a; font-weight:600; padding:1px 4px; }
+
+/* ---- 资源管理器主体 ---- */
+#cloudfiles .cfb-explorer { display:flex; gap:10px; align-items:stretch; min-height:380px; }
+#cloudfiles .cfb-tree {
+    width:230px; flex:0 0 230px; border:1px solid var(--cfb-line); border-radius:10px;
+    background:#fbfcfd; overflow:auto; max-height:62vh; padding:8px 6px;
+}
+#cloudfiles .cfb-tree-item {
+    display:flex; align-items:center; gap:5px; padding:4px 8px; border-radius:6px; cursor:pointer;
+    font-size:12.5px; color:#334155; white-space:nowrap;
+}
+#cloudfiles .cfb-tree-item:hover { background:#eef4f8; }
+#cloudfiles .cfb-tree-item.active { background:#e8f1f5; color:var(--primary); font-weight:600; }
+#cloudfiles .cfb-tree-item .tw { width:14px; text-align:center; color:#94a3b8; font-size:10px; flex:0 0 14px; }
+#cloudfiles .cfb-tree-item .tn { overflow:hidden; text-overflow:ellipsis; }
+#cloudfiles .cfb-tree-children { margin-left:16px; }
+#cloudfiles .cfb-tree-item.dropover { outline:2px dashed var(--primary); background:#e8f1f5; }
+#cloudfiles .cfb-content {
+    flex:1; min-width:0; border:1px solid var(--cfb-line); border-radius:10px; background:#fff;
+    overflow:auto; max-height:62vh; position:relative;
+}
+#cloudfiles .cfb-inner { padding:10px 12px; min-height:340px; }
+
+/* ---- 详细信息列表 ---- */
+#cloudfiles .cfb-table { width:100%; border-collapse:collapse; font-size:12.5px; }
+#cloudfiles .cfb-table th {
+    text-align:left; padding:6px 8px; color:#64748b; font-weight:600; font-size:11.5px;
+    border-bottom:1px solid var(--cfb-line); white-space:nowrap; position:sticky; top:0; background:#fff; z-index:2;
+}
+#cloudfiles .cfb-table th.sortable { cursor:pointer; user-select:none; }
+#cloudfiles .cfb-table th.sortable:hover { background:#fff !important; color:var(--primary) !important; }
+#cloudfiles .cfb-table td { padding:6px 8px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+#cloudfiles .cfb-table tr.rowf:hover { background:#f8fafc; }
+#cloudfiles .cfb-row-name { display:flex; align-items:center; gap:8px; min-width:0; }
+#cloudfiles .cfb-thumb {
+    width:34px; height:34px; flex:0 0 34px; border-radius:6px; object-fit:cover; background:#f1f5f9;
+    border:1px solid var(--cfb-line); display:none;
+}
+#cloudfiles .cfb-thumb.show { display:block; }
+#cloudfiles .cfb-fico { width:34px; height:34px; flex:0 0 34px; border-radius:6px; background:#f8fafc;
+    display:flex; align-items:center; justify-content:center; font-size:18px; border:1px solid #eef2f7; }
+#cloudfiles .cfb-name-txt { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#0f172a; cursor:pointer; }
+#cloudfiles .cfb-name-txt:hover { color:var(--primary); text-decoration:underline; }
+#cloudfiles .cfb-fmeta { color:#64748b; font-size:12px; white-space:nowrap; }
+#cloudfiles .cfb-fpath { color:#64748b; font-size:11.5px; white-space:nowrap; cursor:pointer; max-width:280px; overflow:hidden; text-overflow:ellipsis; }
+#cloudfiles .cfb-fpath:hover { color:var(--primary); text-decoration:underline; }
+#cloudfiles .cfb-ops { display:flex; gap:2px; justify-content:flex-end; white-space:nowrap; }
+#cloudfiles .cfb-search-info { font-size:12px; color:#64748b; padding:6px 8px; border-bottom:1px solid #f1f5f9; }
+#cloudfiles .cfb-search-info b { color:#0f172a; }
+
+/* ---- 大图标视图 ---- */
+#cloudfiles .cfb-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:10px; }
+#cloudfiles .cfb-card {
+    border:1px solid var(--cfb-line); border-radius:10px; padding:10px 8px; text-align:center;
+    cursor:pointer; background:#fff; transition:box-shadow .15s ease; position:relative;
+}
+#cloudfiles .cfb-card:hover { box-shadow:0 4px 14px rgba(15,23,42,.08); }
+#cloudfiles .cfb-card .cv { width:64px; height:64px; margin:0 auto 6px; border-radius:8px; object-fit:cover; background:#f1f5f9; border:1px solid #eef2f7; display:none; }
+#cloudfiles .cfb-card .cv.show { display:block; }
+#cloudfiles .cfb-card .ci { width:64px; height:64px; margin:0 auto 6px; border-radius:8px; background:#f8fafc; border:1px solid #eef2f7;
+    display:flex; align-items:center; justify-content:center; font-size:30px; }
+#cloudfiles .cfb-card .cn { font-size:12px; color:#0f172a; word-break:break-all; line-height:1.35; max-height:2.7em; overflow:hidden; }
+#cloudfiles .cfb-card .cs { font-size:10.5px; color:#94a3b8; margin-top:3px; }
+#cloudfiles .cfb-card .cops { position:absolute; top:4px; right:4px; display:none; background:rgba(255,255,255,.95); border-radius:6px; padding:1px 3px; box-shadow:0 1px 6px rgba(0,0,0,.12); }
+#cloudfiles .cfb-card:hover .cops { display:block; }
+
+/* ---- 空状态 / 加载 ---- */
+#cloudfiles .cfb-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:56px 12px; color:#9ca3af; gap:6px; }
+#cloudfiles .cfb-empty .eico { font-size:44px; }
+#cloudfiles .cfb-loading { text-align:center; color:#94a3b8; font-size:13px; padding:50px 0; }
+
+/* ---- 上传进度条 ---- */
+#cloudfiles .cfb-progress { height:4px; border-radius:2px; background:#eef2f7; overflow:hidden; margin-bottom:8px; display:none; }
+#cloudfiles .cfb-progress.show { display:block; }
+#cloudfiles .cfb-progress > div { height:100%; width:0; background:linear-gradient(90deg,var(--primary),#0d9488); transition:width .2s ease; }
+
+/* ---- 拖放遮罩 ---- */
+#cloudfiles .cfb-dropmask {
+    position:fixed; inset:0; z-index:9998; background:rgba(8,47,73,.45); display:none;
+    align-items:center; justify-content:center;
+}
+#cloudfiles .cfb-dropmask.show { display:flex; }
+#cloudfiles .cfb-dropmask .inner {
+    background:#fff; border-radius:14px; padding:28px 44px; text-align:center; font-size:15px; color:#0f172a;
+    box-shadow:0 20px 50px rgba(0,0,0,.25); pointer-events:none;
+}
+#cloudfiles .cfb-dropmask .sub { font-size:12px; color:#64748b; margin-top:6px; }
+
+/* ---- 预览模态 ---- */
+#cloudfiles .cfb-preview {
+    position:fixed; inset:0; z-index:9999; background:rgba(15,23,42,.72); display:none;
+    align-items:center; justify-content:center; flex-direction:column; padding:24px;
+}
+#cloudfiles .cfb-preview.show { display:flex; }
+#cloudfiles .cfb-preview .pv-box { background:#fff; border-radius:12px; max-width:min(920px,94vw); max-height:88vh; overflow:auto; position:relative; padding:10px; }
+#cloudfiles .cfb-preview .pv-box img { max-width:88vw; max-height:76vh; display:block; border-radius:8px; }
+#cloudfiles .cfb-preview .pv-box iframe { width:min(860px,86vw); height:74vh; border:0; border-radius:8px; display:block; background:#f8fafc; }
+#cloudfiles .cfb-preview .pv-cap { text-align:center; font-size:12.5px; color:#334155; padding:8px 2px 2px; word-break:break-all; }
+#cloudfiles .cfb-preview .pv-x {
+    position:absolute; top:6px; right:8px; width:26px; height:26px; border-radius:50%; border:none;
+    background:#0f172a; color:#fff; font-size:15px; cursor:pointer; line-height:1;
+}
+
+/* ---- 名称输入模态（自包含样式，不依赖宿主） ---- */
+#cloudfiles .cfb-modal-overlay {
+    position:fixed; inset:0; z-index:9990; background:rgba(15,23,42,.5);
+    display:flex; align-items:center; justify-content:center;
+}
+#cloudfiles .cfb-modal-box {
+    background:#fff; border-radius:10px; padding:20px 22px; width:min(420px,92vw);
+    box-shadow:0 20px 50px rgba(0,0,0,.25); font-family:inherit;
+}
+#cloudfiles .cfb-modal-box h2 { font-size:15px; margin:0; color:#1a1a1a; font-weight:600; }
+
+@media (max-width:768px) {
+    #cloudfiles .cfb-tree { display:none; }
+    #cloudfiles .cfb-table th:nth-child(3), #cloudfiles .cfb-table td:nth-child(3) { display:none; }
+    #cloudfiles .cfb-search-table th:nth-child(2), #cloudfiles .cfb-search-table td:nth-child(2) { display:none; }
+}

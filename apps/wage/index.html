@@ -12,6 +12,8 @@
 <script src="js/cloudbase-store.js"></script>
 <!-- 登录守卫：无有效邮箱会话则跳转 login.html -->
 <script src="js/auth-guard.js"></script>
+<!-- 云存储文件中心（共享模块，与 orderschedule / wicketorders 共用同一云端目录） -->
+<link rel="stylesheet" href="../cloudbase/cfb.css?v=20260913">
 <script>
 // Seed data removed - use "导入Excel" button to load data
 </script>
@@ -538,6 +540,10 @@ table.batch-table .batch-proc { width: 100%; }
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7"/><polyline points="7 9 12 4 17 9"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
         <span>数据备份</span>
       </div>
+      <div class="nav-item" data-tab="cloudfiles" title="云存储">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+        <span>云存储</span>
+      </div>
     </nav>
   </div>
 
@@ -998,6 +1004,12 @@ table.batch-table .batch-proc { width: 100%; }
             5. 清除浏览器缓存或更换浏览器会导致数据丢失，请务必做好备份
           </p>
         </div>
+      </div>
+
+      <!-- 云存储文件中心（共享模块：与 orderschedule / wicketorders 共用同一云端目录，自动同步） -->
+      <div class="panel" id="panel-cloudfiles">
+        <h2 style="font-size:18px;font-weight:600;margin-bottom:16px;">☁️ 云存储</h2>
+        <div id="cloudfiles" data-cfb-host></div>
       </div>
 
     </div>
@@ -4723,5 +4735,17 @@ UI.init().then(function() {
 })();
 
 </script>
+
+<!-- 云存储文件中心（共享模块，三应用通用）：全局搜索 + 跨应用同步 -->
+<script>
+window.CFB_CONFIG = {
+  app: 'wage',
+  // wage 的提示用 UI.toast（const 声明在全局词法作用域，跨脚本块可访问）
+  toast: function(msg, type, dur) {
+    try { if (typeof UI !== 'undefined' && UI.toast) UI.toast(msg, type); } catch (e) {}
+  }
+};
+</script>
+<script src="../cloudbase/cfb.js?v=20260913b"></script>
 </body>
 </html>
