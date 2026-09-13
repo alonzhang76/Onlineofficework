@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>质量证明书 - Certificate of Quality</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    background: #f5f5f5;
+    padding: 20px;
+    color: #000;
+  }
+  .certificate {
+    background: #fff;
+    width: 1000px;
+    margin: 0 auto;
+    padding: 30px 40px;
+    border: 1px solid #ccc;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    position: relative;
+    min-height: 800px;
+  }
+  .header {
+    text-align: center;
+    margin-bottom: 15px;
+  }
+  .header h1 {
+    font-size: 22px;
+    font-weight: bold;
+    margin-bottom: 6px;
+    letter-spacing: 2px;
+  }
+  .header h2 {
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+  }
+  .header .subtitle {
+    font-size: 12px;
+    font-weight: normal;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    table-layout: fixed;
+  }
+  table td, table th {
+    border: 1px solid #000;
+    padding: 4px 4px;
+    text-align: left;
+    vertical-align: middle;
+    height: 28px;
+    line-height: 1.2;
+  }
+  .label-cell {
+    background: #f9f9f9;
+    font-weight: normal;
+    text-align: center;
+  }
+  .center-text {
+    text-align: center !important;
+  }
+  .diagonal-cell {
+    position: relative;
+    height: 56px;
+  }
+  .diagonal-cell::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(to top right, transparent calc(50% - 0.5px), #000 calc(50% - 0.5px), #000 calc(50% + 0.5px), transparent calc(50% + 0.5px));
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .diagonal-cell .top-text {
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    font-size: 11px;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+  }
+  .diagonal-cell .bottom-text {
+    position: absolute;
+    bottom: 2px;
+    left: 4px;
+    font-size: 11px;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+  }
+  .en-text { font-size: 10px; font-family: Arial, sans-serif; display: block; }
+  [contenteditable="true"] {
+    outline: none;
+    min-height: 1em;
+  }
+  [contenteditable="true"]:focus {
+    background: #e8f4fd;
+  }
+  .footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 15px;
+    font-size: 12px;
+    line-height: 1.8;
+    padding-right: 20px;
+  }
+  .stamp-image {
+    position: absolute;
+    top: -18px;
+    left: 20px;
+    width: 200px;
+    height: 200px;
+    z-index: 10;
+    object-fit: contain;
+  }
+  .certificate-no {
+    text-align: right;
+    font-size: 12px;
+    margin-bottom: 10px;
+    font-weight: bold;
+  }
+  .element-col {
+    width: 7.69%;
+  }
+  .element-header {
+    background: #ff8c00;
+    color: white;
+    font-weight: bold;
+    text-align: center;
+  }
+  .element-value {
+    background: #ff8c00;
+    color: white;
+    text-align: center;
+  }
+  .measurement-value {
+    background: #add8e6;
+    color: #333;
+    text-align: center;
+  }
+  .print-btn {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 10px 20px;
+    background: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    z-index: 100;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  }
+  .print-btn:hover { background: #45a049; }
+  @media print {
+    @page { size: A4 landscape; margin: 10mm; }
+    body { background: #fff; padding: 0; }
+    .certificate { box-shadow: none; border: none; width: 100%; padding: 0; min-height: auto; }
+    [contenteditable="true"]:focus { background: transparent; }
+    .stamp-image { display: block; }
+    .print-btn { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<button class="print-btn" onclick="window.print()">打印</button>
+
+<div class="certificate">
+
+  <div class="header">
+    <div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 8px;">
+      <img id="companyLogo" src="" alt="公司logo" style="width: 60px; height: 60px; object-fit: contain;" />
+      <div style="text-align: left;">
+        <h1 contenteditable="true" id="companyName" style="margin: 0; font-size: 20px;">无锡华烁特钢有限公司</h1>
+        <h2 contenteditable="true" style="margin: 0; font-size: 14px;">Wuxi Brilliance Special Steel Co., Ltd</h2>
+      </div>
+    </div>
+    <div class="subtitle">Address: Room 320, 3rd Floor, Mao'an Neighborhood Center, Liangxi District, Wuxi City, Jiangsu Province, China</div>
+    <div style="font-size: 16px; font-weight: bold; margin-top: 8px;">质量证明书</div>
+    <div style="font-size: 16px; font-weight: bold;">CERTIFICATE OF QUALITY</div>
+  </div>
+
+  <div class="certificate-no" id="certificateNo">证书序号：</div>
+
+  <table>
+    <colgroup>
+      <col width="12%">
+      <col width="10%">
+      <col width="6.91%">
+      <col width="6.91%">
+      <col width="6.91%">
+      <col width="6.91%">
+      <col width="6.91%">
+      <col width="6.91%">
+      <col width="6.91%">
+      <col width="6.91%">
+      <col width="6.91%">
+      <col width="6.91%">
+      <col width="6.91%">
+    </colgroup>
+    <tr>
+      <td class="label-cell">合同号<br><span class="en-text">Contract No</span></td>
+      <td contenteditable="true" id="contractNo"></td>
+      <td class="label-cell">牌号<br><span class="en-text">Trademark</span></td>
+      <td contenteditable="true" id="material"></td>
+      <td class="label-cell">炉批号<br><span class="en-text">Heat No</span></td>
+      <td contenteditable="true" id="heatNo"></td>
+      <td class="label-cell">规格<br><span class="en-text">Size(mm)</span></td>
+      <td contenteditable="true" id="specification"></td>
+      <td class="label-cell">件数<br><span class="en-text">Qty</span></td>
+      <td contenteditable="true" id="quantity"></td>
+      <td class="label-cell">重量(kg)<br><span class="en-text">Weight</span></td>
+      <td contenteditable="true" id="weight" colspan="2"></td>
+    </tr>
+    <tr>
+      <td class="label-cell" colspan="2" style="text-align: left;">交货状态<br><span class="en-text">Delivery state</span></td>
+      <td contenteditable="true" id="deliveryState" colspan="4"></td>
+      <td class="label-cell" colspan="2">产品标准<br><span class="en-text">Product standard</span></td>
+      <td contenteditable="true" id="product" colspan="5"></td>
+    </tr>
+    <tr>
+      <td class="label-cell" colspan="2" style="text-align: left;">订货单位<br><span class="en-text">Ordering unit</span></td>
+      <td contenteditable="true" id="customer" colspan="11"></td>
+    </tr>
+    <tr id="chemHeaderRow">
+      <td class="label-cell" rowspan="3">化学成分(%)<br><span class="en-text">Chemical Composition(%)</span></td>
+      <td class="label-cell" rowspan="2">元素</td>
+    </tr>
+    <tr id="chemValueRow">
+    </tr>
+    <tr id="chemMeasurementRow">
+      <td class="label-cell">测量值</td>
+    </tr>
+    <tr>
+      <td rowspan="2" class="diagonal-cell">
+        <span class="top-text">检测项目</span>
+        <span class="bottom-text">炉批号</span>
+      </td>
+      <td class="label-cell">抗拉强度<br><span class="en-text">(MPa)</span></td>
+      <td class="label-cell">屈服强度<br><span class="en-text">(MPa)</span></td>
+      <td class="label-cell">延伸率<br><span class="en-text">(%)</span></td>
+      <td rowspan="2" colspan="3" contenteditable="true" id="heatTreatmentLeft"></td>
+      <td colspan="2" class="label-cell" rowspan="2">热处理<br><span class="en-text">Heat Treatment</span></td>
+      <td colspan="4" class="label-cell" rowspan="2">备注<br><span class="en-text">Note</span></td>
+    </tr>
+    <tr>
+      <td contenteditable="true" class="center-text">Min</td>
+      <td contenteditable="true" class="center-text">Min</td>
+      <td contenteditable="true" class="center-text">Min</td>
+    </tr>
+    <tr>
+      <td contenteditable="true" id="diagonalHeatNo"></td>
+      <td contenteditable="true"></td>
+      <td contenteditable="true"></td>
+      <td contenteditable="true"></td>
+      <td colspan="3" contenteditable="true"></td>
+      <td colspan="2" contenteditable="true"></td>
+      <td colspan="4" contenteditable="true" id="note"></td>
+    </tr>
+    <tr>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td colspan="3"></td>
+      <td colspan="2"></td>
+      <td colspan="4"></td>
+    </tr>
+    <tr>
+      <td rowspan="2" contenteditable="true" id="gbNewGrade"></td>
+      <td colspan="3" class="label-cell" contenteditable="true">表面质量合格</td>
+      <td colspan="3" class="label-cell" contenteditable="true">复印无效<br><span class="en-text">Photocopies invalid</span></td>
+      <td colspan="6" class="label-cell">包装类别<br><span class="en-text">Packs the Category</span></td>
+    </tr>
+    <tr>
+      <td colspan="3" class="label-cell" contenteditable="true">公差尺寸合格</td>
+      <td colspan="3"></td>
+      <td colspan="6" contenteditable="true"></td>
+    </tr>
+  </table>
+
+  <div class="footer">
+    <div style="text-align: right;">
+      <div contenteditable="true">填表人:周瑾</div>
+      <div contenteditable="true" id="date"></div>
+    </div>
+  </div>
+
+  <img src="ttfchop.png" alt="签章" class="stamp-image" />
+
+</div>
+
+<script>
+    document.querySelectorAll('[contenteditable="true"]').forEach(el => {
+      el.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          document.execCommand('insertLineBreak');
+        }
+      });
+    });
+
+    function loadLogo() {
+      const logoImg = document.getElementById('companyLogo');
+      if (!logoImg) return;
+      
+      const baseUrl = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
+      const logoUrl = baseUrl + 'logo.jpg';
+      
+      fetch(logoUrl)
+        .then(function(response) {
+          if (response.ok) {
+            return response.blob();
+          }
+          throw new Error('Logo not found');
+        })
+        .then(function(blob) {
+          const reader = new FileReader();
+          reader.onloadend = function() {
+            logoImg.src = reader.result;
+          };
+          reader.readAsDataURL(blob);
+        })
+        .catch(function(e) {
+          console.error('加载logo失败:', e);
+        });
+    }
+
+    function generateCertificateNo() {
+    const now = new Date();
+    const year = now.getFullYear().toString().substring(2);
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const random = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+    return 'TTF' + year + month + random;
+  }
+
+  try {
+    const savedData = localStorage.getItem('certificateData');
+    
+    loadLogo();
+    
+    document.getElementById('certificateNo').textContent = '证书序号：' + generateCertificateNo();
+    
+    if (savedData) {
+      const certificateData = JSON.parse(savedData);
+      localStorage.removeItem('certificateData');
+      
+      if (certificateData.orders && certificateData.orders.length > 0) {
+        const firstOrder = certificateData.orders[0];
+        
+        if (firstOrder.orderNo) document.getElementById('contractNo').textContent = firstOrder.orderNo;
+        if (firstOrder.material) document.getElementById('material').textContent = firstOrder.material;
+        if (firstOrder.heatNo) {
+          document.getElementById('heatNo').textContent = firstOrder.heatNo;
+          document.getElementById('diagonalHeatNo').textContent = firstOrder.heatNo;
+        }
+        if (firstOrder.specification) document.getElementById('specification').textContent = firstOrder.specification;
+        if (firstOrder.product) document.getElementById('deliveryState').textContent = firstOrder.product;
+        
+        let productStandard = '';
+        if (certificateData.hscodeData) {
+          const hscodeItem = certificateData.hscodeData.find(function(h) {
+            return h.productName === firstOrder.product || h.productNameEn === firstOrder.product;
+          });
+          if (hscodeItem && hscodeItem.standard) {
+            productStandard = hscodeItem.standard;
+          }
+        }
+        document.getElementById('product').textContent = productStandard || 'GB/T 4237-2015';
+        
+        if (firstOrder.quantity) document.getElementById('quantity').textContent = firstOrder.quantity.toString();
+        if (firstOrder.weight) document.getElementById('weight').textContent = firstOrder.weight.toFixed(2);
+        if (certificateData.customer || firstOrder.customer) {
+          document.getElementById('customer').textContent = certificateData.customer || firstOrder.customer;
+        }
+        
+        if (certificateData.today) {
+          const date = new Date(certificateData.today);
+          document.getElementById('date').textContent = '日期：' + date.getFullYear() + '/' + (date.getMonth() + 1) + '/' + date.getDate();
+        }
+        
+        if (firstOrder.otherRequirements) {
+          document.getElementById('heatTreatmentLeft').textContent = firstOrder.otherRequirements;
+        }
+        if (firstOrder.remarks || firstOrder.description) {
+          document.getElementById('note').textContent = firstOrder.remarks || firstOrder.description;
+        }
+        
+        if (firstOrder.supplier === '无锡泰益特钢有限公司' || firstOrder.supplier === '无锡华烁特钢有限公司') {
+          document.getElementById('companyName').textContent = firstOrder.supplier;
+        }
+        
+        if (certificateData.gradeComparisons) {
+          const grade = certificateData.gradeComparisons.find(function(g) {
+            return g.gbNew === firstOrder.material || g.gbOld === firstOrder.material ||
+                   g.astm === firstOrder.material || g.jis === firstOrder.material ||
+                   g.din === firstOrder.material || g.en === firstOrder.material;
+          });
+          
+          if (grade) {
+            if (grade.gbNew) {
+              document.getElementById('gbNewGrade').textContent = grade.gbNew;
+            }
+            
+            if (grade.composition) {
+              const composition = grade.composition;
+              const elementParts = composition.split(',');
+              const elements = [];
+              
+              elementParts.forEach(function(part) {
+                part = part.trim();
+                if (!part) return;
+                
+                const elementMatch = part.match(/^([A-Z][a-z]?)([:≤≥]?.*)$/);
+                if (elementMatch) {
+                  let elementName = elementMatch[1];
+                  let elementValue = elementMatch[2].trim();
+                  
+                  if (elementValue.startsWith(':')) {
+                    elementValue = elementValue.substring(1).trim();
+                  }
+                  
+                  elements.push({
+                    name: elementName,
+                    value: elementValue || 'Max'
+                  });
+                }
+              });
+              
+              const headerRow = document.getElementById('chemHeaderRow');
+              const valueRow = document.getElementById('chemValueRow');
+              const measurementRow = document.getElementById('chemMeasurementRow');
+              
+              elements.forEach(function(el) {
+                const headerCell = document.createElement('td');
+                headerCell.className = 'element-header';
+                headerCell.textContent = el.name;
+                headerRow.appendChild(headerCell);
+                
+                const valueCell = document.createElement('td');
+                valueCell.className = 'element-value';
+                valueCell.setAttribute('contenteditable', 'true');
+                valueCell.textContent = el.value;
+                valueRow.appendChild(valueCell);
+                
+                const measurementCell = document.createElement('td');
+                measurementCell.className = 'measurement-value';
+                measurementCell.setAttribute('contenteditable', 'true');
+                measurementRow.appendChild(measurementCell);
+              });
+              
+              const remainingCells = 11 - elements.length;
+              if (remainingCells > 0) {
+                for (let i = 0; i < remainingCells; i++) {
+                  const headerCell = document.createElement('td');
+                  headerCell.className = 'element-header';
+                  headerCell.textContent = '-';
+                  headerRow.appendChild(headerCell);
+                  
+                  const valueCell = document.createElement('td');
+                  valueCell.className = 'element-value';
+                  valueCell.setAttribute('contenteditable', 'true');
+                  valueCell.textContent = '-';
+                  valueRow.appendChild(valueCell);
+                  
+                  const measurementCell = document.createElement('td');
+                  measurementCell.className = 'measurement-value';
+                  measurementCell.setAttribute('contenteditable', 'true');
+                  measurementRow.appendChild(measurementCell);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('解析质保书数据错误:', error);
+  }
+</script>
+
+</body>
+</html>

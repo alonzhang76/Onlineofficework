@@ -1,0 +1,2781 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>用料及纸板 - AA服装外贸系统</title>
+<link rel="stylesheet" href="css/common.css?v=20260812">
+<style>
+/* ========== 用料及纸板页面 - 作用域限定在 .consumption ========== */
+.consumption * { box-sizing: border-box; }
+.consumption { font-family: inherit; color: var(--ink, #1a1a1a); font-size: 13px; line-height: 1.45; }
+
+/* ===== 统计卡片 4列 ===== */
+.consumption .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 0 0 12px; }
+.consumption .stat-card {
+  background: #fff; border-radius: var(--radius-lg, 6px); border: 1px solid var(--border, #e5e7eb);
+  padding: 10px 12px; display: flex; align-items: center; gap: 10px;
+  transition: border-color 0.2s; box-shadow: none;
+}
+.consumption .stat-card:hover { border-color: var(--primary, #004D6D); }
+.consumption .stat-icon {
+  width: 28px; height: 28px; border-radius: var(--radius, 4px);
+  display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0;
+}
+.consumption .stat-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0; }
+.consumption .stat-label { font-size: 11px; color: var(--muted, #6b7280); font-weight: 500; line-height: 1.2; }
+.consumption .stat-value { font-size: 18px; font-weight: 700; margin-top: 1px; color: var(--ink, #1a1a1a); line-height: 1.15; }
+.consumption .stat-sub { font-size: 10px; color: var(--muted, #6b7280); margin-top: 1px; }
+.consumption .stat-icon.blue   { background: var(--primary-light, #e8f1f5); color: var(--primary, #004D6D); }
+.consumption .stat-icon.purple { background: #f0edff; color: #5e52c6; }
+.consumption .stat-icon.teal   { background: #e0f2fe; color: #0369a1; }
+.consumption .stat-icon.orange { background: #fff4e5; color: var(--warning, #d9883a); }
+
+/* ===== Tabs 风格 ===== */
+.consumption .tabs {
+  display: flex; border-bottom: 1px solid var(--border-light, #f3f4f6);
+  margin: 0 0 12px; padding: 0; gap: 4px;
+}
+.consumption .tab-item {
+  padding: 5px 14px; cursor: pointer; border: none; background: transparent;
+  border-bottom: 2px solid transparent; font-family: inherit; font-size: 12px;
+  color: var(--muted, #6b7280); font-weight: 500; transition: all 0.15s; border-radius: 0;
+}
+.consumption .tab-item:hover { color: var(--primary, #004D6D); }
+.consumption .tab-item.active { color: var(--primary, #004D6D); border-bottom-color: var(--primary, #004D6D); font-weight: 600; }
+.consumption .tab-content { display: none; }
+.consumption .tab-content.active { display: block; }
+
+/* ===== 款式卡片网格 ===== */
+.consumption .style-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px;
+}
+.consumption .style-card {
+  background: #fff; border-radius: var(--radius-lg, 6px); border: 1px solid var(--border, #e5e7eb);
+  padding: 12px; transition: all 0.2s; cursor: pointer;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.consumption .style-card:hover { box-shadow: var(--shadow-lg, 0 4px 12px rgba(0,0,0,0.08)); border-color: var(--primary, #004D6D); }
+.consumption .style-thumb {
+  width: 100%; height: 140px; background: #f5f7fa; border-radius: var(--radius, 4px);
+  display: flex; align-items: center; justify-content: center; color: #999;
+  overflow: hidden; position: relative; cursor: zoom-in;
+}
+.consumption .style-thumb img { width: 100%; height: 100%; object-fit: contain; }
+.consumption .thumb-nav {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 26px; height: 26px; background: rgba(0,0,0,0.5); color: #fff; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 13px; user-select: none; z-index: 2;
+  opacity: 0; transition: opacity 0.2s;
+}
+.consumption .style-thumb:hover .thumb-nav { opacity: 1; }
+.consumption .thumb-nav:hover { background: rgba(0,0,0,0.7); }
+.consumption .thumb-nav.prev { left: 6px; }
+.consumption .thumb-nav.next { right: 6px; }
+.consumption .thumb-dots {
+  position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 4px; z-index: 2;
+}
+.consumption .thumb-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.5); }
+.consumption .thumb-dot.active { background: #fff; }
+.consumption .style-no { color: var(--primary, #004D6D); font-size: 14px; font-weight: 700; }
+.consumption .style-info { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--ink-secondary, #4b5563); }
+.consumption .style-info span b { color: var(--muted, #6b7280); font-weight: 500; }
+.consumption .style-remark {
+  font-size: 12px; color: var(--ink-secondary, #4b5563);
+  padding: 4px 6px; margin-top: 4px;
+  background: #f9fafb; border-radius: 4px;
+  border-left: 3px solid var(--primary, #004D6D);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.consumption .style-card-actions {
+  margin-top: auto; display: flex; gap: 6px;
+  border-top: 1px solid var(--border-light, #f3f4f6); padding-top: 8px;
+}
+.consumption .style-card-actions .btn { flex: 1; justify-content: center; }
+
+/* ===== 搜索框 ===== */
+.consumption .search-box { position: relative; flex: 1; max-width: 320px; }
+.consumption .search-box::before {
+  content: '🔍'; position: absolute; left: 8px; top: 50%;
+  transform: translateY(-50%); font-size: 11px; opacity: 0.5; pointer-events: none;
+}
+.consumption .search-box input {
+  width: 100%; padding: 4px 8px 4px 22px;
+  border: 1px solid var(--border, #e5e7eb); border-radius: var(--radius, 4px);
+  font-family: inherit; font-size: 12px; color: var(--ink); background: #fff;
+  outline: none; transition: border-color 0.15s, box-shadow 0.15s;
+}
+.consumption .search-box input:focus {
+  border-color: var(--primary, #004D6D);
+  box-shadow: 0 0 0 2px rgba(0,77,109,0.08);
+}
+.consumption .filter-bar {
+  display: flex; gap: 8px; padding: 8px 12px;
+  border-bottom: 1px solid var(--border-light, #f3f4f6);
+  flex-wrap: wrap; align-items: center;
+}
+
+/* ===== 对比区域 ===== */
+.consumption .compare-toolbar {
+  background: #fff; border-radius: var(--radius-lg, 6px);
+  border: 1px solid var(--border, #e5e7eb); padding: 12px; margin-bottom: 12px;
+}
+.consumption .compare-selector { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.consumption .compare-selector input {
+  padding: 4px 10px; border: 1px solid var(--border, #e5e7eb); border-radius: var(--radius, 4px);
+  font-size: 12px; min-width: 200px; font-family: inherit; outline: none;
+}
+.consumption .compare-selector input:focus {
+  border-color: var(--primary, #004D6D); box-shadow: 0 0 0 2px rgba(0,77,109,0.08);
+}
+.consumption .compare-tags { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.consumption .compare-tag {
+  background: var(--primary-light, #e8f1f5); color: var(--primary, #004D6D);
+  padding: 3px 10px; border-radius: 14px; font-size: 12px;
+  display: inline-flex; align-items: center; gap: 6px; font-weight: 500;
+}
+.consumption .compare-tag .remove {
+  cursor: pointer; font-weight: bold; opacity: 0.6;
+}
+.consumption .compare-tag .remove:hover { opacity: 1; color: var(--error, #d44848); }
+
+/* ===== 对比表格 ===== */
+.consumption .compare-table {
+  width: 100%; border-collapse: collapse; font-size: 12px; min-width: 800px;
+}
+.consumption .compare-table th {
+  background: #f9fafb; padding: 8px 10px; border: 1px solid var(--border, #e5e7eb);
+  font-weight: 600; color: var(--ink-secondary, #4b5563); text-align: left;
+  position: sticky; top: 0; white-space: nowrap;
+}
+.consumption .compare-table td {
+  padding: 6px 8px; border: 1px solid var(--border, #e5e7eb); vertical-align: top;
+  font-size: 12px; line-height: 1.4;
+}
+.consumption .compare-table .field-name {
+  background: #f9fafb; font-weight: 500; color: var(--ink-secondary, #4b5563); width: 170px;
+}
+.consumption .compare-table .section-header td {
+  background: var(--primary, #004D6D); color: #fff; font-weight: 600; font-size: 12px;
+}
+.consumption .compare-table .diff-highlight {
+  background: #fff7e6;
+}
+
+/* ===== 编辑表单（排版对齐 cc.html 生成风格） ===== */
+.consumption .editor-panel {
+  background: #fff;
+  border-radius: 8px;
+  padding: 4px 4px 8px;
+}
+.consumption .form-row {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.consumption .form-group {
+  flex: 1;
+  min-width: 150px;
+}
+.consumption .form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  color: #555;
+  font-size: 13px;
+}
+.consumption .form-group label .required { color: #d44848; margin-left: 2px; }
+.consumption .form-group input[type="text"],
+.consumption .form-group input[type="date"],
+.consumption .form-group textarea,
+.consumption .form-group select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #fff;
+  color: #333;
+  box-sizing: border-box;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.consumption .form-group textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+.consumption .form-group input:focus,
+.consumption .form-group textarea:focus,
+.consumption .form-group select:focus {
+  outline: none;
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24,144,255,0.1);
+}
+
+/* ===== 图片上传控件 ===== */
+.consumption .image-upload {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.consumption .image-box {
+  flex: 1;
+  min-width: 200px;
+}
+.consumption .image-box h4 {
+  margin-bottom: 8px;
+  color: #555;
+  font-size: 13px;
+  font-weight: 600;
+}
+.consumption .image-preview {
+  width: 100%;
+  height: 200px;
+  border: 2px dashed #1890ff;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  cursor: pointer;
+  overflow: hidden;
+  background: #fafafa;
+  position: relative;
+  transition: all .15s;
+}
+.consumption .image-preview.muted { border-color: #d9d9d9; background: #fafafa; }
+.consumption .image-preview:hover { border-color: #1890ff; background: #f5faff; }
+.consumption .image-preview.muted:hover { background: #f5f5f5; }
+.consumption .image-preview .upload-hint {
+  text-align: center;
+  color: #666;
+  pointer-events: none;
+}
+.consumption .image-preview .upload-hint .icon {
+  font-size: 40px;
+  margin-bottom: 8px;
+  line-height: 1;
+}
+.consumption .image-preview .upload-hint .icon.camera { color: #6b7280; }
+.consumption .image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  z-index: 1;
+}
+.consumption .image-preview .del-btn {
+  position: absolute; top: 8px; right: 8px; z-index: 3;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: rgba(0,0,0,0.55); color: #fff; border: none; cursor: pointer;
+  display: none; align-items: center; justify-content: center;
+  font-size: 16px; line-height: 1; font-weight: 700;
+}
+.consumption .image-preview.has-img .del-btn { display: inline-flex; }
+.consumption .image-preview .status {
+  position: absolute; bottom: 8px; left: 8px; right: 8px; z-index: 4;
+  font-size: 11px; padding: 3px 8px; border-radius: 4px; text-align: center; display: none;
+}
+.consumption .image-preview .status.loading { display: block; background: rgba(59,130,246,0.1); color: #1d4ed8; }
+.consumption .image-preview .status.error   { display: block; background: rgba(220,38,38,0.1); color: #b91c1c; }
+.consumption .image-preview .status.ok      { display: block; background: rgba(16,185,129,0.1); color: #047857; }
+.consumption .nas-pick-row {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+}
+.consumption .nas-pick-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border-radius: 8px; border: 1px solid rgba(99,102,241,0.4);
+  background: #eef2ff; color: #3730a3;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: all .12s;
+}
+.consumption .nas-pick-btn:hover { background: #e0e7ff; border-color: #6366f1; color: #1e1b4b; }
+.consumption .nas-pick-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ===== 动态表格 ===== */
+.consumption .dynamic-table-section {
+  margin-bottom: 24px;
+}
+.consumption .dynamic-table-section > h3 {
+  margin: 0 0 12px;
+  padding: 0;
+  color: #333;
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.consumption .dynamic-table-section > h3 > span:first-child {
+  margin-right: auto;
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+}
+.consumption .dynamic-table {
+  width: 100%;
+  min-width: max-content;
+  border-collapse: collapse;
+  font-size: 12px;
+  table-layout: auto;
+}
+.consumption .dynamic-table th {
+  background: #fafafa;
+  padding: 8px 10px;
+  text-align: left;
+  border: 1px solid #e8e8e8;
+  font-weight: 600;
+  color: #555;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.consumption .dynamic-table td {
+  padding: 4px 6px;
+  border: 1px solid #e8e8e8;
+  vertical-align: top;
+  white-space: nowrap;
+}
+.consumption .dynamic-table input,
+.consumption .dynamic-table textarea,
+.consumption .dynamic-table select {
+  width: 100%;
+  min-width: 60px;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  font-size: 12px;
+  font-family: inherit;
+  background: transparent;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+.consumption .dynamic-table textarea { resize: vertical; min-height: 32px; }
+.consumption .dynamic-table input:focus,
+.consumption .dynamic-table textarea:focus,
+.consumption .dynamic-table select:focus {
+  outline: none;
+  border-color: #1890ff;
+  background: #fff;
+}
+.consumption .row-actions {
+  width: 80px;
+  text-align: center;
+}
+.consumption .row-actions .btn {
+  margin: 2px;
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+/* ===== 规格尺寸表 ===== */
+.consumption .spec-table {
+  width: 100%;
+  min-width: max-content;
+  border-collapse: collapse;
+  font-size: 13px;
+  table-layout: auto;
+}
+.consumption .spec-table th {
+  background: #fafafa;
+  padding: 10px 8px;
+  border: 1px solid #e8e8e8;
+  font-weight: 600;
+  color: #555;
+  white-space: nowrap;
+}
+.consumption .spec-table td {
+  padding: 6px 8px;
+  border: 1px solid #e8e8e8;
+  white-space: nowrap;
+}
+.consumption .spec-table input {
+  width: 100%;
+  min-width: 80px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  font-size: 13px;
+  background: transparent;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+.consumption .spec-table input:focus {
+  outline: none;
+  border-color: #1890ff;
+  background: #fff;
+}
+
+/* ===== 操作按钮区 ===== */
+.consumption .form-actions {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #f0f0f0;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 720px) {
+  .consumption .image-upload { flex-direction: column; }
+}
+
+/* ===== 动态表格（面料/规格） ===== */
+.consumption .dyn-table-wrap { overflow-x: auto; margin-top: 8px; }
+.consumption .dyn-table {
+  width: 100%; min-width: max-content; border-collapse: collapse; font-size: 12px;
+}
+.consumption .dyn-table th {
+  background: #f9fafb; padding: 5px 8px; text-align: left;
+  border: 1px solid var(--border, #e5e7eb); font-weight: 600;
+  color: var(--ink-secondary, #4b5563); white-space: nowrap; font-size: 11px;
+}
+.consumption .dyn-table td {
+  padding: 3px 5px; border: 1px solid var(--border, #e5e7eb); vertical-align: top; white-space: nowrap;
+}
+.consumption .dyn-table input, .consumption .dyn-table textarea, .consumption .dyn-table select {
+  width: 100%; min-width: 60px; padding: 3px 5px;
+  border: 1px solid transparent; border-radius: 3px;
+  font-size: 12px; font-family: inherit; background: transparent;
+  color: var(--ink);
+}
+.consumption .dyn-table select { min-width: 70px; }
+.consumption .dyn-table textarea { min-height: 30px; resize: vertical; white-space: pre-wrap; }
+.consumption .dyn-table input:focus, .consumption .dyn-table textarea:focus, .consumption .dyn-table select:focus {
+  outline: none; border-color: var(--primary, #004D6D); background: #fff;
+}
+.consumption .dyn-table .op-col { width: 80px; text-align: center; }
+.consumption .row-action-btn {
+  width: 22px; height: 22px; border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--radius, 4px); background: #fff;
+  color: var(--ink-secondary, #4b5563); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: all 0.15s; padding: 0; margin: 1px; font-size: 11px;
+}
+.consumption .row-action-btn:hover { border-color: var(--primary, #004D6D); color: var(--primary, #004D6D); background: var(--primary-light, #e8f1f5); }
+.consumption .row-action-btn.del:hover { border-color: var(--error, #d44848); color: #fff; background: var(--error, #d44848); }
+
+/* ===== 类别快捷按钮 ===== */
+.consumption .cat-shortcuts { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+.consumption .cat-shortcut-btn {
+  padding: 3px 10px; border-radius: var(--radius, 4px);
+  border: 1px solid var(--primary, #004D6D); background: #fff;
+  color: var(--primary, #004D6D); font-size: 11px; font-weight: 500; cursor: pointer;
+  font-family: inherit; transition: all 0.15s;
+}
+.consumption .cat-shortcut-btn:hover { background: var(--primary, #004D6D); color: #fff; }
+
+/* ===== 规格表 ===== */
+.consumption .spec-table-wrap { overflow-x: auto; }
+.consumption .spec-table {
+  width: 100%; min-width: 480px; border-collapse: collapse; font-size: 12px;
+}
+.consumption .spec-table th {
+  background: #f9fafb; padding: 5px 8px; text-align: left;
+  border: 1px solid var(--border, #e5e7eb); font-weight: 600;
+  color: var(--ink-secondary, #4b5563); white-space: nowrap; font-size: 11px;
+}
+.consumption .spec-table td {
+  padding: 3px 6px; border: 1px solid var(--border, #e5e7eb); white-space: nowrap;
+}
+.consumption .spec-table input {
+  width: 100%; min-width: 80px; padding: 3px 6px;
+  border: 1px solid transparent; border-radius: 3px;
+  font-size: 12px; background: transparent; color: var(--ink);
+}
+.consumption .spec-table input:focus { outline: none; border-color: var(--primary, #004D6D); background: #fff; }
+
+/* ===== 模态框底部按钮 ===== */
+.consumption .modal-actions {
+  display: flex; justify-content: flex-end; gap: 8px; padding-top: 12px;
+  border-top: 1px solid var(--border-light, #f3f4f6);
+}
+
+/* ===== 全屏图片查看器 ===== */
+.consumption .fullscreen-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.85); z-index: 2000;
+  display: none; align-items: center; justify-content: center;
+}
+.consumption .fullscreen-overlay.active { display: flex; }
+.consumption .fullscreen-img-wrap {
+  max-width: 92%; max-height: 88%; position: relative;
+  display: flex; align-items: center; justify-content: center;
+}
+.consumption .fullscreen-img-wrap img {
+  max-width: 100%; max-height: 88vh; object-fit: contain;
+}
+.consumption .fullscreen-close {
+  position: absolute; top: 20px; right: 28px;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(255,255,255,0.15); color: #fff;
+  border: none; font-size: 26px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s;
+}
+.consumption .fullscreen-close:hover { background: rgba(255,255,255,0.3); }
+.consumption .fullscreen-nav {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 44px; height: 44px; border-radius: 50%;
+  background: rgba(255,255,255,0.15); color: #fff;
+  border: none; font-size: 20px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s; z-index: 10;
+}
+.consumption .fullscreen-nav:hover { background: rgba(255,255,255,0.3); }
+.consumption .fullscreen-nav.prev { left: 24px; }
+.consumption .fullscreen-nav.next { right: 24px; }
+.consumption .fullscreen-caption {
+  position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+  color: #fff; font-size: 13px; text-align: center; background: rgba(0,0,0,0.4);
+  padding: 5px 14px; border-radius: 16px;
+}
+
+/* ===== 类别管理 ===== */
+.consumption .cat-manager-list {
+  border: 1px solid var(--border, #e5e7eb); border-radius: var(--radius, 4px);
+  overflow: hidden;
+}
+.consumption .cat-manager-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 12px; border-bottom: 1px solid var(--border-light, #f3f4f6);
+  background: #fff;
+}
+.consumption .cat-manager-item:last-child { border-bottom: none; }
+.consumption .cat-manager-item:nth-child(odd) { background: #fafbfc; }
+.consumption .cat-manager-item input {
+  border: 1px solid var(--border, #e5e7eb); border-radius: var(--radius, 4px);
+  padding: 3px 8px; font-size: 12px; font-family: inherit; flex: 1;
+}
+.consumption .cat-manager-item input:focus {
+  outline: none; border-color: var(--primary, #004D6D);
+  box-shadow: 0 0 0 2px rgba(0,77,109,0.08);
+}
+.consumption .cat-manager-actions { display: flex; gap: 4px; margin-left: 8px; }
+
+/* ===== 打印预览页面容器 ===== */
+.consumption .print-preview-scroll { max-height: 65vh; overflow-y: auto; padding: 12px; background: #e8e8e8; }
+.consumption .print-preview-pages { display: flex; flex-direction: column; gap: 16px; align-items: center; }
+.consumption .print-page, .consumption .print-full-img-page {
+  box-shadow: 0 2px 12px rgba(0,0,0,0.2); background: #fff;
+  transform: scale(0.55); transform-origin: top center;
+  margin-bottom: -130mm; flex-shrink: 0;
+}
+
+/* ===== 打印样式 ===== */
+.print-page {
+  width: 210mm; height: 297mm; padding: 10mm 12mm;
+  position: relative; box-sizing: border-box; overflow: hidden; background: #fff;
+}
+.print-full-img-page {
+  width: 210mm; height: 297mm; padding: 10mm; box-sizing: border-box;
+  position: relative; display: flex; align-items: center; justify-content: center; background: #fff;
+}
+.print-full-img-page img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.print-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1.5px solid #333;
+}
+.print-info-left { display: flex; flex-direction: column; gap: 6px; }
+.print-info-line {
+  display: flex; align-items: center; gap: 8px; font-size: 14px; line-height: 1.4;
+}
+.print-label { font-weight: bold; color: #333; min-width: 70px; }
+.print-val { color: #333; text-align: left; }
+.print-tag {
+  display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 5px;
+  font-weight: bold; color: #fff; font-size: 14px; line-height: 1.4;
+  text-align: left; justify-content: flex-start;
+}
+.print-tag.tag-red { background: var(--error, #d44848); }
+.print-tag.tag-green { background: var(--success, #2d9d5f); }
+.print-tag.tag-yellow { background: var(--warning, #d9883a); color: #fff; }
+.print-title-right { text-align: right; font-size: 16px; font-weight: bold; color: #333; }
+.print-date { font-size: 11px; font-weight: normal; color: #666; margin-top: 4px; }
+.print-style-img {
+    width: 80px; height: 100px; border: 1px solid #ccc;
+    display: flex; align-items: center; justify-content: center;
+    float: right; margin-left: 8px; margin-bottom: 6px; background: #fafafa;
+  }
+.print-style-img img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.print-section { margin-bottom: 6px; }
+.print-section h4 {
+  font-size: 14px; color: #333; margin-bottom: 3px;
+  border-left: 3px solid var(--primary, #004D6D); padding-left: 6px;
+}
+.print-table {
+  width: 100%; border-collapse: collapse; font-size: 12px; line-height: 1.4; table-layout: auto;
+}
+.print-table th {
+  background: #f0f0f0; padding: 3px 5px; border: 1px solid #888;
+  text-align: left; font-weight: 600; font-size: 12px; white-space: nowrap;
+}
+.print-table td {
+  padding: 2px 5px; border: 1px solid #888; vertical-align: top;
+  font-size: 12px; white-space: nowrap;
+}
+.print-spec-table { font-size: 13px; }
+.print-spec-table td { padding: 4px 6px; white-space: nowrap; }
+.print-craft {
+  padding: 6px 10px; border: 1px solid #888; font-size: 12px;
+  min-height: 30px; max-height: 50px; white-space: pre-wrap;
+  line-height: 1.5; overflow: hidden;
+}
+.print-footer {
+  position: absolute; bottom: 8mm; left: 12mm; right: 12mm;
+  border-top: 0.5px solid #999; padding-top: 3px;
+  display: flex; justify-content: space-between; font-size: 12px; color: #666;
+}
+
+/* ===== 空状态 ===== */
+.consumption .empty-state {
+  padding: 40px 20px; text-align: center; color: var(--muted, #6b7280);
+}
+.consumption .empty-state .empty-icon { font-size: 36px; margin-bottom: 8px; opacity: 0.4; }
+.consumption .empty-state p { font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="app-layout">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main-area">
+    <div class="app-header">
+      <button class="header-toggle">☰</button>
+      <span class="header-title">AA用料及纸板</span>
+      <div class="header-actions">
+        <button class="btn btn-sm" onclick="App.backupData()" title="备份">📦</button>
+        <div class="header-user"><span>👤</span><span class="user-name">管理员</span></div>
+        <button class="btn btn-sm" onclick="App.logout()" title="退出">🚪</button>
+      </div>
+    </div>
+    <div class="app-content">
+      <div class="consumption" id="consumptionApp">
+        <!-- 主标签页 -->
+        <div class="tabs">
+          <div class="tab-item active" data-tab="list" onclick="Cons.switchTab('list')">款式管理</div>
+          <div class="tab-item" data-tab="compare" onclick="Cons.switchTab('compare')">耗料对比</div>
+        </div>
+
+        <!-- 款式管理 Tab -->
+        <div class="tab-content active" id="tab-list">
+          <div class="card">
+            <div class="filter-bar">
+              <div class="search-box">
+                <input type="text" id="searchInput" class="form-input" placeholder="搜索款号/品名/设计师..." oninput="renderList()">
+              </div>
+              <select id="filterName" class="form-input" onchange="renderList()" style="min-width:130px;"><option value="">全部品名</option></select>
+              <select id="filterYear" class="form-input" onchange="renderList()" style="min-width:90px;"><option value="">全部年份</option></select>
+              <div style="flex:1"></div>
+              <button class="btn btn-sm" onclick="forceSyncCloud()" title="立即从云端下载、并将本地数据强制上传到 Supabase（跨电脑同步失败时点此）">☁️ 同步云端</button>
+              <button class="btn btn-primary" onclick="Cons.openEditor()" title="新增款号" id="btnAddStyle">➕</button>
+              <button class="btn" onclick="Cons.clearStyles()" title="清空本地列表，仅保留云端数据" style="margin-left:6px;">清空</button>
+            </div>
+            <div class="table-toolbar" style="border-bottom:none;">
+              <div class="table-toolbar-left">
+                <span class="card-title">款式列表</span>
+              </div>
+              <div class="table-toolbar-right">
+                <span class="font-sm" style="color:var(--muted);" id="listCountInfo">共 0 款</span>
+              </div>
+            </div>
+            <div class="style-grid" id="styleGrid"></div>
+          </div>
+        </div>
+
+        <!-- 耗料对比 Tab -->
+        <div class="tab-content" id="tab-compare">
+          <div class="compare-toolbar">
+            <div class="compare-selector">
+              <input type="text" id="compareSelect" list="compareDatalist" placeholder="输入款号或选择添加到对比..." onkeydown="Cons.onCompareKeydown(event)">
+              <datalist id="compareDatalist"></datalist>
+              <button class="btn btn-primary" onclick="Cons.addToCompare()">添加对比</button>
+              <button class="btn" onclick="Cons.clearCompare()">清空</button>
+              <button class="btn" onclick="Cons.printCompare()">🖨️ 打印对比表</button>
+            </div>
+            <div class="compare-tags" id="compareTags"></div>
+          </div>
+          <div class="card">
+            <div style="overflow-x:auto;">
+              <div id="compareTableContainer"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 全屏图片查看器 -->
+        <div class="fullscreen-overlay" id="fullscreenOverlay" onclick="Cons.closeFullscreen(event)">
+          <button class="fullscreen-close" onclick="Cons.closeFullscreenDirect()">&times;</button>
+          <button class="fullscreen-nav prev" onclick="event.stopPropagation();Cons.navFullscreen(-1)">&#10094;</button>
+          <div class="fullscreen-img-wrap" onclick="event.stopPropagation()">
+            <img id="fullscreenImg" src="" alt="">
+          </div>
+          <button class="fullscreen-nav next" onclick="event.stopPropagation();Cons.navFullscreen(1)">&#10095;</button>
+          <div class="fullscreen-caption" id="fullscreenCaption">1 / 1</div>
+        </div>
+
+      </div><!-- /.consumption -->
+    </div><!-- /.app-content -->
+  </div><!-- /.main-area -->
+</div><!-- /.app-layout -->
+
+<script src="js/common.js?v=20260912c"></script>
+<script src="js/localstorage-patch.js?v=20260823a"></script>
+<script src="js/cloudbase-store.js?v=20260825c"></script>
+<script src="js/init-page.js?v=20260825b"></script>
+
+<script src="js/auth-guard.js?v=20260912a"></script>
+<script type="module" src="js/admin-config.js?v=20260813"></script>
+<script type="module" src="js/form-submit.js?v=20260912a"></script>
+<script type="module" src="js/logout.js?v=20260813"></script>
+
+<script>
+// ===== 云端同步守卫 =====
+var PageDataSyncGuard = {
+  inited: false, pending: false,
+  watchKeys: ["consumptions","consumption_categories","contacts"],
+  emptyCheckKeys: ["consumptions"],
+  afterInit: function() {
+    var self = this; this.inited = true;
+    function doRefresh() { try { if (typeof window.renderAll === 'function') window.renderAll(); } catch(e) {} }
+    if (self.pending) setTimeout(doRefresh, 200);
+    setTimeout(function() {
+      var allEmpty = self.emptyCheckKeys.every(function(k){
+        try{ var a=App.store.get(k,[]); return !a||a.length===0; }catch(e){return true;}
+      });
+      if (allEmpty) doRefresh();
+    }, 2000);
+  }
+};
+window.addEventListener('cloud-data-updated', function(e){
+  var keys = (e.detail&&e.detail.keys)||[];
+  var need = keys.some(function(k){ return PageDataSyncGuard.watchKeys.indexOf(k)>=0; });
+  if (need) {
+    if (!PageDataSyncGuard.inited) { PageDataSyncGuard.pending=true; return; }
+    try { if (typeof window.renderAll==='function') window.renderAll(); } catch(e){}
+  }
+});
+
+App.init('consumption');
+App.checkLogin();
+App.initSampleData();
+App.enforcePagePermission('consumption');
+setTimeout(function() { if (window.PageDataSyncGuard) window.PageDataSyncGuard.afterInit(); }, 0);
+
+// ===== 诊断：检测 CloudBase 存储可用性 =====
+setTimeout(function() {
+  var bucket = window.STORAGE_BUCKET || 'app-photos';
+  console.log('[consumption] CloudBase 诊断:');
+  console.log('  CLOUDBASE_ENV:', window.CLOUDBASE_ENV);
+  console.log('  STORAGE_BUCKET:', bucket);
+  console.log('  window.supabase:', !!window.supabase);
+  console.log('  window.SupabaseSubmit:', !!window.SupabaseSubmit);
+  console.log('  window.SupabaseStore:', !!window.SupabaseStore, '_isInitialized:',
+    window.SupabaseStore && window.SupabaseStore._isInitialized ? window.SupabaseStore._isInitialized() : 'N/A');
+  console.log('  SupabaseSubmit.uploadPicture:', !!(window.SupabaseSubmit && typeof SupabaseSubmit.uploadPicture === 'function'));
+  if (window.supabase && window.supabase.storage) {
+    window.supabase.storage.from(bucket).list('consumption', { limit: 1 }).then(function(res) {
+      if (res.error) {
+        console.error('[consumption] Storage list 失败:', res.error.message, '（请检查 RLS Storage SELECT 策略是否允许 authenticated 角色 SELECT app-photos 下 consumption/ 路径）');
+      } else {
+        console.log('[consumption] Storage 连接正常，当前 consumption/ 下有 ' + ((res.data && res.data.length) || 0) + ' 个文件');
+      }
+    }).catch(function(err) {
+      console.error('[consumption] Storage 连接异常:', err && err.message);
+    });
+  }
+}, 1500);
+
+/**
+ * 手动强制云端同步（与 order.html 的 forceSyncCloud 相同，避免重复代码）
+ * 如果全局已有此函数则复用，没有则自己定义一次
+ */
+if (!window.forceSyncCloud) {
+  window.forceSyncCloud = function forceSyncCloud() {
+    if (App && App.toast) App.toast('☁️ 正在同步云端…（最多 10 秒）', 'info', 4000);
+    console.log('[forceSyncCloud] 开始执行手动云同步...');
+    var stepsDone = 0;
+    var totalSteps = 4;
+    function next() {
+      stepsDone++;
+      if (stepsDone >= totalSteps) {
+        try { if (typeof renderList === 'function') renderList(); else if (typeof Cons.renderList === 'function') Cons.renderList(); } catch(_) {}
+        try { if (App && App.toast) App.toast('✅ 同步完成，列表已刷新', 'success', 2000); } catch(_) {}
+        console.log('[forceSyncCloud] 同步完成');
+      }
+    }
+    try {
+      var store = window.SupabaseStore;
+      if (store) {
+        var fn = store.forceRefreshFromCloud || store.refreshFromCloud;
+        if (fn) Promise.resolve(fn.call(store)).then(function(){ next(); }).catch(function(){ next(); });
+        else next();
+      } else next();
+    } catch(_e) { next(); }
+
+    try {
+      if (typeof window.independentPoll === 'function') {
+        Promise.resolve(window.independentPoll()).then(function(){ next(); }).catch(function(){ next(); });
+      } else next();
+    } catch(_) { next(); }
+
+    setTimeout(function(){
+      try {
+        var ALL_KEYS = [
+          'styles', 'orders', 'fabrics', 'accessories', 'samples',
+          'feedbacks', 'productions', 'invoices', 'payments', 'collections',
+          'consumptions', 'consumption_categories',
+          'contacts', 'customers', 'suppliers', 'favoriteContacts',
+          'washes', 'shippings', 'users', 'permissions',
+          'maintFabrics', 'maintAccessories',
+          'express_delivery_data_v2', 'pl_records_v1', 'pl_draft_v1',
+          'sht_sample_data_v2', 'sht_size_tables_v2', 'sizeSheets', 'styleImages'
+        ];
+        var origLS = window._origLocalStorage || window.localStorage;
+        var needBackup = 0;
+        ALL_KEYS.forEach(function(k){
+          try {
+            var raw = origLS.getItem(k);
+            if (raw && raw !== '[]' && raw !== 'null') {
+              window.dispatchEvent(new CustomEvent('cloud-write-request', {
+                detail: { key: k, value: JSON.parse(raw), ts: Date.now(), force: 1 }
+              }));
+              needBackup++;
+            }
+          } catch(_) {}
+        });
+        console.log('[forceSyncCloud] 本地备份入队 ' + needBackup + ' 个键');
+      } finally { next(); }
+    }, 800);
+
+    setTimeout(function(){
+      try { if (typeof renderList === 'function') renderList(); else if (typeof Cons.renderList === 'function') Cons.renderList(); } catch(_) {}
+      next();
+    }, 2000);
+  };
+}
+
+// ======================================================
+// ===== 用料及纸板 - 主模块
+// ======================================================
+var Cons = {
+  currentTab: 'list',
+  compareList: [],
+  editingId: null,
+  fabricData: [],
+  specData: [],
+  fullscreenImgs: [],
+  fullscreenIdx: 0,
+
+  // ===== 辅助：ID 生成 =====
+  genId: function() {
+    return 'id_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  },
+
+  // ===== 数据读取 =====
+  getConsumptions: function() {
+    try { return App.store.get('consumptions', []) || []; } catch(e) { return []; }
+  },
+  setConsumptions: function(arr) {
+    App.store.set('consumptions', arr);
+  },
+  // ===== 清空本地列表，仅保留云端(Supabase)数据 =====
+  clearStyles: function() {
+    if (!confirm('确认清空款式列表并从云端重新加载？\n\n此操作会清除本地未同步的数据，仅保留已存储到 Supabase 的数据。')) return;
+    var doRender = function(){ try { renderAll(); } catch(e){} };
+    var finishLocal = function(msg, type){
+      App.toast(msg, type);
+      doRender();
+    };
+    if (window.SupabaseStore && typeof window.SupabaseStore.get === 'function') {
+      App.toast('正在从云端重新加载…', 'info');
+      // 先清空内存缓存中的 consumptions，强制走云端查询
+      try {
+        if (window.SupabaseStore._getCache) {
+          var c = window.SupabaseStore._getCache();
+          if (c) delete c['consumptions'];
+        }
+      } catch(e){}
+      window.SupabaseStore.get('consumptions', []).then(function(cloudData){
+        var arr = Array.isArray(cloudData) ? cloudData : [];
+        // 用云端数据覆盖本地原始 localStorage（原始方法，不二次触发云端写入）
+        try { window._origLocalStorage.setItem('consumptions', JSON.stringify(arr)); } catch(e){}
+        // 同步更新内存缓存
+        try {
+          if (window.SupabaseStore._getCache) {
+            var c2 = window.SupabaseStore._getCache();
+            if (c2) c2['consumptions'] = JSON.parse(JSON.stringify(arr));
+          }
+        } catch(e){}
+        App.toast('已从云端重新加载（共 ' + arr.length + ' 款）', 'success');
+        doRender();
+      }).catch(function(e){
+        App.toast('云端加载失败，已保留本地数据：' + (e && e.message || e), 'error');
+        doRender();
+      });
+    } else {
+      // 无云同步：仅清空本地
+      if (!confirm('云同步未就绪，是否仅清空本地列表？')) return;
+      try { window._origLocalStorage.removeItem('consumptions'); } catch(e){}
+      try {
+        if (window.SupabaseStore && window.SupabaseStore._getCache) {
+          var c3 = window.SupabaseStore._getCache();
+          if (c3) delete c3['consumptions'];
+        }
+      } catch(e){}
+      finishLocal('已清空本地列表', 'warning');
+    }
+  },
+  getCategories: function() {
+    try {
+      var cats = App.store.get('consumption_categories', null);
+      if (cats && Array.isArray(cats) && cats.length > 0) return cats;
+    } catch(e) {}
+    return ['面料','里料','辅料','无纺衬','其他'];
+  },
+  setCategories: function(arr) {
+    App.store.set('consumption_categories', arr);
+  },
+  // 填充品名/年份筛选下拉框（保留当前选中值）
+  populateFilters: function(data) {
+    var nameSel = document.getElementById('filterName');
+    var yearSel = document.getElementById('filterYear');
+    if (!nameSel || !yearSel) return;
+    var curName = nameSel.value;
+    var curYear = yearSel.value;
+    var names = {};
+    (data || []).forEach(function(s){ if (s && s.name) names[s.name] = true; });
+    nameSel.innerHTML = '<option value="">全部品名</option>' +
+      Object.keys(names).sort().map(function(n){
+        return '<option value="' + App.utils.escapeHtml(n) + '"' + (n === curName ? ' selected' : '') + '>' + App.utils.escapeHtml(n) + '</option>';
+      }).join('');
+    var years = {};
+    (data || []).forEach(function(s){
+      if (s && s.date) {
+        var y = String(s.date).substr(0, 4);
+        if (/^\d{4}$/.test(y)) years[y] = true;
+      }
+    });
+    yearSel.innerHTML = '<option value="">全部年份</option>' +
+      Object.keys(years).sort().reverse().map(function(y){
+        return '<option value="' + y + '"' + (y === curYear ? ' selected' : '') + '>' + y + '</option>';
+      }).join('');
+  },
+
+  // ===== 数据迁移 + 示例数据 =====
+  migrateAndEnsure: function() {
+    var arr = this.getConsumptions();
+    if (!arr || arr.length === 0) {
+      // 尝试迁移旧数据
+      try {
+        var old = localStorage.getItem('clothing_cost_styles_v3');
+        if (old) {
+          try {
+            var oldArr = JSON.parse(old);
+            if (Array.isArray(oldArr) && oldArr.length > 0) {
+              var migrated = oldArr.map(function(s){
+                return {
+                  id: s.id || ('id_m_' + Math.random().toString(36).substr(2,9)),
+                  date: s.date || '',
+                  designer: s.designer || '',
+                  season: s.season || '',
+                  styleNo: s.styleNo || '',
+                  name: s.name || '',
+                  price: s.price || '',
+                  styleImg_path: s.styleImg_path || (s.styleImg && s.styleImg.startsWith && s.styleImg.startsWith('data:image') ? s.styleImg : ''),
+                  styleImg_name: s.styleImg_name || '',
+                  fullImg_path: s.fullImg_path || (s.fullImg && s.fullImg.startsWith && s.fullImg.startsWith('data:image') ? s.fullImg : ''),
+                  fullImg_name: s.fullImg_name || '',
+                  fabrics: Array.isArray(s.fabrics) ? s.fabrics : [],
+                  craft: s.craft || '',
+                  specs: Array.isArray(s.specs) ? s.specs : []
+                };
+              });
+              this.setConsumptions(migrated);
+              arr = migrated;
+            }
+          } catch(_e) {}
+        }
+      } catch(_e) {}
+    }
+
+    var cats = App.store.get('consumption_categories', null);
+    if (!cats || !Array.isArray(cats) || cats.length === 0) {
+      try {
+        var oldCat = localStorage.getItem('clothing_cost_categories_v3');
+        if (oldCat) {
+          try {
+            var oldCats = JSON.parse(oldCat);
+            if (Array.isArray(oldCats) && oldCats.length > 0) {
+              this.setCategories(oldCats);
+            }
+          } catch(_e) {}
+        }
+      } catch(_e) {}
+    }
+    // 确保类别
+    var currentCats = this.getCategories();
+    if (!currentCats || !Array.isArray(currentCats) || currentCats.length === 0) {
+      this.setCategories(['面料','里料','辅料','无纺衬','其他']);
+    }
+    // 初始化时仅首次注入示例；避免用户删除最后一条后又自动创建一条导致"删除无效"
+    var seededKey = '_consumption_seeded_v1';
+    try {
+      if (!localStorage.getItem(seededKey)) {
+        var data = this.getConsumptions();
+        if (!data || data.length === 0) {
+          this.setConsumptions([this.createSampleStyle()]);
+        }
+        localStorage.setItem(seededKey, '1');
+      }
+    } catch(_e) {}
+  },
+
+  createSampleStyle: function() {
+    return {
+      id: this.genId(),
+      date: new Date().toISOString().split('T')[0],
+      designer: '周',
+      season: '2024春夏',
+      styleNo: 'GW27-003',
+      name: '童裤',
+      price: '18',
+      styleImg_path: '',
+      styleImg_name: '',
+      fullImg_path: '',
+      fullImg_name: '',
+      fabrics: [
+        { category: '面料', spec: 'XM-1289', composition: '70%C 30%Tencel', beforeWeight: '260gsm', afterWeight: '290gsm', width: '1.5', spec2: '', consumption: '1.02', part: '大身（腰口滚条）', shrink: '经-5% 纬-1%', remark: '' },
+        { category: '面料', spec: '', composition: '', beforeWeight: '', afterWeight: '', width: '1.45', spec2: '', consumption: '1.09', part: '', shrink: '', remark: '' },
+        { category: '里料', spec: 'T/C', composition: '', beforeWeight: '', afterWeight: '', width: '1.43', spec2: '', consumption: '0.1', part: '前袋布', shrink: '', remark: '' },
+        { category: '无纺衬', spec: '', composition: '', beforeWeight: '', afterWeight: '', width: '1.5', spec2: '', consumption: '0.06', part: '门襟、里巾', shrink: '', remark: '' }
+      ],
+      craft: '如司马克、对条、对格等',
+      specs: [
+        { part: '裤长', size: '50', remark: '' },
+        { part: '腰围', size: '24', remark: '' },
+        { part: '臀围', size: '32', remark: '' },
+        { part: '脚口', size: '14', remark: '' }
+      ]
+    };
+  },
+
+  // ===== 切换标签页 =====
+  switchTab: function(tab) {
+    this.currentTab = tab;
+    document.querySelectorAll('#consumptionApp .tab-item').forEach(function(t){
+      t.classList.toggle('active', t.dataset.tab === tab);
+    });
+    document.querySelectorAll('#consumptionApp .tab-content').forEach(function(c){
+      c.classList.toggle('active', c.id === 'tab-' + tab);
+    });
+    if (tab === 'compare') {
+      this.updateCompareDatalist();
+      renderCompareTable();
+    } else {
+      renderList();
+    }
+  },
+
+  // ===== 渲染统计 =====
+  renderStats: function() {
+    var data = this.getConsumptions();
+    var designerSet = {};
+    data.forEach(function(s){ if (s.designer) designerSet[s.designer] = true; });
+    var designerCount = Object.keys(designerSet).length;
+    var fabricCount = data.reduce(function(acc, s){ return acc + ((s.fabrics && s.fabrics.length) || 0); }, 0);
+    var imgCount = 0;
+    data.forEach(function(s){
+      if (s.styleImg_path && s.styleImg_path.length > 0) imgCount++;
+      if (s.fullImg_path && s.fullImg_path.length > 0) imgCount++;
+    });
+
+    var cards = [
+      { icon: '📋', cls: 'blue',   label: '款式总数', value: data.length, sub: '已录入款式' },
+      { icon: '👤', cls: 'purple', label: '设计师数', value: designerCount, sub: '不同设计师' },
+      { icon: '🧵', cls: 'teal',   label: '面料明细', value: fabricCount, sub: '面料辅料总条数' },
+      { icon: '🖼️', cls: 'orange', label: '已传图片', value: imgCount, sub: '款式图/大图数量' }
+    ];
+    document.getElementById('statCards').innerHTML = cards.map(function(c){
+      return '<div class="stat-card">' +
+        '<div class="stat-icon ' + c.cls + '">' + c.icon + '</div>' +
+        '<div class="stat-info">' +
+          '<div class="stat-label">' + c.label + '</div>' +
+          '<div class="stat-value">' + c.value + '</div>' +
+          '<div class="stat-sub">' + c.sub + '</div>' +
+        '</div></div>';
+    }).join('');
+  },
+
+  // ===== 获取 signed URL =====
+  getSignedUrl: async function(path) {
+    if (!path) return null;
+    if (path.startsWith('data:image')) return path;
+    if (window.supabase) {
+      try {
+        var sb = window.supabase;
+        var BUCKET = window.STORAGE_BUCKET || 'app-photos';
+        var res = await sb.storage.from(BUCKET).createSignedUrl(path, 3600);
+        if (res && !res.error && res.data) return res.data.signedUrl || null;
+      } catch(_e) {}
+    }
+    return null;
+  },
+
+  // ===== 根据 prefix 还原 kind（style=款式图 / full=大图） =====
+  _kindOfPrefix: function(prefix) {
+    return prefix.indexOf('style') >= 0 ? 'style' : (prefix.indexOf('full') >= 0 ? 'full' : 'style');
+  },
+
+  // ===== 设置上传框状态 =====
+  _setBoxState: function(prefix, state) {
+    var box = document.getElementById(prefix + 'box');
+    if (!box) return;
+    var previewImg = document.getElementById(prefix + 'picPreview');
+    var hintEl = box.querySelector('.upload-hint');
+    var kind = this._kindOfPrefix(prefix);
+    var isStyle = kind === 'style';
+    var icon = isStyle ? '📷' : '🏞️';
+    var mainText = isStyle ? '点击上传款式图' : '点击上传大图';
+    var subText = isStyle ? '' : '（可选，打印时为第2页）';
+
+    if (state === 'empty') {
+      box.classList.remove('has-img');
+      if (previewImg) { previewImg.src = ''; previewImg.style.display = 'none'; }
+      // 重建 upload-hint 占位符
+      if (hintEl) { try { box.removeChild(hintEl); } catch(_) {} }
+      hintEl = document.createElement('div');
+      hintEl.className = 'upload-hint';
+      hintEl.innerHTML =
+        '<div class="icon camera">' + icon + '</div>' +
+        '<div>' + mainText + '</div>' +
+        (subText ? '<div style="font-size:11px;margin-top:4px;">' + subText + '</div>' : '');
+      box.appendChild(hintEl);
+    } else if (state === 'has-img') {
+      box.classList.add('has-img');
+      if (hintEl) { try { box.removeChild(hintEl); } catch(_) {} }
+      if (previewImg) previewImg.style.display = 'block';
+    }
+  },
+
+  // ===== 上传一张图片到 Supabase，并更新预览/隐藏字段/状态 =====
+  // 供 onPicFileChange（本地文件）和 nasPickForCons（NAS 文件）共用
+  _uploadPicture: async function(prefix, file) {
+    var statusEl = document.getElementById(prefix + 'picStatus');
+    var pathEl = document.getElementById(prefix + 'picture_path');
+    var nameEl = document.getElementById(prefix + 'picture_name');
+    var previewImg = document.getElementById(prefix + 'picPreview');
+    var box = document.getElementById(prefix + 'box');
+    if (!statusEl || !box || !file) return false;
+    var fmtSize = (App && App.utils && typeof App.utils.formatSize === 'function') ? App.utils.formatSize(file.size) : (file.size + ' B');
+    if (file.size > 10 * 1024 * 1024) {
+      statusEl.className = 'status error';
+      statusEl.textContent = '图片超过 10MB 限制（当前 ' + fmtSize + '）';
+      return false;
+    }
+    // 先删除旧图（跳过 base64 data URL）
+    var oldPath = (pathEl && pathEl.value) || '';
+    if (oldPath && !oldPath.startsWith('data:image') && window.SupabaseSubmit && typeof SupabaseSubmit.deletePicture === 'function') {
+      try { await SupabaseSubmit.deletePicture(oldPath); } catch(e) { console.warn('[consumption] deletePicture warn:', e); }
+    }
+    statusEl.className = 'status loading';
+    statusEl.textContent = '正在上传中... ' + (file.name || '');
+    // 先做 base64 兜底（读取文件为 data URL）
+    var base64DataUrl = null;
+    try {
+      base64DataUrl = await this._fileToDataUrl(file);
+    } catch(_e) {
+      console.warn('[consumption] base64 fallback failed:', _e);
+    }
+    // 显示本地预览
+    try {
+      var localUrl = URL.createObjectURL(file);
+      if (previewImg) { previewImg.style.display = 'block'; previewImg.src = localUrl; }
+      this._setBoxState(prefix, 'has-img');
+    } catch(_e) {}
+    // 尝试 Supabase 上传
+    var supabaseOk = false;
+    var supabaseError = null;
+    if (!window.SupabaseSubmit || typeof SupabaseSubmit.uploadPicture !== 'function') {
+      console.error('[consumption] SupabaseSubmit.uploadPicture 不可用！window.SupabaseSubmit =', !!window.SupabaseSubmit);
+      supabaseError = '上传模块未加载';
+    } else {
+      try {
+        var styleNo = '';
+        try { var snEl = document.getElementById('c_f_styleNo'); if (snEl) styleNo = (snEl.value || '').trim(); } catch(_) {}
+        console.log('[consumption] 尝试上传到 Supabase: bucket=' + (window.STORAGE_BUCKET || 'app-photos') + ', file=' + file.name + ', size=' + file.size + (styleNo ? ', styleNo=' + styleNo : ''));
+        var result = await SupabaseSubmit.uploadPicture(file, 'consumption', styleNo);
+        if (result && result.path) {
+          if (pathEl) pathEl.value = result.path;
+          if (nameEl) nameEl.value = result.fileName || file.name;
+          statusEl.className = 'status ok';
+          statusEl.textContent = '✓ 上传成功：' + (result.fileName || file.name);
+          // 尝试用 signed URL 替换 blob 预览
+          try {
+            var s = await this.getSignedUrl(result.path);
+            if (s && previewImg) previewImg.src = s;
+          } catch(_x) {}
+          supabaseOk = true;
+          console.log('[consumption] Supabase 上传成功: path=' + result.path);
+        } else {
+          supabaseError = '上传返回空结果';
+          console.error('[consumption] Supabase upload returned null/empty');
+        }
+      } catch (err) {
+        supabaseError = (err && err.message) || String(err);
+        console.error('[consumption] Supabase upload exception:', err);
+      }
+    }
+    // Supabase 上传失败 → 使用 base64 兜底
+    if (!supabaseOk && base64DataUrl) {
+      console.warn('[consumption] Supabase 上传失败(' + supabaseError + ')，使用 base64 兜底');
+      if (pathEl) pathEl.value = base64DataUrl;
+      if (nameEl) nameEl.value = file.name || '';
+      if (previewImg) previewImg.src = base64DataUrl;
+      statusEl.className = 'status error';
+      statusEl.textContent = '⚠️ 云端上传失败(' + (supabaseError || '未知原因') + ')，图片仅本地保存';
+      // 给用户一个警告 toast
+      try { if (App && App.toast) App.toast('⚠️ 云端上传失败：' + (supabaseError || '未知原因') + '，图片仅保存在本地', 'error'); } catch(_) {}
+      supabaseOk = true;
+    }
+    if (!supabaseOk) {
+      statusEl.className = 'status error';
+      statusEl.textContent = '上传失败：' + (supabaseError || '请重试');
+      this._setBoxState(prefix, 'empty');
+      try { if (App && App.toast) App.toast('上传失败：' + (supabaseError || '请重试'), 'error'); } catch(_) {}
+      return false;
+    }
+    // 几秒后隐藏 status 条
+    var _s = statusEl;
+    setTimeout(function(){ if (_s && _s.className.indexOf('ok')>=0) { _s.className = 'status'; _s.textContent = ''; } }, 3000);
+    return true;
+  },
+
+  // ===== File → base64 data URL =====
+  _fileToDataUrl: function(file) {
+    return new Promise(function(resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function() { resolve(reader.result); };
+      reader.onerror = function() { reject(reader.error); };
+      reader.readAsDataURL(file);
+    });
+  },
+
+  // ===== 图片上传回调（本地文件） =====
+  onPicFileChange: async function(prefix, inputEl) {
+    var file = inputEl.files && inputEl.files[0];
+    if (!file) return;
+    try { await this._uploadPicture(prefix, file); }
+    catch(err) { console.error('[consumption] onPicFileChange err:', err); }
+    finally { inputEl.value = ''; }
+  },
+
+  onPicDelete: async function(prefix) {
+    var pathEl = document.getElementById(prefix + 'picture_path');
+    var nameEl = document.getElementById(prefix + 'picture_name');
+    var statusEl = document.getElementById(prefix + 'picStatus');
+    var oldPath = (pathEl && pathEl.value) || '';
+    if (oldPath && !oldPath.startsWith('data:image') && window.SupabaseSubmit && typeof SupabaseSubmit.deletePicture === 'function') {
+      try { await SupabaseSubmit.deletePicture(oldPath); } catch(e) { console.warn('[consumption] deletePicture warn:', e); }
+    }
+    if (pathEl) pathEl.value = '';
+    if (nameEl) nameEl.value = '';
+    if (statusEl) { statusEl.className = 'status'; statusEl.textContent = ''; }
+    this._setBoxState(prefix, 'empty');
+    return false;
+  },
+
+  hydratePicPreview: async function(prefix) {
+    var pathEl = document.getElementById(prefix + 'picture_path');
+    var previewImg = document.getElementById(prefix + 'picPreview');
+    if (!pathEl || !previewImg) return;
+    var p = pathEl.value; if (!p) return;
+    // base64 data URL → 直接显示
+    if (p.startsWith('data:image')) {
+      previewImg.src = p;
+      previewImg.style.display = 'block';
+      this._setBoxState(prefix, 'has-img');
+      return;
+    }
+    try {
+      var signed = await this.getSignedUrl(p);
+      if (signed) { previewImg.src = signed; previewImg.style.display = 'block'; this._setBoxState(prefix, 'has-img'); return; }
+    } catch(_e) {}
+    // 兜底：CloudBase 私有桶无公开 URL，置空触发 onerror 回退到空状态
+    previewImg.src = '';
+    previewImg.style.display = 'block';
+    this._setBoxState(prefix, 'has-img');
+    var self = this;
+    previewImg.onerror = function() {
+      previewImg.onerror = null;
+      self._setBoxState(prefix, 'empty');
+      var statusEl = document.getElementById(prefix + 'picStatus');
+      if (statusEl) { statusEl.className = 'status error'; statusEl.textContent = '图片加载失败，请重新上传'; }
+    };
+  },
+
+  // ===== 生成图片上传区块 HTML（对齐 cc.html 的 image-box / image-preview 结构） =====
+  // kind: 'style' | 'full'
+  buildUploadBlock: function(prefix, defPath, defName, kind) {
+    var _dp = (defPath || '').replace(/"/g, '&quot;');
+    var _dn = (defName || '').replace(/"/g, '&quot;');
+    var isStyle = kind === 'style';
+    var mutedCls = isStyle ? '' : ' muted';
+    var hasImg = !!defPath;
+    var hasImgCls = hasImg ? ' has-img' : '';
+    var label = isStyle ? '款式图（小图，显示在主页面）' : '大图（独立打印页，满A4）';
+    var icon = isStyle ? '📷' : '🏞️';
+    var mainText = isStyle ? '点击上传款式图' : '点击上传大图';
+    var subText = isStyle ? '' : '（可选，打印时为第2页）';
+    var hintHtml = hasImg ? '' :
+      '<div class="upload-hint">' +
+        '<div class="icon camera">' + icon + '</div>' +
+        '<div>' + mainText + '</div>' +
+        (subText ? '<div style="font-size:11px;margin-top:4px;">' + subText + '</div>' : '') +
+      '</div>';
+    var imgHtml = hasImg
+      ? '<img id="' + prefix + 'picPreview" src="" alt="款式图">'
+      : '<img id="' + prefix + 'picPreview" src="" alt="" style="display:none;">';
+    var nasBtnSvg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
+    var prefixSafe = prefix.replace(/'/g, "\\'");
+    return '<div class="image-box">' +
+      '<h4>' + label + '</h4>' +
+      '<div class="image-preview' + mutedCls + hasImgCls + '" id="' + prefix + 'box" onclick="document.getElementById(\'' + prefix + 'picFile\').click()">' +
+        '<input type="hidden" id="' + prefix + 'picture_path" value="' + _dp + '">' +
+        '<input type="hidden" id="' + prefix + 'picture_name" value="' + _dn + '">' +
+        '<input type="file" id="' + prefix + 'picFile" accept="image/*" style="display:none" onchange="Cons.onPicFileChange(\'' + prefixSafe + '\', this)">' +
+        imgHtml +
+        hintHtml +
+        '<button type="button" class="del-btn" onclick="event.stopPropagation(); return Cons.onPicDelete(\'' + prefixSafe + '\')" title="删除">×</button>' +
+        '<div class="status" id="' + prefix + 'picStatus"></div>' +
+      '</div>' +
+      '<div class="nas-pick-row">' +
+        '<button type="button" class="nas-pick-btn" id="' + prefix + 'nasBtn" onclick="event.stopPropagation(); nasPickForCons(\'' + prefixSafe + '\')">' +
+          nasBtnSvg + ' 从NAS选择' +
+        '</button>' +
+      '</div>' +
+    '</div>';
+  },
+
+  // ===== 打开新增/编辑模态框 =====
+  openEditor: function(id) {
+    var self = this;
+    self.editingId = id || null;
+    var isEdit = !!id;
+    var item = id ? self.getConsumptions().find(function(s){ return s.id === id; }) : {};
+    var today = App.utils.today();
+    var cats = self.getCategories();
+
+    self.fabricData = JSON.parse(JSON.stringify(item.fabrics || []));
+    self.specData = JSON.parse(JSON.stringify(item.specs || []));
+
+    // 默认空行
+    if (self.fabricData.length === 0) {
+      self.fabricData.push({ category: cats[0] || '面料', spec: '', composition: '', beforeWeight: '', afterWeight: '', width: '', spec2: '', consumption: '', part: '', shrink: '', remark: '' });
+    }
+    if (self.specData.length === 0) {
+      self.specData.push({ part: '', size: '', remark: '' });
+    }
+
+    // 用户截图的按钮顺序：+面料(蓝底primary)/+里料/+辅料/+无纺衬/+其他 + ⚙类别管理
+    var defaultOrder = cats && cats.length ? cats.slice() : ['面料','里料','辅料','无纺衬','其他'];
+    var catShortcutBtns = defaultOrder.map(function(c, idx){
+      var cls = 'btn btn-sm' + (idx === 0 ? ' btn-primary' : '');
+      return '<button class="' + cls + '" type="button" onclick="Cons.addFabricRow(\'' + c.replace(/'/g, "\\'") + '\')">+' + App.utils.escapeHtml(c) + '</button>';
+    }).join('');
+
+    var body =
+      '<div class="consumption"><div class="editor-panel">' +
+        // ===== 基本信息（form-row：6 列） =====
+        '<div class="form-row">' +
+          '<div class="form-group"><label>收到样衣/资料日期</label><input type="date" id="c_f_date" class="form-input" value="' + (item.date || today) + '"></div>' +
+          '<div class="form-group"><label>CAD</label><input type="text" id="c_f_designer" class="form-input" value="' + App.utils.escapeHtml(item.designer || '周红良') + '"></div>' +
+          '<div class="form-group"><label>Season</label><input type="text" id="c_f_season" class="form-input" value="' + App.utils.escapeHtml(item.season || '') + '" placeholder="如：2024春夏"></div>' +
+          '<div class="form-group"><label>款号 <span class="required">*</span></label><input type="text" id="c_f_styleNo" class="form-input" value="' + App.utils.escapeHtml(item.styleNo || '') + '" placeholder="如：GW27-003" oninput="Cons.onStyleNoChange()"></div>' +
+          '<div class="form-group"><label>品名</label><input type="text" id="c_f_name" class="form-input" value="' + App.utils.escapeHtml(item.name || '') + '" placeholder="如：童裤"></div>' +
+          '<div class="form-group"><label>工费</label><input type="text" id="c_f_price" class="form-input" value="' + App.utils.escapeHtml(item.price || '') + '" placeholder="如：18"></div>' +
+        '</div>' +
+
+        // ===== 图片上传（两列大虚线框） =====
+        '<div class="image-upload">' +
+          self.buildUploadBlock('c_style_', item.styleImg_path || '', item.styleImg_name || '', 'style') +
+          self.buildUploadBlock('c_full_',  item.fullImg_path  || '', item.fullImg_name  || '', 'full') +
+        '</div>' +
+
+        // ===== 面料 / 辅料明细 =====
+        '<div class="dynamic-table-section">' +
+          '<h3>' +
+            '<span>面料 / 辅料明细</span>' +
+            '<span style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">' + catShortcutBtns +
+              '<button class="btn btn-sm" type="button" onclick="Cons.openCategoryManager()" title="管理类别">⚙ 类别管理</button>' +
+            '</span>' +
+          '</h3>' +
+          '<div style="overflow-x:auto;">' +
+            '<table class="dynamic-table" id="c_fabricTable"><thead><tr>' +
+              '<th>类别</th><th>规格（名称）</th><th>成份</th><th>洗前克重</th><th>洗后克重</th>' +
+              '<th>有效门幅（米）</th><th>规格</th><th>耗料（米）</th>' +
+              '<th>使用部位</th><th>缩率</th><th>备注</th>' +
+              '<th class="row-actions">操作</th>' +
+            '</tr></thead><tbody id="c_fabricBody"></tbody></table>' +
+          '</div>' +
+        '</div>' +
+
+        // ===== 特殊工艺说明（单独 form-group 一行） =====
+        '<div class="form-group" style="margin-bottom:16px;">' +
+          '<label>特殊工艺说明</label>' +
+          '<textarea id="c_f_craft" class="form-textarea" placeholder="如司马克、对条、对格等" rows="2">' + App.utils.escapeHtml(item.craft || '') + '</textarea>' +
+        '</div>' +
+
+        // ===== 备注 =====
+        '<div class="form-group" style="margin-bottom:16px;">' +
+          '<label>备注</label>' +
+          '<textarea id="c_f_remark" class="form-textarea" placeholder="其他备注信息" rows="2">' + App.utils.escapeHtml(item.remark || '') + '</textarea>' +
+        '</div>' +
+
+        // ===== 主要规格尺寸 =====
+        '<div class="dynamic-table-section">' +
+          '<h3>' +
+            '<span>主要规格尺寸</span>' +
+            '<button class="btn btn-sm btn-primary" type="button" onclick="Cons.addSpecRow()">+ 添加尺寸</button>' +
+          '</h3>' +
+          '<table class="spec-table" id="c_specTable"><thead><tr>' +
+            '<th style="width:30%;">部位</th>' +
+            '<th style="width:30%;">尺寸（cm）</th>' +
+            '<th>常规档差</th>' +
+            '<th class="row-actions">操作</th>' +
+          '</tr></thead><tbody id="c_specBody"></tbody></table>' +
+        '</div>' +
+
+        // ===== 底部按钮（取消 / 🖨 打印 / 保存，右对齐） =====
+        '<div class="form-actions">' +
+          '<button class="btn" type="button" onclick="App.modal.close()">取消</button>' +
+          '<button class="btn btn-primary" type="button" onclick="Cons.printPreviewFromEditor()">🖨️ 打印</button>' +
+          '<button class="btn btn-primary" type="button" onclick="Cons.saveStyle()">保存</button>' +
+        '</div>' +
+      '</div></div>';
+
+    App.modal.open({
+      title: isEdit ? '编辑款号' : '新增款号',
+      body: body,
+      size: 'lg',
+      closeOnOverlay: false,
+      maxHeight: 'calc(88vh - 60px)'
+    });
+
+    // 渲染动态表格
+    self.renderFabricTable();
+    self.renderSpecTable();
+
+    // hydrate 预览图
+    if (item.styleImg_path) { setTimeout(function(){ self.hydratePicPreview('c_style_'); }, 50); }
+    if (item.fullImg_path)  { setTimeout(function(){ self.hydratePicPreview('c_full_'); }, 50); }
+
+    // 自动从缓存回查图片（按款号共享）
+    setTimeout(function(){ self.autoPopulateImagesFromCache(); }, 100);
+  },
+
+  // ===== 按款号自动从缓存回查图片（缓存未命中则搜索 Supabase Storage）=====
+  autoPopulateImagesFromCache: function() {
+    var self = this;
+    var styleNoEl = document.getElementById('c_f_styleNo');
+    if (!styleNoEl) return;
+    var styleNo = styleNoEl.value.trim();
+    if (!styleNo) return;
+    // 如果当前记录已有图片，不覆盖
+    var stylePath = document.getElementById('c_style_picture_path');
+    var fullPath = document.getElementById('c_full_picture_path');
+    var hasCurrentStyle = stylePath && stylePath.value;
+    var hasCurrentFull = fullPath && fullPath.value;
+    if (hasCurrentStyle && hasCurrentFull) return;
+
+    var done = function(cached, fromWhere) {
+      if (!cached) return;
+      var populated = false;
+      if (!hasCurrentStyle && cached.styleImg_path) {
+        stylePath.value = cached.styleImg_path;
+        var nameEl = document.getElementById('c_style_picture_name');
+        if (nameEl) nameEl.value = cached.styleImg_name || '';
+        var previewImg = document.getElementById('c_style_picPreview');
+        if (previewImg) {
+          previewImg.src = cached.styleImg_signed || cached.styleImg_path;
+          previewImg.style.display = 'block';
+        }
+        var placeholder = document.getElementById('c_style_PicturePlaceholder') || document.querySelector('#c_style_box .upload-hint');
+        if (placeholder) placeholder.style.display = 'none';
+        var sbox = document.getElementById('c_style_box');
+        if (sbox) sbox.classList.add('has-img');
+        populated = true;
+      }
+      if (!hasCurrentFull && cached.fullImg_path) {
+        fullPath.value = cached.fullImg_path;
+        var nameEl2 = document.getElementById('c_full_picture_name');
+        if (nameEl2) nameEl2.value = cached.fullImg_name || '';
+        var previewImg2 = document.getElementById('c_full_picPreview');
+        if (previewImg2) {
+          previewImg2.src = cached.fullImg_signed || cached.fullImg_path;
+          previewImg2.style.display = 'block';
+        }
+        var placeholder2 = document.getElementById('c_full_PicturePlaceholder') || document.querySelector('#c_full_box .upload-hint');
+        if (placeholder2) placeholder2.style.display = 'none';
+        var fbox = document.getElementById('c_full_box');
+        if (fbox) fbox.classList.add('has-img');
+        populated = true;
+      }
+      if (populated && window.StyleImgCache) {
+        StyleImgCache.set(styleNo, {
+          styleImg_path: cached.styleImg_path,
+          styleImg_name: cached.styleImg_name,
+          fullImg_path: cached.fullImg_path,
+          fullImg_name: cached.fullImg_name
+        });
+        console.log('[consumption] ' + fromWhere + '，款号=' + styleNo);
+        try { if (App && App.toast) App.toast('已自动加载款号 ' + styleNo + ' 的图片（' + fromWhere + '）', 'info', 2200); } catch(_) {}
+      }
+    };
+
+    // 策略1：先查缓存
+    if (window.StyleImgCache) {
+      var cached = StyleImgCache.resolve(styleNo);
+      if (cached && (cached.styleImg_path || cached.fullImg_path)) {
+        done(cached, '缓存');
+        return;
+      }
+    }
+
+    // 策略2：去 Supabase Storage 按款号搜索文件名
+    if (window.SupabaseSubmit && typeof SupabaseSubmit.findStyleImages === 'function') {
+      try {
+        if (App && App.toast) App.toast('正在从云端查找款号 ' + styleNo + ' 的图片…', 'info', 1500);
+        SupabaseSubmit.findStyleImages(styleNo).then(function(result){
+          if (result) done(result, '云端');
+        }).catch(function(e){ console.warn('[consumption] findStyleImages 失败', e); });
+      } catch(_err) {}
+    }
+  },
+
+  onStyleNoChange: function() {
+    var self = this;
+    clearTimeout(self._styleNoTimer);
+    self._styleNoTimer = setTimeout(function(){ self.autoPopulateImagesFromCache(); }, 400);
+  },
+
+  // ===== 动态表格：面料 =====
+  renderFabricTable: function() {
+    var self = this;
+    var cats = self.getCategories();
+    var body = document.getElementById('c_fabricBody');
+    if (!body) return;
+    if (self.fabricData.length === 0) {
+      body.innerHTML = '<tr><td colspan="12" style="padding:24px 8px;text-align:center;color:var(--muted);font-size:12px;">暂无数据，点击上方按钮添加</td></tr>';
+      return;
+    }
+    body.innerHTML = self.fabricData.map(function(f, idx){
+      var catOpts = cats.map(function(c){
+        return '<option value="' + App.utils.escapeHtml(c) + '"' + (f.category === c ? ' selected' : '') + '>' + App.utils.escapeHtml(c) + '</option>';
+      }).join('');
+      return '<tr>' +
+        '<td><select class="form-select" onchange="Cons.fabricData[' + idx + '].category=this.value">' + catOpts + '</select></td>' +
+        '<td><textarea class="form-textarea" rows="1" oninput="Cons.fabricData[' + idx + '].spec=this.value">' + App.utils.escapeHtml(f.spec || '') + '</textarea></td>' +
+        '<td><input class="form-input" type="text" value="' + App.utils.escapeHtml(f.composition || '') + '" oninput="Cons.fabricData[' + idx + '].composition=this.value"></td>' +
+        '<td><input class="form-input" type="text" value="' + App.utils.escapeHtml(f.beforeWeight || '') + '" oninput="Cons.fabricData[' + idx + '].beforeWeight=this.value"></td>' +
+        '<td><input class="form-input" type="text" value="' + App.utils.escapeHtml(f.afterWeight || '') + '" oninput="Cons.fabricData[' + idx + '].afterWeight=this.value"></td>' +
+        '<td><input class="form-input" type="text" value="' + App.utils.escapeHtml(f.width || '') + '" oninput="Cons.fabricData[' + idx + '].width=this.value"></td>' +
+        '<td><input class="form-input" type="text" value="' + App.utils.escapeHtml(f.spec2 || '') + '" oninput="Cons.fabricData[' + idx + '].spec2=this.value"></td>' +
+        '<td><input class="form-input" type="text" value="' + App.utils.escapeHtml(f.consumption || '') + '" oninput="Cons.fabricData[' + idx + '].consumption=this.value"></td>' +
+        '<td><input class="form-input" type="text" value="' + App.utils.escapeHtml(f.part || '') + '" oninput="Cons.fabricData[' + idx + '].part=this.value"></td>' +
+        '<td><input class="form-input" type="text" value="' + App.utils.escapeHtml(f.shrink || '') + '" oninput="Cons.fabricData[' + idx + '].shrink=this.value"></td>' +
+        '<td><input class="form-input" type="text" value="' + App.utils.escapeHtml(f.remark || '') + '" oninput="Cons.fabricData[' + idx + '].remark=this.value"></td>' +
+        '<td class="row-actions">' +
+          '<button class="btn btn-sm" title="上移" onclick="Cons.moveFabric(' + idx + ',-1)">↑</button>' +
+          '<button class="btn btn-sm" title="下移" onclick="Cons.moveFabric(' + idx + ',1)">↓</button>' +
+          '<button class="btn btn-sm" title="删除" onclick="Cons.deleteFabric(' + idx + ')" style="border-color:#d9d9d9;color:#d4380d;">×</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+  },
+  addFabricRow: function(cat) {
+    this.fabricData.push({ category: cat || '面料', spec: '', composition: '', beforeWeight: '', afterWeight: '', width: '', spec2: '', consumption: '', part: '', shrink: '', remark: '' });
+    this.renderFabricTable();
+  },
+  moveFabric: function(idx, dir) {
+    var j = idx + dir;
+    if (j < 0 || j >= this.fabricData.length) return;
+    var tmp = this.fabricData[idx]; this.fabricData[idx] = this.fabricData[j]; this.fabricData[j] = tmp;
+    this.renderFabricTable();
+  },
+  deleteFabric: function(idx) {
+    if (!confirm('确认删除这条面料记录？')) return;
+    this.fabricData.splice(idx, 1);
+    this.renderFabricTable();
+  },
+
+  // ===== 规格尺寸表 =====
+  renderSpecTable: function() {
+    var self = this;
+    var body = document.getElementById('c_specBody');
+    if (!body) return;
+    body.innerHTML = self.specData.map(function(s, idx){
+      return '<tr>' +
+        '<td><input type="text" class="form-input" value="' + App.utils.escapeHtml(s.part || '') + '" oninput="Cons.specData[' + idx + '].part=this.value" placeholder="如：裤长"></td>' +
+        '<td><input type="text" class="form-input" value="' + App.utils.escapeHtml(s.size || '') + '" oninput="Cons.specData[' + idx + '].size=this.value" placeholder="50"></td>' +
+        '<td><input type="text" class="form-input" value="' + App.utils.escapeHtml(s.remark || '') + '" oninput="Cons.specData[' + idx + '].remark=this.value" placeholder="如：±1cm"></td>' +
+        '<td class="row-actions">' +
+          '<button class="btn btn-sm" title="上移" onclick="Cons.moveSpec(' + idx + ',-1)">↑</button>' +
+          '<button class="btn btn-sm" title="下移" onclick="Cons.moveSpec(' + idx + ',1)">↓</button>' +
+          '<button class="btn btn-sm" title="删除" onclick="Cons.deleteSpec(' + idx + ')" style="border-color:#d9d9d9;color:#d4380d;">×</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+  },
+  addSpecRow: function() {
+    this.specData.push({ part: '', size: '', remark: '' });
+    this.renderSpecTable();
+  },
+  moveSpec: function(idx, dir) {
+    var j = idx + dir;
+    if (j < 0 || j >= this.specData.length) return;
+    var tmp = this.specData[idx]; this.specData[idx] = this.specData[j]; this.specData[j] = tmp;
+    this.renderSpecTable();
+  },
+  deleteSpec: function(idx) {
+    if (!confirm('确认删除这条尺寸记录？')) return;
+    this.specData.splice(idx, 1);
+    this.renderSpecTable();
+  },
+
+  // ===== 类别管理 =====
+  openCategoryManager: function() {
+    var self = this;
+    var cats = self.getCategories().slice();
+
+    function renderCats() {
+      var html = '<div class="cat-manager-list">';
+      cats.forEach(function(c, idx){
+        html += '<div class="cat-manager-item">' +
+          '<input type="text" value="' + App.utils.escapeHtml(c) + '" onchange="Cons.tmpCats[' + idx + ']=this.value">' +
+          '<div class="cat-manager-actions">' +
+            '<button class="btn btn-sm" onclick="Cons.moveCat(' + idx + ',-1)" title="上移">↑</button>' +
+            '<button class="btn btn-sm" onclick="Cons.moveCat(' + idx + ',1)" title="下移">↓</button>' +
+            '<button class="btn btn-sm btn-danger" onclick="Cons.deleteCat(' + idx + ')" title="删除">×</button>' +
+          '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+      return html;
+    }
+
+    window.Cons.tmpCats = cats;
+
+    var body =
+      '<div style="margin-bottom:10px;"><button class="btn btn-sm btn-primary" onclick="Cons.addCat()">+ 新增类别</button></div>' +
+      '<div id="c_catMgrContainer"></div>' +
+      '<div style="font-size:11px;color:var(--muted);margin-top:10px;">提示：删除类别时，已使用该类别的面料会自动变更为"未分类"</div>';
+
+    App.modal.open({
+      title: '类别管理',
+      body: body,
+      size: 'md',
+      closeOnOverlay: false,
+      footer: [
+        '<button class="btn" onclick="App.modal.close()">取消</button>',
+        '<button class="btn btn-primary" onclick="Cons.saveCategories()">💾 保存类别</button>'
+      ].join('')
+    });
+    document.getElementById('c_catMgrContainer').innerHTML = renderCats();
+
+    window.Cons._catRenderFn = function() {
+      document.getElementById('c_catMgrContainer').innerHTML =
+        '<div class="cat-manager-list">' +
+        window.Cons.tmpCats.map(function(c, idx){
+          return '<div class="cat-manager-item">' +
+            '<input type="text" value="' + App.utils.escapeHtml(c) + '" onchange="Cons.tmpCats[' + idx + ']=this.value">' +
+            '<div class="cat-manager-actions">' +
+              '<button class="btn btn-sm" onclick="Cons.moveCat(' + idx + ',-1)">↑</button>' +
+              '<button class="btn btn-sm" onclick="Cons.moveCat(' + idx + ',1)">↓</button>' +
+              '<button class="btn btn-sm btn-danger" onclick="Cons.deleteCat(' + idx + ')">×</button>' +
+            '</div>' +
+          '</div>';
+        }).join('') +
+        '</div>';
+    };
+  },
+  addCat: function() {
+    window.Cons.tmpCats.push('新类别');
+    if (window.Cons._catRenderFn) window.Cons._catRenderFn();
+  },
+  moveCat: function(idx, dir) {
+    var j = idx + dir;
+    if (j < 0 || j >= window.Cons.tmpCats.length) return;
+    var tmp = window.Cons.tmpCats[idx]; window.Cons.tmpCats[idx] = window.Cons.tmpCats[j]; window.Cons.tmpCats[j] = tmp;
+    if (window.Cons._catRenderFn) window.Cons._catRenderFn();
+  },
+  deleteCat: function(idx) {
+    if (!confirm('确认删除该类别？已使用该类别的面料将变为"未分类"')) return;
+    window.Cons.tmpCats.splice(idx, 1);
+    if (window.Cons._catRenderFn) window.Cons._catRenderFn();
+  },
+  saveCategories: function() {
+    var newCats = (window.Cons.tmpCats || []).map(function(c){ return (c || '').trim(); }).filter(Boolean);
+    if (newCats.length === 0) { alert('至少保留一个类别'); return; }
+    // 确保未分类 作为 fallback
+    var oldCats = this.getCategories();
+    var removed = oldCats.filter(function(c){ return newCats.indexOf(c) < 0; });
+    if (removed.length > 0) {
+      // 清理数据中已删除的类别
+      var data = this.getConsumptions();
+      var changed = false;
+      data.forEach(function(s){
+        (s.fabrics || []).forEach(function(f){
+          if (removed.indexOf(f.category) >= 0) { f.category = '未分类'; changed = true; }
+        });
+      });
+      if (changed) this.setConsumptions(data);
+    }
+    this.setCategories(newCats);
+    App.modal.close();
+    App.toast('类别已更新', 'success');
+    // 重新渲染编辑器面料表格
+    if (this.editingId !== undefined || document.getElementById('c_fabricBody')) {
+      this.renderFabricTable();
+    }
+  },
+
+  // ===== 保存款号 =====
+  saveStyle: function() {
+    var self = this;
+    var styleNo = (document.getElementById('c_f_styleNo').value || '').trim();
+    if (!styleNo) {
+      alert('请输入款号！');
+      document.getElementById('c_f_styleNo').focus();
+      return;
+    }
+    var styleImg_path = (document.getElementById('c_style_picture_path') || {}).value || '';
+    var styleImg_name = (document.getElementById('c_style_picture_name') || {}).value || '';
+    var fullImg_path = (document.getElementById('c_full_picture_path') || {}).value || '';
+    var fullImg_name = (document.getElementById('c_full_picture_name') || {}).value || '';
+
+    var obj = {
+      id: self.editingId || self.genId(),
+      date: (document.getElementById('c_f_date').value || '').trim(),
+      designer: (document.getElementById('c_f_designer').value || '').trim(),
+      season: (document.getElementById('c_f_season').value || '').trim(),
+      styleNo: styleNo,
+      name: (document.getElementById('c_f_name').value || '').trim(),
+      price: (document.getElementById('c_f_price').value || '').trim(),
+      styleImg_path: styleImg_path,
+      styleImg_name: styleImg_name,
+      fullImg_path: fullImg_path,
+      fullImg_name: fullImg_name,
+      fabrics: JSON.parse(JSON.stringify(self.fabricData || [])),
+      craft: (document.getElementById('c_f_craft').value || '').trim(),
+      remark: (document.getElementById('c_f_remark').value || '').trim(),
+      specs: JSON.parse(JSON.stringify(self.specData || []))
+    };
+
+    var data = self.getConsumptions();
+    var dupIdx = data.findIndex(function(s){ return s.styleNo === obj.styleNo && s.id !== obj.id; });
+    if (dupIdx >= 0) {
+      if (!confirm('款号【' + obj.styleNo + '】已存在，是否仍保存（将重复）？')) return;
+    }
+
+    if (self.editingId) {
+      var idx = data.findIndex(function(s){ return s.id === self.editingId; });
+      if (idx >= 0) {
+        // 图片若被替换且旧图不同，删除旧图（已在上传时处理，这里仅兜底比较）
+        var old = data[idx];
+        data[idx] = obj;
+      } else {
+        data.push(obj);
+      }
+    } else {
+      data.push(obj);
+    }
+    self.setConsumptions(data);
+    // 更新款式图片共享缓存
+    if (window.StyleImgCache) {
+      StyleImgCache.updateIfChanged(obj.styleNo, {
+        styleImg_path: obj.styleImg_path,
+        styleImg_name: obj.styleImg_name,
+        fullImg_path: obj.fullImg_path,
+        fullImg_name: obj.fullImg_name
+      });
+    }
+    App.toast('保存成功', 'success');
+    App.modal.close();
+    renderAll();
+  },
+
+  // ===== 删除款号 =====
+  deleteStyle: function(id) {
+    var self = this;
+    if (!confirm('确认删除该款号？此操作不可撤销。')) return;
+    var data = self.getConsumptions();
+    var idx = data.findIndex(function(s){ return s.id === id; });
+    if (idx < 0) return;
+    var item = data[idx];
+    // 检查图片是否被其他款号共享引用（缓存中）
+    var isSharedStyle = window.StyleImgCache && item.styleImg_path && !item.styleImg_path.startsWith('data:image') && StyleImgCache.isShared(item.styleImg_path, item.styleNo);
+    var isSharedFull = window.StyleImgCache && item.fullImg_path && !item.fullImg_path.startsWith('data:image') && StyleImgCache.isShared(item.fullImg_path, item.styleNo);
+    // 删除图片（跳过 base64 data URL 和被共享引用的图片）
+    if (item.styleImg_path && !item.styleImg_path.startsWith('data:image') && !isSharedStyle && window.SupabaseSubmit && typeof SupabaseSubmit.deletePicture === 'function') {
+      try { SupabaseSubmit.deletePicture(item.styleImg_path); } catch(e) {}
+    }
+    if (item.fullImg_path && !item.fullImg_path.startsWith('data:image') && !isSharedFull && window.SupabaseSubmit && typeof SupabaseSubmit.deletePicture === 'function') {
+      try { SupabaseSubmit.deletePicture(item.fullImg_path); } catch(e) {}
+    }
+    // 从缓存中移除该款号
+    if (window.StyleImgCache && item.styleNo) {
+      // 只有当没有其他模块引用此款号的图片时才移除
+      var stillReferenced = false;
+      try {
+        var orders = App.store.get('orders', []);
+        stillReferenced = orders.some(function(o){ return o.styleNo === item.styleNo && (o.styleImg_path || o.fullImg_path); });
+      } catch(_e) {}
+      if (!stillReferenced) StyleImgCache.remove(item.styleNo);
+    }
+    data.splice(idx, 1);
+    self.setConsumptions(data);
+    App.toast('已删除', 'success');
+    renderAll();
+  },
+
+  // ===== 全屏图片查看器 =====
+  openFullscreen: function(imgs, startIdx) {
+    if (!imgs || imgs.length === 0) return;
+    var self = this;
+    self.fullscreenImgs = imgs;
+    self.fullscreenIdx = startIdx || 0;
+    self.updateFullscreenImg();
+    document.getElementById('fullscreenOverlay').classList.add('active');
+  },
+  // 按款号打开全屏（卡片自身没存图时使用，先查再显示）
+  openFullscreenByStyleNo: async function(styleNo, styleId) {
+    if (!styleNo) return;
+    var self = this;
+    try { if (App && App.toast) App.toast('正在查找款号 ' + styleNo + ' 的图片…', 'info', 1200); } catch(_) {}
+    var imgs = null;
+    if (window.getStyleImagesForStyleNo) {
+      try { imgs = await getStyleImagesForStyleNo(styleNo); } catch(_e) {}
+    }
+    var paths = [];
+    if (imgs) {
+      if (imgs.styleImg_path) paths.push(imgs.styleImg_path);
+      if (imgs.fullImg_path)  paths.push(imgs.fullImg_path);
+    }
+    // 兜底：从 thumb 缓存中取回已渲染的 URL
+    if (paths.length === 0 && styleId) {
+      var t = document.querySelector('.style-thumb[data-style-id="' + styleId + '"]');
+      if (t) {
+        var img = t.querySelector('img');
+        if (img && img.src && /^https?:/i.test(img.src)) { self.openFullscreen([img.src], 0); return; }
+      }
+    }
+    if (paths.length > 0) self.openFullscreen(paths, 0);
+    else try { if (App && App.toast) App.toast('未找到款号 ' + styleNo + ' 的图片', 'warning'); } catch(_) {}
+  },
+  updateFullscreenImg: async function() {
+    var self = this;
+    var imgEl = document.getElementById('fullscreenImg');
+    var cap = document.getElementById('fullscreenCaption');
+    if (!imgEl) return;
+    var src = self.fullscreenImgs[self.fullscreenIdx] || '';
+    imgEl.src = '';
+    if (!src) return;
+    var resolved = src;
+    if (!src.startsWith('data:image') && !/^https?:\/\//i.test(src) && window.resolveImageUrl) {
+      resolved = await resolveImageUrl(src) || src;
+    }
+    if (!resolved && !src.startsWith('data:image') && !/^https?:\/\//i.test(src)) {
+      resolved = '';
+    }
+    imgEl.src = resolved;
+    cap.textContent = (self.fullscreenIdx + 1) + ' / ' + Math.max(1, self.fullscreenImgs.length);
+  },
+  navFullscreen: function(dir) {
+    var self = this;
+    var n = self.fullscreenImgs.length;
+    self.fullscreenIdx = (self.fullscreenIdx + dir + n) % n;
+    self.updateFullscreenImg();
+  },
+  closeFullscreen: function(e) {
+    if (e && e.target && e.target.closest('.fullscreen-img-wrap')) return;
+    this.closeFullscreenDirect();
+  },
+  closeFullscreenDirect: function() {
+    document.getElementById('fullscreenOverlay').classList.remove('active');
+    var imgEl = document.getElementById('fullscreenImg');
+    if (imgEl) imgEl.src = '';
+    this.fullscreenImgs = [];
+    this.fullscreenIdx = 0;
+  },
+  onFullscreenKeydown: function(e) {
+    if (!document.getElementById('fullscreenOverlay').classList.contains('active')) return;
+    if (e.key === 'Escape') { this.closeFullscreenDirect(); }
+    else if (e.key === 'ArrowLeft') { this.navFullscreen(-1); }
+    else if (e.key === 'ArrowRight') { this.navFullscreen(1); }
+  },
+
+  // ===== 对比功能 =====
+  updateCompareDatalist: function() {
+    var data = this.getConsumptions();
+    var dl = document.getElementById('compareDatalist');
+    if (!dl) return;
+    dl.innerHTML = data.map(function(s){
+      return '<option value="' + App.utils.escapeHtml(s.styleNo) + '">' + App.utils.escapeHtml(s.name || '') + '</option>';
+    }).join('');
+  },
+  onCompareKeydown: function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); this.addToCompare(); }
+  },
+  addToCompare: function() {
+    var input = document.getElementById('compareSelect');
+    var val = (input.value || '').trim();
+    if (!val) return;
+    var data = this.getConsumptions();
+    var found = data.find(function(s){ return s.id === val; })
+             || data.find(function(s){ return s.styleNo === val; })
+             || data.find(function(s){ return (s.styleNo || '').toLowerCase() === val.toLowerCase(); });
+    if (!found) { App.toast('未找到对应款号', 'error'); return; }
+    if (this.compareList.indexOf(found.id) >= 0) { App.toast('该款号已在对比列表', 'warning'); return; }
+    this.compareList.push(found.id);
+    input.value = '';
+    this.renderCompareTags();
+    renderCompareTable();
+  },
+  removeFromCompare: function(id) {
+    this.compareList = this.compareList.filter(function(x){ return x !== id; });
+    this.renderCompareTags();
+    renderCompareTable();
+  },
+  clearCompare: function() {
+    this.compareList = [];
+    this.renderCompareTags();
+    renderCompareTable();
+  },
+  renderCompareTags: function() {
+    var tagsEl = document.getElementById('compareTags');
+    if (!tagsEl) return;
+    var data = this.getConsumptions();
+    if (this.compareList.length === 0) {
+      tagsEl.innerHTML = '<span style="color:var(--muted);font-size:12px;">暂无对比项</span>';
+      return;
+    }
+    tagsEl.innerHTML = this.compareList.map(function(id){
+      var s = data.find(function(x){ return x.id === id; });
+      if (!s) return '';
+      return '<span class="compare-tag">' +
+        App.utils.escapeHtml(s.styleNo) +
+        ' <span class="remove" onclick="Cons.removeFromCompare(\'' + id + '\')" title="移除">&times;</span>' +
+      '</span>';
+    }).join('');
+  },
+
+  // ===== 打印预览（从编辑器） =====
+  printPreviewFromEditor: function() {
+    var style = {
+      id: this.editingId || ('tmp_' + Date.now()),
+      date: document.getElementById('c_f_date').value || '',
+      designer: document.getElementById('c_f_designer').value || '',
+      season: document.getElementById('c_f_season').value || '',
+      styleNo: document.getElementById('c_f_styleNo').value || '',
+      name: document.getElementById('c_f_name').value || '',
+      price: document.getElementById('c_f_price').value || '',
+      styleImg_path: (document.getElementById('c_style_picture_path') || {}).value || '',
+      styleImg_name: (document.getElementById('c_style_picture_name') || {}).value || '',
+      fullImg_path: (document.getElementById('c_full_picture_path') || {}).value || '',
+      fullImg_name: (document.getElementById('c_full_picture_name') || {}).value || '',
+      fabrics: JSON.parse(JSON.stringify(this.fabricData || [])),
+      craft: document.getElementById('c_f_craft').value || '',
+      specs: JSON.parse(JSON.stringify(this.specData || []))
+    };
+    this.showPrintPreview(style);
+  },
+  printStyleById: function(id) {
+    var s = this.getConsumptions().find(function(x){ return x.id === id; });
+    if (!s) return;
+    // 直接打印，跳过预览
+    window._consPrintStyle = s;
+    if (App.modal && typeof App.modal.close === 'function') {
+      try { App.modal.close(); } catch(e) {}
+    }
+    this.doPrint(id);
+  },
+  showPrintPreview: function(style) {
+    var self = this;
+    var html = generatePrintPageHTML(style, true);
+    var body =
+      '<div style="text-align:center; margin-bottom:10px;">' +
+        '<button class="btn btn-primary" onclick="Cons.doPrint(\'' + style.id + '\')">🖨️ 打印</button>' +
+        '<span style="margin-left:12px;color:var(--muted);font-size:12px;">提示：内容已排版（有大图则为2页），点击打印将打开新窗口</span>' +
+      '</div>' +
+      '<div class="print-preview-scroll" id="c_printScroll"><div class="print-preview-pages">' + html + '</div></div>';
+    // 把 style 存到 window 上供打印用
+    window._consPrintStyle = style;
+    App.modal.open({
+      title: '打印预览',
+      body: body,
+      size: 'lg',
+      closeOnOverlay: true
+    });
+    // 异步渲染预览图片（替换 path 为 signed URL）
+    setTimeout(function(){ self.hydratePrintPreviewImages(style); }, 50);
+  },
+  hydratePrintPreviewImages: async function(style) {
+    var self = this;
+    var sn = style.styleNo || '';
+    // 替换 styleImg
+    if (style.styleImg_path) {
+      var sUrl;
+      if (style.styleImg_path.startsWith('data:image')) {
+        sUrl = style.styleImg_path;
+      } else if (window.resolveImageUrl) {
+        sUrl = await resolveImageUrl(style.styleImg_path, { hintStyleNo: sn });
+      } else {
+        sUrl = await self.getSignedUrl(style.styleImg_path);
+      }
+      if (sUrl) {
+        var els = document.querySelectorAll('#c_printScroll .print-style-img img');
+        els.forEach(function(img){ img.src = sUrl; });
+      }
+    }
+    if (style.fullImg_path) {
+      var fUrl;
+      if (style.fullImg_path.startsWith('data:image')) {
+        fUrl = style.fullImg_path;
+      } else if (window.resolveImageUrl) {
+        fUrl = await resolveImageUrl(style.fullImg_path, { hintStyleNo: sn });
+      } else {
+        fUrl = await self.getSignedUrl(style.fullImg_path);
+      }
+      if (fUrl) {
+        var els2 = document.querySelectorAll('#c_printScroll .print-full-img-page img');
+        els2.forEach(function(img){ img.src = fUrl; });
+      }
+    }
+  },
+  doPrint: function(id) {
+    var style = window._consPrintStyle;
+    if (!style) return;
+    var self = this;
+    var sn = style.styleNo || '';
+
+    // 开新窗口打印
+    var today = new Date();
+    var dateStr = today.getFullYear() + '年' + (today.getMonth()+1) + '月' + today.getDate() + '日';
+    var userName = (window.App && App.getCurrentUser && App.getCurrentUser()) ? (App.getCurrentUser().username || '管理员') : '管理员';
+
+    (async function() {
+      var styleSrc = '';
+      var fullSrc = '';
+      if (style.styleImg_path) {
+        if (style.styleImg_path.startsWith('data:image')) {
+          styleSrc = style.styleImg_path;
+        } else if (window.resolveImageUrl) {
+          styleSrc = await resolveImageUrl(style.styleImg_path, { hintStyleNo: sn });
+        } else {
+          styleSrc = await self.getSignedUrl(style.styleImg_path);
+        }
+      }
+      if (style.fullImg_path) {
+        if (style.fullImg_path.startsWith('data:image')) {
+          fullSrc = style.fullImg_path;
+        } else if (window.resolveImageUrl) {
+          fullSrc = await resolveImageUrl(style.fullImg_path, { hintStyleNo: sn });
+        } else {
+          fullSrc = await self.getSignedUrl(style.fullImg_path);
+        }
+      }
+      var printStyleForWindow = JSON.parse(JSON.stringify(style));
+      if (styleSrc) printStyleForWindow.styleImg_resolved = styleSrc;
+      if (fullSrc)  printStyleForWindow.fullImg_resolved = fullSrc;
+
+      var win = window.open('', '_blank');
+      win.document.write(buildPrintWindowHTML(printStyleForWindow, dateStr, userName));
+      win.document.close();
+      win.onload = function() { setTimeout(function(){ win.print(); }, 400); };
+    })();
+  },
+
+  // ===== 打印对比表 =====
+  printCompare: function() {
+    if (this.compareList.length === 0) { App.toast('请先添加要对比的款号', 'warning'); return; }
+    var self = this;
+    var data = self.getConsumptions();
+    var list = self.compareList.map(function(id){ return data.find(function(s){ return s.id === id; }); }).filter(Boolean);
+    if (list.length === 0) { App.toast('没有可对比的款号', 'warning'); return; }
+
+    var today = new Date();
+    var dateStr = today.getFullYear() + '年' + (today.getMonth()+1) + '月' + today.getDate() + '日';
+    var userName = (window.App && App.getCurrentUser && App.getCurrentUser()) ? (App.getCurrentUser().username || '管理员') : '管理员';
+
+    // 生成对比表格 HTML（带样式的完整打印版本）
+    var html = buildCompareTableHTML(list, true);
+
+    var win = window.open('', '_blank');
+    win.document.write(`<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<title>耗料对比表</title>
+<style>
+@page { size: A4 landscape; margin: 10mm; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: "Microsoft YaHei","微软雅黑",Arial,sans-serif; background: #fff; color:#222; padding: 8mm 10mm;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 11px;
+}
+h1 { font-size: 18px; font-weight: 700; color: var(--primary, #004D6D); margin-bottom: 8px; text-align:center; }
+.header-bar { display:flex; justify-content: space-between; font-size: 11px; color:#666; margin-bottom: 10px; padding-bottom:6px; border-bottom:1px solid #ddd; }
+.compare-table { width:100%; border-collapse: collapse; font-size: 10px; }
+.compare-table th { background:#f0f0f0; padding: 6px 8px; border: 1px solid #999; font-weight:600; text-align:left; white-space:nowrap; color:#333; }
+.compare-table td { padding: 5px 8px; border: 1px solid #bbb; vertical-align: top; font-size: 10px; line-height:1.35; }
+.compare-table .field-name { background:#f0f0f0; font-weight:500; color:#444; width: 160px; }
+.compare-table .section-header td { background: var(--primary, #004D6D); color: #fff; font-weight:700; }
+.compare-table .diff-highlight { background: #fff3c4; }
+.footer-bar { position: fixed; bottom: 6mm; left: 10mm; right: 10mm; display:flex; justify-content: space-between; font-size: 9px; color:#666; border-top:0.5px solid #999; padding-top:3px; }
+</style></head><body>
+<h1>耗料对比表</h1>
+<div class="header-bar"><span>打印日期：${dateStr}</span><span>打印人：${userName}</span><span>对比款数：${list.length}</span></div>
+${html}
+<div class="footer-bar"><span>AA服装外贸系统 - 用料及纸板模块</span><span>第 1 页</span></div>
+<script>window.onload = function() { setTimeout(function(){ window.print(); }, 300); }<\/script>
+</body></html>`);
+    win.document.close();
+  }
+
+}; // /Cons
+
+// ======================================================
+// ===== 渲染：款式列表、对比表、统计
+// ======================================================
+// （原 renderStats 桥接已移除，因不再需要统计卡片）
+
+function renderList() {
+  var data = Cons.getConsumptions();
+  Cons.populateFilters(data);
+  var kw = (document.getElementById('searchInput') || {}).value || '';
+  kw = kw.toLowerCase().trim();
+  var filtered = !kw ? data : data.filter(function(s){
+    return ((s.styleNo || '').toLowerCase().indexOf(kw) >= 0)
+        || ((s.name || '').toLowerCase().indexOf(kw) >= 0)
+        || ((s.designer || '').toLowerCase().indexOf(kw) >= 0)
+        || ((s.season || '').toLowerCase().indexOf(kw) >= 0);
+  });
+  var fName = (document.getElementById('filterName') || {}).value || '';
+  var fYear = (document.getElementById('filterYear') || {}).value || '';
+  if (fName || fYear) {
+    filtered = filtered.filter(function(s){
+      if (fName && (s.name || '') !== fName) return false;
+      if (fYear) {
+        var y = s.date ? String(s.date).substr(0,4) : '';
+        if (y !== fYear) return false;
+      }
+      return true;
+    });
+  }
+  var grid = document.getElementById('styleGrid');
+  document.getElementById('listCountInfo').textContent = '共 ' + filtered.length + ' / ' + data.length + ' 款';
+
+  if (filtered.length === 0) {
+    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;">' +
+      '<div class="empty-icon">📁</div><p>暂无款号数据，点击右上角"➕"开始新增</p></div>';
+    return;
+  }
+
+  grid.innerHTML = filtered.map(function(s){
+    var imgs = [];
+    var imgPaths = [];
+    if (s.styleImg_path) { imgs.push(s.styleImg_path); imgPaths.push(s.styleImg_path); }
+    if (s.fullImg_path)  { imgs.push(s.fullImg_path);  imgPaths.push(s.fullImg_path);  }
+    var hasImgs = imgs.length > 0;
+    var canBackfill = !hasImgs && s.styleNo;
+
+    var thumbClick = hasImgs
+      ? 'onclick="event.stopPropagation(); Cons.openFullscreen([' + imgPaths.map(function(p){return "'"+p.replace(/'/g,"\\'")+"'";}).join(',') + '], 0);"'
+      : (canBackfill ? 'onclick="event.stopPropagation(); Cons.openFullscreenByStyleNo(\'' + App.utils.escapeHtml(s.styleNo.replace(/'/g,"\\'")) + '\', \'' + s.id + '\');"' : '');
+
+    var navHtml = '';
+    if (hasImgs && imgs.length > 1) {
+      navHtml = '<div class="thumb-nav prev" onclick="event.stopPropagation(); Cons.navThumb(this, \'' + s.id + '\', -1)">&#10094;</div>' +
+                '<div class="thumb-nav next" onclick="event.stopPropagation(); Cons.navThumb(this, \'' + s.id + '\', 1)">&#10095;</div>' +
+                '<div class="thumb-dots">' + imgs.map(function(_,i){return '<div class="thumb-dot '+(i===0?'active':'')+'"></div>';}).join('') + '</div>';
+    } else if (canBackfill) {
+      navHtml = '<div class="thumb-dots" style="opacity:.5;"><div class="thumb-dot active"></div></div>';
+    }
+
+    var thumbInner;
+    if (hasImgs) {
+      thumbInner = '<img src="" alt="款式图" data-cons-path="' + App.utils.escapeHtml(imgs[0]) + '" style="display:block;" onload="this.style.display=\'block\'">';
+    } else if (canBackfill) {
+      thumbInner = '<img src="" alt="款式图" data-style-no-backfill="' + App.utils.escapeHtml(s.styleNo) + '" data-style-id="' + s.id + '" style="max-width:100%;max-height:100%;display:none;" onload="this.style.display=\'block\'; var ph=this.parentElement&&this.parentElement.querySelector(\'.placeholder-text\'); if(ph){ph.style.display=\'none\';} this.parentElement && this.parentElement.classList.add(\'has-backfilled\');"><span class="placeholder-text" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;">🔍 云端查找中…</span>';
+    } else {
+      thumbInner = '📷 暂无图片';
+    }
+
+    return '<div class="style-card" onclick="Cons.openEditor(\'' + s.id + '\')">' +
+      '<div class="style-thumb" data-style-id="' + s.id + '" data-thumb-idx="0" data-style-no="' + App.utils.escapeHtml(s.styleNo || '') + '"' + thumbClick + '>' +
+        thumbInner + navHtml +
+      '</div>' +
+      '<div class="style-no">' + App.utils.escapeHtml(s.styleNo || '未命名') + '</div>' +
+      '<div class="style-info">' +
+        '<span><b>日期：</b>' + App.utils.escapeHtml(s.date || '-') + '</span>' +
+        '<span><b>品名：</b>' + App.utils.escapeHtml(s.name || '-') + '</span>' +
+        '<span><b>CAD：</b>' + App.utils.escapeHtml(s.designer || '-') + '</span>' +
+        '<span><b>Season：</b>' + App.utils.escapeHtml(s.season || '-') + '</span>' +
+        '<span><b>工费：</b>' + App.utils.escapeHtml(s.price || '-') + ' 元</span>' +
+      '</div>' +
+      (s.remark ? '<div class="style-remark" title="' + App.utils.escapeHtml(s.remark) + '">' + App.utils.escapeHtml(s.remark) + '</div>' : '') +
+      '<div class="style-card-actions" onclick="event.stopPropagation()">' +
+        '<button class="btn btn-sm btn-primary" onclick="Cons.openEditor(\'' + s.id + '\')">编辑</button>' +
+        '<button class="btn btn-sm" onclick="Cons.printStyleById(\'' + s.id + '\')">打印</button>' +
+        '<button class="btn btn-sm btn-danger" onclick="Cons.deleteStyle(\'' + s.id + '\')">删除</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  // 异步 hydrate 图片 src：1) 自身有图的直接解签；2) 自身无图但有款号的，按款号云端搜索
+  setTimeout(function(){ hydrateThumbImages(); }, 30);
+  if (window.getStyleImagesForStyleNo) setTimeout(function(){ backfillThumbImagesByStyleNo(); }, 120);
+}
+
+Cons.navThumb = function(el, styleId, dir) {
+  var thumb = el.closest('.style-thumb');
+  if (!thumb) return;
+  var data = Cons.getConsumptions();
+  var s = data.find(function(x){ return x.id === styleId; });
+  var imgs = [];
+  if (s) {
+    if (s.styleImg_path) imgs.push(s.styleImg_path);
+    if (s.fullImg_path)  imgs.push(s.fullImg_path);
+  }
+  // 兜底：如果自身没图，但是 backfill 填充过的，取 backfill-paths
+  if (imgs.length === 0) {
+    var raw = thumb.getAttribute('data-backfill-paths');
+    if (raw) {
+      try { imgs = JSON.parse(raw); } catch(_) {}
+    }
+  }
+  if (!imgs || imgs.length < 2) return;
+  var idx = parseInt(thumb.dataset.thumbIdx || '0', 10);
+  idx = (idx + dir + imgs.length) % imgs.length;
+  thumb.dataset.thumbIdx = String(idx);
+  var imgEl = thumb.querySelector('img');
+  var dots = thumb.querySelectorAll('.thumb-dot');
+  dots.forEach(function(d, i){ d.classList.toggle('active', i === idx); });
+  if (!imgEl) return;
+  var p = imgs[idx];
+  if (p && p.startsWith('data:image')) { imgEl.src = p; return; }
+  (async function(){
+    var src = window.resolveImageUrl ? (await resolveImageUrl(p)) : (await Cons.getSignedUrl(p));
+    if (src) { imgEl.src = src; return; }
+    imgEl.src = '';
+  })();
+};
+
+function hydrateThumbImages() {
+  var imgs = document.querySelectorAll('#styleGrid .style-thumb img[data-cons-path]');
+  imgs.forEach(function(img){
+    var p = img.getAttribute('data-cons-path');
+    if (!p) return;
+    if (p.startsWith('data:image')) {
+      img.src = p; img.style.display = 'block'; return;
+    }
+    (async function(){
+      var src = window.resolveImageUrl ? (await resolveImageUrl(p)) : (await Cons.getSignedUrl(p));
+      if (!src) {
+        src = '';
+      }
+      img.src = src; img.style.display = 'block';
+    })();
+  });
+}
+
+/**
+ * 按款号云端搜索并回填卡片图（只回填自身没图但 data-style-no-backfill 标记的 img）
+ * 同一 styleNo 去重搜索一次，批处理避免重复请求
+ */
+async function backfillThumbImagesByStyleNo() {
+  if (!window.getStyleImagesForStyleNo) return;
+  var imgs = document.querySelectorAll('#styleGrid .style-thumb img[data-style-no-backfill]');
+  if (imgs.length === 0) return;
+
+  // 收集去重
+  var groups = {};
+  imgs.forEach(function(img){
+    var sn = (img.getAttribute('data-style-no-backfill') || '').trim();
+    if (!sn) return;
+    (groups[sn] = groups[sn] || []).push(img);
+  });
+
+  var styleNos = Object.keys(groups);
+  for (var i = 0; i < styleNos.length; i++) {
+    (async function(sn, elements){
+      try {
+        var result = await getStyleImagesForStyleNo(sn);
+        if (!result) {
+          // 没找到：替换占位文字为「暂无图片」
+          elements.forEach(function(img){
+            var thumb = img.closest('.style-thumb');
+            var ph = thumb ? thumb.querySelector('.placeholder-text') : null;
+            if (ph) ph.textContent = '📷 暂无图片';
+          });
+          return;
+        }
+        var pathToUse = result.styleImg_signed || null;
+        var pathStorage = result.styleImg_path || '';
+        var pathsForFullscreen = [];
+        if (result.styleImg_path) pathsForFullscreen.push(result.styleImg_path);
+        if (result.fullImg_path)  pathsForFullscreen.push(result.fullImg_path);
+        if (!pathToUse && pathStorage && window.resolveImageUrl) pathToUse = await resolveImageUrl(pathStorage);
+
+        elements.forEach(function(img){
+          var styleId = img.getAttribute('data-style-id') || '';
+          var thumb = img.closest('.style-thumb');
+          if (pathToUse) {
+            img.src = pathToUse;
+            img.style.display = 'block';
+            var ph = thumb ? thumb.querySelector('.placeholder-text') : null;
+            if (ph) ph.style.display = 'none';
+            if (thumb) thumb.classList.add('has-backfilled');
+            // 更新缩略图点击 onclick（已有的 openFullscreenByStyleNo 保持可用）
+            if (thumb && pathsForFullscreen.length > 0 && styleId) {
+              // 保留原 onclick（openFullscreenByStyleNo），它会再次查找（缓存已在）
+            }
+            // 若有 2 张图，给缩略图加上向前向后切换
+            if (thumb && pathsForFullscreen.length >= 2) {
+              // 把 backfilled 的 paths 存到 thumb 上，供 navThumb 使用
+              thumb.setAttribute('data-backfill-paths', JSON.stringify(pathsForFullscreen));
+              var dotsWrap = thumb.querySelector('.thumb-dots');
+              if (dotsWrap) dotsWrap.innerHTML = pathsForFullscreen.map(function(_,k){return '<div class="thumb-dot '+(k===0?'active':'')+'"></div>';}).join('');
+              // 加 prev/next 按钮
+              var hasPrev = thumb.querySelector('.thumb-nav.prev');
+              if (!hasPrev) {
+                var prev = document.createElement('div'); prev.className = 'thumb-nav prev'; prev.innerHTML = '&#10094;';
+                prev.setAttribute('onclick', "event.stopPropagation(); Cons.navThumb(this, '" + styleId + "', -1);");
+                var next = document.createElement('div'); next.className = 'thumb-nav next'; next.innerHTML = '&#10095;';
+                next.setAttribute('onclick', "event.stopPropagation(); Cons.navThumb(this, '" + styleId + "', 1);");
+                thumb.insertBefore(prev, thumb.firstChild);
+                thumb.appendChild(next);
+              }
+            }
+          } else {
+            var ph2 = thumb ? thumb.querySelector('.placeholder-text') : null;
+            if (ph2) ph2.textContent = '📷 暂无图片';
+          }
+        });
+      } catch(_err) {}
+    })(styleNos[i], groups[styleNos[i]]);
+    // 串行间隔一下，避免瞬间并发太多 Supabase 请求
+    if (i < styleNos.length - 1) await new Promise(function(r){ setTimeout(r, 60); });
+  }
+}
+
+// ===== 从云盘 NAS 选择图片注入 consumption 表单 =====
+async function nasPickForCons(prefix) {
+  var nasBtn = document.getElementById(prefix + 'nasBtn');
+  var nasBtnInner = (nasBtn && nasBtn.innerHTML) ? nasBtn.innerHTML : null;
+  var nasBtnSvg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
+  try {
+    if (nasBtn) { nasBtn.disabled = true; nasBtn.style.opacity = .6; }
+    var picks = await App.pickFromNas({ multi:false, filter:'images', view:'large' });
+    if (!picks || picks.length === 0) return; // 用户取消
+    var pick = picks[0];
+    if (nasBtn) nasBtn.textContent = '⬇ 正在下载「' + pick.name + '」...';
+    var got = await App.utils.nasFetchAsFile(pick.logicPath);
+    var ok = await Cons._uploadPicture(prefix, got.file);
+    if (ok) {
+      try { if (App && App.toast) App.toast('✅ 已从 NAS 注入：' + pick.name, 'success'); } catch(_) {}
+    }
+  } catch(err) {
+    console.warn('[consumption] nasPickForCons fail:', err);
+    var msg = err && err.message ? err.message : String(err);
+    try {
+      if (App && App.toast) App.toast('❌ 选择失败：' + msg, 'error');
+      else alert('从 NAS 选择失败：' + msg);
+    } catch(_) { alert('选择失败：' + msg); }
+  } finally {
+    if (nasBtn) {
+      nasBtn.disabled = false;
+      nasBtn.style.opacity = '';
+      if (nasBtnInner) {
+        nasBtn.innerHTML = nasBtnInner;
+      } else {
+        nasBtn.innerHTML = nasBtnSvg + ' 从NAS选择';
+      }
+    }
+  }
+}
+
+// ===== 对比表格 =====
+function renderCompareTable() {
+  var container = document.getElementById('compareTableContainer');
+  if (!container) return;
+  if (Cons.compareList.length === 0) {
+    container.innerHTML = '<div class="empty-state">' +
+      '<div class="empty-icon">📊</div><p>请从上方选择款号进行对比</p></div>';
+    return;
+  }
+  var data = Cons.getConsumptions();
+  var list = Cons.compareList.map(function(id){ return data.find(function(s){ return s.id === id; }); }).filter(Boolean);
+  if (list.length === 0) return;
+  container.innerHTML = buildCompareTableHTML(list, false);
+}
+
+function buildCompareTableHTML(list, forPrint) {
+  var allFabricFields = ['spec', 'composition', 'beforeWeight', 'afterWeight', 'width', 'spec2', 'consumption', 'part', 'shrink', 'remark'];
+  var fabricFieldNames = {
+    spec: '规格（名称）', composition: '成份', beforeWeight: '洗前克重', afterWeight: '洗后克重',
+    width: '门幅（米）', spec2: '规格', consumption: '耗料（米）', part: '使用部位', shrink: '缩率', remark: '备注'
+  };
+  var allSpecParts = [];
+  var specSeen = {};
+  list.forEach(function(s){
+    (s.specs || []).forEach(function(sp){
+      if (sp.part && !specSeen[sp.part]) { specSeen[sp.part] = true; allSpecParts.push(sp.part); }
+    });
+  });
+
+  function isEmpty(v) { return !v || (typeof v === 'string' && (v.trim() === '' || v === '-')); }
+  function allEmpty(values) { return values.every(function(v){ return isEmpty(v); }); }
+
+  var html = '<table class="compare-table"><thead><tr>';
+  html += '<th class="field-name">对比项</th>';
+  list.forEach(function(s){
+    html += '<th>' + App.utils.escapeHtml(s.styleNo) + (s.name ? '<br><small style="font-weight:normal;color:var(--muted);">' + App.utils.escapeHtml(s.name) + '</small>' : '') + '</th>';
+  });
+  html += '</tr></thead><tbody>';
+
+  // 基本信息
+  var hasBasic = false, basicHtml = '';
+  [['date','日期'],['designer','设计师'],['season','Season'],['styleNo','款号'],['name','品名'],['price','工费'],['craft','特殊工艺'],['remark','备注']].forEach(function(kv){
+    var k = kv[0], label = kv[1];
+    var values = list.map(function(s){ var v = s[k]; return (v === undefined || v === null || v === '') ? '-' : String(v); });
+    if (allEmpty(values)) return;
+    hasBasic = true;
+    var allSame = values.every(function(v){ return v === values[0]; });
+    basicHtml += '<tr><td class="field-name">' + label + '</td>';
+    values.forEach(function(v){
+      basicHtml += '<td' + (!allSame ? ' class="diff-highlight"' : '') + '>' + App.utils.escapeHtml(v) + '</td>';
+    });
+    basicHtml += '</tr>';
+  });
+  if (hasBasic) {
+    html += '<tr class="section-header"><td colspan="' + (list.length + 1) + '">基本信息</td></tr>' + basicHtml;
+  }
+
+  // 面料按类别分组
+  var cats = Cons.getCategories();
+  var allCats = [];
+  var catSet = {};
+  cats.forEach(function(c){ catSet[c] = true; allCats.push(c); });
+  list.forEach(function(s){ (s.fabrics || []).forEach(function(f){
+    if (f.category && !catSet[f.category]) { catSet[f.category] = true; allCats.push(f.category); }
+  });});
+  allCats.forEach(function(cat){
+    var maxRows = Math.max.apply(null, list.map(function(s){
+      return (s.fabrics || []).filter(function(f){ return f.category === cat; }).length;
+    }));
+    if (maxRows <= 0) return;
+    var catHtml = '';
+    var hasContent = false;
+    for (var i = 0; i < maxRows; i++) {
+      allFabricFields.forEach(function(field){
+        var rowValues = list.map(function(s){
+          var items = (s.fabrics || []).filter(function(f){ return f.category === cat; });
+          return (items[i] && items[i][field]) ? String(items[i][field]) : '-';
+        });
+        if (allEmpty(rowValues)) return;
+        hasContent = true;
+        var defVal = rowValues[0];
+        var allSame = rowValues.every(function(v){ return v === defVal; });
+        catHtml += '<tr><td class="field-name">' + App.utils.escapeHtml(cat) + (i+1) + ' - ' + fabricFieldNames[field] + '</td>';
+        rowValues.forEach(function(v){
+          var needDiff = !allSame && !isEmpty(v);
+          catHtml += '<td' + (needDiff ? ' class="diff-highlight"' : '') + '>' + App.utils.escapeHtml(v) + '</td>';
+        });
+        catHtml += '</tr>';
+      });
+    }
+    if (hasContent) {
+      html += '<tr class="section-header"><td colspan="' + (list.length + 1) + '">' + App.utils.escapeHtml(cat) + '</td></tr>' + catHtml;
+    }
+  });
+
+  // 规格尺寸 - 尺寸
+  if (allSpecParts.length > 0) {
+    var sizeHtml = '', hasSize = false;
+    allSpecParts.forEach(function(part){
+      var values = list.map(function(s){
+        var sp = (s.specs || []).find(function(p){ return p.part === part; });
+        return (sp && sp.size) ? String(sp.size) : '-';
+      });
+      if (allEmpty(values)) return;
+      hasSize = true;
+      var allSame = values.every(function(v){ return v === values[0]; });
+      sizeHtml += '<tr><td class="field-name">' + App.utils.escapeHtml(part) + ' (cm)</td>';
+      values.forEach(function(v){
+        sizeHtml += '<td' + (!allSame && !isEmpty(v) ? ' class="diff-highlight"' : '') + '>' + App.utils.escapeHtml(v) + '</td>';
+      });
+      sizeHtml += '</tr>';
+    });
+    if (hasSize) {
+      html += '<tr class="section-header"><td colspan="' + (list.length + 1) + '">规格尺寸 - 尺寸</td></tr>' + sizeHtml;
+    }
+    // 备注
+    var remHtml = '', hasRem = false;
+    allSpecParts.forEach(function(part){
+      var values = list.map(function(s){
+        var sp = (s.specs || []).find(function(p){ return p.part === part; });
+        return (sp && sp.remark) ? String(sp.remark) : '-';
+      });
+      if (allEmpty(values)) return;
+      hasRem = true;
+      var allSame = values.every(function(v){ return v === values[0]; });
+      remHtml += '<tr><td class="field-name">' + App.utils.escapeHtml(part) + ' - 常规档差</td>';
+      values.forEach(function(v){
+        remHtml += '<td' + (!allSame && !isEmpty(v) ? ' class="diff-highlight"' : '') + '>' + App.utils.escapeHtml(v) + '</td>';
+      });
+      remHtml += '</tr>';
+    });
+    if (hasRem) {
+      html += '<tr class="section-header"><td colspan="' + (list.length + 1) + '">规格尺寸 - 常规档差</td></tr>' + remHtml;
+    }
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
+// ===== 打印 HTML =====
+function generatePrintPageHTML(style, forPreview) {
+  var today = new Date();
+  var dateStr = today.getFullYear() + '年' + (today.getMonth()+1) + '月' + today.getDate() + '日';
+  var userName = (window.App && App.getCurrentUser && App.getCurrentUser()) ? (App.getCurrentUser().username || '管理员') : '管理员';
+  var hasFull = !!(style.fullImg_path);
+  var totalPages = hasFull ? 2 : 1;
+  // 预览时使用占位，实际打印时将注入 resolved URL
+  var styleImgForPreview = style.styleImg_resolved || (forPreview ? (style.styleImg_path || '') : '');
+  var fullImgForPreview  = style.fullImg_resolved  || (forPreview ? (style.fullImg_path  || '') : '');
+
+  var html = '';
+  // 第1页
+  html += '<div class="print-page">';
+  html += '<div class="print-header">' +
+    '<div class="print-info-left">' +
+      '<div class="print-info-line"><span class="print-label">CAD：</span><span class="print-val">' + App.utils.escapeHtml(style.designer || '-') + '</span></div>' +
+      '<div class="print-info-line"><span class="print-label">Season：</span><span class="print-tag tag-yellow">' + App.utils.escapeHtml(style.season || '-') + '</span></div>' +
+      '<div class="print-info-line"><span class="print-label">款号：</span><span class="print-tag tag-red">' + App.utils.escapeHtml(style.styleNo || '-') + '</span></div>' +
+      '<div class="print-info-line"><span class="print-label">品名：</span><span class="print-tag tag-red">' + App.utils.escapeHtml(style.name || '-') + '</span></div>' +
+      '<div class="print-info-line"><span class="print-label">工费：</span><span class="print-tag tag-green">' + App.utils.escapeHtml(style.price || '-') + ' 元</span></div>' +
+    '</div>' +
+    '<div class="print-title-right">Counter用料表<div class="print-date">收到样衣/资料日期：' + App.utils.escapeHtml(style.date || '-') + '</div></div>' +
+  '</div>';
+
+  // 款式图小图
+  html += '<div class="print-style-img">';
+  if (styleImgForPreview) html += '<img src="' + App.utils.escapeHtml(styleImgForPreview) + '" alt="款式图">';
+  else html += '<span style="color:#999;font-size:10px;">款式图</span>';
+  html += '</div>';
+
+  // 面料表
+  if (style.fabrics && style.fabrics.length > 0) {
+    html += '<div class="print-section"><h4>面料 / 辅料明细</h4>';
+    html += '<table class="print-table"><thead><tr>' +
+      '<th style="width:40px;">类别</th><th>规格名称</th><th style="width:70px;">成份</th>' +
+      '<th style="width:55px;">洗前<br>克重</th><th style="width:55px;">洗后<br>克重</th>' +
+      '<th style="width:42px;">有效门幅</th><th style="width:40px;">规格</th>' +
+      '<th style="width:42px;">耗料</th><th style="width:75px;">使用部位</th>' +
+      '<th style="width:65px;">缩率</th><th style="width:65px;">备注</th>' +
+    '</tr></thead><tbody>';
+    var curCat = '';
+    style.fabrics.forEach(function(f){
+      var showCat = f.category !== curCat;
+      curCat = f.category;
+      html += '<tr>' +
+        '<td>' + (showCat ? App.utils.escapeHtml(f.category || '') : '') + '</td>' +
+        '<td style="white-space:pre-wrap;">' + App.utils.escapeHtml(f.spec || '') + '</td>' +
+        '<td>' + App.utils.escapeHtml(f.composition || '') + '</td>' +
+        '<td>' + App.utils.escapeHtml(f.beforeWeight || '') + '</td>' +
+        '<td>' + App.utils.escapeHtml(f.afterWeight || '') + '</td>' +
+        '<td>' + App.utils.escapeHtml(f.width || '') + '</td>' +
+        '<td>' + App.utils.escapeHtml(f.spec2 || '') + '</td>' +
+        '<td>' + App.utils.escapeHtml(f.consumption || '') + '</td>' +
+        '<td>' + App.utils.escapeHtml(f.part || '') + '</td>' +
+        '<td>' + App.utils.escapeHtml(f.shrink || '') + '</td>' +
+        '<td>' + App.utils.escapeHtml(f.remark || '') + '</td>' +
+      '</tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+
+  // 工艺
+  html += '<div class="print-section"><h4>特殊工艺说明</h4><div class="print-craft">' + App.utils.escapeHtml(style.craft || '-') + '</div></div>';
+
+  // 备注
+  if (style.remark && style.remark.trim()) {
+    html += '<div class="print-section"><h4>备注</h4><div class="print-craft">' + App.utils.escapeHtml(style.remark || '-') + '</div></div>';
+  }
+
+  // 规格
+  if (style.specs && style.specs.length > 0) {
+    html += '<div class="print-section"><h4>主要规格尺寸</h4>' +
+      '<table class="print-table print-spec-table"><thead><tr>' +
+      '<th style="width:25%;">部位</th><th style="width:35%;">尺寸（cm）</th><th>常规档差</th>' +
+      '</tr></thead><tbody>';
+    style.specs.forEach(function(s){
+      html += '<tr>' +
+        '<td>' + App.utils.escapeHtml(s.part || '-') + '</td>' +
+        '<td>' + App.utils.escapeHtml(s.size || '-') + '</td>' +
+        '<td>' + App.utils.escapeHtml(s.remark || '') + '</td>' +
+      '</tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+
+  // 页脚
+  html += '<div class="print-footer">' +
+    '<span>打印日期：' + dateStr + '</span>' +
+    '<span>打印人：' + userName + '</span>' +
+    '<span>第 1 页 / 共 ' + totalPages + ' 页</span>' +
+  '</div>';
+  html += '</div>';
+
+  // 第2页大图
+  if (hasFull) {
+    html += '<div class="print-full-img-page">';
+    if (fullImgForPreview) html += '<img src="' + App.utils.escapeHtml(fullImgForPreview) + '" alt="大图">';
+    html += '<div class="print-footer" style="position:absolute;bottom:6mm;left:10mm;right:10mm;border-top:0.5px solid #999;padding-top:3px;display:flex;justify-content:space-between;font-size:12px;color:#666;">' +
+      '<span>打印日期：' + dateStr + '</span>' +
+      '<span>打印人：' + userName + '</span>' +
+      '<span>第 2 页 / 共 ' + totalPages + ' 页</span>' +
+    '</div></div>';
+  }
+  return html;
+}
+
+function buildPrintWindowHTML(style, dateStr, userName) {
+  var hasFull = !!(style.fullImg_path);
+  var totalPages = hasFull ? 2 : 1;
+  var styleSrc = style.styleImg_resolved || '';
+  var fullSrc  = style.fullImg_resolved  || '';
+  var styleCopy = JSON.parse(JSON.stringify(style));
+  styleCopy.styleImg_resolved = styleSrc;
+  styleCopy.fullImg_resolved = fullSrc;
+  // 生成页面内容
+  var pageHtml = generatePrintPageHTML(styleCopy, false);
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>${App.utils.escapeHtml(style.styleNo || '用料及纸板单')}</title>
+<style>
+  @page { size: A4 portrait; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Microsoft YaHei","微软雅黑",Arial,sans-serif; background:#fff;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .print-page {
+    width: 210mm; height: 297mm; padding: 8mm 10mm;
+    page-break-after: always; position: relative; box-sizing: border-box; overflow: hidden;
+    background:#fff;
+  }
+  .print-page:last-child { page-break-after: auto; }
+  .print-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1.5px solid #333;
+  }
+  .print-info-left { display: flex; flex-direction: column; gap: 6px; }
+  .print-info-line { display:flex; align-items:center; gap:8px; font-size:14px; line-height:1.4; }
+  .print-label { font-weight:bold; color:#333; min-width:70px; }
+  .print-val { color:#333; text-align:left; }
+  .print-tag { display:inline-flex; align-items:center; padding:3px 10px; border-radius:5px; font-weight:bold; color:#fff; font-size:14px; line-height:1.4; text-align:left; justify-content:flex-start; }
+  .print-tag.tag-red { background: var(--error, #d44848); }
+  .print-tag.tag-green { background: var(--success, #2d9d5f); }
+  .print-tag.tag-yellow { background: var(--warning, #d9883a); color:#fff; }
+  .print-title-right { text-align:right; font-size:16px; font-weight:bold; color:#333; }
+  .print-date { font-size:11px; font-weight:normal; color:#666; margin-top:4px; }
+  .print-style-img {
+    width:80px; height:100px; border:1px solid #ccc;
+    display:flex; align-items:center; justify-content:center;
+    float:right; margin-left:8px; margin-bottom:6px; background:#fafafa;
+  }
+  .print-style-img img { max-width:100%; max-height:100%; object-fit: contain; }
+  .print-section { margin-bottom: 5px; }
+  .print-section h4 {
+    font-size: 14px; color:#333; margin-bottom:3px;
+    border-left:3px solid var(--primary, #004D6D); padding-left:6px;
+  }
+  .print-table { width:100%; border-collapse:collapse; font-size:12px; line-height:1.4; table-layout:auto; }
+  .print-table th {
+    background:#f0f0f0; padding:3px 5px; border:1px solid #888; text-align:left;
+    font-weight:600; font-size:12px; white-space:nowrap;
+  }
+  .print-table td {
+    padding:2px 5px; border:1px solid #888; vertical-align:top; font-size:12px; white-space:nowrap;
+  }
+  .print-spec-table { font-size: 13px; }
+  .print-spec-table td { padding: 4px 6px; white-space: nowrap; }
+  .print-craft {
+    padding:6px 10px; border:1px solid #888; font-size:12px;
+    min-height:30px; max-height:50px; white-space:pre-wrap; line-height:1.5; overflow:hidden;
+  }
+  .print-footer {
+    position:absolute; bottom:6mm; left:10mm; right:10mm;
+    border-top:0.5px solid #999; padding-top:3px;
+    display:flex; justify-content:space-between; font-size:12px; color:#666;
+  }
+  .print-full-img-page {
+    width: 210mm; height: 297mm; padding: 10mm;
+    page-break-after: always; box-sizing: border-box;
+    position: relative; display:flex; align-items:center; justify-content:center;
+    background:#fff;
+  }
+  .print-full-img-page:last-child { page-break-after: auto; }
+  .print-full-img-page img { max-width:100%; max-height:100%; object-fit: contain; }
+  :root { --primary: #004D6D; --success: #2d9d5f; --warning: #d9883a; --error: #d44848; }
+</style>
+</head>
+<body>
+${pageHtml}
+</body>
+</html>`;
+}
+
+// ===== renderAll =====
+function renderAll() {
+  // 数据保证（仅初始化迁移用，不再自动创建示例数据）
+  Cons.migrateAndEnsure();
+  // 更新新增按钮显示偏好
+  try {
+    var btn = document.getElementById('btnAddStyle');
+    if (btn) {
+      var iconsOnly = App.preferences && App.preferences.get && App.preferences.get('iconsOnly');
+      if (iconsOnly) { btn.textContent = '➕'; }
+      else { btn.textContent = '➕ 新增款号'; }
+    }
+  } catch(_e) {}
+  // 按当前 Tab 渲染
+  if (Cons.currentTab === 'compare') {
+    Cons.updateCompareDatalist();
+    Cons.renderCompareTags();
+    renderCompareTable();
+  } else {
+    renderList();
+    Cons.updateCompareDatalist();
+  }
+}
+
+// 键盘监听（全屏图片）
+document.addEventListener('keydown', function(e){ Cons.onFullscreenKeydown(e); }, true);
+
+// 页面就绪后首渲染
+document.addEventListener('DOMContentLoaded', function(){ renderAll(); });
+// 兜底：若 DOMContentLoaded 已过
+if (document.readyState === 'interactive' || document.readyState === 'complete') {
+  setTimeout(function(){ renderAll(); }, 0);
+}
+</script>
+</body>
+</html>

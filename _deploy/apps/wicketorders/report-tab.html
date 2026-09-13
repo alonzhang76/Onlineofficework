@@ -1,0 +1,57 @@
+            <!-- 报表统计模块 -->
+            <div id="reportTab" class="tab-content hidden">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">报表统计</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="card">
+                        <h3 class="text-lg font-medium text-gray-800 mb-3">收汇统计</h3>
+                        <div class="space-y-4">
+                            <div class="flex justify-between items-center p-3 bg-blue-50 rounded-md">
+                                <span class="text-gray-700">本月收汇总额</span>
+                                <span class="text-xl font-bold text-blue-600" id="monthlyReceiptTotal">¥0</span>
+                            </div>
+                            <div class="flex justify-between items-center p-3 bg-green-50 rounded-md">
+                                <span class="text-gray-700">本年收汇总额</span>
+                                <span class="text-xl font-bold text-green-600" id="yearlyReceiptTotal">¥0</span>
+                            </div>
+                            <div class="flex justify-between items-center p-3 bg-purple-50 rounded-md">
+                                <span class="text-gray-700">累计收汇总额</span>
+                                <span class="text-xl font-bold text-purple-600" id="totalReceiptTotal">¥0</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h3 class="text-lg font-medium text-gray-800 mb-3">付款统计</h3>
+                        <div class="space-y-4">
+                            <div class="flex justify-between items-center p-3 bg-yellow-50 rounded-md">
+                                <span class="text-gray-700">本月付款总额</span>
+                                <span class="text-xl font-bold text-yellow-600" id="monthlyPaymentTotal">¥0</span>
+                            </div>
+                            <div class="flex justify-between items-center p-3 bg-red-50 rounded-md">
+                                <span class="text-gray-700">本年付款总额</span>
+                                <span class="text-xl font-bold text-red-600" id="yearlyPaymentTotal">¥0</span>
+                            </div>
+                            <div class="flex justify-between items-center p-3 bg-indigo-50 rounded-md">
+                                <span class="text-gray-700">累计付款总额</span>
+                                <span class="text-xl font-bold text-indigo-600" id="totalPaymentTotal">¥0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 动态提醒区域 -->
+                <div class="mt-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                        <i class="fa fa-bell text-yellow-600 mr-2"></i>
+                        动态提醒
+                    </h3>
+                    <div id="remindersContainer" class="card">
+                        <!-- 提醒内容将通过JavaScript动态生成 -->
+                        <div class="p-4">
+                            <div class="flex justify-center items-center text-gray-500">
+                                <i class="fa fa-spinner fa-spin mr-2"></i>
+                                <span>正在加载提醒...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>

@@ -1,0 +1,900 @@
+﻿/**
+ * 页面初始化助手
+ * 
+ * 用法：
+ * 1. 所有函数定义放在全局作用域（直接在 <script> 内，不在任何回调中）
+ * 2. 需要等待 Supabase 的初始化代码放在 _init(function() { ... }) 中
+ * 
+ * 这样 HTML 的 onclick 属性可以找到全局函数，
+ * 同时初始化代码仍然等待 Supabase 就绪。
+ */
+(function(global) {
+  var initQueue = [];
+  var initialized = false;
+
+  function runInit(fn) {
+    try {
+      fn();
+    } catch (e) {
+      console.error('[init-page] 初始化出错:', e);
+    }
+  }
+
+  function tryRunAll() {
+    if (initialized) return;
+    var queue = initQueue.slice();
+    initQueue = [];
+    initialized = true;
+    queue.forEach(runInit);
+  }
+
+  // 暴露到全局
+  global._init = function(fn) {
+    if (typeof fn !== 'function') {
+      console.warn('[init-page] _init 需要传入函数');
+      return;
+    }
+    if (initialized) {
+      runInit(fn);
+    } else {
+      initQueue.push(fn);
+    }
+  };
+
+  // 等待 Supabase 就绪后执行所有初始化
+  function waitAndRun() {
+    if (window.SupabaseReady) {
+      window.SupabaseReady.then(function() {
+        tryRunAll();
+      }).catch(function() {
+        console.warn('[init-page] Supabase 连接失败，仍然执行初始化');
+        tryRunAll();
+      });
+    } else {
+      tryRunAll();
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', waitAndRun);
+  } else {
+    waitAndRun();
+  }
+
+  // 超时兜底
+  setTimeout(function() {
+    if (!initialized) {
+      console.warn('[init-page] 超时（15s），强制执行初始化');
+      tryRunAll();
+    }
+  }, 15000);
+
+  // ===== 15 秒定时刷新云端数据 =====
+  // 使用 Web Worker 实现定时器（完全不受 Safari/iOS 标签页节流限制）
+  var _cloudRefreshActive = false;
+
+  function startCloudRefresh() {
+    if (_cloudRefreshActive) return;
+    _cloudRefreshActive = true;
+
+    function doRefresh() {
+      var store = window.SupabaseStore;
+
+      // 兜底：即使 CloudbaseStore 完全不可用，也通过 CloudBase 兼容层独立拉取数据
+      if (!store) {
+        console.log('[init-page] ⚠️ CloudbaseStore 未加载，使用 CloudBase 兼容层兜底...');
+        // 等待 window.supabase（由 js/cloudbase.js 提供）就绪
+        var waitForSb = function(cb) {
+          if (window.supabase && typeof window.supabase.from === 'function') return cb();
+          var cnt = 0;
+          var tm = setInterval(function() {
+            cnt++;
+            if (window.supabase && typeof window.supabase.from === 'function') {
+              clearInterval(tm);
+              cb();
+            } else if (cnt > 100) { // 10s 超时
+              clearInterval(tm);
+              console.warn('[init-page] ⚠️ 等待 CloudBase 兼容层超时，跳过本次兜底刷新');
+            }
+          }, 100);
+        };
+        waitForSb(function() {
+          window.supabase.from('app_data_store').select('store_key,payload,updated_at')
+            .then(function(res) {
+              if (res.error) throw res.error;
+              var rows = res.data || [];
+              if (!Array.isArray(rows)) return;
+              var changedKeys = [];
+              var origLS = window._origLocalStorage || localStorage;
+              var nowMs = Date.now();
+              var RECENT_WRITE_WINDOW = 10000;
+              for (var i = 0; i < rows.length; i++) {
+                var row = rows[i];
+                var key = row.store_key;
+                // 关键修复：检查 _recentWrites，跳过本地刚写入的 key
+                var rwStore = window.SupabaseStore;
+                if (rwStore && rwStore._recentWrites) {
+                  var lastWrite = rwStore._recentWrites[key] || 0;
+                  if (lastWrite && (nowMs - lastWrite < RECENT_WRITE_WINDOW)) continue;
+                }
+                // 关键修复：检查持久化的本地保存时间戳（_recentWrites 刷新后丢失）
+                try {
+                  var localSaveTsStr_fb = origLS.getItem('_lastLocalSave_' + key);
+                  if (localSaveTsStr_fb) {
+                    var localSaveTs_fb = parseInt(localSaveTsStr_fb, 10) || 0;
+                    var cloudUpdatedAt_fb = 0;
+                    try { cloudUpdatedAt_fb = new Date(row.updated_at).getTime() || 0; } catch(_) {}
+                    if (localSaveTs_fb && cloudUpdatedAt_fb && localSaveTs_fb > cloudUpdatedAt_fb) continue;
+                  }
+                } catch(_) {}
+                // 跳过非 SUPERSET_KEYS 的 key（如 dataVersion），防止本地专属数据被 JSON.stringify 损坏
+                if (typeof SUPERSET_KEYS !== 'undefined' && SUPERSET_KEYS.indexOf(key) < 0) continue;
+                origLS.setItem(key, JSON.stringify(row.payload));
+                changedKeys.push(key);
+              }
+              console.log('[init-page] ✅ 兜底刷新完成:', changedKeys.length, '个key');
+              if (changedKeys.length > 0) {
+                window.dispatchEvent(new CustomEvent('cloud-data-updated', {
+                  detail: { keys: changedKeys }
+                }));
+              }
+            })
+            .catch(function(e) {
+              if (Date.now() % 30000 < 15000) {
+                console.warn('[init-page] 兜底刷新失败:', e && e.message ? e.message : e);
+              }
+            });
+        });
+        return;
+      }
+
+      // 关键修复：即使未初始化也尝试刷新（forceRefreshFromCloud 内部走 CloudBase SDK）
+      var isInit = store._isInitialized && store._isInitialized();
+      if (!isInit) {
+        // 未初始化状态下，直接尝试云端刷新
+        console.log('[init-page] 🔄 未初始化状态，尝试 CloudBase 刷新...');
+        var fn2 = store.forceRefreshFromCloud || store.refreshFromCloud;
+        if (fn2) {
+          fn2.call(store)
+            .then(function(changed) {
+              if (changed && changed.length > 0) {
+                console.log('[init-page] ✅ 云端刷新完成:', changed.length, '个 key 变更');
+                // 数据加载成功后，尝试重新初始化
+                if (!isInit) {
+                  console.log('[init-page] 🔄 数据已获取，尝试重新初始化...');
+                  store.init && store.init();
+                }
+              } else {
+                console.log('[init-page] ⏱️ 刷新完成，无新数据');
+              }
+            })
+            .catch(function(e) {
+              console.warn('[init-page] 云端刷新出错:', e && e.message ? e.message : e);
+            });
+        }
+        return;
+      }
+
+      console.log('[init-page] 🔄 触发云端刷新...');
+      // 使用 forceRefreshFromCloud 确保 Safari 等浏览器也能正确同步
+      var fn = store.forceRefreshFromCloud || store.refreshFromCloud;
+      fn.call(store)
+        .then(function(changed) {
+          if (changed && changed.length > 0) {
+            console.log('[init-page] ✅ 云端刷新完成:', changed.length, '个 key 变更');
+          } else {
+            console.log('[init-page] ⏱️ 刷新完成，无新数据');
+          }
+        })
+        .catch(function(e) {
+          console.warn('[init-page] 云端刷新出错:', e && e.message ? e.message : e);
+        });
+    }
+
+    // 方案 1: 使用 Web Worker（最可靠，完全不受节流影响）
+    var lastWorkerTick = Date.now();
+    try {
+      var workerCode = [
+        'var timer = setInterval(function() {',
+        '  self.postMessage("tick");',
+        '}, 15000);',
+        'self.addEventListener("message", function(e) {',
+        '  if (e.data === "stop") { clearInterval(timer); timer = null; }',
+        '});'
+      ].join('\n');
+      var workerBlob = new Blob([workerCode], { type: 'application/javascript' });
+      var workerUrl = URL.createObjectURL(workerBlob);
+      var worker = new Worker(workerUrl);
+      worker.addEventListener('message', function() {
+        lastWorkerTick = Date.now();
+        doRefresh();
+      });
+      worker.onerror = function(err) {
+        console.warn('[init-page] Web Worker 错误:', err && err.message ? err.message : err);
+      };
+      console.log('[init-page] 🔄 Web Worker 定时器已启动（15秒轮询）');
+
+      // 看门狗：如果 Worker 超过 35 秒没发消息，重新启动
+      setInterval(function() {
+        if (Date.now() - lastWorkerTick > 35000) {
+          console.warn('[init-page] Worker 长时间无响应，重启');
+          try {
+            worker.terminate();
+            var w2 = new Worker(workerUrl);
+            w2.addEventListener('message', function() {
+              lastWorkerTick = Date.now();
+              doRefresh();
+            });
+            worker = w2;
+            lastWorkerTick = Date.now();
+          } catch (e) {
+            console.warn('[init-page] Worker 重启失败:', e.message);
+          }
+        }
+      }, 10000);
+    } catch (e) {
+      // 方案 2: Web Worker 不可用时，用递归 setTimeout（有节流风险）
+      console.warn('[init-page] Web Worker 不可用，降级为 setTimeout:', e.message);
+      function scheduleNext() {
+        setTimeout(function() {
+          doRefresh();
+          scheduleNext();
+        }, 15000);
+      }
+      scheduleNext();
+    }
+
+    // 立即执行一次（不等 15 秒）
+    setTimeout(doRefresh, 3000);
+
+    // 额外保障：即使 Worker 正常，也同时启动 setTimeout 轮询
+    // Safari 某些版本 Worker 消息可能延迟或丢失
+    function scheduleNext() {
+      setTimeout(function() {
+        doRefresh();
+        scheduleNext();
+      }, 15000);
+    }
+    scheduleNext();
+
+    // 页面从后台切回时立即刷新（兼顾 visibilitychange 事件）
+    document.addEventListener('visibilitychange', function() {
+      if (!document.hidden) {
+        console.log('[init-page] 页面切回前台，立即刷新');
+        doRefresh();
+      }
+    });
+
+    // Safari 特有的 pageshow 事件（从 bfcache 恢复时触发）
+    window.addEventListener('pageshow', function(e) {
+      if (e.persisted) {
+        console.log('[init-page] 从缓存恢复，立即刷新');
+        doRefresh();
+      }
+    });
+
+    // Safari 特定：mouseover / focus 事件也触发一次刷新
+    // （某些 Safari 版本 visibilitychange 不可靠）
+    var lastRefresh = 0;
+    document.addEventListener('mouseover', function() {
+      var now = Date.now();
+      if (now - lastRefresh > 5000) { // 至少间隔 5 秒
+        lastRefresh = now;
+        doRefresh();
+      }
+    });
+    window.addEventListener('focus', function() {
+      var now = Date.now();
+      if (now - lastRefresh > 5000) {
+        lastRefresh = now;
+        doRefresh();
+      }
+    });
+  }
+
+  // SupabaseReady 后启动定时刷新
+  if (window.SupabaseReady) {
+    window.SupabaseReady.then(function() { startCloudRefresh(); }).catch(function() {});
+  } else {
+    startCloudRefresh();
+  }
+
+  // 暴露手动刷新接口到全局
+  global.CloudRefresh = {
+    manualRefresh: function() {
+      if (!window.SupabaseStore || !window.SupabaseStore._isInitialized()) {
+        console.warn('[CloudRefresh] 存储未初始化');
+        return;
+      }
+      console.log('[CloudRefresh] 手动强制刷新中...');
+      // 使用 forceRefreshFromCloud 绕过所有对比逻辑
+      var fn = window.SupabaseStore.forceRefreshFromCloud || window.SupabaseStore.refreshFromCloud;
+      fn.call(window.SupabaseStore)
+        .then(function(changed) {
+          var msg = changed && changed.length > 0
+            ? '刷新完成，' + changed.length + ' 个数据已更新'
+            : '刷新完成，暂无新数据';
+          if (window.App && window.App.toast) {
+            window.App.toast(msg, changed && changed.length > 0 ? 'success' : 'info');
+          } else {
+            console.log('[CloudRefresh]', msg);
+          }
+        })
+        .catch(function(e) {
+          if (window.App && window.App.toast) {
+            window.App.toast('刷新失败: ' + (e && e.message ? e.message : e), 'error');
+          }
+        });
+    }
+  };
+
+  // 自动注入刷新按钮到 header-actions
+  function injectRefreshButton() {
+    var headers = document.querySelectorAll('.header-actions');
+    headers.forEach(function(header) {
+      if (header.querySelector('[data-cloud-refresh]')) return; // 已注入
+      var btn = document.createElement('button');
+      btn.className = 'btn btn-sm';
+      btn.setAttribute('data-cloud-refresh', '1');
+      btn.setAttribute('title', '刷新云端数据');
+      btn.style.cursor = 'pointer';
+      btn.textContent = '🔄';
+      btn.onclick = function() { global.CloudRefresh.manualRefresh(); };
+      header.appendChild(btn);
+    });
+  }
+
+  // DOM ready 后注入
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', injectRefreshButton);
+  } else {
+    injectRefreshButton();
+  }
+
+  // ===== 独立云数据轮询（Safari 兼容兜底）=====
+  // 当所有其他机制（Web Worker、CloudbaseStore）都失败时，
+  // 此机制通过 CloudBase 兼容层（window.supabase）直接同步数据，不依赖任何中间层
+  // 解决 Safari 从 file:// 加载时的 ES Module 阻塞、CDN 跨域、CORS 预检等问题
+
+  var _independentLastHashes = null; // null 表示首次运行（还没建基线）
+  var _independentRunning = false;
+  var _independentSbReady = false;   // CloudBase 兼容层是否已就绪
+
+  // 等待 window.supabase 就绪（cloudbase.js 由 ES module 加载，可能晚于本脚本）
+  function ensureCloudbaseReady() {
+    return new Promise(function(resolve) {
+      if (_independentSbReady || (window.supabase && typeof window.supabase.from === 'function')) {
+        _independentSbReady = true;
+        return resolve(true);
+      }
+      var cnt = 0;
+      var tm = setInterval(function() {
+        cnt++;
+        if (window.supabase && typeof window.supabase.from === 'function') {
+          clearInterval(tm);
+          _independentSbReady = true;
+          resolve(true);
+        } else if (cnt > 100) { // 10s 超时
+          clearInterval(tm);
+          console.warn('[init-page] ⚠️ 等待 CloudBase 兼容层超时');
+          resolve(false);
+        }
+      }, 100);
+    });
+  }
+
+  function independentPoll() {
+    if (_independentRunning) return;
+    _independentRunning = true;
+
+    ensureCloudbaseReady().then(function(ready) {
+      if (!ready) {
+        _independentRunning = false;
+        setTimeout(independentPoll, 15000);
+        return;
+      }
+
+      var isFirstRun = (_independentLastHashes === null);
+
+      // CloudBase 兼容层查询 app_data_store 集合
+      window.supabase.from('app_data_store').select('store_key,payload,updated_at')
+        .then(function(res) {
+          if (res.error) throw res.error;
+          var rows = res.data || [];
+          if (!Array.isArray(rows)) {
+            console.warn('[init-page] 独立轮询：返回数据不是数组');
+            return;
+          }
+
+      var changedKeys = [];
+      var newHashes = {};
+      var prevHashes = _independentLastHashes || {};
+      var nowMs = Date.now();
+      // 保护期：10秒内本地刚写入的 key 不被云端数据覆盖（防止删除后被旧数据复活）
+      var RECENT_WRITE_WINDOW = 10000;
+
+      for (var i = 0; i < rows.length; i++) {
+        var row = rows[i];
+        var key = row.store_key;
+        var payload = row.payload;
+
+        // 关键修复：检查 SupabaseStore._recentWrites，跳过本地刚写入的 key
+        // 防止删除/编辑操作后，云端旧数据覆盖本地新数据
+        try {
+          var store = window.SupabaseStore;
+          if (store && store._recentWrites) {
+            var lastWrite = store._recentWrites[key] || 0;
+            if (lastWrite && (nowMs - lastWrite < RECENT_WRITE_WINDOW)) {
+              // 本地刚写入此 key，跳过云端覆盖，但仍记录哈希用于下次对比
+              try {
+                var hashSkip = JSON.stringify(payload) + '|' + (row.updated_at || '');
+                newHashes[key] = hashSkip;
+              } catch(_) {}
+              continue;
+            }
+          }
+        } catch(_) {}
+
+        // 关键修复：检查持久化的本地保存时间戳（_recentWrites 刷新后丢失）
+        // 如果本地保存时间晚于云端 updated_at → 本地数据更新，跳过覆盖并推送本地值到云端
+        try {
+          var origLS_lts = window._origLocalStorage || localStorage;
+          var localSaveTsStr = origLS_lts.getItem('_lastLocalSave_' + key);
+          if (localSaveTsStr) {
+            var localSaveTs = parseInt(localSaveTsStr, 10) || 0;
+            var cloudUpdatedAt = 0;
+            try { cloudUpdatedAt = new Date(row.updated_at).getTime() || 0; } catch(_) {}
+            if (localSaveTs && cloudUpdatedAt && localSaveTs > cloudUpdatedAt) {
+              // 本地比云端新，不覆盖，记录 hash 供下次对比
+              try {
+                var hashSkipLts = JSON.stringify(payload) + '|' + (row.updated_at || '');
+                newHashes[key] = hashSkipLts;
+              } catch(_) {}
+              // 同时触发云端写入（把本地新值推上去，forceUpsert 保证胜出）
+              try {
+                var localValRaw = origLS_lts.getItem(key);
+                if (localValRaw) {
+                  window.dispatchEvent(new CustomEvent('cloud-write-request', {
+                    detail: { key: key, value: JSON.parse(localValRaw), ts: Date.now(), __forceUpsert: true }
+                  }));
+                }
+              } catch(_) {}
+              continue;
+            }
+          }
+        } catch(_) {}
+
+        // 计算内容哈希用于变化检测
+        var hash = '';
+        try {
+          hash = JSON.stringify(payload) + '|' + (row.updated_at || '');
+        } catch(e) {
+          hash = String(payload) + '|' + (row.updated_at || '');
+        }
+        newHashes[key] = hash;
+
+        // 关键修复：跳过非 SUPERSET_KEYS 的 key（如 dataVersion），防止云端轮询覆盖本地专属数据
+        // dataVersion 等本地键被 JSON.stringify 写回后会加引号，导致 initSampleData 误判版本变更→删除权限
+        if (typeof SUPERSET_KEYS !== 'undefined' && SUPERSET_KEYS.indexOf(key) < 0) {
+          continue;
+        }
+
+        // 变化检测：首次运行时，任何非空数组/对象的 key 都触发一次更新
+        // （因为页面的初始渲染可能用的是旧 localStorage 数据）
+        var changed = false;
+        if (prevHashes[key] !== hash) {
+          changed = true;
+        }
+        // 首次运行且此 key 有真实数据（非空数组/非null对象）→ 视为有变化，通知UI重新加载
+        if (isFirstRun && !changed) {
+          try {
+            if (Array.isArray(payload) && payload.length > 0) changed = true;
+            else if (payload !== null && typeof payload === 'object') {
+              var hasKeys = false;
+              for (var pk in payload) { hasKeys = true; break; }
+              if (hasKeys) changed = true;
+            }
+          } catch(e) {}
+        }
+
+        if (changed) {
+          changedKeys.push(key);
+          // 直接更新 原始 localStorage（绕过 patch，确保不会反向写回云端）
+          try {
+            var origLS = window._origLocalStorage || localStorage;
+            origLS.setItem(key, JSON.stringify(payload));
+          } catch(e) {}
+          // 同时也更新 SupabaseStore._cache（使后续 getSync 读到最新）
+          try {
+            var store = window.SupabaseStore;
+            if (store && store._getCache) {
+              var cache = store._getCache();
+              if (cache) {
+                cache[key] = JSON.parse(JSON.stringify(payload));
+                // 不更新 _cacheTimestamps，让后续 refreshFromCloud 有机会再对比
+              }
+            }
+          } catch(e) {}
+        }
+      }
+
+      // 检查已删除的 key
+      var remoteKeys = {};
+      for (var j = 0; j < rows.length; j++) {
+        remoteKeys[rows[j].store_key] = true;
+      }
+      for (var localKey in prevHashes) {
+        if (!remoteKeys[localKey]) {
+          changedKeys.push(localKey);
+          try {
+            var origLS2 = window._origLocalStorage || localStorage;
+            origLS2.removeItem(localKey);
+          } catch(e) {}
+        }
+      }
+
+      _independentLastHashes = newHashes;
+
+      // ===== 首次拉取成功（不论是否有变更）= 打开 runAutoBackup 的安全锁 =====
+      // 只有首次 REST 请求 HTTP 200 且 rows 是数组，才算"基线已建"，后续才允许本地备份上传。
+      // 这样 A 电脑新写的订单不会被 B 电脑的本地旧值覆盖。
+      if (isFirstRun && !_firstPollDone) {
+        _firstPollDone = true;
+        console.log('[init-page] 🔓 首次云端基线建立完成，自动备份解锁（当前云端行数=' + rows.length + '）');
+        // 解锁后立即触发一次 runAutoBackup（否则还要等 visibilitychange 或下次 60s）
+        try { setTimeout(runAutoBackup, 300); } catch(_) {}
+      }
+
+      if (changedKeys.length > 0) {
+        console.log('[init-page] 🛡️ 独立轮询' + (isFirstRun ? '(首次基线+触发)' : '检测到变更') + ':', 
+          changedKeys.join(', '), '(共' + changedKeys.length + '个)');
+        // 触发云数据更新事件（供各页面刷新 UI）
+        window.dispatchEvent(new CustomEvent('cloud-data-updated', {
+          detail: { keys: changedKeys }
+        }));
+      } else {
+        if (isFirstRun) {
+          console.log('[init-page] 🛡️ 独立轮询(首次基线): 无需要更新的key(云端均为空数据或本地已是最新)');
+          // 首次运行云端为空 → 可能数据正在通过独立写入通道上传中
+          // 5 秒后立即再执行一次轮询（不等15秒），快速捕获刚上传完成的数据
+          setTimeout(function() { independentPoll(); }, 5000);
+          // 同时再安排 12 秒后的第二次"快速轮询"，覆盖写入较慢的情况
+          setTimeout(function() { independentPoll(); }, 12000);
+        }
+      }
+    })
+    .catch(function(err) {
+      if (Date.now() % 30000 < 15000) { // 每30秒只打印一次错误
+        console.warn('[init-page] 独立轮询失败:', err && err.message ? err.message : err);
+      }
+    })
+    .then(function() {
+      _independentRunning = false;
+      // 下次轮询：15秒后
+      setTimeout(independentPoll, 15000);
+    });
+    }); // 闭合 ensureCloudbaseReady().then
+  }
+
+  // 关键：尽早启动独立轮询（不要与 SupabaseStore 初始化竞争）
+  // 对于 Safari/file:// 场景，这通常是数据进入页面的唯一通道
+  setTimeout(function() {
+    console.log('[init-page] 🛡️ 启动独立云端轮询（Safari 兼容模式）');
+    independentPoll();
+  }, 800);
+
+  // 页面回到前台时强制立即执行一次独立轮询（绕过所有缓存和节流）
+  document.addEventListener('visibilitychange', function() {
+    if (!document.hidden) {
+      setTimeout(independentPoll, 200);
+    }
+  });
+  window.addEventListener('pageshow', function() {
+    setTimeout(independentPoll, 200);
+  });
+
+  // ===== 独立写入通道（绝对兜底，保证数据一定上传到云端）=====
+  // 接收 localstorage-patch.js 发出的 cloud-write-request 事件
+  // 通过 CloudBase 兼容层（window.supabase）直接 upsert 到云数据库，不依赖任何中间层
+  // 即使 CloudbaseStore、setSync 全部失败也能工作
+  var _writeQueue = [];    // 待写入队列（key + value + ts）
+  var _writeRunning = false;
+  var _writeLastTs = {};   // 每个 key 的最后上传时间戳（用于去抖），避免频繁上传
+  var _writeLastHash = {}; // 每个 key 的最后上传内容 hash（严格去重，相同内容直接跳过）
+
+  // 计算内容的快速 hash（用于判断是否真的变化了需要上传）
+  function hashValue(val) {
+    try {
+      var s = (val === null || val === undefined) ? '' : JSON.stringify(val);
+      // DJB2 简单 hash，32 位整数
+      var h = 5381;
+      for (var i = 0; i < s.length; i++) {
+        h = ((h << 5) + h) + s.charCodeAt(i);
+        h |= 0;
+      }
+      return s.length.toString(36) + '_' + h.toString(36);
+    } catch(e) {
+      return 'x_' + Date.now();
+    }
+  }
+
+  // 处理一个写入请求：通过 CloudBase 兼容层 upsert（onConflict=store_key）
+  function executeWrite(req) {
+    return ensureCloudbaseReady().then(function(ready) {
+      if (!ready) throw new Error('CloudBase 兼容层未就绪');
+      var payload = {
+        store_key: req.key,
+        payload: req.value,
+        updated_at: new Date().toISOString()
+      };
+      return window.supabase.from('app_data_store')
+        .upsert(payload, { onConflict: 'store_key' })
+        .then(function(res) {
+          if (res.error) throw res.error;
+          return true;
+        });
+    });
+  }
+
+  // 处理一个删除请求：通过 CloudBase 兼容层 delete
+  function executeDelete(key) {
+    return ensureCloudbaseReady().then(function(ready) {
+      if (!ready) throw new Error('CloudBase 兼容层未就绪');
+      return window.supabase.from('app_data_store')
+        .delete()
+        .eq('store_key', key)
+        .then(function(res) {
+          if (res.error) throw res.error;
+          return true;
+        });
+    });
+  }
+
+  // 队列处理器（串行，避免并发上传）
+  function flushWriteQueue() {
+    if (_writeRunning || _writeQueue.length === 0) return;
+    _writeRunning = true;
+
+    var req = _writeQueue.shift();
+    var p;
+    if (req.type === 'delete') {
+      p = executeDelete(req.key);
+    } else {
+      p = executeWrite(req);
+    }
+    p.then(function(ok) {
+      var count = Array.isArray(req.value) ? req.value.length + ' 条' : typeof req.value;
+      // 精简日志：数组长度为 0 的不打印（防止刷新时刷屏）
+      if (!(Array.isArray(req.value) && req.value.length === 0)) {
+        console.log('[init-page] ✨ 独立写入成功:', req.key, count);
+      }
+      // 上传成功后，更新 SupabaseStore._cache（如果存在）
+      try {
+        var st = window.SupabaseStore;
+        if (st && st._getCache && req.type !== 'delete') {
+          var cache = st._getCache();
+          cache[req.key] = JSON.parse(JSON.stringify(req.value));
+        }
+      } catch(e) {}
+      // ===== 关键修复 1：成功后把本次内容 hash 记录下来 =====
+      // 下次同样内容再来 cloud-write-request 时，会被去重拦截，不入队
+      if (req.hash) {
+        _writeLastHash[req.key] = req.hash;
+      } else if (req.type !== 'delete') {
+        _writeLastHash[req.key] = hashValue(req.value);
+      }
+      // 清理本地保存时间戳（云端写入成功后不再需要保护，允许其他电脑的新更新覆盖）
+      try {
+        var origLS_wq = window._origLocalStorage || localStorage;
+        origLS_wq.removeItem('_lastLocalSave_' + req.key);
+      } catch(_) {}
+      // ===== 关键修复 2：绝对不要在这里广播 cloud-data-updated！ =====
+    }).catch(function(err) {
+      console.warn('[init-page] ✨ 独立写入失败，重新入队:', req.key, err && err.message ? err.message : err);
+      // 失败则放回队列尾部（最多保留 50 条去重）
+      if (_writeQueue.length < 50) _writeQueue.push(req);
+    }).then(function() {
+      _writeRunning = false;
+      if (_writeQueue.length > 0) {
+        setTimeout(flushWriteQueue, 200);
+      }
+    });
+  }
+
+  // 判断当前登录用户是否管理员（用于 ADMIN_ONLY_WRITE_KEYS 的写入守卫）
+  // 保守 + 多来源兜底：避免"实际上是管理员但角色还没写入 localStorage.userRole"
+  //                  → 误把 nas_config 当"非管理员上传"跳过。
+  function _currentUserIsAdmin() {
+    try {
+      var ls = window._origLocalStorage || window.localStorage;
+      // 1) localStorage 明确 userRole='admin'
+      var roleKey = '';
+      try { roleKey = ls ? (ls.getItem('userRole') || '') : ''; } catch(_) {}
+      if (!roleKey) { try { roleKey = (window.localStorage.getItem && window.localStorage.getItem('userRole')) || ''; } catch(_) {} }
+      if (roleKey === 'admin') return true;
+
+      // 2) currentUserInfo 里 isAdmin=true（旧系统兼容字段）
+      try {
+        var info = ls.getItem('currentUserInfo');
+        if (info) { try { var p = JSON.parse(info); if (p && p.isAdmin) return true; } catch(_) {} }
+      } catch(_) {}
+
+      // 3) App 对象上挂载的当前角色
+      if (window.App) {
+        try {
+          if (App._currentUser && App._currentUser.role === 'admin') return true;
+          if (App._currentUser && App._currentUser.isAdmin) return true;
+        } catch(_) {}
+        //   · 顶栏用户信息
+        try {
+          var uApp = App.user || (App.getCurrentUser ? App.getCurrentUser() : null) || null;
+          if (uApp && (uApp.role === 'admin' || uApp.isAdmin)) return true;
+        } catch(_) {}
+      }
+
+      // 4) Supabase 登录用户：user_metadata.role / 邮箱白名单（与 auth-guard 对齐）
+      if (window.currentSupabaseUser) {
+        var meta = window.currentSupabaseUser.user_metadata || {};
+        if (meta.role === 'admin') return true;
+        var emails = window.ADMIN_EMAILS || [];
+        if (emails.indexOf(window.currentSupabaseUser.email || '') >= 0) return true;
+      }
+      if (window.supabase && typeof window.supabase.auth === 'object') {
+        try {
+          if (window.supabase.auth.currentUser &&
+              window.supabase.auth.currentUser.user_metadata &&
+              window.supabase.auth.currentUser.user_metadata.role === 'admin') return true;
+          if (window.supabase.auth.currentUser &&
+              (window.ADMIN_EMAILS || []).indexOf(window.supabase.auth.currentUser.email || '') >= 0) return true;
+        } catch(_) {}
+      }
+
+      // 5) 本地 users 表记录里的 role 字段（SupabaseStore 初始化前 localStorage 就有）
+      try {
+        var rawUsers = ls.getItem('users');
+        if (rawUsers) {
+          var usersArr = JSON.parse(rawUsers);
+          if (Array.isArray(usersArr)) {
+            var curEmail = window.currentSupabaseUser && window.currentSupabaseUser.email;
+            var curId = window.currentSupabaseUser && window.currentSupabaseUser.id;
+            for (var ui = 0; ui < usersArr.length; ui++) {
+              var u = usersArr[ui] || {};
+              if ((curId && u.id === curId) || (curEmail && u.email && u.email === curEmail) ||
+                  (u.username && (ls.getItem('username') || '') && u.username === ls.getItem('username'))) {
+                if (u.role === 'admin') return true;
+              }
+            }
+          }
+        }
+      } catch(_) {}
+    } catch(_) {}
+    return false;
+  }
+
+  // 监听写入事件（来自 localStorage-patch）
+  window.addEventListener('cloud-write-request', function(e) {
+    var key = e.detail.key;
+    var value = e.detail.value;
+    var ts = e.detail.ts || Date.now();
+    var forceUpsert = !!e.detail.__forceUpsert; // 来自 savePendingPerms/resetPerms：强制越过严格 hash 去重，保证"最后一次保存"赢
+
+    // ==== 全局共享键（NAS 配置/权限/用户）仅管理员可写 ====
+    // 非管理员上传这些键会静默丢弃，避免覆盖管理员发布的全局设置。
+    var ADMIN_KEYS = (typeof window.ADMIN_ONLY_WRITE_KEYS !== 'undefined')
+      ? window.ADMIN_ONLY_WRITE_KEYS
+      : ['nas_config', 'nas_folder_perms', 'users', 'permissions'];
+    if (ADMIN_KEYS.indexOf(key) >= 0) {
+      if (!_currentUserIsAdmin()) {
+        console.warn('[init-page] 🛡️ 非管理员尝试上传全局共享键 ' + key + ' → 已跳过（请由管理员统一修改）。');
+        return;
+      }
+    }
+
+    // ==== 第一层去重：严格内容 hash 比对 ====
+    // 如果新内容和最近一次成功上传的内容 hash 一样 → 直接跳过（根本不需要入队）
+    // 例外：__forceUpsert=true（权限保存按钮等用户显式点击保存场景）→ 跳过 hash 去重，保证"最后一次点击保存"始终胜出
+    var newHash = hashValue(value);
+    if (!forceUpsert && _writeLastHash[key] && _writeLastHash[key] === newHash) {
+      // 绝对相同内容，跳过不打日志
+      return;
+    }
+
+    // ==== 第二层去抖：1.5 秒内同 key 多次写入只保留最后一次 ====
+    if (_writeLastTs[key] && ts - _writeLastTs[key] < 1500) {
+      for (var i = _writeQueue.length - 1; i >= 0; i--) {
+        if (_writeQueue[i].type !== 'delete' && _writeQueue[i].key === key) {
+          _writeQueue.splice(i, 1);
+        }
+      }
+    }
+    _writeLastTs[key] = ts;
+    // 把 hash 存到请求对象里，成功后再更新 _writeLastHash
+    _writeQueue.push({ type: 'write', key: key, value: value, ts: ts, hash: newHash, forceUpsert: forceUpsert });
+
+    // 日志精简（非数组空数据场景省略，防止刷屏）
+    var isEmptyArr = Array.isArray(value) && value.length === 0;
+    if (!isEmptyArr) {
+      console.log('[init-page] ✨ 独立写入入队:', key, 
+        Array.isArray(value) ? ('[' + value.length + ' 条]') : '',
+        '| 队列长度=' + _writeQueue.length);
+    }
+
+    // 立即启动处理器
+    setTimeout(flushWriteQueue, 100);
+  });
+
+  // 监听删除事件
+  window.addEventListener('cloud-delete-request', function(e) {
+    var key = e.detail.key;
+    _writeQueue.push({ type: 'delete', key: key, ts: Date.now() });
+    console.log('[init-page] ✨ 独立删除入队:', key);
+    setTimeout(flushWriteQueue, 100);
+  });
+
+  // 启动后：把当前所有 SUPERSET_KEYS 的本地数据一次性"检查并上传"
+  // 用于在 Supabase 表为空（前一版 Bug 清空）时把 localStorage 中的已有数据补到云端
+  var _lastBackupTs = 0;
+  var _firstPollDone = false;   // 首次 independentPoll 拉云端成功后，才允许 runAutoBackup 上传，避免用本机旧值覆盖云端新值
+  function runAutoBackup() {
+    // 60 秒冷却，避免频繁切前台重复触发
+    if (Date.now() - _lastBackupTs < 60000) return;
+    // 关键安全锁：必须先跑通一次 independentPoll（把云端最新值拉下来），才允许本地"备份"上传。
+    // 如果这个锁没开，直接返回；doRefresh 的首次成功会自动再调用本函数一次。
+    if (!_firstPollDone) {
+      console.log('[init-page] ⏳ 自动备份延迟执行：尚未完成首次云端拉取，避免用旧值覆盖云端。首次拉取成功后会自动触发。');
+      return;
+    }
+    _lastBackupTs = Date.now();
+
+    var ALL_KEYS = [
+      'styles', 'orders', 'fabrics', 'accessories', 'samples',
+      'feedbacks', 'productions', 'invoices', 'payments', 'collections',
+      'consumptions', 'consumption_categories',
+      'contacts', 'customers', 'suppliers', 'favoriteContacts',
+      'washes', 'shippings', 'users', 'permissions',
+      'maintFabrics', 'maintAccessories',
+      'express_delivery_data_v2',
+      'pl_records_v1', 'pl_draft_v1',
+      'sht_sample_data_v2', 'sht_size_tables_v2',
+      'sizeSheets', 'styleImages',
+      'qc_field_mgmt_v2',
+      // NAS 云盘：全局共享配置和文件夹权限（按用户筛选，非管理员上传会被守卫跳过）
+      'nas_config', 'nas_folder_perms',
+    ];
+    var origLS = window._origLocalStorage || window.localStorage;
+    var needBackup = 0;
+    ALL_KEYS.forEach(function(k) {
+      try {
+        var raw = origLS.getItem(k);
+        if (raw && raw !== '[]' && raw !== 'null') {
+          window.dispatchEvent(new CustomEvent('cloud-write-request', {
+            detail: { key: k, value: JSON.parse(raw), ts: Date.now() }
+          }));
+          needBackup++;
+        }
+      } catch(e) {}
+    });
+    if (needBackup > 0) {
+      console.log('[init-page] 🔎 自动备份：检测到', needBackup, '个本地数据集有内容，已加入独立上传队列');
+    } else {
+      console.log('[init-page] 🔎 自动备份：本地无待补的数据集');
+    }
+  }
+  setTimeout(runAutoBackup, 10000);
+
+  // 页面切回前台时强制立即执行一次独立轮询 + 自动备份（带冷却）
+  // 典型场景：
+  //   - 在 Windows 编辑了其他模块（寄样/订单/通讯录...），切到 Mac Safari 前台立即拉取
+  //   - 在 Mac 编辑了数据，切回 Windows 前台时发现仍有漏网的本地数据 → 立即补上传
+  document.addEventListener('visibilitychange', function() {
+    if (!document.hidden) {
+      setTimeout(independentPoll, 200);
+      setTimeout(runAutoBackup, 500);
+    }
+  });
+  window.addEventListener('pageshow', function() {
+    setTimeout(independentPoll, 200);
+    setTimeout(runAutoBackup, 500);
+  });
+
+})(window);

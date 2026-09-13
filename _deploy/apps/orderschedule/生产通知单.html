@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>生产通知单</title>
+    <!-- Tailwind CSS v3 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        // 通用千分位格式化函数
+        function formatNumberWithCommas(value) {
+            // 检查是否为数字
+            if (typeof value !== 'number' && typeof value !== 'string') {
+                return value;
+            }
+            
+            // 转换为字符串并去除空白
+            let numStr = String(value).trim();
+            
+            // 检查是否为有效数字
+            if (!numStr || isNaN(numStr)) {
+                return value;
+            }
+            
+            // 分离整数和小数部分
+            const parts = numStr.split('.');
+            // 对整数部分应用千分位格式化
+            parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+            // 重新组合整数和小数部分
+            return parts.length > 1 ? parts.join('.') : parts[0];
+        }
+        
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1a56db',
+                        secondary: '#e2e8f0',
+                        accent: '#3b82f6',
+                        dark: '#1e293b',
+                        light: '#f8fafc'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .a4-landscape {
+                width: 297mm;
+                height: 210mm;
+            }
+            .print-shadow {
+                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            }
+            .field-label {
+                @apply text-sm font-semibold text-gray-600;
+            }
+            .field-value {
+                @apply text-base font-medium text-gray-900 border-b border-gray-200 pb-1;
+            }
+            .table-header {
+                @apply bg-primary text-white text-sm font-semibold py-2 px-4;
+            }
+            .table-cell {
+                @apply border border-gray-200 py-1 px-4 text-sm;
+            }
+        }
+    </style>
+    <style>
+        @media print {
+            /* 全局盒模型设置 - 确保padding不会增加元素总尺寸 */
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            
+            /* 隐藏非打印元素 */
+            .no-print, .container > *:not(.print-area) {
+                display: none !important;
+            }
+            
+            /* 设置A4横向打印，无边距以确保内容完全填充页面 */
+            @page {
+                size: A4 landscape;
+                margin: 0;
+            }
+            
+            /* 重置页面基础样式，设置精确A4尺寸 */
+            html, body, .container {
+                width: 297mm;
+                height: 210mm;
+                margin: 0;
+                padding: 0;
+                background: white;
+                overflow: hidden;
+            }
+            
+            /* 打印区域精确匹配A4尺寸 */
+            .print-area {
+                width: 297mm;
+                height: 210mm;
+                margin: 0;
+                padding: 10mm;
+                background: white;
+                display: flex;
+                flex-direction: column;
+                page-break-before: avoid;
+                page-break-after: avoid;
+            }
+            
+            /* 防止内部元素分页 */
+            .print-area * {
+                page-break-inside: avoid;
+            }
+            
+            /* 确保表格布局稳定 */
+            table {
+                table-layout: fixed;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4">
+    <!-- 控制按钮区域 -->
+    <div class="no-print mb-4 flex flex-wrap gap-2 justify-center">
+        <button id="editBtn" class="bg-primary hover:bg-blue-700 text-white font-bold py-2 px-4 rounded flex items-center">
+            <i class="fa fa-pencil mr-2"></i> 编辑
+        </button>
+        <button id="saveBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded flex items-center hidden">
+            <i class="fa fa-save mr-2"></i> 保存
+        </button>
+        <button id="printBtn" class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded flex items-center">
+            <i class="fa fa-print mr-2"></i> 打印
+        </button>
+    </div>
+
+    <!-- 生产通知单主体 -->
+    <div id="printArea" class="print-area a4-landscape bg-white print-shadow mx-auto p-6 flex flex-col relative">
+        <!-- 顶部区域 -->
+        <div class="flex justify-between items-start mb-2">
+            <!-- 左侧公司信息 -->
+            <div class="flex flex-col">
+                <div class="flex items-center">
+                    <span class="text-2xl font-bold text-primary mr-4">普利美</span>
+                    <div>
+                        <h1 class="text-2xl font-bold text-primary">生产通知单</h1>
+                        <p class="text-sm text-gray-500">PRODUCTION ORDER</p>
+                    </div>
+                </div>
+                <div class="mt-1 text-sm text-gray-600">
+                    <p>公司名称：普利美（常州）环境工程科技有限公司</p>
+                    <p>地址：常州市武进区雪堰镇周南路8号6-1（中南高科常州雪堰智造产业园）</p>
+                    <p>电话：139 5158 9291</p>
+                </div>
+            </div>
+            
+            <!-- 右侧订单信息 -->
+            <div class="grid grid-cols-2 gap-x-8 gap-y-2">
+                <div>
+                    <p class="field-label">下单日期</p>
+                    <p id="orderDate" class="field-value"></p>
+                </div>
+                <div>
+                    <p class="field-label">订单号</p>
+                    <p id="orderNumber" class="field-value" style="word-break: break-all; font-size: 0.9rem;"></p>
+                </div>
+                <div>
+                    <p class="field-label">客户</p>
+                    <p id="customer" class="field-value"></p>
+                </div>
+                <div>
+                    <p class="field-label">交货日期</p>
+                    <p id="deliveryDate" class="field-value"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 产品信息表格 -->
+        <div class="mt-3 max-h-[80mm]">
+            <!-- 交货期提醒 -->
+            <div id="deliveryAlert" class="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
+                <div class="flex items-start">
+                    <i class="fa fa-exclamation-circle text-yellow-500 mt-1 mr-2"></i>
+                    <div>
+                        <p class="text-sm font-medium text-yellow-800">交货期提醒</p>
+                        <p id="deliveryMessage" class="text-xs text-yellow-700">距离交货期还有7天，请确保按时完成生产。</p>
+                    </div>
+                </div>
+            </div>
+            <!-- 备注区域 -->
+            <div id="remarkArea" class="mt-2 hidden">
+                <p class="text-sm font-medium text-gray-700 mb-1">备注</p>
+                <div id="remarkView" class="text-sm text-white bg-red-600 px-3 py-2 rounded font-medium"></div>
+                <textarea id="remarkInput" class="w-full p-2 border border-gray-300 rounded text-sm hidden" rows="2" placeholder="请输入备注信息..."></textarea>
+            </div>
+            <table class="w-full border-collapse">
+                <thead>
+                    <tr>
+                        <th class="table-header text-left">产品名称</th>
+                        <th class="table-header text-left">规格</th>
+                        <th class="table-header text-left">图号</th>
+                        <th class="table-header text-left">电镀</th>
+                        <th class="table-header text-left">LOGO</th>
+                        <th class="table-header text-right">数量</th>
+                    </tr>
+                </thead>
+                <tbody class="product-table-body">
+                    <tr>
+                        <td id="productName" class="table-cell"></td>
+                        <td id="specification" class="table-cell"></td>
+                        <td id="drawingNumber" class="table-cell"></td>
+                        <td id="plating" class="table-cell"></td>
+                        <td id="bowLogo" class="table-cell"></td>
+                        <td id="quantity" class="table-cell text-right"></td>
+                    </tr>
+                    <tr>
+                        <td id="productName2" class="table-cell"></td>
+                        <td id="specification2" class="table-cell"></td>
+                        <td id="drawingNumber2" class="table-cell"></td>
+                        <td id="plating2" class="table-cell"></td>
+                        <td id="bowLogo2" class="table-cell"></td>
+                        <td id="quantity2" class="table-cell text-right"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 底部审批区域 -->
+        <div class="mt-auto grid grid-cols-4 gap-4 text-center">
+            <div>
+                <p class="text-sm font-semibold">制单</p>
+                <div class="h-12 border-b border-gray-300 mt-1"></div>
+                <p id="createdBy" class="text-xs text-gray-500 mt-1"></p>
+            </div>
+            <div>
+                <p class="text-sm font-semibold">审核</p>
+                <div class="h-12 border-b border-gray-300 mt-1"></div>
+                <p id="approvedBy" class="text-xs text-gray-500 mt-1"></p>
+            </div>
+            <div>
+                <p class="text-sm font-semibold">生产</p>
+                <div class="h-12 border-b border-gray-300 mt-1"></div>
+                <p id="productionBy" class="text-xs text-gray-500 mt-1"></p>
+            </div>
+            <div>
+                <p class="text-sm font-semibold">日期</p>
+                <div class="h-12 border-b border-gray-300 mt-1"></div>
+                <p id="signDate" class="text-xs text-gray-500 mt-1"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 当前日期和时间
+        const currentDate = new Date();
+        const formattedDate = currentDate.toISOString().split('T')[0];
+        
+        // 解析URL参数
+        function getURLParams() {
+            const params = {};
+            const urlSearch = window.location.search.substring(1);
+            const urlParams = new URLSearchParams(urlSearch);
+            
+            // 获取所有参数
+            urlParams.forEach((value, key) => {
+                params[key] = value;
+            });
+            
+            return params;
+        }
+        
+        // 渲染生产通知单
+        function renderProductionNotice(params) {
+            // 设置客户信息
+            if (params.customer) {
+                document.getElementById('customer').textContent = params.customer;
+            }
+            
+            // 设置订单信息
+            if (params.orderNo) {
+                document.getElementById('orderNumber').textContent = params.orderNo;
+            }
+            
+            if (params.orderDate) {
+                document.getElementById('orderDate').textContent = params.orderDate;
+            } else {
+                document.getElementById('orderDate').textContent = formattedDate;
+            }
+            
+            if (params.deliveryDate) {
+                document.getElementById('deliveryDate').textContent = params.deliveryDate;
+            }
+            
+            // 设置订单类型参数值
+            if (params.orderType) {
+                // 注意：页面中没有orderType元素
+            }
+            
+            // 设置产品信息表格
+            const tableBody = document.querySelector('.product-table-body');
+            tableBody.innerHTML = '';
+            
+            // 设置默认制单、审核和生产人
+            document.getElementById('createdBy').textContent = '吴小英';
+            document.getElementById('approvedBy').textContent = '吴小英';
+            document.getElementById('productionBy').textContent = '许小成';
+            
+            // 设置当前日期
+            document.getElementById('signDate').textContent = formattedDate;
+            
+            // 渲染产品行
+            for (let i = 1; i <= 10; i++) {
+                const product = params[`product${i}`];
+                if (!product) continue;
+                
+                const spec = params[`spec${i}`];
+                const drawing = params[`drawing${i}`];
+                const plated = params[`plated${i}`];
+                const quantity = params[`quantity${i}`];
+                const bow = params[`bow${i}`] || '否';
+                
+                const row = document.createElement('tr');
+                row.className = 'border-t border-gray-200';
+                
+                row.innerHTML = `
+                    <td class="table-cell">${product || ''}</td>
+                    <td class="table-cell">${spec || ''}</td>
+                    <td class="table-cell">${drawing || ''}</td>
+                    <td class="table-cell">${plated || ''}</td>
+                    <td class="table-cell">${bow}</td>
+                    <td class="table-cell text-right">${quantity ? formatNumberWithCommas(quantity) : ''}</td>
+                `;
+                
+                tableBody.appendChild(row);
+            }
+            
+            // 更新交货期提醒
+            updateDeliveryAlert();
+            
+            // 设置备注信息
+            if (params.remark) {
+                document.getElementById('remarkArea').classList.remove('hidden');
+                document.getElementById('remarkView').textContent = params.remark;
+                document.getElementById('remarkInput').value = params.remark;
+            }
+        }
+        
+        // 进入编辑模式
+        function enterEditMode() {
+            const editableElements = document.querySelectorAll('.field-value, .table-cell, #createdBy, #approvedBy, #productionBy');
+            
+            // 显示备注区域
+            document.getElementById('remarkArea').classList.remove('hidden');
+            
+            // 切换备注为编辑模式
+            document.getElementById('remarkView').classList.add('hidden');
+            document.getElementById('remarkInput').classList.remove('hidden');
+            
+            editableElements.forEach(el => {
+                // 保存原始值
+                el.dataset.originalValue = el.textContent;
+                
+                // 创建输入框
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.value = el.textContent;
+                input.className = 'w-full p-1 border border-gray-300 rounded text-sm';
+                
+                // 替换内容
+                el.textContent = '';
+                el.appendChild(input);
+                
+                // 特殊处理数量字段
+                if (el.parentElement && el.parentElement.id.includes('quantity') || el.className.includes('text-right')) {
+                    input.type = 'number';
+                    input.min = '1';
+                    input.className = 'w-full p-1 border border-gray-300 rounded text-sm text-right';
+                }
+                
+                // 特殊处理日期字段
+                if (el.id === 'orderDate' || el.id === 'deliveryDate' || el.id === 'signDate') {
+                    input.type = 'date';
+                }
+                
+                // 特殊处理是/否字段
+                if (el.id.includes('plating') || el.id.includes('bowLogo')) {
+                    const select = document.createElement('select');
+                    select.className = 'w-full p-1 border border-gray-300 rounded text-sm';
+                    
+                    const optionYes = document.createElement('option');
+                    optionYes.value = '是';
+                    optionYes.textContent = '是';
+                    
+                    const optionNo = document.createElement('option');
+                    optionNo.value = '否';
+                    optionNo.textContent = '否';
+                    
+                    select.appendChild(optionYes);
+                    select.appendChild(optionNo);
+                    select.value = el.dataset.originalValue;
+                    
+                    el.textContent = '';
+                    el.appendChild(select);
+                }
+            });
+            
+            // 切换按钮显示
+            document.getElementById('editBtn').classList.add('hidden');
+            document.getElementById('saveBtn').classList.remove('hidden');
+        }
+        
+        // 保存更改
+        function saveChanges() {
+            const editableElements = document.querySelectorAll('.field-value, .table-cell, #createdBy, #approvedBy, #productionBy');
+            
+            editableElements.forEach(el => {
+                const input = el.querySelector('input, select');
+                if (input) {
+                    el.textContent = input.value;
+                }
+            });
+            
+            // 保存备注
+            const remarkInput = document.getElementById('remarkInput');
+            const remarkView = document.getElementById('remarkView');
+            if (!remarkInput.classList.contains('hidden')) {
+                remarkView.textContent = remarkInput.value;
+                remarkInput.classList.add('hidden');
+                remarkView.classList.remove('hidden');
+            }
+            
+            // 切换按钮显示
+            document.getElementById('editBtn').classList.remove('hidden');
+            document.getElementById('saveBtn').classList.add('hidden');
+            
+            // 更新交货期提醒
+            updateDeliveryAlert();
+            
+            // 显示保存成功提示
+            alert('保存成功！');
+        }
+        
+        // 打印文档
+        function printDocument() {
+            window.print();
+        }
+        
+        // 导出为PDF
+
+        
+        // 更新交货期提醒
+        function updateDeliveryAlert() {
+            const deliveryDateStr = document.getElementById('deliveryDate').textContent;
+            const alertBox = document.getElementById('deliveryAlert');
+            const messageBox = document.getElementById('deliveryMessage');
+            
+            // 如果交货日期为空，隐藏提醒或显示未设置提示
+            if (!deliveryDateStr) {
+                alertBox.className = 'mt-4 p-3 bg-gray-50 border border-gray-200 rounded-md';
+                messageBox.className = 'text-xs text-gray-700';
+                messageBox.textContent = '未设置交货期，请先填写交货日期。';
+                return;
+            }
+            
+            const deliveryDate = new Date(deliveryDateStr);
+            
+            // 计算天数差
+            const timeDiff = deliveryDate - currentDate;
+            const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+            
+            // 根据天数差设置提醒信息
+            if (daysDiff < 0) {
+                alertBox.className = 'mt-4 p-3 bg-red-50 border border-red-200 rounded-md';
+                messageBox.className = 'text-xs text-red-700';
+                messageBox.innerHTML = `<span class="font-bold">已逾期${Math.abs(daysDiff)}天！</span> 请立即处理此订单。`;
+            } else if (daysDiff <= 3) {
+                alertBox.className = 'mt-4 p-3 bg-red-50 border border-red-200 rounded-md';
+                messageBox.className = 'text-xs text-red-700';
+                messageBox.innerHTML = `<span class="font-bold">紧急！</span> 距离交货期仅剩${daysDiff}天，请立即安排生产。`;
+            } else if (daysDiff <= 7) {
+                alertBox.className = 'mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md';
+                messageBox.className = 'text-xs text-yellow-700';
+                messageBox.textContent = `距离交货期还有${daysDiff}天，请确保按时完成生产。`;
+            } else {
+                alertBox.className = 'mt-4 p-3 bg-green-50 border border-green-200 rounded-md';
+                messageBox.className = 'text-xs text-green-700';
+                messageBox.textContent = `距离交货期还有${daysDiff}天，生产时间充裕。`;
+            }
+        }
+        
+        // DOM加载完成后执行
+        document.addEventListener('DOMContentLoaded', function() {
+            // 获取URL参数
+            const params = getURLParams();
+            
+            // 渲染生产通知单
+            renderProductionNotice(params);
+            
+            // 绑定按钮事件
+            document.getElementById('editBtn').addEventListener('click', enterEditMode);
+            document.getElementById('saveBtn').addEventListener('click', saveChanges);
+            document.getElementById('printBtn').addEventListener('click', printDocument);
+        });
+    </script>
+    </body>
+</html>

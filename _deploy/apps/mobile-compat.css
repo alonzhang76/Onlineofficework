@@ -1,0 +1,169 @@
+/* ===== Safari/移动端兼容性修复 ===== */
+
+/* 修复 iOS Safari 的 100vh 问题 */
+.h-screen, .min-h-screen {
+    height: 100vh;
+    height: 100dvh;
+}
+
+/* 修复 z-45 和 z-[1000] 不被 Tailwind JIT 支持的问题 */
+.z-45 { z-index: 45; }
+.z-\[1000\] { z-index: 1000; }
+
+/* 修复 iOS Safari 的 sticky 定位 */
+table thead th {
+    position: -webkit-sticky;
+    position: sticky;
+}
+
+/* 修复 Tailwind JIT 在 Safari 上可能不编译 @apply 的问题 - 关键样式回退 */
+.card {
+    background-color: #fff;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+}
+.btn {
+    padding: 0.5rem 1rem;
+    border-radius: 0.375rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+.btn-primary {
+    background-color: #1a56db;
+    color: #fff;
+}
+.btn-primary:hover { background-color: #1849c9; }
+.btn-secondary {
+    background-color: #64748b;
+    color: #fff;
+}
+.btn-success {
+    background-color: #10b981;
+    color: #fff;
+}
+.btn-warning {
+    background-color: #f59e0b;
+    color: #fff;
+}
+.btn-danger {
+    background-color: #ef4444;
+    color: #fff;
+}
+.form-input, .form-textarea {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    outline: none;
+    transition: all 0.25s;
+}
+.form-input:focus, .form-textarea:focus {
+    border-color: #1a56db;
+    box-shadow: 0 0 0 2px rgba(26, 86, 219, 0.2);
+}
+
+/* 移动端响应式布局 */
+@media (max-width: 768px) {
+    /* 侧边栏在手机上变为顶部水平导航 */
+    #sidebar {
+        position: fixed !important;
+        top: 0;
+        left: 0;
+        right: 0;
+        width: 100% !important;
+        height: auto !important;
+        max-height: 50vh;
+        max-height: 50dvh;
+        z-index: 100;
+        border-right: none !important;
+        border-bottom: 1px solid #e5e7eb;
+        opacity: 1 !important;
+    }
+    #sidebar.collapsed {
+        height: 56px !important;
+        max-height: 56px;
+        overflow: hidden;
+    }
+    #sidebar nav {
+        display: flex !important;
+        flex-direction: row;
+        flex-wrap: wrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 8px !important;
+        gap: 4px !important;
+    }
+    #sidebar .nav-link {
+        white-space: nowrap;
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+    #sidebar .nav-link span { font-size: 12px; }
+    #sidebar-toggle { display: none !important; }
+
+    main { overflow: visible !important; }
+    .flex.h-screen, .flex.h-screen > div {
+        flex-direction: column !important;
+        height: auto !important;
+        min-height: 100vh;
+        min-height: 100dvh;
+        overflow: visible !important;
+    }
+
+    /* 表格容器水平滚动 */
+    .table-container {
+        overflow-x: auto !important;
+        max-height: none !important;
+    }
+
+    /* 模态框适配手机 */
+    .modal-content, [class*="max-w-lg"], [class*="sm:max-w"] {
+        width: 95% !important;
+        max-width: 95vw !important;
+        margin: 0 auto;
+    }
+
+    /* 产品行多列改为 2 列 */
+    .product-row[style*="grid-template-columns: repeat(7"] {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+
+    /* 表格冻结列取消，改为水平滚动 */
+    .purchase-order-table th:nth-child(n),
+    .purchase-order-table td:nth-child(n) {
+        position: static !important;
+        z-index: auto !important;
+    }
+
+    /* 统计卡片 */
+    .grid { grid-template-columns: repeat(2, 1fr) !important; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+
+    /* 过滤栏纵向排列 */
+    .flex-wrap { flex-direction: column !important; }
+    .filter-group, .filter-bar > * { width: 100% !important; min-width: 0 !important; }
+
+    /* 表单网格单列 */
+    .form-grid { grid-template-columns: 1fr !important; }
+
+    /* 导航标签换行 */
+    .nav-tabs { flex-wrap: wrap !important; }
+    .nav-tab { flex: 1 1 auto !important; min-width: 120px !important; justify-content: center !important; }
+}
+
+@media (max-width: 480px) {
+    .grid { grid-template-columns: 1fr !important; }
+    .stats-grid { grid-template-columns: 1fr !important; }
+}
+
+/* 修复 Safari 中的 backdrop-filter 不支持 */
+@supports not (backdrop-filter: blur(10px)) {
+    .backdrop-blur { background-color: rgba(255,255,255,0.95) !important; }
+}
+
+/* 修复 iOS 滚动惯性 */
+.scroll-container, [class*="overflow-y-auto"] {
+    -webkit-overflow-scrolling: touch;
+}

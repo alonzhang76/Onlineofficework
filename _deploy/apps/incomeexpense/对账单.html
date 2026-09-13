@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>财务对账单 - A4打印版</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    
+    <!-- Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1a56db',
+                        secondary: '#166534',
+                        danger: '#991b1b',
+                        neutral: '#374151'
+                    },
+                    fontFamily: {
+                        sans: ['Noto Sans SC', 'Inter', 'system-ui', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .text-balance {
+                text-wrap: balance;
+            }
+            .border-collapse {
+                border-collapse: collapse;
+            }
+        }
+    </style>
+    
+    <!-- A4打印样式 -->
+    <style>
+        /* 基础样式 */
+        body {
+            font-family: 'Noto Sans SC', 'Inter', system-ui, sans-serif;
+            line-height: 1.6;
+            color: #000;
+            background-color: #f9fafb;
+        }
+        
+        /* A4纸张设置 */
+        .a4-paper {
+            width: 210mm; /* A4宽度 */
+            min-height: 297mm; /* A4高度 */
+            margin: 2rem auto;
+            padding: 20mm;
+            background: white;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            position: relative;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .a4-paper {
+                width: 100%;
+                margin: 0;
+                padding: 10mm;
+                box-shadow: none;
+            }
+        }
+        
+        /* 打印样式优化 */
+        @media print {
+            body {
+                background: none;
+            }
+            
+            .a4-paper {
+                width: 100%;
+                min-height: 100%;
+                margin: 0;
+                padding: 0;
+                box-shadow: none;
+            }
+            
+            /* 强制A4竖向打印 */
+            @page {
+                size: A4 portrait;
+                margin: 20mm;
+            }
+            
+            /* 避免页眉页脚 */
+            @page :left,
+                  :right {
+                @top-left {
+                    content: "";
+                }
+                @top-right {
+                    content: "";
+                }
+                @bottom-left {
+                    content: "";
+                }
+                @bottom-right {
+                    content: "";
+                }
+            }
+            
+            /* 避免在关键元素中间分页 */
+            .no-break {
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+            
+            /* 避免在表格行中间分页 */
+            table {
+                page-break-inside: avoid;
+            }
+            tr {
+                page-break-inside: avoid;
+            }
+            
+            /* 隐藏不需要打印的元素 */
+            .no-print {
+                display: none !important;
+            }
+        }
+        
+        /* 表格样式优化 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        
+        th, td {
+            padding: 8px 12px;
+            text-align: left;
+            border: 1px solid #d1d5db;
+        }
+        
+        th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+            color: #1f2937;
+        }
+        
+        /* 斑马条纹 */
+        tr:nth-child(even) {
+            background-color: #f9fafb;
+        }
+    </style>
+</head>
+<body>
+    <!-- 页面控制按钮 -->
+    <div class="fixed bottom-4 right-4 z-50 no-print">
+        <button id="print-btn" class="bg-primary text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 hover:bg-primary/90 transition-colors">
+            <i class="fa fa-print"></i>
+            <span>打印</span>
+        </button>
+        <button id="edit-btn" class="mt-2 bg-neutral text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 hover:bg-neutral/90 transition-colors">
+            <i class="fa fa-pencil"></i>
+            <span>编辑</span>
+        </button>
+    </div>
+    
+    <!-- A4打印区域 -->
+    <div class="a4-paper">
+        <!-- 公司信息和标题区域 -->
+        <div class="no-break mb-8">
+            <div class="flex justify-between items-start">
+                <div class="mb-4">
+                    <h1 id="company-name" class="text-2xl font-bold text-neutral mb-1">普利美（常州）环境工程科技有限公司</h1>
+                    <div class="text-sm text-gray-600 space-y-1">
+                        <p>地址: 江苏省常州市武进区雪堰镇周南路8号中南高科产业园6-1</p>
+                        <p>电话: 13951589291</p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="inline-block border-2 border-primary px-6 py-3 rounded-lg">
+                        <h2 class="text-xl font-bold text-primary">财务对账单</h2>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 对账单信息 -->
+            <div class="border border-gray-300 rounded-lg p-4 bg-gray-50">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-sm text-gray-600">对账单位:</p>
+                        <p id="reconciliation-unit" class="font-medium">[单位名称]</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">对账期间:</p>
+                        <p id="reconciliation-period" class="font-medium">2023年1月1日 - 2023年12月31日</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">制单日期:</p>
+                        <p id="document-date" class="font-medium">2024年1月15日</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">对账单编号:</p>
+                        <p id="document-number" class="font-medium"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 交易明细表格 -->
+        <div class="no-break mb-8">
+            <h3 class="text-lg font-semibold mb-3 text-neutral">交易明细</h3>
+            <div class="overflow-x-auto">
+                <table id="transactions-table" class="min-w-full">
+                    <thead>
+                        <tr>
+                            <th>日期</th>
+                            <th>类型</th>
+                            <th>分类</th>
+                            <th>金额 (¥)</th>
+                            <th>描述</th>
+                            <th>单位名称</th>
+                        </tr>
+                    </thead>
+                    <tbody id="transactions-body">
+                        <!-- 示例数据行 -->
+                        <tr>
+                            <td>2023-12-25</td>
+                            <td><span class="px-2 py-1 bg-red-100 text-red-800 rounded">支出</span></td>
+                            <td>原材料</td>
+                            <td class="text-right">-12,500.00</td>
+                            <td>购买原材料一批</td>
+                            <td>常州材料供应商</td>
+                        </tr>
+                        <tr>
+                            <td>2023-12-20</td>
+                            <td><span class="px-2 py-1 bg-green-100 text-green-800 rounded">收入</span></td>
+                            <td>货款</td>
+                            <td class="text-right">+25,000.00</td>
+                            <td>产品销售款</td>
+                            <td>南京客户公司</td>
+                        </tr>
+                        <tr>
+                            <td>2023-12-15</td>
+                            <td><span class="px-2 py-1 bg-red-100 text-red-800 rounded">支出</span></td>
+                            <td>工资</td>
+                            <td class="text-right">-18,000.00</td>
+                            <td>12月份员工工资</td>
+                            <td>内部员工</td>
+                        </tr>
+                        <tr>
+                            <td>2023-12-10</td>
+                            <td><span class="px-2 py-1 bg-red-100 text-red-800 rounded">支出</span></td>
+                            <td>电镀费</td>
+                            <td class="text-right">-3,200.00</td>
+                            <td>产品表面处理费</td>
+                            <td>无锡电镀厂</td>
+                        </tr>
+                        <tr>
+                            <td>2023-12-05</td>
+                            <td><span class="px-2 py-1 bg-green-100 text-green-800 rounded">收入</span></td>
+                            <td>货款</td>
+                            <td class="text-right">+30,000.00</td>
+                            <td>批量产品订单</td>
+                            <td>上海贸易公司</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- 无数据状态 -->
+            <div id="empty-state" class="hidden py-12 text-center text-gray-500">
+                <i class="fa fa-file-text-o text-4xl mb-3"></i>
+                <p>该对账期间内没有交易记录</p>
+            </div>
+        </div>
+        
+        <!-- 汇总信息 -->
+        <div class="no-break mb-8">
+            <div class="border border-gray-300 rounded-lg p-6 bg-gray-50">
+                <h3 class="text-lg font-semibold mb-4 text-neutral">对账汇总</h3>
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="border-t border-gray-300 pt-2">
+                        <p class="text-sm text-gray-600">收入总额:</p>
+                        <p id="total-income" class="text-xl font-bold text-green-700">¥55,000.00</p>
+                    </div>
+                    <div class="border-t border-gray-300 pt-2">
+                        <p class="text-sm text-gray-600">支出总额:</p>
+                        <p id="total-expense" class="text-xl font-bold text-red-700">¥33,700.00</p>
+                    </div>
+                    <div class="border-t border-gray-300 pt-2">
+                        <p class="text-sm text-gray-600">期末余额:</p>
+                        <p id="final-balance" class="text-xl font-bold text-blue-700">¥21,300.00</p>
+                    </div>
+                </div>
+                <div class="mt-4 border-t border-gray-300 pt-2">
+                    <p class="text-sm text-gray-600">交易笔数:</p>
+                    <p id="transaction-count" class="text-lg font-semibold">5笔</p>
+                </div>
+            </div>
+        </div>
+        
+
+        
+        <!-- 签字盖章区域 -->
+        <div class="no-break mt-auto" style="margin-top: auto;">
+            <div class="flex justify-between">
+                <div class="text-center">
+                    <div class="mb-4 text-gray-700">
+                            <p>制单人:</p>
+                            <p id="prepared-by">吴小英</p>
+                        </div>
+                        <div class="text-gray-700">
+                            <p>审核人:</p>
+                            <p id="reviewed-by">吴小英</p>
+                        </div>
+                </div>
+                <div class="text-center">
+                    <div class="mb-6">
+                        <div class="w-32 h-20 border border-gray-300 mx-auto mb-2 flex items-center justify-center">
+                            <span class="text-sm text-gray-500">财务专用章</span>
+                        </div>
+                    </div>
+                    <div class="text-gray-700">
+                        <p>盖章处</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 编辑模态框 -->
+    <div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden no-print">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold text-neutral">编辑对账单信息</h3>
+                    <button id="close-modal" class="text-gray-500 hover:text-gray-700">
+                        <i class="fa fa-times text-xl"></i>
+                    </button>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">公司名称</label>
+                        <input type="text" id="edit-company-name" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" value="普利美（常州）环境工程科技有限公司">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">对账单位</label>
+                        <input type="text" id="edit-unit" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" placeholder="请输入单位名称">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">对账期间</label>
+                        <input type="text" id="edit-period" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" value="2023年1月1日 - 2023年12月31日">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">制单日期</label>
+                        <input type="text" id="edit-date" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" value="2024年1月15日">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">对账单编号</label>
+                        <input type="text" id="edit-number" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">交易笔数</label>
+                        <input type="text" id="edit-count" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" value="5笔">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">制单人</label>
+                        <input type="text" id="edit-prepared" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" value="吴小英">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">审核人</label>
+                        <input type="text" id="edit-reviewed" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" value="吴小英">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">收入总额</label>
+                        <input type="text" id="edit-income" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" value="¥55,000.00">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">支出总额</label>
+                        <input type="text" id="edit-expense" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" value="¥33,700.00">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">期末余额</label>
+                        <input type="text" id="edit-balance" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" value="¥21,300.00">
+                    </div>
+                </div>
+                
+                <div class="mt-6">
+                    <button id="save-changes" class="bg-primary text-white px-6 py-2 rounded-md hover:bg-primary/90 transition-colors">保存修改</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- JavaScript -->
+    <script>
+        // 分类数据 - 与收支表保持一致
+        window.categories = {
+            income: [
+                { id: 'salary', name: '前期账面余额', icon: 'fa-briefcase', color: '#10b981' },
+                { id: 'bonus', name: '无锡龙力', icon: 'fa-trophy', color: '#f59e0b' },
+                { id: 'investment', name: '货款', icon: 'fa-line-chart', color: '#3b82f6' },
+                { id: 'side-income', name: '个人垫资', icon: 'fa-coffee', color: '#8b5cf6' },
+                { id: 'gift', name: '还款', icon: 'fa-gift', color: '#ec4899' },
+                { id: 'other-income', name: '其他收入', icon: 'fa-ellipsis-h', color: '#6b7280' }
+            ],
+            expense: [
+                { id: 'food', name: '原材料', icon: 'fa-cutlery', color: '#ef4444' },
+                { id: 'transportation', name: '辅助材料', icon: 'fa-car', color: '#3b82f6' },
+                { id: 'housing', name: '外协加工费', icon: 'fa-home', color: '#8b5cf6' },
+                { id: 'utilities', name: '外购成品', icon: 'fa-bolt', color: '#f59e0b' },
+                { id: 'entertainment', name: '固定资产设备', icon: 'fa-film', color: '#ec4899' },
+                { id: 'shopping', name: '易耗品材料', icon: 'fa-shopping-bag', color: '#10b981' },
+                { id: 'healthcare', name: '税', icon: 'fa-heartbeat', color: '#ef4444' },
+                { id: 'education', name: '员工报销', icon: 'fa-graduation-cap', color: '#3b82f6' },
+                { id: 'salary', name: '工资', icon: 'fa-money', color: '#10b981' },
+                { id: 'plating', name: '电镀费', icon: 'fa-cogs', color: '#3b82f6' },
+                { id: 'personal-loan', name: '借款', icon: 'fa-handshake-o', color: '#f59e0b' },
+                { id: 'insurance', name: '水电费', icon: 'fa-shield', color: '#8b5cf6' },
+                { id: 'other-expense', name: '其他支出', icon: 'fa-ellipsis-h', color: '#6b7280' }
+            ]
+        };
+        
+        // 打印功能
+        document.getElementById('print-btn').addEventListener('click', function() {
+            window.print();
+        });
+        
+        // 编辑功能
+        const editModal = document.getElementById('edit-modal');
+        document.getElementById('edit-btn').addEventListener('click', function() {
+            editModal.classList.remove('hidden');
+        });
+        
+        document.getElementById('close-modal').addEventListener('click', function() {
+            editModal.classList.add('hidden');
+        });
+        
+        // 点击模态框外部关闭
+        editModal.addEventListener('click', function(e) {
+            if (e.target === editModal) {
+                editModal.classList.add('hidden');
+            }
+        });
+        
+        // 保存修改
+        document.getElementById('save-changes').addEventListener('click', function() {
+            // 更新公司名称
+            document.getElementById('company-name').textContent = document.getElementById('edit-company-name').value;
+            
+            // 更新对账单位
+            document.getElementById('reconciliation-unit').textContent = document.getElementById('edit-unit').value || '[单位名称]';
+            
+            // 更新对账期间
+            document.getElementById('reconciliation-period').textContent = document.getElementById('edit-period').value;
+            
+            // 更新制单日期
+            document.getElementById('document-date').textContent = document.getElementById('edit-date').value;
+            
+            // 更新对账单编号
+            document.getElementById('document-number').textContent = document.getElementById('edit-number').value;
+            
+            // 更新交易笔数
+            document.getElementById('transaction-count').textContent = document.getElementById('edit-count').value;
+            
+            // 更新制单人
+            document.getElementById('prepared-by').textContent = document.getElementById('edit-prepared').value;
+            
+            // 更新审核人
+            document.getElementById('reviewed-by').textContent = document.getElementById('edit-reviewed').value;
+            
+            // 更新收入总额
+            document.getElementById('total-income').textContent = document.getElementById('edit-income').value;
+            
+            // 更新支出总额
+            document.getElementById('total-expense').textContent = document.getElementById('edit-expense').value;
+            
+            // 更新期末余额
+            document.getElementById('final-balance').textContent = document.getElementById('edit-balance').value;
+            
+            // 关闭模态框
+            editModal.classList.add('hidden');
+            
+            // 显示成功提示
+            alert('对账单信息已更新！');
+        });
+        
+        // 生成随机8位数字
+        function generateRandomNumber() {
+            return Math.floor(10000000 + Math.random() * 90000000).toString();
+        }
+
+        // 初始化 - 设置当前日期为制单日期并检查是否有传递的对账参数
+        document.addEventListener('DOMContentLoaded', function() {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = today.getMonth() + 1;
+            const day = today.getDate();
+            const formattedDate = `${year}年${month}月${day}日`;
+            
+            // 生成并设置随机编号
+            const randomNumber = generateRandomNumber();
+            document.getElementById('document-number').textContent = randomNumber;
+            document.getElementById('edit-number').value = randomNumber;
+            
+            document.getElementById('document-date').textContent = formattedDate;
+            document.getElementById('edit-date').value = formattedDate;
+            
+            // 检查是否有对账参数传递过来
+            loadReconciliationData();
+        });
+        
+        // 加载对账数据并生成对账单
+        function loadReconciliationData() {
+            try {
+                // 从localStorage获取交易数据
+                const transactionsData = localStorage.getItem('reconciliation_transactions');
+                const paramsData = localStorage.getItem('reconciliation_params');
+                
+                if (transactionsData && paramsData) {
+                    const transactions = JSON.parse(transactionsData);
+                    const params = new URLSearchParams(paramsData);
+                    
+                    // 获取公司信息
+                    const company = params.get('company');
+                    const companyNames = {
+                        'company1': '普利美（常州）环境工程科技有限公司',
+                        'company2': '无锡龙力印铁设备制造有限公司'
+                    };
+                    const companyName = companyNames[company] || '公司名称';
+                    
+                    // 更新公司名称
+                    document.getElementById('company-name').textContent = companyName;
+                    document.getElementById('edit-company-name').value = companyName;
+                    
+                    // 更新对账单位
+                    const unit = params.get('unit');
+                    if (unit) {
+                        document.getElementById('reconciliation-unit').textContent = unit;
+                        document.getElementById('edit-unit').value = unit;
+                    }
+                    
+                    // 更新对账期间
+                    const startDate = params.get('startDate');
+                    const endDate = params.get('endDate');
+                    if (startDate && endDate) {
+                        const formattedStartDate = formatDateForDisplay(startDate);
+                        const formattedEndDate = formatDateForDisplay(endDate);
+                        const periodText = `${formattedStartDate} - ${formattedEndDate}`;
+                        document.getElementById('reconciliation-period').textContent = periodText;
+                        document.getElementById('edit-period').value = periodText;
+                    }
+                    
+                    // 生成交易明细表格
+                    generateTransactionTable(transactions);
+                }
+            } catch (error) {
+                console.error('加载对账数据失败:', error);
+            }
+        }
+        
+        // 格式化日期显示
+        function formatDateForDisplay(dateString) {
+            const date = new Date(dateString);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}年${month}月${day}日`;
+        }
+        
+        // 更新汇总信息的辅助函数
+        function updateSummary(transactions) {
+            let totalIncome = 0;
+            let totalExpense = 0;
+            
+            transactions.forEach(transaction => {
+                if (transaction.type === 'income') {
+                    totalIncome += transaction.amount;
+                } else {
+                    totalExpense += transaction.amount;
+                }
+            });
+            
+            const finalBalance = totalIncome - totalExpense;
+            document.getElementById('total-income').textContent = `¥${formatAmount(totalIncome)}`;
+            document.getElementById('total-expense').textContent = `¥${formatAmount(totalExpense)}`;
+            document.getElementById('final-balance').textContent = `¥${formatAmount(finalBalance)}`;
+            document.getElementById('transaction-count').textContent = `${transactions.length}笔`;
+            
+            // 更新编辑模态框中的汇总数据
+            document.getElementById('edit-income').value = `¥${formatAmount(totalIncome)}`;
+            document.getElementById('edit-expense').value = `¥${formatAmount(totalExpense)}`;
+            document.getElementById('edit-balance').value = `¥${formatAmount(finalBalance)}`;
+            document.getElementById('edit-count').value = `${transactions.length}笔`;
+        }
+        
+        // 更新空状态显示的辅助函数
+        function updateEmptyStateDisplay(transactions) {
+            const emptyState = document.getElementById('empty-state');
+            const tableContainer = document.getElementById('transactions-body').parentElement.parentElement;
+            
+            if (transactions && transactions.length > 0) {
+                emptyState.classList.add('hidden');
+                tableContainer.classList.remove('hidden');
+            } else {
+                emptyState.classList.remove('hidden');
+                tableContainer.classList.add('hidden');
+            }
+        }
+        
+        // 修复分类名称数据的函数
+        function fixCategoryNames() {
+            try {
+                // 获取交易数据
+                const transactionsData = localStorage.getItem('reconciliation_transactions');
+                const paramsData = localStorage.getItem('reconciliation_params');
+                
+                if (transactionsData && paramsData) {
+                    const transactions = JSON.parse(transactionsData);
+                    const params = new URLSearchParams(paramsData);
+                    const company = params.get('company');
+                    
+                    // 尝试从不同位置获取分类数据
+                    let categoriesData = {};
+                    const possibleKeys = [
+                        `categories_${company}`,
+                        `${company}-categories`,
+                        'categories'
+                    ];
+                    
+                    let foundCategories = false;
+                    for (const key of possibleKeys) {
+                        const data = localStorage.getItem(key);
+                        if (data) {
+                            categoriesData = JSON.parse(data);
+                            foundCategories = true;
+                            break;
+                        }
+                    }
+                    
+                    // 如果找到了分类数据，尝试修复
+                    if (foundCategories && transactions.length > 0) {
+                        let fixedCount = 0;
+                        
+                        // 为交易数据添加或修复categoryName
+                        const fixedTransactions = transactions.map(transaction => {
+                            // 如果已经有categoryName且不是"未分类"，则保留
+                            if (transaction.categoryName && transaction.categoryName !== '未分类') {
+                                return transaction;
+                            }
+                            
+                            // 尝试通过categoryId查找分类名称
+                            if (transaction.categoryId) {
+                                let categoryName = '未分类';
+                                
+                                // 尝试不同的分类数据结构
+                                if (Array.isArray(categoriesData)) {
+                                    const category = categoriesData.find(cat => cat.id === transaction.categoryId);
+                                    if (category && category.name) {
+                                        categoryName = category.name;
+                                    }
+                                } else if (categoriesData.income && Array.isArray(categoriesData.income)) {
+                                    const category = categoriesData.income.find(cat => cat.id === transaction.categoryId);
+                                    if (category && category.name) {
+                                        categoryName = category.name;
+                                    }
+                                } else if (categoriesData.expense && Array.isArray(categoriesData.expense)) {
+                                    const category = categoriesData.expense.find(cat => cat.id === transaction.categoryId);
+                                    if (category && category.name) {
+                                        categoryName = category.name;
+                                    }
+                                }
+                                
+                                // 如果找到了分类名称，更新交易数据
+                                if (categoryName !== '未分类') {
+                                    fixedCount++;
+                                    return {
+                                        ...transaction,
+                                        categoryName: categoryName
+                                    };
+                                }
+                            }
+                            
+                            return transaction;
+                        });
+                        
+                        // 保存修复后的交易数据
+                        localStorage.setItem('reconciliation_transactions', JSON.stringify(fixedTransactions));
+                        
+                        // 重新生成表格
+                        generateTransactionTable(fixedTransactions);
+                        
+                        // 更新汇总信息
+                        updateSummary(fixedTransactions);
+                        
+                        // 更新空状态显示
+                        updateEmptyStateDisplay(fixedTransactions);
+                    }
+                }
+            } catch (error) {
+                console.error('修复分类名称失败:', error);
+            }
+        }
+        
+        // 生成交易明细表格
+        function generateTransactionTable(transactions) {
+            const tbody = document.getElementById('transactions-body');
+            const emptyState = document.getElementById('empty-state');
+            
+            // 清空现有表格内容
+            tbody.innerHTML = '';
+            
+            if (transactions && transactions.length > 0) {
+                // 按日期排序（最新的在前）
+                transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+                
+                // 计算汇总数据
+                let totalIncome = 0;
+                let totalExpense = 0;
+                
+                // 添加交易记录
+                transactions.forEach((transaction, index) => {
+                    
+                    const row = document.createElement('tr');
+                    
+                    // 根据交易类型设置样式
+                    const typeClass = transaction.type === 'income' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+                    const typeText = transaction.type === 'income' ? '收入' : '支出';
+                    const amountSign = transaction.type === 'income' ? '+' : '-';
+                    const formattedAmount = formatAmount(transaction.amount);
+                    
+                    // 累加汇总数据
+                    if (transaction.type === 'income') {
+                        totalIncome += transaction.amount;
+                    } else {
+                        totalExpense += transaction.amount;
+                    }
+                    
+                    // 格式化日期
+                    const formattedDate = formatDateForDisplay(transaction.date);
+                    
+                    // 直接使用从收支表传递过来的categoryName，确保与对账查询结果完全一致
+                    const categoryName = transaction.categoryName || '未分类';
+                    
+                    // 创建表格行内容
+                    row.innerHTML = `
+                        <td>${formattedDate}</td>
+                        <td><span class="px-2 py-1 ${typeClass} rounded">${typeText}</span></td>
+                        <td>${categoryName}</td>
+                        <td class="text-right">${amountSign}${formattedAmount}</td>
+                        <td>${transaction.description || ''}</td>
+                        <td>${transaction.unit || ''}</td>
+                    `;
+                    
+                    tbody.appendChild(row);
+                });
+                
+                // 更新汇总信息
+                const finalBalance = totalIncome - totalExpense;
+                document.getElementById('total-income').textContent = `¥${formatAmount(totalIncome)}`;
+                document.getElementById('total-expense').textContent = `¥${formatAmount(totalExpense)}`;
+                document.getElementById('final-balance').textContent = `¥${formatAmount(finalBalance)}`;
+                document.getElementById('transaction-count').textContent = `${transactions.length}笔`;
+                
+                // 更新编辑模态框中的汇总数据
+                document.getElementById('edit-income').value = `¥${formatAmount(totalIncome)}`;
+                document.getElementById('edit-expense').value = `¥${formatAmount(totalExpense)}`;
+                document.getElementById('edit-balance').value = `¥${formatAmount(finalBalance)}`;
+                document.getElementById('edit-count').value = `${transactions.length}笔`;
+                
+                // 隐藏空状态，显示表格
+                emptyState.classList.add('hidden');
+                tbody.parentElement.parentElement.classList.remove('hidden');
+            } else {
+                // 显示空状态，隐藏表格
+                emptyState.classList.remove('hidden');
+                tbody.parentElement.parentElement.classList.add('hidden');
+                
+                // 重置汇总信息
+                document.getElementById('total-income').textContent = '¥0.00';
+                document.getElementById('total-expense').textContent = '¥0.00';
+                document.getElementById('final-balance').textContent = '¥0.00';
+                document.getElementById('transaction-count').textContent = '0笔';
+            }
+        }
+        
+        // 格式化金额显示
+        function formatAmount(amount) {
+            return Math.abs(amount).toLocaleString('zh-CN', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
+    </script>
+</body>
+</html>
