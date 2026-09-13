@@ -80,7 +80,7 @@ body {
     </form>
   </div>
 </div>
-<script type="module" src="js/supabase.js"></script>
+<script type="module" src="js/cloudbase.js"></script>
 <script type="module" src="js/login.js"></script>
 <script>
 (function checkLoginReady() {
@@ -95,7 +95,7 @@ body {
       if (msg) { msg.style.color = '#dc2626'; msg.textContent = '登录模块加载失败，请检查网络连接后刷新页面'; }
       if (dbg) {
         dbg.style.display = 'block';
-        dbg.textContent = '调试信息：\n1. 确认 js/supabase.js 中 SUPABASE_URL 和 anon key 已正确填入\n2. 打开浏览器控制台（F12）查看具体错误\n3. 尝试访问 https://esm.sh/@supabase/supabase-js@2 是否可达';
+        dbg.textContent = '调试信息：\n1. 确认 apps/cloudbase/cloudbase.js 中 CLOUDBASE_ENV 环境 ID 正确\n2. 打开浏览器控制台（F12）查看具体错误\n3. 确认 CloudBase 控制台已开启「邮箱登录」且静态托管 CDN 可达';
       }
     }
   }, 100);

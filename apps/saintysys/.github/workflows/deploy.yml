@@ -1,0 +1,62 @@
+name: Deploy to CloudBase
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install CloudBase CLI
+        run: npm install -g @cloudbase/cli
+
+      - name: CloudBase Login
+        env:
+          TCB_SECRET_ID: ${{ secrets.TCB_SECRET_ID }}
+          TCB_SECRET_KEY: ${{ secrets.TCB_SECRET_KEY }}
+        run: |
+          tcb login --apiKeyId "$TCB_SECRET_ID" --apiKey "$TCB_SECRET_KEY"
+
+      - name: Prepare Deploy Directory
+        run: |
+          # 只打包线上需要的静态资源，排除脚本/云函数源码/文档/备份
+          mkdir -p _deploy
+          cp -r css js picture layout _deploy/ 2>/dev/null || true
+          cp *.html _deploy/ 2>/dev/null || true
+          cp *.png *.jpg _deploy/ 2>/dev/null || true
+          # 不发布备份文件
+          rm -f _deploy/*.bak
+          ls -la _deploy
+
+      - name: Deploy Static Hosting
+        env:
+          TCB_ENV_ID: ${{ secrets.TCB_ENV_ID }}
+        run: |
+          # 部署 _deploy 目录内容到静态托管根目录
+          tcb hosting deploy _deploy / -e "$TCB_ENV_ID" --force
+
+      - name: Deploy Cloud Function (tcb-file-list)
+        # 文件列表云函数为可选增强（图片浏览），失败不阻断静态部署
+        continue-on-error: true
+        env:
+          TCB_ENV_ID: ${{ secrets.TCB_ENV_ID }}
+        run: |
+          cd cloudfunctions/tcb-file-list
+          npm install --production
+          tcb fn deploy tcb-file-list -e "$TCB_ENV_ID" --force
+
+      - name: Deployment Summary
+        run: |
+          echo "✅ 部署完成"
+          echo "环境 ID: ${{ secrets.TCB_ENV_ID }}"
+          echo "访问地址：https://6f6e-${{ secrets.TCB_ENV_ID }}-1255789358.tcb.qcloud.la/login.html"

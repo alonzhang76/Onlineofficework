@@ -1,7 +1,7 @@
 {
   "categories": [
     {
-      "id": "clothing",
+      "id": "saintysys",
       "name": "服装业务",
       "icon": "👕",
       "color": "#ec4899"
@@ -21,13 +21,13 @@
   ],
   "apps": [
     {
-      "id": "clothing",
-      "name": "服装管理",
-      "description": "服装全流程系统",
-      "url": "apps/clothing/index.html",
+      "id": "saintysys",
+      "name": "AA服装外贸系统",
+      "description": "SAINTY 服装外贸全流程系统",
+      "url": "apps/saintysys/index.html",
       "icon": "👕",
       "color": "#ec4899",
-      "category": "clothing",
+      "category": "saintysys",
       "sort_order": 1
     },
     {

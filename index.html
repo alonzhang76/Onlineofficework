@@ -970,20 +970,30 @@ body {
   </div>
 </div>
 
-<!-- Supabase SDK (UMD build - 正确路径) -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<!-- CloudBase 共享兼容层（对外暴露与 supabase-js 兼容的 window.supabase） -->
+<!-- 门户登录页：禁止模块自动匿名登录，完全由用户输入邮箱密码登录 -->
+<script>window.CLOUDBASE_DISABLE_ANON = true;</script>
+<script type="module" src="apps/cloudbase/cloudbase.js"></script>
 <script>
-/* ===== 配置 ===== */
-const SUPABASE_URL = "https://ugoyacuagslqhqguxyqe.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVnb3lhY3VhZ3NscWhxZ3V4eXFlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY5MzI5NTUsImV4cCI6MjEwMjUwODk1NX0._GdWOGWblSpOYm3y8f_d3aVQszfn2YbRjHN0FqZiLtI";
-
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-  },
-});
+/* ===== CloudBase 客户端就绪等待 =====
+ * cloudbase.js 是 ES module（延迟执行），本经典脚本里的业务函数调用前先 await。
+ */
+let supabaseClient = null;
+function whenCloudbaseReady() {
+  return new Promise((resolve) => {
+    if (window.supabase) { supabaseClient = window.supabase; return resolve(supabaseClient); }
+    const t0 = Date.now();
+    const timer = setInterval(() => {
+      if (window.supabase) {
+        clearInterval(timer);
+        supabaseClient = window.supabase;
+        resolve(supabaseClient);
+      } else if (Date.now() - t0 > 20000) {
+        clearInterval(timer);
+      }
+    }, 50);
+  });
+}
 
 /* ===== 全局状态 ===== */
 let APP_CONFIG = { apps: [], admin_email: 'alonzhang76@outlook.com' };
@@ -1106,17 +1116,20 @@ async function handleLogin(event) {
   setDebug('');
 
   try {
+    if (!supabaseClient) await whenCloudbaseReady();
     const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
 
     if (error) {
       const em = (error.message || '').toLowerCase();
-      if (em.includes('invalid login') || em.includes('invalid_credentials')) {
+      if (em.includes('invalid login') || em.includes('invalid_credentials')
+          || em.includes('密码') || em.includes('用户名或密码') || em.includes('password')
+          || em.includes('credential') || em.includes('user not found') || em.includes('不存在')) {
         setMessage('邮箱或密码错误', 'error');
-      } else if (em.includes('email not confirmed') || em.includes('not confirmed')) {
+      } else if (em.includes('email not confirmed') || em.includes('not confirmed') || em.includes('验证')) {
         setMessage('邮箱尚未验证，请先去邮箱确认', 'error');
-      } else if (em.includes('rate limit') || em.includes('too many')) {
+      } else if (em.includes('rate limit') || em.includes('too many') || em.includes('频繁')) {
         setMessage('尝试次数过多，请稍后再试', 'error');
-      } else if (em.includes('fetch') || em.includes('network') || em.includes('abort')) {
+      } else if (em.includes('fetch') || em.includes('network') || em.includes('abort') || em.includes('网络')) {
         setMessage('网络错误，请检查网络连接', 'error');
         setDebug('网络请求失败：\n' + error.message);
       } else {
@@ -1174,16 +1187,10 @@ async function handleLogout() {
   closeAdminPanel();
   clearAutoLogin();
   try {
-    await supabaseClient.auth.signOut();
+    if (supabaseClient) await supabaseClient.auth.signOut();
   } catch (e) { /* 忽略 */ }
-  try {
-    const keys = Object.keys(localStorage);
-    keys.forEach(k => {
-      if (k && k.indexOf('sb-') === 0 && k.indexOf('-auth-token') >= 0) {
-        localStorage.removeItem(k);
-      }
-    });
-  } catch (e) { /* 忽略 */ }
+  // 兜底：清掉 CloudBase 兼容层的本地会话缓存
+  try { localStorage.removeItem('tcb_auth_session'); } catch (e) { /* 忽略 */ }
   currentUser = null;
   isAdmin = false;
   showLogin();
@@ -1254,13 +1261,16 @@ async function loadUserApps(user) {
     return;
   }
 
-  // 普通用户从数据库读取权限
+  // 普通用户从 CloudBase 读取权限
+  // 权限表 user_app_permissions（PG：{id, data jsonb}），每个用户一行：
+  //   id = 'perm::<小写邮箱>'，data.perms = { appId: 'read'|'write'|'none' }
   try {
-    console.log('[perms] user.id =', user.id);
+    const docId = 'perm::' + (user.email || '').toLowerCase();
+    console.log('[perms] doc id =', docId);
     const { data, error } = await supabaseClient
       .from('user_app_permissions')
-      .select('app_id, permission')
-      .eq('user_id', user.id);
+      .select('*')
+      .eq('id', docId);
 
     console.log('[perms] query result:', { data, error });
 
@@ -1272,9 +1282,12 @@ async function loadUserApps(user) {
 
     // 构建权限映射
     const permMap = {};
-    (data || []).forEach(item => {
-      permMap[item.app_id] = item.permission;
-    });
+    const row = (data || [])[0];
+    if (row && row.perms && typeof row.perms === 'object') {
+      Object.keys(row.perms).forEach(appId => {
+        permMap[appId] = row.perms[appId];
+      });
+    }
 
     console.log('[perms] permMap =', permMap);
     console.log('[perms] apps =', apps.map(a => ({ id: a.id, name: a.name })));
@@ -1430,20 +1443,8 @@ async function loadUserList() {
   `;
 
   try {
-    // 方式1：尝试从自定义表读取（需要建表 + RLS）
-    // 方式2：用 RPC 函数（更安全）
-    // 方式3：从 auth.users 读取（需要 service_role，前端不行）
-    // 折中方案：从 user_app_permissions 表中收集已出现过的用户 + 手动添加
-    // 但最实用的是：提供一个输入框让管理员输入用户邮箱来添加
-    
-    // 先查已有权限的用户
-    const { data: permData, error } = await supabaseClient
-      .from('user_app_permissions')
-      .select('user_id')
-      .eq('user_id', currentUser.id); // 占位：实际需要能读所有用户
-
-    // 由于 RLS 限制，前端 anon key 无法读所有用户
-    // 所以我们用另一种方式：让管理员输入邮箱来管理
+    // CloudBase PG 模式下前端无法枚举 auth 用户，
+    // 采用「输入用户邮箱 → 读取/新建该用户权限文档」的方式管理。
     renderUserListInputMode();
   } catch (e) {
     console.error('[admin] 加载用户列表失败:', e);
@@ -1462,7 +1463,7 @@ function renderUserListInputMode() {
       <button class="admin-btn-primary" onclick="findUserByEmail()" style="padding:10px 16px; white-space:nowrap;">查找</button>
     </div>
     <div style="font-size:12px; color:#64748b; margin-bottom:8px;">
-      💡 提示：输入用户邮箱来设置其权限。用户需已在 Supabase Auth 中注册。
+      💡 提示：输入用户邮箱来设置其权限。用户需已在 CloudBase「身份认证 → 用户管理」中创建。
     </div>
   `;
 }
@@ -1470,45 +1471,41 @@ function renderUserListInputMode() {
 /* ===== 根据邮箱查找用户并读取权限 ===== */
 async function findUserByEmail() {
   const emailInput = document.getElementById('userEmailInput');
-  const email = emailInput.value.trim();
+  const email = emailInput.value.trim().toLowerCase();
   if (!email) return;
 
   adminStatus.textContent = '查找用户中…';
   adminStatus.className = 'admin-footer-status';
 
   try {
-    // 调用 RPC 函数读取用户权限
-    const { data, error } = await supabaseClient.rpc('portal_get_user_permissions', {
-      p_user_email: email
-    });
+    if (!supabaseClient) await whenCloudbaseReady();
+    const emailKey = email.toLowerCase();
+
+    // 直接读取该用户的权限文档：id = 'perm::<邮箱>'
+    const { data, error } = await supabaseClient
+      .from('user_app_permissions')
+      .select('*')
+      .eq('id', 'perm::' + emailKey);
 
     if (error) {
-      // 如果函数不存在，可能是还没执行 SQL 脚本
-      if (error.message && error.message.includes('function') && error.message.includes('does not exist')) {
-        adminStatus.textContent = '请先在 Supabase 中执行 setup_portal.sql';
-        adminStatus.className = 'admin-footer-status error';
+      adminStatus.textContent = '查找失败：' + (error.message || '未知错误');
+      adminStatus.className = 'admin-footer-status error';
+      if ((error.message || '').toLowerCase().includes('permission denied')
+          || (error.code === '42P01')) {
         showSetupHint();
-      } else if (error.message && error.message.includes('User not found')) {
-        adminStatus.textContent = '未找到该用户，请确认邮箱是否正确';
-        adminStatus.className = 'admin-footer-status error';
-      } else if (error.message && error.message.includes('Permission denied')) {
-        adminStatus.textContent = '无管理员权限';
-        adminStatus.className = 'admin-footer-status error';
-      } else {
-        adminStatus.textContent = '查找失败：' + (error.message || '未知错误');
-        adminStatus.className = 'admin-footer-status error';
       }
       return;
     }
 
-    // 构建权限缓存
+    // 构建权限缓存（无文档时视为全新用户，全部为「不显示」）
+    const row = (data || [])[0];
     const permMap = {};
-    (data || []).forEach(item => {
-      permMap[item.app_id] = item.permission;
-    });
-    permissionCache[email] = permMap;
+    if (row && row.perms && typeof row.perms === 'object') {
+      Object.keys(row.perms).forEach(appId => { permMap[appId] = row.perms[appId]; });
+    }
+    permissionCache[emailKey] = permMap;
 
-    showPermissionEditorForEmail(email);
+    showPermissionEditorForEmail(emailKey);
     adminStatus.textContent = '已加载权限设置';
     adminStatus.className = 'admin-footer-status success';
 
@@ -1533,8 +1530,8 @@ function showSetupHint() {
     <div style="padding:20px; background:#fef3c7; border:1px solid #fcd34d; border-radius:12px;">
       <div style="font-weight:600; color:#92400e; margin-bottom:8px;">⚠ 需要完成数据库配置</div>
       <div style="font-size:13px; color:#78350f; line-height:1.6;">
-        管理员面板需要在 Supabase 中创建一个 RPC 函数来管理权限。<br>
-        请将 setup_portal.sql 底部的"管理员写权限策略"取消注释后，在 SQL Editor 中执行。
+        门户权限依赖 CloudBase PostgreSQL 中的 user_app_permissions 表。<br>
+        请在云开发控制台「数据库」中执行 cloudbase-pg-setup.sql 完成建表与授权（GRANT/RLS）。
       </div>
     </div>
   `;
@@ -1632,17 +1629,31 @@ async function savePermissions() {
   adminStatus.className = 'admin-footer-status';
 
   try {
+    if (!supabaseClient) await whenCloudbaseReady();
     const email = selectedUserId;
-    const perms = permissionCache[email] || {};
-
-    const { data, error } = await supabaseClient.rpc('portal_set_app_permissions_batch', {
-      p_user_email: email,
-      p_perms: perms
+    const allPerms = permissionCache[email] || {};
+    // 仅保留 read/write，none 直接从文档中移除（读取时缺失即视为无权限）
+    const perms = {};
+    Object.keys(allPerms).forEach(appId => {
+      if (allPerms[appId] === 'read' || allPerms[appId] === 'write') {
+        perms[appId] = allPerms[appId];
+      }
     });
+
+    // upsert 权限文档：id='perm::<邮箱>'，data 内含 perms（PG jsonb）
+    const { error } = await supabaseClient
+      .from('user_app_permissions')
+      .upsert({
+        id: 'perm::' + email,
+        user_email: email,
+        perms: perms,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'id' });
 
     if (error) {
       throw new Error(error.message || '保存失败');
     }
+    permissionCache[email] = perms;
 
     hasUnsavedChanges = false;
     savePermBtn.disabled = true;
@@ -1683,6 +1694,7 @@ function hexToRgba(hex, alpha) {
 /* ===== 初始检查 ===== */
 (async function init() {
   await loadAppConfig();
+  await whenCloudbaseReady();
   try {
     const { data, error } = await supabaseClient.auth.getUser();
     if (data && data.user && !error) {
@@ -1705,15 +1717,6 @@ function hexToRgba(hex, alpha) {
     showLogin();
   }
 })();
-
-// 监听认证状态变化
-supabaseClient.auth.onAuthStateChange((event, session) => {
-  if (event === 'SIGNED_OUT') {
-    currentUser = null;
-    isAdmin = false;
-    showLogin();
-  }
-});
 </script>
 </body>
 </html>

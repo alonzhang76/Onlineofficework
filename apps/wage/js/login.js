@@ -1,9 +1,9 @@
-/* ===== 登录逻辑 login.js =====
- * 使用 supabase.auth.signInWithPassword 完成登录
- * 登录成功后跳转到首页（index.html）
+/* ===== 登录逻辑 login.js（CloudBase 版） =====
+ * 使用 CloudBase 兼容层 supabase.auth.signInWithPassword 完成邮箱登录，
+ * 登录成功后跳转到首页（index.html）。
  */
 
-import { supabase, SUPABASE_URL } from "./supabase.js";
+import { supabase, CLOUDBASE_ENV } from "./cloudbase.js";
 
 var MSG = {
   empty: "请输入邮箱和密码",
@@ -11,9 +11,9 @@ var MSG = {
   submitting: "登录中…",
   success: "登录成功，正在跳转…",
   invalidCreds: "邮箱或密码错误",
-  notConfirmed: "邮箱尚未验证，请先去邮箱确认",
+  notConfirmed: "邮箱尚未验证，请联系管理员",
   network: "网络错误，请检查网络连接",
-  urlNotConfigured: "Supabase URL 未配置，请联系管理员",
+  urlNotConfigured: "CloudBase 环境未配置，请联系管理员",
   unknown: "登录失败，请稍后重试",
 };
 
@@ -48,9 +48,9 @@ async function handleLogin(event) {
 
   if (!email || !password) { setMessage(MSG.empty, "error"); return false; }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setMessage(MSG.invalidEmail, "error"); return false; }
-  if (!SUPABASE_URL || SUPABASE_URL.indexOf("请替换") >= 0) {
+  if (!CLOUDBASE_ENV || CLOUDBASE_ENV.indexOf("替换") >= 0) {
     setMessage(MSG.urlNotConfigured, "error");
-    setDebug("SUPABASE_URL 仍是占位符，请在 js/supabase.js 中填入真实值");
+    setDebug("CLOUDBASE_ENV 未配置，请在 apps/cloudbase/cloudbase.js 中填入真实环境 ID");
     return false;
   }
 
@@ -64,13 +64,15 @@ async function handleLogin(event) {
     if (result.error) {
       console.error("[login] error:", result.error);
       var em = (result.error.message || "").toLowerCase();
-      if (em.indexOf("invalid login") >= 0 || em.indexOf("invalid_credentials") >= 0) {
+      if (em.indexOf("invalid login") >= 0 || em.indexOf("invalid_credentials") >= 0
+          || em.indexOf("密码") >= 0 || em.indexOf("用户名或密码") >= 0 || em.indexOf("password") >= 0
+          || em.indexOf("credential") >= 0 || em.indexOf("不存在") >= 0) {
         setMessage(MSG.invalidCreds, "error");
-      } else if (em.indexOf("email not confirmed") >= 0 || em.indexOf("not confirmed") >= 0) {
+      } else if (em.indexOf("email not confirmed") >= 0 || em.indexOf("not confirmed") >= 0 || em.indexOf("验证") >= 0) {
         setMessage(MSG.notConfirmed, "error");
-      } else if (em.indexOf("rate limit") >= 0 || em.indexOf("too many") >= 0) {
+      } else if (em.indexOf("rate limit") >= 0 || em.indexOf("too many") >= 0 || em.indexOf("频繁") >= 0) {
         setMessage("尝试次数过多，请稍后再试", "error");
-      } else if (em.indexOf("fetch") >= 0 || em.indexOf("network") >= 0 || em.indexOf("abort") >= 0) {
+      } else if (em.indexOf("fetch") >= 0 || em.indexOf("network") >= 0 || em.indexOf("abort") >= 0 || em.indexOf("网络") >= 0) {
         setMessage(MSG.network, "error");
         setDebug("网络请求失败：\n" + result.error.message);
       } else {
@@ -118,32 +120,23 @@ function resolveHomeTarget() {
   return 'index.html';
 }
 
-// 已登录则跳转首页
+// 已登录（非匿名）则跳转首页
 (function redirectIfAuthedSync() {
   try {
-    var keys = Object.keys(localStorage);
-    for (var i = 0; i < keys.length; i++) {
-      var k = keys[i];
-      if (k && k.indexOf("sb-") === 0 && k.indexOf("-auth-token") >= 0) {
-        var raw = localStorage.getItem(k);
-        if (raw) {
-          try {
-            var parsed = JSON.parse(raw);
-            if (parsed && parsed.user) {
-              window.location.replace(resolveHomeTarget());
-              return;
-            }
-          } catch(_) {}
-        }
+    var raw = localStorage.getItem("tcb_auth_session");
+    if (raw) {
+      var parsed = JSON.parse(raw);
+      if (parsed && parsed.user && !parsed.user.is_anonymous) {
+        window.location.replace(resolveHomeTarget());
       }
     }
-  } catch(_) {}
+  } catch (_) {}
 })();
 
 (async function redirectIfAuthed() {
   try {
     var result = await supabase.auth.getUser();
-    if (result.data && result.data.user) {
+    if (result.data && result.data.user && !result.data.user.is_anonymous) {
       window.location.replace(resolveHomeTarget());
     }
   } catch(e) {}
