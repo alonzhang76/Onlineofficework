@@ -1,75 +1,106 @@
 /* ===== 云函数 tcb-file-list =====
  *
- * 功能：列出 CloudBase 云存储中指定目录下的文件和子目录。
- * 为什么需要：CloudBase 前端 JS SDK 没有直接的"列目录" API，
- *            因此前端通过调用本云函数来获取文件列表，
- *            兼容层 js/cloudbase.js 的 storage.from().list() 底层即调用本函数。
+ * 功能：列出 CloudBase 云存储中【指定目录一层】下的文件和子目录。
+ * 为什么需要：CloudBase 前端 JS SDK / @cloudbase/node-sdk 均无直接的
+ *            "列目录" API，因此前端通过 callFunction 调用本函数获取文件列表，
+ *            兼容层 apps/cloudbase/cloudbase.js 的 storage.from().list()
+ *            在 SDK 列举失败时回退调用本函数。
+ *
+ * 实现：使用管理端 SDK @cloudbase/manager-node（node-sdk 只有上传/删除/下载，
+ *      没有列举能力），底层走 COS getBucket + Delimiter='/'，只返回一层：
+ *        - 子目录来自 CommonPrefixes
+ *        - 文件来自 Contents（排除以 / 结尾的目录占位对象）
  *
  * 入参（event）：
- *   - bucket  {string}  桶名（CloudBase 默认只有一个环境桶，可传空串）
+ *   - bucket  {string}  桶名（当前固定使用环境默认桶，参数保留兼容）
  *   - prefix  {string}  目录前缀，如 "sample/" 或 ""（桶根）
  *   - limit   {number}  单次返回最大条数，默认 1000，最大 1000
  *
  * 返回：
- *   { data: [ { name, type: 'file'|'folder', ... }, ... ] }
- *   失败返回 { error: string }
- *
- * 部署：
- *   1. 在项目根目录执行：tcb fn deploy tcb-file-list --envId <你的环境ID>
- *   2. 或在 CloudBase 控制台 → 云函数 → 新建函数 → 上传本目录代码
- *   3. 部署后在"函数配置"中确认运行环境为 Node.js 16+
+ *   { data: [ { name, type: 'file'|'folder', path, size?, lastModified? } ... ],
+ *     isTruncated, nextMarker }
+ *   失败返回 { error: string, data: [] }
  */
 
-const cloudbase = require("@cloudbase/node-sdk");
+const util = require("util");
+const Manager = require("@cloudbase/manager-node");
 
-// 云函数运行时会自动注入环境 ID，无需手动配置
-const app = cloudbase.init({
-  env: process.env.TCB_ENV || cloudbase.SYMBOL_CURRENT_ENV,
+// SCF 运行时自动注入临时密钥与环境信息，显式传入更稳妥
+const manager = new Manager({
+  envId:
+    process.env.TCB_ENV ||
+    process.env.TCB_ENVID ||
+    process.env.SCF_NAMESPACE ||
+    "",
+  region: process.env.TENCENTCLOUD_REGION || process.env.SCF_REGION || "",
+  secretId: process.env.TENCENTCLOUD_SECRETID,
+  secretKey: process.env.TENCENTCLOUD_SECRETKEY,
+  token: process.env.TENCENTCLOUD_SESSIONTOKEN,
 });
 
-exports.main = async function (event, context) {
+exports.main = async function (event /*, context */) {
   try {
-    const prefix = (event && event.prefix) || "";
+    const prefixRaw = (event && event.prefix) || "";
     const limit = Math.min(Math.max((event && event.limit) || 1000, 1), 1000);
 
-    const storage = app.storage();
+    const storage = manager.storage;
+    // 必须先拉取环境配置（Storages 信息），否则 getStorageConfig() 为空
+    await manager.currentEnvironment().lazyInit();
+    // 使用环境默认桶（CloudBase 个人版仅有一个环境桶）
+    const { bucket, region } = storage.getStorageConfig();
+    const cos = storage.getCos();
+    const getBucket = util.promisify(cos.getBucket).bind(cos);
 
-    // 列出指定前缀下的文件和目录
-    // listFolderFiles 返回 { files: [...], folders: [...] }
-    const listRes = await storage.listFolderFiles({
-      prefix: prefix,
-      maxFiles: limit,
+    // 规范化前缀：去掉开头的 /，非根目录保证以 / 结尾
+    let prefix = String(prefixRaw).replace(/^\/+/, "");
+    if (prefix && !prefix.endsWith("/")) prefix += "/";
+
+    const res = await getBucket({
+      Bucket: bucket,
+      Region: region,
+      Prefix: prefix,
+      Delimiter: "/",
+      MaxKeys: limit,
     });
-
-    const files = (listRes && listRes.files) || [];
-    const folders = (listRes && listRes.folders) || [];
 
     const data = [];
 
-    // 目录
+    // 子目录：CommonPrefixes[].Prefix（形如 "photos/2026/"）
+    const folders = res.CommonPrefixes || [];
     for (let i = 0; i < folders.length; i++) {
-      const f = folders[i] || {};
-      data.push({
-        name: f.name || "",
-        type: "folder",
-        path: f.path || f.name || "",
-      });
+      const p = folders[i].Prefix || "";
+      let name = p;
+      if (prefix && name.startsWith(prefix)) name = name.slice(prefix.length);
+      name = name.replace(/\/+$/, "");
+      if (name) {
+        data.push({ name: name, type: "folder", path: p });
+      }
     }
 
-    // 文件
+    // 文件：Contents[]（排除目录占位对象，其 Key 以 / 结尾）
+    const files = res.Contents || [];
     for (let i = 0; i < files.length; i++) {
       const f = files[i] || {};
+      const key = f.Key || "";
+      if (!key || key.endsWith("/") || key === prefix) continue;
+      let name = key;
+      if (prefix && name.startsWith(prefix)) name = name.slice(prefix.length);
+      if (!name || name.includes("/")) continue; // 只取当前层
       data.push({
-        name: f.name || "",
+        name: name,
         type: "file",
-        path: f.path || f.Key || f.name || "",
-        size: f.size || f.Size || 0,
-        lastModified: f.lastModified || f.LastModified || "",
-        fileID: f.fileID || f.FileID || "",
+        path: key,
+        size: Number(f.Size) || 0,
+        lastModified: f.LastModified || "",
+        etag: String(f.ETag || "").replace(/"/g, ""),
       });
     }
 
-    return { data: data };
+    return {
+      data: data,
+      isTruncated: !!res.IsTruncated,
+      nextMarker: res.NextMarker || "",
+    };
   } catch (err) {
     console.error("[tcb-file-list] 异常:", err);
     return {

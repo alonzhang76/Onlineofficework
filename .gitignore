@@ -1,0 +1,9 @@
+# 依赖（云函数部署前本地 npm install 生成，不入库）
+node_modules/
+
+# 本地部署暂存目录（CI/本地构建静态托管包时生成）
+_deploy/
+
+# 系统/编辑器
+.DS_Store
+*.log

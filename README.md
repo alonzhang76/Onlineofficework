@@ -79,16 +79,17 @@ PostgreSQL 数据库与云存储中。
 | `TCB_SECRET_ID` | 腾讯云 API SecretId |
 | `TCB_SECRET_KEY` | 腾讯云 API SecretKey |
 
-推送到 `main` 即自动整站部署到静态托管根目录，并尝试部署 `tcb-file-list` 云函数。
+推送到 `main` 即自动整站部署到静态托管根目录（云函数不在 CI 部署，见下方手动命令）。
 
 **方式 B：手动**
 
 ```bash
 npm i -g @cloudbase/cli
 tcb login
-tcb hosting deploy . / -e onlineofficework-d4e93l98bdf879e --force
-cd cloudfunctions/tcb-file-list && npm i --production
-tcb fn deploy tcb-file-list -e onlineofficework-d4e93l98bdf879e --force
+tcb hosting deploy . / -e onlineofficework-d4e93l98bdf879e
+# 云函数（可选增强，仅代码变更时才需要重新部署）
+cd cloudfunctions/tcb-file-list && npm i --omit=dev
+tcb fn deploy tcb-file-list --dir . -e onlineofficework-d4e93l98bdf879e --force --install-dependency false
 ```
 
 ### 6. 迁移旧 Supabase 数据（仅首次）

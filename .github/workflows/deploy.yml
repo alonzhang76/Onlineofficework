@@ -60,11 +60,11 @@ jobs:
           # 部署 _deploy 目录内容到静态托管根目录
           tcb hosting deploy _deploy / -e "$TCB_ENV_ID"
 
-      # 云函数 tcb-file-list（可选增强，已在线上）不在 CI 中部署：
-      # `tcb fn deploy` 在无终端的 CI 环境会弹出交互菜单导致中断（exit 130）。
-      # 函数代码变更时请手动部署（见 README「首次部署步骤」方式 B）：
-      #   cd cloudfunctions/tcb-file-list && npm i --production
-      #   tcb fn deploy tcb-file-list -e onlineofficework-d4e93l98bdf879e --force
+      # 云函数 tcb-file-list（可选增强，已在线上）不在 CI 中部署。
+      # 函数代码变更时在本机手动部署（cloudbaserc.json 已锁定 Event 类型/入口，
+      # 配合 --dir 为非交互命令，node_modules 随包上传，无需云端装依赖）：
+      #   cd cloudfunctions/tcb-file-list && npm i --omit=dev
+      #   tcb fn deploy tcb-file-list --dir . -e onlineofficework-d4e93l98bdf879e --force --install-dependency false
 
       - name: Deployment Summary
         env:

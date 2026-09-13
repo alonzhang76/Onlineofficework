@@ -1,0 +1,15 @@
+{
+  "$schema": "https://static.cloudbase.net/cli/cloudbaserc.schema.json",
+  "envId": "onlineofficework-d4e93l98bdf879e",
+  "functions": [
+    {
+      "name": "tcb-file-list",
+      "timeout": 10,
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "memorySize": 128,
+      "description": "列出云存储指定目录下的文件/子目录（前端 callFunction 调用的事件函数）",
+      "installDependency": true
+    }
+  ]
+}
