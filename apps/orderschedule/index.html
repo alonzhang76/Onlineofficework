@@ -1378,15 +1378,6 @@
             background:#0f172a; color:#fff; font-size:15px; cursor:pointer; line-height:1;
         }
 
-        /* ---- 款号输入行 ---- */
-        #cloudfiles .cfb-style-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
-        #cloudfiles .cfb-style-row input {
-            width:220px; padding:6px 10px; border:1px solid var(--cfb-line); border-radius:8px; font-size:13px;
-        }
-        #cloudfiles .cfb-style-row .hint { font-size:11.5px; color:#94a3b8; line-height:1.5; }
-        #cloudfiles .cfb-style-row .hint b { color:#0d9488; font-weight:600; }
-        #cloudfiles .cfb-style-row .hint code { background:#f1f5f9; border-radius:4px; padding:0 4px; font-size:11px; color:#0f172a; }
-
         @media (max-width:768px) {
             #cloudfiles .cfb-tree { display:none; }
             #cloudfiles .cfb-table th:nth-child(3), #cloudfiles .cfb-table td:nth-child(3) { display:none; }
@@ -1931,11 +1922,6 @@
             <!-- ===== 分区域上传 ===== -->
             <div class="card" id="uploadCard" style="margin-bottom:12px;">
                 <div class="card-header"><span class="card-title">📤 分区域上传</span></div>
-                <div class="cfb-style-row">
-                    <label style="font-size:12.5px;font-weight:600;color:#334155;">关联款号：</label>
-                    <input type="text" id="cfbStyleNo" placeholder="如 GW27-003（可留空）">
-                    <span class="hint">上传的<b>图片</b>统一存入 <code>图片文件/款式图/</code>。可填款号辅助关联归类；<b>留空时从文件名自动识别款号</b>（如 <code>1110577.png</code>、<code>GW27-003.jpg</code>）。同名文件会提示覆盖或取消。</span>
-                </div>
                 <div class="cfb-zones" id="cfbZones"></div>
                 <input type="file" id="cfbPicker" multiple style="display:none;">
                 <input type="file" id="cfbFolderPicker" webkitdirectory directory multiple style="display:none;">
@@ -4654,19 +4640,6 @@
         })(),
       };
 
-      // ===== 款号图片缓存（本应用独立存储键，不与 saintysys 共享）=====
-      var STYLE_CACHE_KEY = 'orderschedule__cfb_style_img_cache';
-      window.StyleImgCache = {
-        _load: function() { try { return JSON.parse(localStorage.getItem(STYLE_CACHE_KEY) || '{}') || {}; } catch(_e) { return {}; } },
-        _save: function(all) { try { localStorage.setItem(STYLE_CACHE_KEY, JSON.stringify(all)); } catch(_e) {} },
-        resolve: function(sn) { return this._load()[sn] || null; },
-        set: function(sn, patch) {
-          var all = this._load(); var e = all[sn] || {};
-          for (var k in patch) e[k] = patch[k];
-          all[sn] = e; this._save(all);
-        },
-      };
-
       var CFB = {
         // ===== 内部状态 =====
         currentPath: '/',
@@ -5062,10 +5035,6 @@
           } else {
             h += '<button class="btn btn-xs" title="预览" onclick="event.stopPropagation();CFB.previewByPath(\'' + pEsc + '\')">👁</button>';
             h += '<button class="btn btn-xs" title="下载" onclick="event.stopPropagation();CFB.download(\'' + pEsc + '\')">⬇</button>';
-            if (!isFolder && self._isImage(it.name) && self.canWrite) {
-              h += '<button class="btn btn-xs" title="设为款式图（款号关联缩略图）" onclick="event.stopPropagation();CFB.setStyleImageDlg(\'' + pEsc + '\',\'style\')" style="color:#0d9488;border-color:#99e6d5;">🖼</button>';
-              h += '<button class="btn btn-xs" title="设为大图" onclick="event.stopPropagation();CFB.setStyleImageDlg(\'' + pEsc + '\',\'full\')" style="color:#6d28d9;border-color:#ddd6fe;">🖼＋</button>';
-            }
           }
           if (self.canWrite) {
             h += '<button class="btn btn-xs" title="重命名（可跨目录移动，如 docs/a.pdf → /GW27-003/a.pdf）" onclick="event.stopPropagation();CFB.renameDlg(\'' + pEsc + '\',\'' + (isFolder ? 'folder' : 'file') + '\')">✏️</button>';
@@ -5173,7 +5142,6 @@
                 else {
                   var r = await self._st().remove([p.slice(1)]);
                   if (r && r.error) throw r.error;
-                  self._scrubStyleCache(p, null);
                 }
                 self.setProgress(null);
                 App.toast('🗑 已删除', 'success');
@@ -5234,19 +5202,6 @@
             if (!seen[p]) { seen[p] = 1; uniq.push(p); }
           }
           await this._removeBestEffort(uniq);
-          // 清理 StyleImgCache 中指向该目录的引用
-          try {
-            var all = (window.StyleImgCache && StyleImgCache._load) ? StyleImgCache._load() : {};
-            var touched = false;
-            var prefixKey = dir.slice(1) + '/';
-            Object.keys(all).forEach(function(sn) {
-              var e = all[sn] || {};
-              if ((e.styleImg_path || '').indexOf(prefixKey) === 0) { e.styleImg_path = ''; e.styleImg_name = ''; touched = true; }
-              if ((e.fullImg_path || '').indexOf(prefixKey) === 0) { e.fullImg_path = ''; e.fullImg_name = ''; touched = true; }
-              if (!e.styleImg_path && !e.fullImg_path) delete all[sn];
-            });
-            if (touched && window.StyleImgCache && StyleImgCache._save) StyleImgCache._save(all);
-          } catch(_e) {}
         },
 
         // 移动/重命名：下载 → 上传到新路径 → 删除旧路径（文件夹递归）
@@ -5269,7 +5224,6 @@
             if (up && up.error) throw up.error;
             var del = await this._st().remove([oldPath.slice(1)]);
             if (del && del.error) throw del.error;
-            this._scrubStyleCache(oldPath, newPath);
           } else {
             var files = [];
             var rr = await this.listDir(oldPath);
@@ -5291,33 +5245,11 @@
               if (up2 && up2.error) throw up2.error;
               var del2 = await this._st().remove([f.path.slice(1)]);
               if (del2 && del2.error) throw del2.error;
-              this._scrubStyleCache(f.path, npath);
               this.setProgress(Math.min(95, Math.round((k + 1) / files.length * 100)));
             }
             // 删除源目录占位
             try { await this._st().remove([oldPath.slice(1) + '/.keep']); } catch(_e) {}
-            this._scrubStyleCache(oldPath + '/.keep', null);
           }
-        },
-
-        _scrubStyleCache: function(oldPath, newPath) {
-          try {
-            if (!window.StyleImgCache || !StyleImgCache._load) return;
-            var safeName = function(p) {
-              var n = String(p || '').split('/').pop();
-              try { n = decodeURIComponent(n); } catch(_e) {}
-              return n;
-            };
-            var all = StyleImgCache._load();
-            var touched = false;
-            Object.keys(all).forEach(function(sn) {
-              var e = all[sn] || {};
-              if (e.styleImg_path === oldPath) { e.styleImg_path = newPath || ''; e.styleImg_name = newPath ? safeName(newPath) : ''; touched = true; }
-              if (e.fullImg_path === oldPath) { e.fullImg_path = newPath || ''; e.fullImg_name = newPath ? safeName(newPath) : ''; touched = true; }
-              if (!e.styleImg_path && !e.fullImg_path) delete all[sn];
-            });
-            if (touched && StyleImgCache._save) StyleImgCache._save(all);
-          } catch(_e) {}
         },
 
         // ===== 下载 / 预览 =====
@@ -5400,35 +5332,6 @@
           var pv = document.getElementById('cfbPreview');
           pv.classList.remove('show');
           document.getElementById('pvBody').innerHTML = ''; // 停掉 iframe/pdf 渲染
-        },
-
-        // ===== 设为款式图 / 大图（款号关联入口）=====
-        setStyleImageDlg: function(path, kind) {
-          var self = this;
-          var guess = this._norm(this.parentOf(path)).split('/')[1] || '';
-          var zoneFolders = {}; ZONES.forEach(function(z){ zoneFolders[z.folder] = 1; });
-          if (zoneFolders[guess]) guess = '';
-          this._nameDialog('设为' + (kind === 'style' ? '款式图' : '大图') + ' — 输入款号', guess, function(sn) {
-            sn = String(sn || '').trim();
-            if (!sn) return App.toast('款号不能为空', 'warning');
-            self._applyStyleImage(path, sn, kind);
-          });
-        },
-        _applyStyleImage: function(path, styleNo, kind) {
-          try {
-            if (!window.StyleImgCache) return App.toast('StyleImgCache 未加载', 'error');
-            var rawName = this.nameOf(path);
-            var name = rawName;
-            try { name = decodeURIComponent(rawName); } catch(_e) {}
-            var patch = {};
-            if (kind === 'full') { patch.fullImg_path = path; patch.fullImg_name = name; }
-            else { patch.styleImg_path = path; patch.styleImg_name = name; }
-            StyleImgCache.set(styleNo, patch);
-            App.toast('✅ 已设为款号 ' + styleNo + ' 的' + (kind === 'full' ? '大图' : '款式图'), 'success', 3500);
-          } catch(e) {
-            console.error('[CFB] 设为款式图失败:', e);
-            App.toast('设置失败：' + ((e && e.message) || e), 'error');
-          }
         },
 
         // ===== 名称输入对话框 =====
@@ -5543,12 +5446,10 @@
         },
 
         // ===== 统一上传入口 =====
-        // files: File[]；targetDir: 目标目录（null → 按款号/分区规则决定）；zoneKey: 分区
+        // files: File[]；targetDir: 目标目录（null → 按分区规则决定）；zoneKey: 分区
         uploadFiles: async function(files, targetDir, zoneKey) {
           var self = this;
           if (!this.canWrite) return App.toast('只读模式不可上传', 'warning');
-          var styleNo = String((document.getElementById('cfbStyleNo') || {}).value || '').trim();
-          styleNo = styleNo.replace(/[\\/:*?"<>|]/g, '-');
           var z = ZONES.find(function(x){ return x.key === zoneKey; }) || null;
 
           // 目标目录规则：
@@ -5576,28 +5477,19 @@
           }
           if (!files.length) return;
 
-          // 为每个文件计算上传计划（目标目录 / 云端路径 / 关联款号）
+          // 为每个文件计算上传计划（目标目录 / 云端路径）
           var plans = files.map(function(f) {
             var isImageZone = z && z.key === 'image';
             var fileDir;
-            var effStyleNo = '';
             if (!targetDir) {
-              if (isImageZone) {
-                fileDir = UNI_STYLE_DIR;
-                effStyleNo = styleNo || self._detectStyleNoFromName(f.name);
-              } else {
-                fileDir = '/' + (z ? z.folder : '其他文件');
-              }
+              fileDir = isImageZone ? UNI_STYLE_DIR : ('/' + (z ? z.folder : '其他文件'));
             } else {
               fileDir = (targetDir === '/') ? ('/' + self._zoneFolderOfName(f.name)) : targetDir;
-              if (isImageZone) effStyleNo = styleNo || self._detectStyleNoFromName(f.name);
             }
             var name = self._safeName(f.name);
             return {
               f: f, fileDir: fileDir, name: name,
               path: self.join(fileDir, name),
-              effStyleNo: effStyleNo,
-              isImage: self._isImageName(f.name),
               overwrite: false, skip: false
             };
           });
@@ -5643,9 +5535,7 @@
               var res = await this._st().upload(path.slice(1), f, { contentType: f.type || this._guessMime(f.name), upsert: p.overwrite });
               if (res && res.error) throw res.error;
               okCount++;
-              // 图片 + 款号 → 写入款号图片缓存
-              if (p.isImage && p.effStyleNo) this._cacheStyleUpload(p.effStyleNo, path, f.name, p.overwrite);
-              console.log('[CFB] 上传成功:', path, p.effStyleNo ? ('(关联款号 ' + p.effStyleNo + ')') : '', p.overwrite ? '(覆盖)' : '');
+              console.log('[CFB] 上传成功:', path, p.overwrite ? '(覆盖)' : '');
             } catch(err) {
               failCount++;
               failNames.push(f.name);
@@ -5710,11 +5600,6 @@
                 var res = await self._st().upload(path.slice(1), f, { contentType: f.type || self._guessMime(f.name), upsert: true });
                 if (res && res.error) throw res.error;
                 ok++;
-                // 图片文件夹上传：从路径或文件名识别款号并写缓存
-                if (self._isImageName(f.name)) {
-                  var snFromPath = self._detectStyleNoFromPath(path);
-                  if (snFromPath) self._cacheStyleUpload(snFromPath, path, f.name);
-                }
               } catch(e) { fail++; console.error('[CFB] 文件夹上传失败:', path, e); }
               self.setProgress(Math.round((i + 1) / files.length * 100));
             }
@@ -5724,23 +5609,6 @@
             else App.toast('文件夹上传失败', 'error');
             self.refresh(); self.renderTree();
           })();
-        },
-
-        // 款号图片上传后写缓存
-        // overwrite=true 时强制把缓存指向新路径（覆盖旧图）
-        _cacheStyleUpload: function(styleNo, path, origName, overwrite) {
-          try {
-            if (!window.StyleImgCache) return;
-            var lower = String(origName || '').toLowerCase();
-            var isFull = lower.indexOf('full') >= 0 || lower.indexOf('big') >= 0 || lower.indexOf('large') >= 0 || lower.indexOf('大图') >= 0;
-            var existing = (typeof StyleImgCache.resolve === 'function') ? (StyleImgCache.resolve(styleNo) || {}) : {};
-            var patch = { styleImg_path: existing.styleImg_path || '', fullImg_path: existing.fullImg_path || '' };
-            if (isFull) { patch.fullImg_path = path; if (overwrite && !patch.styleImg_path) patch.styleImg_path = path; }
-            else {
-              if (overwrite || !patch.styleImg_path) patch.styleImg_path = path;
-            }
-            StyleImgCache.set(styleNo, patch);
-          } catch(_e) {}
         },
 
         _setZoneBusy: function(key, busy) {
@@ -5950,45 +5818,6 @@
         },
         _safeName: function(name) {
           return String(name || 'file').replace(/[\\/:*?"<>|]/g, '_');
-        },
-        // 从图片文件名自动识别款号（去掉扩展名后匹配）
-        // 支持：纯数字款号(1110577)、带前缀款号(GW27-003 / AB1234 / SS-3011043)
-        _detectStyleNoFromName: function(name) {
-          if (!name) return '';
-          var stem = String(name).replace(/\.[^.]+$/, '');
-          // 1) 带字母前缀+连字符/数字的款号：GW27-003、SS-3011043、AB-12345
-          var m1 = stem.match(/[A-Za-z]{1,4}[-_]?\d{2,5}[-_]?\d{1,5}/);
-          if (m1) return m1[0];
-          // 2) 纯数字款号（5-8 位）
-          var m2 = stem.match(/\d{5,8}/);
-          if (m2) return m2[0];
-          // 3) 字母+数字无连字符：GW27003、AB1234
-          var m3 = stem.match(/[A-Za-z]{1,4}\d{3,6}/);
-          if (m3) return m3[0];
-          return '';
-        },
-        // 判断是否为图片文件
-        _isImageName: function(name) {
-          var e = this._extOf(name);
-          return ['png','jpg','jpeg','gif','webp','bmp','svg'].indexOf(e) >= 0;
-        },
-        // 从完整路径中识别款号（优先取路径中段的款号目录，再取文件名）
-        _detectStyleNoFromPath: function(path) {
-          if (!path) return '';
-          var parts = String(path).split('/');
-          // 路径中间段（排除首尾：首是分区目录如"图片文件"，尾是文件名）
-          for (var i = parts.length - 2; i >= 1; i--) {
-            var seg = parts[i];
-            if (seg && /\d/.test(seg)) {
-              // 段名本身像款号
-              var m = seg.match(/[A-Za-z]{1,4}[-_]?\d{2,5}[-_]?\d{1,5}/) ||
-                      seg.match(/\d{5,8}/) ||
-                      seg.match(/[A-Za-z]{1,4}\d{3,6}/);
-              if (m) return m[0];
-            }
-          }
-          // 退回文件名
-          return this._detectStyleNoFromName(parts[parts.length - 1] || '');
         },
         _uuid: function() {
           try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch(_e) {}
