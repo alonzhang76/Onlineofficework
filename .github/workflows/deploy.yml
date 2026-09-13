@@ -14,6 +14,8 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # 防止托管上传偶发挂起导致任务无限等待（正常 1-2 分钟）
+    timeout-minutes: 12
     steps:
       - name: Checkout
         uses: actions/checkout@v4
