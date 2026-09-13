@@ -233,13 +233,28 @@
     },
 
     _waitSb: function (timeoutMs) {
+      timeoutMs = timeoutMs || 10000;
       return new Promise(function (resolve) {
-        var cnt = 0, max = Math.ceil((timeoutMs || 10000) / 100);
+        var finished = false;
+        function finish(v) { if (finished) return; finished = true; resolve(v); }
+        var t0 = Date.now();
+        // 1) 等 window.supabase（兼容层模块异步加载）
         var tm = setInterval(function () {
-          cnt++;
           var sb = window.supabase;
-          if (sb && sb.storage && typeof sb.storage.from === 'function') { clearInterval(tm); resolve(true); }
-          else if (cnt > max) { clearInterval(tm); resolve(false); }
+          if (sb && sb.storage && typeof sb.storage.from === 'function') {
+            clearInterval(tm);
+            // 2) 再等登录引导结束（无 token 时列目录必失败）
+            var when = window.CloudbaseWhenReady;
+            if (typeof when !== 'function') return finish(true);
+            var watchdog = setTimeout(function () { finish(true); }, timeoutMs);
+            when().then(
+              function () { clearTimeout(watchdog); finish(true); },
+              function () { clearTimeout(watchdog); finish(true); }
+            );
+          } else if (Date.now() - t0 > timeoutMs) {
+            clearInterval(tm);
+            finish(false);
+          }
         }, 100);
       });
     },
@@ -313,6 +328,14 @@
       if (r && r.error && prefix && r.error.code !== 'TCB_FUNCTION_NOT_FOUND') {
         var r2 = await this._st().list(prefix.replace(/\/+$/, ''), { limit: 1000 });
         if (r2 && !r2.error) r = r2;
+      }
+      // 登录态偶发失效 → 强制重登后重试一次（避免整页"列目录失败"直到手动刷新）
+      if (r && r.error && window.CloudbaseForceReauth) {
+        try {
+          await window.CloudbaseForceReauth();
+          var r3 = await this._st().list(prefix, { limit: 1000 });
+          if (r3 && !r3.error) r = r3;
+        } catch (_e) {}
       }
       if (r && r.error) return { list: [], error: r.error };
       var out = [];

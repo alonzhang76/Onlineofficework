@@ -7,13 +7,17 @@
 <title>计件工资管理系统</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <!-- CloudBase 客户端（Supabase 兼容层，模块加载后挂到 window.supabase） -->
+<script>
+// 与 orderschedule / wicketorders 一致：共享账号静默登录（无登录窗口，直接进主页面）
+window.CLOUDBASE_SYNC = { email: 'sync@lori.app', password: 'LoriSync2026!' };
+</script>
 <script type="module" src="js/cloudbase.js"></script>
 <!-- CloudBase 数据存储层（window.CloudbaseStore / window.SupabaseStore） -->
 <script src="js/cloudbase-store.js"></script>
-<!-- 登录守卫：无有效邮箱会话则跳转 login.html -->
+<!-- 用户信息展示（不再跳转登录页） -->
 <script src="js/auth-guard.js"></script>
 <!-- 云存储文件中心（共享模块，与 orderschedule / wicketorders 共用同一云端目录） -->
-<link rel="stylesheet" href="../cloudbase/cfb.css?v=20260913">
+<link rel="stylesheet" href="../cloudbase/cfb.css?v=20260914b">
 <script>
 // Seed data removed - use "导入Excel" button to load data
 </script>
@@ -4746,6 +4750,6 @@ window.CFB_CONFIG = {
   }
 };
 </script>
-<script src="../cloudbase/cfb.js?v=20260913b"></script>
+<script src="../cloudbase/cfb.js?v=20260914b"></script>
 </body>
 </html>

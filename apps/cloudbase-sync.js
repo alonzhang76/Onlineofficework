@@ -196,7 +196,9 @@
       var src = (document.currentScript && document.currentScript.src) || '';
       if (src) {
         // 本文件位于 apps/cloudbase-sync.js，兼容层位于 apps/cloudbase/cloudbase.js
-        return new URL('cloudbase/cloudbase.js', src).href;
+        // 沿用本文件 ?v= 版本号，避免兼容层更新后浏览器仍用旧缓存
+        var v = (src.match(/[?&]v=([^&]+)/) || [])[1];
+        return new URL('cloudbase/cloudbase.js' + (v ? '?v=' + v : ''), src).href;
       }
     } catch (e) {}
     return 'cloudbase/cloudbase.js';
@@ -239,6 +241,7 @@
   }
 
   var cloudLoadDenied = false;
+  var reauthTried = false; // 每轮会话失效只强制重登一次，避免频繁登录触发风控
 
   // ===== 拉取全量数据到缓存 =====
   async function loadAllFromCloud() {
@@ -273,9 +276,15 @@
   async function retryAuthAndReload() {
     if (!cloudLoadDenied) return;
     console.log('[CloudbaseSync] 重试：重新拉取云端数据...');
+    // 首次重试前强制重登一次（会话失效场景下单纯重拉不会成功）
+    if (!reauthTried && window.CloudbaseForceReauth) {
+      reauthTried = true;
+      try { await window.CloudbaseForceReauth(); } catch (e) {}
+    }
     var beforeCount = Object.keys(cache).length;
     var ok = await loadAllFromCloud();
     if (!ok) return;
+    reauthTried = false;
     var changedKeys = [];
     Object.keys(cache).forEach(function (origKey) {
       try {
@@ -305,6 +314,10 @@
       console.log('[CloudbaseSync] 初始化，应用前缀:', APP_ID);
 
       await loadClient();
+      // 等兼容层登录引导结束（无 token 时拉取/写入只会 FetchError）
+      if (window.CloudbaseWhenReady) {
+        try { await window.CloudbaseWhenReady(); } catch (e) {}
+      }
       var user = null;
       if (sb) {
         user = await waitAuth();
