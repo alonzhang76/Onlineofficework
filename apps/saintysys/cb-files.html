@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -428,6 +428,8 @@
         var it = arr[i] || {};
         var name = String(it.name || '').replace(/\/+$/, '');
         if (!name || name === '.keep') continue; // 目录占位文件不显示
+        // orderschedule/ 是「订单统计」应用的独立存储根目录（两应用文件相互隔离），不在本应用展示
+        if (dir === '/' && name === 'orderschedule') continue;
         var isFolder = it.type === 'folder';
         var size = 0, lm = '';
         try {
