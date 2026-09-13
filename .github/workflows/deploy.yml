@@ -1,0 +1,76 @@
+name: Deploy to CloudBase
+
+# 推送到 main/master 自动整站部署；也支持在 Actions 页面手动触发
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+# 同一分支连续推送时，取消旧的部署任务，避免互相覆盖
+concurrency:
+  group: cloudbase-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install CloudBase CLI
+        run: npm install -g @cloudbase/cli
+
+      - name: CloudBase Login
+        env:
+          TCB_SECRET_ID: ${{ secrets.TCB_SECRET_ID }}
+          TCB_SECRET_KEY: ${{ secrets.TCB_SECRET_KEY }}
+        run: |
+          tcb login --apiKeyId "$TCB_SECRET_ID" --apiKey "$TCB_SECRET_KEY"
+
+      - name: Prepare Deploy Directory
+        run: |
+          # 只打包线上需要的静态资源：门户 + 全部子应用，部署到静态托管根目录
+          mkdir -p _deploy
+          cp index.html apps.json _deploy/
+          find . -maxdepth 1 -type f \( -name '*.jpg' -o -name '*.png' -o -name '*.ico' -o -name '*.gif' -o -name '*.webp' \) -exec cp {} _deploy/ \;
+          cp -r apps _deploy/
+
+          # 清理不需要发布到静态托管的文件（源码/备份/脚本/压缩包等）
+          find _deploy -type d -name '.github' -prune -exec rm -rf {} +
+          find _deploy -type d -name 'node_modules' -prune -exec rm -rf {} +
+          find _deploy -type d -name 'cloudfunctions' -prune -exec rm -rf {} +
+          find _deploy -type d -name 'scripts' -prune -exec rm -rf {} +
+          find _deploy -type f \( -name '*.bak' -o -name '*.zip' -o -name '*.sql' -o -name '*.mjs' \) -delete
+
+          echo '===== 待部署文件清单 ====='
+          find _deploy -type f | sort
+
+      - name: Deploy Static Hosting
+        env:
+          TCB_ENV_ID: ${{ secrets.TCB_ENV_ID }}
+        run: |
+          # 部署 _deploy 目录内容到静态托管根目录
+          tcb hosting deploy _deploy / -e "$TCB_ENV_ID" --force
+
+      - name: Deploy Cloud Function (tcb-file-list)
+        # 文件列表云函数为可选增强（图片浏览），失败不阻断静态部署
+        continue-on-error: true
+        env:
+          TCB_ENV_ID: ${{ secrets.TCB_ENV_ID }}
+        run: |
+          cd cloudfunctions/tcb-file-list
+          npm install --production
+          tcb fn deploy tcb-file-list -e "$TCB_ENV_ID" --force
+
+      - name: Deployment Summary
+        env:
+          TCB_ENV_ID: ${{ secrets.TCB_ENV_ID }}
+        run: |
+          echo "✅ 整站部署完成"
+          echo "环境 ID: $TCB_ENV_ID"
