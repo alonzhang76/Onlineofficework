@@ -56,7 +56,7 @@ jobs:
           TCB_ENV_ID: ${{ secrets.TCB_ENV_ID }}
         run: |
           # 部署 _deploy 目录内容到静态托管根目录
-          tcb hosting deploy _deploy / -e "$TCB_ENV_ID" --force
+          tcb hosting deploy _deploy / -e "$TCB_ENV_ID"
 
       - name: Deploy Cloud Function (tcb-file-list)
         # 文件列表云函数为可选增强（图片浏览），失败不阻断静态部署
