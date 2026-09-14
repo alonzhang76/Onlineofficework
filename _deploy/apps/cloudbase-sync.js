@@ -49,6 +49,19 @@
   var authedUser = null;   // 当前认证用户（共享账号或匿名）
   var authFailReason = ''; // 认证失败原因（用于手机端可见提示）
 
+  // ===== 本地写入时间戳（持久化到 localStorage，跨刷新保留）=====
+  // 与小程序 cloudbase.js 的 localMeta 机制一致：记录每个裸键的本机最后写入时间，
+  // 用于在 loadAllFromCloud / migrateLocalStorage 中判断本地数据是否比云端更新，
+  // 防止"修改记录→刷新→记录恢复原值"的问题。
+  var LOCAL_META_KEY = '__cb_local_meta__';
+  var localMeta = {};
+  try { localMeta = JSON.parse(_origGetItem.call(_lsInstance, LOCAL_META_KEY) || '{}') || {}; } catch (e) { localMeta = {}; }
+  function persistLocalMeta() { try { _origSetItem.call(_lsInstance, LOCAL_META_KEY, JSON.stringify(localMeta)); } catch (e) {} }
+  function getLocalMs(key) { return localMeta[key] || 0; }
+  function setLocalMs(key, ms) { localMeta[key] = ms; persistLocalMeta(); }
+  // 时钟偏差宽限（与小程序一致 30s）
+  var CLOCK_GRACE_MS = 30000;
+
   // ===== 手机端可见的云端同步状态徽标 =====
   var badgeEl = null;
   function ensureBadge() {
@@ -115,7 +128,7 @@
   }
 
   // 跳过同步的内部 key
-  var SKIP_KEYS = ['_lastLocalSave_', 'isLoggedIn', 'username', 'userPhone', 'sb-', 'tcb_', 'supabase', 'reconciliation_', '__purchaseContract'];
+  var SKIP_KEYS = ['_lastLocalSave_', 'isLoggedIn', 'username', 'userPhone', 'sb-', 'tcb_', 'supabase', 'reconciliation_', '__purchaseContract', '__cb_local_meta__'];
 
   // ===== 应用专属 localStorage 键名重映射（与旧版保持一致）=====
   var LOCAL_KEY_REMAP = (function () {
@@ -240,6 +253,22 @@
 
   var cloudLoadDenied = false;
 
+  // ===== 判断是否接受云端数据覆盖本地（LWW + 时钟宽限）=====
+  // 与小程序 takeCloud 逻辑一致：
+  //   - 本机从未编辑过该键 → 接受云端
+  //   - 云端 updated_at 不早于本机最后写入（含 30s 宽限）→ 接受云端
+  //   - 否则本地明显更新 → 拒绝云端，保留本地并补推
+  function takeCloud(origKey, cloudUpdatedAt) {
+    var localMs = getLocalMs(origKey);
+    if (!localMs) return true;
+    var cloudMs = Date.parse(cloudUpdatedAt || '');
+    if (isNaN(cloudMs) || cloudMs + CLOCK_GRACE_MS >= localMs) {
+      if (!isNaN(cloudMs)) setLocalMs(origKey, cloudMs);
+      return true;
+    }
+    return false;
+  }
+
   // ===== 拉取全量数据到缓存 =====
   async function loadAllFromCloud() {
     if (!sb) return false;
@@ -252,16 +281,30 @@
       }
       var rows = result.data || [];
       var n = 0;
+      var skipped = 0;
       rows.forEach(function (row) {
         var origKey = unprefixKey(row.store_key);
-        if (origKey && cache[origKey] === undefined) {
+        if (!origKey) return;
+        // 本地有更新的写入时，不加载旧云端数据到缓存，防止刷新后恢复旧值
+        if (!takeCloud(origKey, row.updated_at)) {
+          skipped++;
+          // 保留本地值在缓存中（从 localStorage 读取）
+          if (cache[origKey] === undefined) {
+            var rawL = nativeGet(toLocalKey(origKey));
+            if (rawL !== null) {
+              try { cache[origKey] = JSON.parse(rawL); } catch (e) { cache[origKey] = rawL; }
+            }
+          }
+          return;
+        }
+        if (cache[origKey] === undefined) {
           cache[origKey] = row.payload;
           cacheTs[origKey] = row.updated_at;
           n++;
         }
       });
       cloudLoadDenied = false;
-      console.log('[CloudbaseSync] 加载', rows.length, '行，新增入缓存', n, '个（缓存共', Object.keys(cache).length, '个）');
+      console.log('[CloudbaseSync] 加载', rows.length, '行，新增入缓存', n, '个，跳过', skipped, '个本地更新（缓存共', Object.keys(cache).length, '个）');
       return true;
     } catch (e) {
       console.warn('[CloudbaseSync] 云端加载异常:', e && e.message ? e.message : e);
@@ -368,10 +411,14 @@
       }
 
       var existing = {};
+      var existingTs = {};
       try {
-        var result = await sb.from(TABLE).select('store_key, payload');
+        var result = await sb.from(TABLE).select('store_key, payload, updated_at');
         if (!result.error && result.data) {
-          result.data.forEach(function (row) { existing[row.store_key] = row.payload; });
+          result.data.forEach(function (row) {
+            existing[row.store_key] = row.payload;
+            existingTs[row.store_key] = row.updated_at;
+          });
         }
       } catch (e) {}
 
@@ -420,12 +467,29 @@
           }
 
           if (!cloudEmpty) {
-            var rawC = typeof cloudVal === 'string' ? cloudVal : JSON.stringify(cloudVal);
-            if (nativeGet(nativeKey) !== rawC) {
-              nativeSet(nativeKey, rawC);
+            // LWW 裁决：比较云端 updated_at 与本机最后写入时间
+            // 云端更新（含 30s 宽限）→ 接受云端覆盖本地
+            // 本地更新 → 保留本地，补推云端（防止刷新后恢复旧值）
+            var cloudTsVal = existingTs[prefixedKey];
+            if (takeCloud(key, cloudTsVal)) {
+              var rawC = typeof cloudVal === 'string' ? cloudVal : JSON.stringify(cloudVal);
+              if (nativeGet(nativeKey) !== rawC) {
+                nativeSet(nativeKey, rawC);
+              }
+              cache[key] = cloudVal;
+              cacheTs[key] = cloudTsVal;
+            } else {
+              // 本地更新：保留本地值，补推云端
+              cache[key] = localVal;
+              cacheTs[key] = new Date().toISOString();
+              try {
+                await sb.from(TABLE).upsert({
+                  store_key: prefixedKey,
+                  payload: localVal,
+                  updated_at: new Date().toISOString()
+                }, { onConflict: 'store_key' });
+              } catch (e) {}
             }
-            cache[key] = cloudVal;
-            cacheTs[key] = new Date().toISOString();
             delete pendingWrites[key];
           }
           continue;
@@ -520,7 +584,11 @@
       result.data.forEach(function (row) {
         var origKey = unprefixKey(row.store_key);
         if (!origKey) return;
+        // 10 秒内自己写入的 key 跳过云端覆盖（短期防抖）
         if (recentWrites[origKey] && now - recentWrites[origKey] < SKIP_WRITE_WINDOW) return;
+
+        // LWW 裁决：本机有更新的写入时，不接受旧云端数据
+        if (!takeCloud(origKey, row.updated_at)) return;
 
         var newVal = row.payload;
         var oldVal = cache[origKey];
@@ -571,6 +639,7 @@
       try { cache[key] = JSON.parse(value); } catch (e) { cache[key] = value; }
 
       if (!shouldSkip(key)) {
+        setLocalMs(key, Date.now());
         syncToCloud(key, cache[key]);
       }
       return;
@@ -583,6 +652,8 @@
       _origRemoveItem.call(this, toLocalKey(key));
       delete cache[key];
       delete cacheTs[key];
+      delete localMeta[key];
+      persistLocalMeta();
       recentWrites[key] = Date.now();
 
       if (sb && initialized && !shouldSkip(key)) {

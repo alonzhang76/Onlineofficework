@@ -447,10 +447,24 @@ function flushQueue() {
  */
 function takeCloud(key, cloudUpdatedAt, localValue) {
   const ck = toCloudKey(key);
-  if (pending[ck]) return false;
+  const cloudMs = Date.parse(cloudUpdatedAt || '');
+
+  // 有未确认的本地推送时，仍检查云端是否更新（其他设备已写入更新值）
+  if (pending[ck]) {
+    const pendingTs = pending[ck].ts || 0;
+    // 云端更新时间 ≥ 本地待推送时间（含宽限）→ 另一设备已更新，接受云端、丢弃旧推送
+    if (!isNaN(cloudMs) && cloudMs + CLOCK_GRACE_MS >= pendingTs) {
+      delete pending[ck];
+      persistPending();
+      if (!isNaN(cloudMs)) { localMeta[key] = cloudMs; persistMeta(); }
+      return true;
+    }
+    // 本地待推送更新 → 保留本地，不接受云端
+    return false;
+  }
+
   const localMs = localMeta[key] || 0;
   if (!localMs) return true;
-  const cloudMs = Date.parse(cloudUpdatedAt || '');
   if (isNaN(cloudMs) || cloudMs + CLOCK_GRACE_MS >= localMs) {
     if (!isNaN(cloudMs)) { localMeta[key] = cloudMs; persistMeta(); }
     return true;
