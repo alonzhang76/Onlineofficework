@@ -1,4 +1,4 @@
-﻿/* ===== CloudBase 客户端 + Supabase 兼容层 cloudbase.js =====
+/* ===== CloudBase 客户端 + Supabase 兼容层 cloudbase.js =====
  *
  * 本项目已从 Supabase 迁移到腾讯云开发 CloudBase（https://tcb.cloud.tencent.com）
  *
@@ -556,7 +556,25 @@ class TcbQueryBuilder {
     this._isDelete = false;
   }
 
-  select(cols) { this._selectCols = cols || "*"; return this; }
+  // PG 行形态为 { id text, data jsonb }：store_key / payload / updated_at
+  // 并不是真实列，而是 data 内的字段（取回后由 _expand() 展平到行上）。
+  // 直接 select 这些列名会被 PostgREST 拒绝（42703 column does not exist），
+  // 导致整表加载失败、页面无数据；遇到时改写为真实列 id,data。
+  select(cols) {
+    var c = cols || "*";
+    if (this._table === "app_data_store" && c !== "*") {
+      var VIRTUAL = { store_key: 1, payload: 1, updated_at: 1 };
+      var parts = String(c).split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+      if (parts.some(function (p) { return VIRTUAL[p]; })) {
+        var keep = parts.filter(function (p) { return !VIRTUAL[p]; });
+        if (keep.indexOf("data") < 0) keep.push("data");
+        if (keep.indexOf("id") < 0) keep.push("id");
+        c = keep.join(",");
+      }
+    }
+    this._selectCols = c;
+    return this;
+  }
   eq(f, v) { this._wheres.push({ op: "eq", f: f, v: v }); return this; }
   neq(f, v) { this._wheres.push({ op: "neq", f: f, v: v }); return this; }
   gt(f, v) { this._wheres.push({ op: "gt", f: f, v: v }); return this; }
@@ -570,7 +588,10 @@ class TcbQueryBuilder {
   update(data) { this._updateVal = data; return this; }
   upsert(data, opts) {
     this._upsertVal = data;
-    this._onConflict = (opts && opts.onConflict) || null;
+    var oc = (opts && opts.onConflict) || null;
+    // on_conflict 只支持真实列（主键 id），store_key 是 data 内字段
+    if (oc === "store_key") oc = "id";
+    this._onConflict = oc;
     return this;
   }
   upsertOnDocKey() { /* 兼容占位 */ return this; }

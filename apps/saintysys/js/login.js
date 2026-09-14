@@ -1,4 +1,4 @@
-﻿/* ===== CloudBase 登录逻辑 login.js =====
+/* ===== CloudBase 登录逻辑 login.js =====
  *
  * 使用 supabase 兼容层（js/cloudbase.js）的 auth.signInWithPassword({ email, password })
  * 完成登录（底层为 CloudBase 云开发邮箱密码登录）
@@ -6,7 +6,7 @@
  * 登录成功后跳转到 ./index.html
  */
 
-import { supabase, CLOUDBASE_ENV } from "./cloudbase.js?v=20260912g";
+import { supabase, CLOUDBASE_ENV } from "./cloudbase.js?v=20260914d";
 
 // 中文提示文案
 const MSG = {
