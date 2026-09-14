@@ -478,6 +478,7 @@
   var _debounceTimers = {};   // key → timerId
   var _uploadQueue = [];      // 待上传队列 [{key, value}]
   var _isUploading = false;   // 是否正在上传（串行控制）
+  var _uploadTimeoutMs = 15000; // 单次上传超时（避免 Promise 永不 settle 导致队列卡死）
 
   /** 防抖入口：同一 key 在 UPLOAD_DEBOUNCE ms 内多次写入只保留最后一次 */
   function syncToCloud(key, value) {
@@ -497,10 +498,27 @@
     notifyStatus('pending');
     _debounceTimers[key] = setTimeout(function () {
       delete _debounceTimers[key];
-      // 加入上传队列
+      // 加入上传队列（同 key 去重：只保留最新值）
+      for (var i = 0; i < _uploadQueue.length; i++) {
+        if (_uploadQueue[i].key === key) {
+          _uploadQueue[i].value = value;
+          return; // 已更新旧项，无需再 push
+        }
+      }
       _uploadQueue.push({ key: key, value: value });
       processUploadQueue();
     }, UPLOAD_DEBOUNCE);
+  }
+
+  /** 给 Promise 加超时（CloudBase HTTP 请求可能永不 settle） */
+  function withTimeout(promise, ms) {
+    return new Promise(function (resolve, reject) {
+      var timer = setTimeout(function () {
+        reject(new Error('upload timeout (' + ms + 'ms)'));
+      }, ms);
+      promise.then(function (v) { clearTimeout(timer); resolve(v); },
+                   function (e) { clearTimeout(timer); reject(e); });
+    });
   }
 
   /** 串行处理上传队列：同一时间只发一个请求，避免并发抢带宽 */
@@ -509,6 +527,7 @@
     if (_uploadQueue.length === 0) {
       // 队列清空，若无挂起失败写入则置 idle
       if (Object.keys(pendingWrites).length === 0) notifyStatus('idle');
+      else notifyStatus('error'); // 有待重试项，保持 error
       return;
     }
 
@@ -520,18 +539,20 @@
     // 检查是否有更新的值已入队（跳过旧值）
     var hasNewer = _uploadQueue.some(function (it) { return it.key === key; });
 
-    doUpload(key, value).then(function () {
+    withTimeout(doUpload(key, value), _uploadTimeoutMs).then(function () {
       _isUploading = false;
-      // 如果有更新的同 key 写入在队列里，跳过当前这次（用最新值）
+      delete pendingWrites[key]; // 成功则清除挂起
       if (hasNewer) {
+        // 同 key 有更新值在队列里，跳过当前这次（用最新值）
         processUploadQueue();
         return;
       }
       processUploadQueue();
-    }, function () {
+    }, function (err) {
       _isUploading = false;
-      // 上传失败的交给 flushPending 重试
+      // 上传失败的加入待重试队列
       pendingWrites[key] = { value: value, ts: Date.now() };
+      console.warn('[CloudbaseSync] 上传失败:', key, err && err.message ? err.message : err);
       notifyStatus('error');
       processUploadQueue();
     });
@@ -539,19 +560,21 @@
 
   /** 实际执行单次 upsert */
   function doUpload(key, value) {
-    return sb.from(TABLE).upsert({
-      store_key: prefixKey(key),
-      payload: value,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'store_key' }).then(function (upResult) {
-      if (upResult && upResult.error) {
-        console.error('[CloudbaseSync] 云端写入失败:', key, upResult.error.message);
-        throw upResult.error;
-      }
-      // 单条上传成功
-    }, function (e) {
-      console.warn('[CloudbaseSync] 同步异常:', key, e && e.message ? e.message : e);
-      throw e;
+    return new Promise(function (resolve, reject) {
+      var p = sb.from(TABLE).upsert({
+        store_key: prefixKey(key),
+        payload: value,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'store_key' });
+      // TcbQueryBuilder 是 thenable，用 .then() 执行
+      p.then(function (upResult) {
+        if (upResult && upResult.error) {
+          console.error('[CloudbaseSync] 云端写入失败:', key, upResult.error.message);
+          reject(upResult.error);
+        } else {
+          resolve(upResult);
+        }
+      }, reject);
     });
   }
 
@@ -622,6 +645,19 @@
 
         var newVal = row.payload;
         var oldVal = cache[origKey];
+        var cloudTs = row.updated_at;
+        var localTs = cacheTs[origKey];
+
+        // ========== 时序比较：只有云端更新时间 >= 本地才覆盖 ==========
+        // 这是多端同步的关键：避免旧数据覆盖新数据
+        if (localTs && cloudTs) {
+          var localTime = new Date(localTs).getTime();
+          var cloudTime = new Date(cloudTs).getTime();
+          if (cloudTime <= localTime) {
+            // 云端不比本地新，跳过（包含同一时刻写入）
+            return;
+          }
+        }
 
         var isChanged = false;
         if (oldVal === undefined) {
