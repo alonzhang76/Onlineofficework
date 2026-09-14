@@ -317,29 +317,31 @@ window.SupabaseStore = CloudbaseStore;
     (document.head || document.documentElement).appendChild(css);
   }
 
-  var TAB_SELECTORS = [
-    '.nav-item.active',
-    '.nav-tab.active',
-    '.sidebar-menu-item.active',
-    '.nav-link.active',
-    '.company-btn.bg-primary',
-    '.ant-tabs-tab-active',
-    '[role="tab"][aria-selected="true"]'
-  ];
+  // 合并为一次 querySelectorAll
+  var TAB_SELECTOR = '.nav-item.active, .nav-tab.active, .sidebar-menu-item.active, .nav-link.active, .company-btn.bg-primary, .ant-tabs-tab-active, [role="tab"][aria-selected="true"]';
 
   function findActiveTabs() {
-    var found = [];
-    for (var i = 0; i < TAB_SELECTORS.length; i++) {
-      try {
-        var els = document.querySelectorAll(TAB_SELECTORS[i]);
-        for (var j = 0; j < els.length; j++) found.push(els[j]);
-      } catch (e) {}
-    }
-    return found;
+    try {
+      var list = document.querySelectorAll(TAB_SELECTOR);
+      var arr = [];
+      for (var i = 0; i < list.length; i++) arr.push(list[i]);
+      return arr;
+    } catch (e) { return []; }
+  }
+
+  // rAF 节流：合并短时间内多次调用
+  var _rafId = null;
+  function scheduleRefresh() {
+    if (_rafId !== null) return;
+    _rafId = (window.requestAnimationFrame || function (cb) { return setTimeout(cb, 16); })(function () {
+      _rafId = null;
+      try { refreshDots(); } catch (e) {}
+    });
   }
 
   function refreshDots() {
     var tabs = findActiveTabs();
+    var tabSet = new Set(tabs);
     var stateClass = '__cs_' + currentState;
     var title = STATES[currentState].title;
 
@@ -359,7 +361,7 @@ window.SupabaseStore = CloudbaseStore;
     var allDots = document.querySelectorAll('.__cs_dot');
     for (var k = 0; k < allDots.length; k++) {
       var parent = allDots[k].parentElement;
-      if (parent && tabs.indexOf(parent) === -1) {
+      if (parent && !tabSet.has(parent)) {
         parent.removeChild(allDots[k]);
       }
     }
@@ -395,20 +397,13 @@ window.SupabaseStore = CloudbaseStore;
   function setState(state) {
     if (!STATES[state]) state = 'idle';
     currentState = state;
-    try { refreshDots(); } catch (e) {}
+    scheduleRefresh();
     try { window.dispatchEvent(new CustomEvent('cloud-sync-status', { detail: { state: state } })); } catch (e) {}
   }
 
   function startAutoRefresh() {
-    setInterval(refreshDots, 2000);
-    if (window.MutationObserver) {
-      try {
-        var observer = new MutationObserver(function () { try { refreshDots(); } catch (e) {} });
-        observer.observe(document.body || document.documentElement, {
-          childList: true, subtree: true, attributes: true, attributeFilter: ['class']
-        });
-      } catch (e) {}
-    }
+    // 每 3 秒刷新一次（不使用 MutationObserver 监听整个 body，避免大表格页面卡顿）
+    setInterval(scheduleRefresh, 3000);
   }
 
   function boot() { try { injectCSS(); refreshDots(); startAutoRefresh(); } catch (e) {} }

@@ -117,11 +117,13 @@ function inspectErr(where, err) {
     const msg = String((err && (err.errMsg || err.message)) || '');
     const status = err && err.statusCode;
     console.warn('[cloudbase] ' + where + ' 失败:', msg || status || err, status !== undefined ? status : '', err && err.data || '');
-    if (!domainWarnShown && /domain|legal|合法|request:fail/i.test(msg)) {
+    // 仅匹配域名白名单相关错误（排除 timeout、网络断开等非域名问题）
+    const isDomainErr = /url not in domain|不在合法域名|request:fail url not|domain list/i.test(msg);
+    if (isDomainErr && !domainWarnShown) {
       domainWarnShown = true;
       wx.showModal({
         title: '手机端云同步不可用',
-        content: '请在微信公众平台 → 开发管理 → 开发设置 → 服务器域名 → request 合法域名中添加：\n' + CONFIG.base + '\n（每月可修改 50 次，添加后重新进入小程序生效）',
+        content: '错误详情：' + msg + '\n\n请在微信公众平台 → 开发管理 → 开发设置 → 服务器域名 → request 合法域名中添加：\n' + CONFIG.base + '\n\n注意：\n1. 必须精确匹配（不要带路径，如 /auth/v1/token）\n2. 添加后须删除小程序重新进入（清缓存）才生效\n3. 确认是在当前小程序的 AppID 下配置的',
         showCancel: false,
         confirmText: '知道了'
       });
