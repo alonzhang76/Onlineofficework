@@ -189,30 +189,87 @@
   }
 
   // ===== 彻底清空云端数据 =====
-  function clearCloudData() {
+  async function clearCloudData() {
     var sb = getClient();
     if (!sb) { toast('同步层未就绪，无法清空', 'error'); return; }
 
     showPasswordModal('🗑️ 彻底清空云端数据', '确认清空', function () {
       toast('⏳ 正在清空云端数据...');
+      doClear();
+    });
 
-      // 删除 app_data_store 全表所有行
-      // 用 neq 绕过部分 SDK "delete 需 filter" 的限制
-      sb.from(TABLE).delete().neq('store_key', '___never_match___').then(function (result) {
-        if (result && result.error) {
-          toast('清空失败：' + (result.error.message || result.error), 'error');
+    async function doClear() {
+      // 1. 等认证就绪（避免无 token 导致请求挂起）
+      if (typeof window.CloudbaseWhenReady === 'function') {
+        try {
+          console.log('[CloudAdmin] 等待认证就绪...');
+          await Promise.race([
+            window.CloudbaseWhenReady(),
+            new Promise(function (_, rej) { setTimeout(function () { rej(new Error('认证等待超时(15s)')); }, 15000); })
+          ]);
+          console.log('[CloudAdmin] 认证就绪');
+        } catch (e) {
+          console.warn('[CloudAdmin] 认证未就绪，继续尝试:', e.message || e);
+        }
+      }
+
+      // 2. 查所有行 id（兼容层会把 data jsonb 展开，row.id 即主键）
+      console.log('[CloudAdmin] 查询 app_data_store 全表 id...');
+      var rows;
+      try {
+        var r = await sb.from(TABLE).select('id');
+        console.log('[CloudAdmin] select 返回:', r);
+        if (r && r.error) {
+          toast('查询失败：' + (r.error.message || r.error), 'error');
           return;
         }
+        rows = (r && r.data) || [];
+      } catch (e) {
+        console.error('[CloudAdmin] select 异常:', e);
+        toast('查询异常：' + (e && e.message ? e.message : e), 'error');
+        return;
+      }
 
-        var removed = clearLocalBusinessData();
+      console.log('[CloudAdmin] 共 ' + rows.length + ' 行待删除');
+      if (rows.length === 0) {
+        var removed0 = clearLocalBusinessData();
+        toast('✅ 云端已无数据（本地清理 ' + removed0 + ' 项），页面即将刷新...');
+        setTimeout(function () { location.reload(); }, 1500);
+        return;
+      }
 
-        toast('✅ 云端数据已清空（本地清理 ' + removed + ' 项），页面即将刷新...');
-        // 稍等让 toast 显示，再重载
-        setTimeout(function () { location.reload(); }, 1200);
-      }).catch(function (e) {
-        toast('清空异常：' + (e && e.message ? e.message : e), 'error');
-      });
-    });
+      // 3. 逐个按 id 删除（兼容层 DELETE 走 _fetchRows → 原生 db.delete().eq('id')）
+      var okCount = 0, failCount = 0;
+      for (var i = 0; i < rows.length; i++) {
+        var rowId = rows[i] && (rows[i].id || rows[i]._id);
+        if (!rowId) { console.warn('[CloudAdmin] 跳过无 id 行:', rows[i]); continue; }
+        try {
+          var dRes = await sb.from(TABLE).delete().eq('id', String(rowId));
+          if (dRes && dRes.error) {
+            console.warn('[CloudAdmin] 删除失败', rowId, ':', dRes.error.message || dRes.error);
+            failCount++;
+          } else {
+            okCount++;
+          }
+        } catch (e) {
+          console.warn('[CloudAdmin] 删除异常', rowId, ':', e && e.message ? e.message : e);
+          failCount++;
+        }
+        // 每 10 行报告一次进度
+        if ((i + 1) % 10 === 0 || i === rows.length - 1) {
+          console.log('[CloudAdmin] 进度: ' + (i + 1) + '/' + rows.length + ' (成功 ' + okCount + ', 失败 ' + failCount + ')');
+        }
+      }
+
+      console.log('[CloudAdmin] 完成: 成功 ' + okCount + ', 失败 ' + failCount);
+      var removed = clearLocalBusinessData();
+      if (failCount === 0) {
+        toast('✅ 云端已清空 ' + okCount + ' 行（本地清理 ' + removed + ' 项），页面即将刷新...');
+      } else {
+        toast('⚠️ 清空部分完成：成功 ' + okCount + ', 失败 ' + failCount + '（本地清理 ' + removed + ' 项），页面即将刷新...', 'error');
+      }
+      setTimeout(function () { location.reload(); }, 1500);
+    }
   }
 
   // ===== 暴露 API =====
