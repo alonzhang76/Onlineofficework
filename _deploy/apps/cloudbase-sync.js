@@ -1,22 +1,19 @@
-/* ===== 通用 CloudBase 数据同步层 cloudbase-sync.js =====
+/* ===== CloudBase 数据同步层 cloudbase-sync.js（云优先 · 可靠版）=====
  *
- * 功能（与原 supabase-sync.js 完全对齐，仅底层切换到腾讯云开发 CloudBase）：
- *   1. 动态加载共享 CloudBase 兼容层（apps/cloudbase/cloudbase.js）
- *   2. 用共享账号静默登录（authenticated 角色，可读写；失败回退匿名只读）
- *   3. 拦截 localStorage 读写，实时同步到 CloudBase app_data_store 表
- *   4. 定时从云端拉取最新数据，更新本地缓存
- *   5. 首次加载时自动迁移 localStorage 中的已有数据到云端
+ * 设计原则（类百度网盘）：
+ *   1. 云端是唯一真相源（Source of Truth）
+ *   2. 启动时先从云端拉取全量数据，写入 localStorage，再放行应用初始化
+ *      （通过延迟 DOMContentLoaded 事件实现，应用无需改动）
+ *   3. 写入：本地立即生效（响应快）→ 立即推送云端 → 失败自动重试（指数退避）
+ *   4. 冲突：Last-Write-Wins，以 updated_at 时间戳为准（含 30s 时钟宽限）
+ *   5. 定时拉取云端（15s），有更新则覆盖本地并通知应用重渲染
  *
- * 使用方式（与旧版一致，把脚本名换成 cloudbase-sync.js）：
- *   <script>window.SUPABASE_APP_ID='orderschedule';</script>
- *   <script src="../cloudbase-sync.js"></script>
- * （新代码也可用 window.CLOUDBASE_APP_ID，二者等价）
+ * 使用方式：
+ *   <script>window.CLOUDBASE_APP_ID='wicketorders';</script>
+ *   <script src="../cloudbase-sync.js?v=20260914b"></script>
  *
- * 数据表：app_data_store（与 saintysys/wage 共用同一个 CloudBase 环境）
- *   PG 存储形态：{ id: store_key, data: { store_key, payload, updated_at } }
- *   store_key: 应用前缀 + 原始key（如 orderschedule__orders）
- *
- * 注意：此脚本必须在应用主逻辑之前加载。
+ * 数据表：app_data_store（PG 行形态 { id:text, data:jsonb }，
+ *   data = { store_key, payload, updated_at }，id = store_key）
  */
 (function () {
   'use strict';
@@ -24,138 +21,34 @@
   // ===== 配置 =====
   var APP_ID = window.CLOUDBASE_APP_ID || window.SUPABASE_APP_ID || 'default';
   var TABLE = 'app_data_store';
-  var REFRESH_INTERVAL = 30000; // 30 秒刷新一次
-  var SKIP_WRITE_WINDOW = 10000; // 10 秒内自己写入的 key 跳过云端覆盖
+  var REFRESH_INTERVAL = 15000;       // 15 秒轮询云端
+  var CLOCK_GRACE_MS = 30000;         // 时钟偏差宽限 30s
+  var INIT_LOAD_TIMEOUT = 30000;      // 启动拉云超时 30s（超时后放行，允许离线使用）
 
-  // 专用数据同步账号（authenticated 角色）。
-  // CloudBase PG 模式中匿名(anon)角色默认只有 SELECT，写操作会被 RLS 拒绝，
-  // 因此所有无登录表单的应用统一用此账号静默登录。
-  // ⚠️ 需在 CloudBase 控制台「身份认证 → 用户管理」中创建该邮箱账号并设置密码，
-  //    并在「登录方式」中开启「邮箱登录」与「匿名登录」（匿名用于只读兜底）。
-  //    可通过 window.CLOUDBASE_SYNC_ACCOUNT 在页面内覆盖。
+  // 数据同步专用账号（authenticated 角色，可读写）
   var SYNC_ACCOUNT = window.CLOUDBASE_SYNC_ACCOUNT || {
     email: 'sync@lori.app',
     password: 'LoriSync2026!'
   };
 
-  // ===== 状态 =====
-  var sb = null;
-  var clientReady = false;
-  var cache = {};       // 内存缓存：原始key → 值
-  var cacheTs = {};     // 每个 key 的云端 updated_at
-  var initialized = false;
-  var initPromise = null;
-  var recentWrites = {}; // 记录本地写入时间，防止云端旧数据覆盖
-  var authedUser = null;   // 当前认证用户（共享账号或匿名）
-  var authFailReason = ''; // 认证失败原因（用于手机端可见提示）
+  // ===== 内部状态 =====
+  var sb = null;                       // supabase 兼容客户端
+  var cache = {};                      // 原始key → 值（内存缓存，getItem 优先返回）
+  var cacheTs = {};                    // 原始key → 云端 updated_at（ISO 字符串）
+  var localMeta = {};                  // 原始key → 本机最后写入时间戳(ms)，持久化
+  var pending = {};                    // 待上传队列 { cloudKey: {key, value, ts, tries} }
+  var backoffUntil = 0;                // 退避截止时间
+  var flushing = false;
+  var ready = false;                   // 同步层是否就绪（初始拉云完成）
+  var initStarted = false;
 
-  // ===== 本地写入时间戳（持久化到 localStorage，跨刷新保留）=====
-  // 与小程序 cloudbase.js 的 localMeta 机制一致：记录每个裸键的本机最后写入时间，
-  // 用于在 loadAllFromCloud / migrateLocalStorage 中判断本地数据是否比云端更新，
-  // 防止"修改记录→刷新→记录恢复原值"的问题。
-  var LOCAL_META_KEY = '__cb_local_meta__';
-  var localMeta = {};
-  try { localMeta = JSON.parse(_origGetItem.call(_lsInstance, LOCAL_META_KEY) || '{}') || {}; } catch (e) { localMeta = {}; }
-  function persistLocalMeta() { try { _origSetItem.call(_lsInstance, LOCAL_META_KEY, JSON.stringify(localMeta)); } catch (e) {} }
-  function getLocalMs(key) { return localMeta[key] || 0; }
-  function setLocalMs(key, ms) { localMeta[key] = ms; persistLocalMeta(); }
-  // 时钟偏差宽限（与小程序一致 30s）
-  var CLOCK_GRACE_MS = 30000;
-
-  // ===== 手机端可见的云端同步状态徽标 =====
-  var badgeEl = null;
-  function ensureBadge() {
-    if (badgeEl) return badgeEl;
-    try {
-      if (!document || !document.body) return null;
-    } catch (e) { return null; }
-    var el = document.createElement('div');
-    el.id = '__cb_sync_badge';
-    el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;padding:6px 10px;border-radius:14px;font-size:12px;line-height:1.4;font-family:-apple-system,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,0.25);max-width:80vw;word-break:break-all;cursor:pointer;-webkit-tap-highlight-color:transparent;';
-    el.addEventListener('click', function () {
-      if (el.getAttribute('data-state') === 'error') {
-        location.reload();
-      } else {
-        el.style.display = 'none';
-      }
-    });
-    document.body.appendChild(el);
-    badgeEl = el;
-    return el;
-  }
-  function showSyncStatus(state, msg) {
-    try {
-      var el = ensureBadge();
-      if (!el) return;
-      el.setAttribute('data-state', state);
-      el.style.display = 'block';
-      if (state === 'ok') {
-        el.style.background = 'rgba(16,185,129,0.92)';
-        el.style.color = '#fff';
-        el.textContent = '☁️ 云端已连接';
-        clearTimeout(el._hideTimer);
-        el._hideTimer = setTimeout(function () { el.style.display = 'none'; }, 4000);
-      } else if (state === 'warn') {
-        el.style.background = 'rgba(245,158,11,0.95)';
-        el.style.color = '#fff';
-        el.textContent = '⚠️ 云端未连接（仅本机数据）' + (msg ? '：' + msg : '') + ' 点击刷新重试';
-      } else {
-        el.style.background = 'rgba(239,68,68,0.95)';
-        el.style.color = '#fff';
-        el.textContent = '❌ 云端数据被拒绝（账号/权限问题） 点击刷新';
-      }
-    } catch (e) {}
-  }
-  var badgeBound = false;
-  function bindBadgeWhenReady() {
-    if (badgeBound) return;
-    badgeBound = true;
-    function showByState() {
-      if (authedUser && !cloudLoadDenied) {
-        showSyncStatus('ok');
-      } else if (authedUser && cloudLoadDenied) {
-        showSyncStatus('error');
-      } else {
-        showSyncStatus('warn', authFailReason || '无登录会话');
-      }
-    }
-    if (document && document.body) {
-      showByState();
-    } else if (document && document.addEventListener) {
-      document.addEventListener('DOMContentLoaded', showByState);
-      window.addEventListener('load', showByState);
-    }
-  }
+  // 持久化 localMeta
+  var META_KEY = '__cb_meta__';
+  try { localMeta = JSON.parse(localStorage.getItem(META_KEY) || '{}') || {}; } catch (e) { localMeta = {}; }
+  function saveMeta() { try { localStorage.setItem(META_KEY, JSON.stringify(localMeta)); } catch (e) {} }
 
   // 跳过同步的内部 key
-  var SKIP_KEYS = ['_lastLocalSave_', 'isLoggedIn', 'username', 'userPhone', 'sb-', 'tcb_', 'supabase', 'reconciliation_', '__purchaseContract', '__cb_local_meta__'];
-
-  // ===== 应用专属 localStorage 键名重映射（与旧版保持一致）=====
-  var LOCAL_KEY_REMAP = (function () {
-    if (APP_ID === 'stainlessbusiness') {
-      // 不锈钢业务的通讯录/收藏联系人和服装系统同名，改用 sb_ 前缀存储
-      return { contacts: 'sb_contacts', favoriteContacts: 'sb_favoriteContacts' };
-    }
-    return {};
-  })();
-  var REMAP_REVERSE = (function () {
-    var r = {};
-    for (var k in LOCAL_KEY_REMAP) {
-      if (Object.prototype.hasOwnProperty.call(LOCAL_KEY_REMAP, k)) {
-        r[LOCAL_KEY_REMAP[k]] = k;
-      }
-    }
-    return r;
-  })();
-  var REMAP_ORIGINALS = (function () {
-    var s = {};
-    for (var k in LOCAL_KEY_REMAP) {
-      if (Object.prototype.hasOwnProperty.call(LOCAL_KEY_REMAP, k)) s[k] = true;
-    }
-    return s;
-  })();
-  function toLocalKey(key) { return LOCAL_KEY_REMAP[key] || key; }
-
+  var SKIP_KEYS = ['_lastLocalSave_', 'isLoggedIn', 'username', 'userPhone', 'sb-', 'tcb_', 'supabase', 'reconciliation_', '__purchaseContract', '__cb_meta__'];
   function shouldSkip(key) {
     for (var i = 0; i < SKIP_KEYS.length; i++) {
       if (key.indexOf(SKIP_KEYS[i]) >= 0) return true;
@@ -163,515 +56,320 @@
     return false;
   }
 
-  function isEmptyValue(val) {
-    if (val === null || val === undefined) return true;
-    if (typeof val === 'string') {
-      if (val === '') return true;
-      try { val = JSON.parse(val); } catch (e) { return false; }
-    }
-    if (Array.isArray(val)) return val.length === 0;
-    if (typeof val === 'object') {
-      for (var k in val) {
-        if (Object.prototype.hasOwnProperty.call(val, k)) return false;
+  // 键名前缀
+  function toCloudKey(key) { return APP_ID + '__' + key; }
+  function fromCloudKey(ck) {
+    var p = APP_ID + '__';
+    return ck && ck.indexOf(p) === 0 ? ck.substring(p.length) : null;
+  }
+
+  // ===== 延迟 DOMContentLoaded，确保应用读到云端数据 =====
+  var _origAddEventListener = document.addEventListener;
+  var _domReadyFired = false;
+  var _domListeners = [];
+  document.addEventListener = function (type, listener, options) {
+    if (type === 'DOMContentLoaded') {
+      if (_domReadyFired) {
+        setTimeout(function () { try { listener.call(document); } catch (e) {} }, 0);
+      } else {
+        _domListeners.push(listener);
       }
-      return true;
+      return;
     }
-    return false;
+    return _origAddEventListener.call(this, type, listener, options);
+  };
+  // 兼容 window.onload 也延迟
+  var _origWinOnLoad = null;
+  var _winOnLoadSet = false;
+  try {
+    Object.defineProperty(window, 'onload', {
+      get: function () { return _origWinOnLoad; },
+      set: function (fn) {
+        _origWinOnLoad = fn;
+        _winOnLoadSet = true;
+      },
+      configurable: true
+    });
+  } catch (e) {}
+
+  function fireDomReady() {
+    if (_domReadyFired) return;
+    _domReadyFired = true;
+    console.log('[CloudbaseSync] 云端初始数据已就绪，放行应用初始化');
+    _domListeners.forEach(function (l) {
+      try { l.call(document); } catch (e) {}
+    });
+    _domListeners = [];
+    if (_winOnLoadSet && typeof _origWinOnLoad === 'function') {
+      try { _origWinOnLoad.call(window); } catch (e) {}
+    }
   }
 
-  function prefixKey(key) { return APP_ID + '__' + key; }
-  function unprefixKey(storeKey) {
-    var prefix = APP_ID + '__';
-    if (storeKey && storeKey.indexOf(prefix) === 0) return storeKey.substring(prefix.length);
-    return null;
-  }
-
-  // ===== 保存原始 localStorage 方法（补丁打在 Storage.prototype 上）=====
-  var _lsInstance = window.localStorage;
-  var _StorageProto = Object.getPrototypeOf(_lsInstance);
-  var _origGetItem = _StorageProto.getItem;
-  var _origSetItem = _StorageProto.setItem;
-  var _origRemoveItem = _StorageProto.removeItem;
-
-  var RESERVED_KEYS = ['getItem', 'setItem', 'removeItem', 'key', 'clear', 'length'];
-  function isReservedKey(key) {
-    return RESERVED_KEYS.indexOf(key) >= 0;
-  }
-
-  function nativeGet(k) { return _origGetItem.call(_lsInstance, k); }
-  function nativeSet(k, v) { return _origSetItem.call(_lsInstance, k, v); }
-
-  // ===== 动态加载共享 CloudBase 兼容层 =====
-  // 兼容层相对路径固定为 apps/cloudbase/cloudbase.js，
-  // 依据本脚本自身 URL 推导，避免不同目录深度引用时路径出错。
+  // ===== 加载云端兼容层 =====
   function resolveModuleUrl() {
     try {
-      var src = (document.currentScript && document.currentScript.src) || '';
-      if (src) {
-        // 本文件位于 apps/cloudbase-sync.js，兼容层位于 apps/cloudbase/cloudbase.js
-        return new URL('cloudbase/cloudbase.js', src).href;
+      var scripts = document.querySelectorAll('script[src*="cloudbase-sync"]');
+      if (scripts.length) {
+        return new URL('cloudbase/cloudbase.js', scripts[scripts.length - 1].src).href;
       }
     } catch (e) {}
     return 'cloudbase/cloudbase.js';
   }
 
   async function loadClient() {
-    // 必须在 import 前设置共享账号，兼容层初始化（bootstrapAuth）时读取
     window.CLOUDBASE_SYNC = SYNC_ACCOUNT;
     try {
       var mod = await import(/* @vite-ignore */ resolveModuleUrl());
       sb = (mod && mod.supabase) || window.supabase || null;
-      clientReady = !!sb;
       return sb;
     } catch (e) {
       console.error('[CloudbaseSync] 兼容层加载失败:', e && e.message ? e.message : e);
-      authFailReason = 'CloudBase 模块加载失败';
       return null;
     }
   }
 
-  // 等待认证态稳定（共享账号登录或匿名登录完成）
+  // ===== 等待认证完成 =====
   async function waitAuth() {
     if (!sb) return null;
-    // 兼容层 auth.getUser 在未登录时返回错误；登录完成后返回用户
     var tries = 0;
-    while (tries < 30) {
+    while (tries < 40) {
       try {
-        var result = await sb.auth.getUser();
-        if (result && result.data && result.data.user) {
-          authedUser = result.data.user;
-          authFailReason = '';
-          return authedUser;
-        }
+        var r = await sb.auth.getUser();
+        if (r && r.data && r.data.user) return r.data.user;
       } catch (e) {}
       await new Promise(function (r) { setTimeout(r, 500); });
       tries++;
     }
-    authFailReason = authFailReason || '共享账号登录未就绪（仅匿名只读）';
+    console.warn('[CloudbaseSync] 认证超时，将以只读/离线模式运行');
     return null;
   }
 
-  var cloudLoadDenied = false;
-
-  // ===== 判断是否接受云端数据覆盖本地（LWW + 时钟宽限）=====
-  // 与小程序 takeCloud 逻辑一致：
-  //   - 本机从未编辑过该键 → 接受云端
-  //   - 云端 updated_at 不早于本机最后写入（含 30s 宽限）→ 接受云端
-  //   - 否则本地明显更新 → 拒绝云端，保留本地并补推
-  function takeCloud(origKey, cloudUpdatedAt) {
-    var localMs = getLocalMs(origKey);
-    if (!localMs) return true;
-    var cloudMs = Date.parse(cloudUpdatedAt || '');
-    if (isNaN(cloudMs) || cloudMs + CLOCK_GRACE_MS >= localMs) {
-      if (!isNaN(cloudMs)) setLocalMs(origKey, cloudMs);
-      return true;
-    }
-    return false;
-  }
-
-  // ===== 拉取全量数据到缓存 =====
-  async function loadAllFromCloud() {
+  // ===== 从云端拉取全量数据 =====
+  async function pullAll() {
     if (!sb) return false;
     try {
       var result = await sb.from(TABLE).select('store_key, payload, updated_at');
-      if (result.error) {
-        console.error('[CloudbaseSync] 云端加载失败:', result.error.message || result.error);
-        cloudLoadDenied = true;
+      if (result.error || !result.data) {
+        console.error('[CloudbaseSync] 拉取云端失败:', result.error && result.error.message);
         return false;
       }
       var rows = result.data || [];
-      var n = 0;
-      var skipped = 0;
+      var accepted = 0, rejected = 0;
       rows.forEach(function (row) {
-        var origKey = unprefixKey(row.store_key);
-        if (!origKey) return;
-        // 本地有更新的写入时，不加载旧云端数据到缓存，防止刷新后恢复旧值
-        if (!takeCloud(origKey, row.updated_at)) {
-          skipped++;
-          // 保留本地值在缓存中（从 localStorage 读取）
-          if (cache[origKey] === undefined) {
-            var rawL = nativeGet(toLocalKey(origKey));
-            if (rawL !== null) {
-              try { cache[origKey] = JSON.parse(rawL); } catch (e) { cache[origKey] = rawL; }
-            }
+        var key = fromCloudKey(row.store_key);
+        if (!key) return;
+        var cloudMs = Date.parse(row.updated_at || '');
+        var localMs = localMeta[key] || 0;
+        // LWW：云端更新（含宽限）或本机从未写过 → 接受云端
+        if (!localMs || isNaN(cloudMs) || cloudMs + CLOCK_GRACE_MS >= localMs) {
+          cache[key] = row.payload;
+          cacheTs[key] = row.updated_at;
+          var raw = typeof row.payload === 'string' ? row.payload : JSON.stringify(row.payload);
+          // 直接写原生 localStorage（绕过补丁，避免触发上传）
+          if (nativeGet(key) !== raw) {
+            nativeSet(key, raw);
           }
-          return;
-        }
-        if (cache[origKey] === undefined) {
-          cache[origKey] = row.payload;
-          cacheTs[origKey] = row.updated_at;
-          n++;
+          if (!isNaN(cloudMs)) { localMeta[key] = cloudMs; }
+          accepted++;
+        } else {
+          // 本机更新 → 保留本地，稍后补推
+          rejected++;
         }
       });
-      cloudLoadDenied = false;
-      console.log('[CloudbaseSync] 加载', rows.length, '行，新增入缓存', n, '个，跳过', skipped, '个本地更新（缓存共', Object.keys(cache).length, '个）');
+      saveMeta();
+      console.log('[CloudbaseSync] 拉取云端', rows.length, '行，接受', accepted, '，本地更新保留', rejected);
       return true;
     } catch (e) {
-      console.warn('[CloudbaseSync] 云端加载异常:', e && e.message ? e.message : e);
-      cloudLoadDenied = true;
+      console.warn('[CloudbaseSync] 拉取异常:', e && e.message ? e.message : e);
       return false;
     }
   }
 
-  async function retryAuthAndReload() {
-    if (!cloudLoadDenied) return;
-    console.log('[CloudbaseSync] 重试：重新拉取云端数据...');
-    var beforeCount = Object.keys(cache).length;
-    var ok = await loadAllFromCloud();
-    if (!ok) return;
-    var changedKeys = [];
-    Object.keys(cache).forEach(function (origKey) {
-      try {
-        var newVal = cache[origKey];
-        var raw = typeof newVal === 'string' ? newVal : JSON.stringify(newVal);
-        var localK = toLocalKey(origKey);
-        if (nativeGet(localK) !== raw) {
-          nativeSet(localK, raw);
-          changedKeys.push(origKey);
-        }
-      } catch (e) {}
-    });
-    if (Object.keys(cache).length > beforeCount) changedKeys = Object.keys(cache);
-    showSyncStatus('ok');
-    try { await migrateLocalStorage(); } catch (e) {}
-    if (changedKeys.length > 0) {
-      window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { keys: changedKeys, initial: true } }));
-    }
-  }
-
-  // ===== 初始化 =====
-  async function init() {
-    if (initialized) return true;
-    if (initPromise) return initPromise;
-
-    initPromise = (async function () {
-      console.log('[CloudbaseSync] 初始化，应用前缀:', APP_ID);
-
-      await loadClient();
-      var user = null;
-      if (sb) {
-        user = await waitAuth();
-        await loadAllFromCloud();
-      } else {
-        cloudLoadDenied = true;
-      }
-
-      if (cloudLoadDenied) {
-        setInterval(retryAuthAndReload, 30000);
-      }
-      bindBadgeWhenReady();
-
-      await migrateLocalStorage();
-
-      setInterval(refreshFromCloud, REFRESH_INTERVAL);
-      setInterval(flushPending, 10000);
-
-      window.addEventListener('online', function () {
-        flushPending();
-        refreshFromCloud();
-      });
-      document.addEventListener('visibilitychange', function () {
-        if (!document.hidden) {
-          flushPending();
-          refreshFromCloud();
-        }
-      });
-      window.addEventListener('beforeunload', flushPending);
-
-      initialized = true;
-      console.log('[CloudbaseSync] 就绪。应用:', APP_ID, '用户:', user ? (user.email || user.id || 'authed') : 'none');
-
-      try {
-        var allKeys = Object.keys(cache);
-        if (allKeys.length > 0) {
-          window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { keys: allKeys, initial: true } }));
-        }
-      } catch (e) {}
-
-      return true;
-    })();
-
-    return initPromise;
-  }
-
-  // ===== 迁移 localStorage → CloudBase =====
-  async function migrateLocalStorage() {
+  // ===== 上传单个 key 到云端 =====
+  async function pushOne(key, value) {
+    if (!sb) return false;
+    var cloudKey = toCloudKey(key);
     try {
-      // 本地键名重映射搬迁
-      var remapKeys = Object.keys(LOCAL_KEY_REMAP);
-      for (var rk = 0; rk < remapKeys.length; rk++) {
-        var orig = remapKeys[rk];
-        var localK = LOCAL_KEY_REMAP[orig];
-        var oldRaw = nativeGet(orig);
-        var newRaw = nativeGet(localK);
-        if (oldRaw !== null && oldRaw !== '' && (newRaw === null || newRaw === '')) {
-          nativeSet(localK, oldRaw);
-          console.log('[CloudbaseSync] 本地键迁移:', orig, '→', localK);
-        }
-      }
-
-      var existing = {};
-      var existingTs = {};
-      try {
-        var result = await sb.from(TABLE).select('store_key, payload, updated_at');
-        if (!result.error && result.data) {
-          result.data.forEach(function (row) {
-            existing[row.store_key] = row.payload;
-            existingTs[row.store_key] = row.updated_at;
-          });
-        }
-      } catch (e) {}
-
-      var migrated = 0, rescued = 0;
-      var nativeKeys = Object.keys(localStorage);
-      for (var i = 0; i < nativeKeys.length; i++) {
-        var nativeKey = nativeKeys[i];
-        if (isReservedKey(nativeKey)) continue;
-
-        var key;
-        if (REMAP_REVERSE[nativeKey] !== undefined) {
-          key = REMAP_REVERSE[nativeKey];
-        } else if (REMAP_ORIGINALS[nativeKey]) {
-          continue;
-        } else {
-          key = nativeKey;
-        }
-
-        if (shouldSkip(key)) continue;
-
-        var prefixedKey = prefixKey(key);
-        var raw = nativeGet(nativeKey);
-        var localVal;
-        try { localVal = (raw === null || raw === undefined) ? undefined : JSON.parse(raw); } catch (e) { localVal = raw; }
-
-        if (existing[prefixedKey] !== undefined) {
-          var cloudVal = existing[prefixedKey];
-          var cloudEmpty = isEmptyValue(cloudVal);
-          var localEmpty = isEmptyValue(localVal);
-
-          if (cloudEmpty && !localEmpty) {
-            try {
-              var rescueResult = await sb.from(TABLE).upsert({
-                store_key: prefixedKey,
-                payload: localVal,
-                updated_at: new Date().toISOString()
-              }, { onConflict: 'store_key' });
-              if (!rescueResult.error) {
-                cache[key] = localVal;
-                rescued++;
-              } else {
-                console.error('[CloudbaseSync] 抢救上传失败:', key, rescueResult.error.message);
-              }
-            } catch (e) {}
-            continue;
-          }
-
-          if (!cloudEmpty) {
-            // LWW 裁决：比较云端 updated_at 与本机最后写入时间
-            // 云端更新（含 30s 宽限）→ 接受云端覆盖本地
-            // 本地更新 → 保留本地，补推云端（防止刷新后恢复旧值）
-            var cloudTsVal = existingTs[prefixedKey];
-            if (takeCloud(key, cloudTsVal)) {
-              var rawC = typeof cloudVal === 'string' ? cloudVal : JSON.stringify(cloudVal);
-              if (nativeGet(nativeKey) !== rawC) {
-                nativeSet(nativeKey, rawC);
-              }
-              cache[key] = cloudVal;
-              cacheTs[key] = cloudTsVal;
-            } else {
-              // 本地更新：保留本地值，补推云端
-              cache[key] = localVal;
-              cacheTs[key] = new Date().toISOString();
-              try {
-                await sb.from(TABLE).upsert({
-                  store_key: prefixedKey,
-                  payload: localVal,
-                  updated_at: new Date().toISOString()
-                }, { onConflict: 'store_key' });
-              } catch (e) {}
-            }
-            delete pendingWrites[key];
-          }
-          continue;
-        }
-
-        if (raw === null || raw === undefined || raw === '') continue;
-
-        try {
-          var upsertResult = await sb.from(TABLE).upsert({
-            store_key: prefixedKey,
-            payload: localVal,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'store_key' });
-          if (!upsertResult.error) {
-            cache[key] = localVal;
-            migrated++;
-          } else {
-            console.error('[CloudbaseSync] 迁移上传失败:', key, upsertResult.error.message);
-          }
-        } catch (e) {}
-      }
-      if (migrated > 0) console.log('[CloudbaseSync] 迁移', migrated, '个 key 到云端');
-      if (rescued > 0) console.log('[CloudbaseSync] 抢救', rescued, '个本地 key（云端为空）');
-    } catch (e) {
-      console.warn('[CloudbaseSync] 迁移异常:', e && e.message ? e.message : e);
-    }
-  }
-
-  // ===== 同步到云端 =====
-  var pendingWrites = {};
-
-  async function syncToCloud(key, value) {
-    recentWrites[key] = Date.now();
-
-    if (!sb || !initialized) {
-      pendingWrites[key] = { value: value, ts: Date.now() };
-      return;
-    }
-
-    try {
-      var upResult = await sb.from(TABLE).upsert({
-        store_key: prefixKey(key),
+      var res = await sb.from(TABLE).upsert({
+        store_key: cloudKey,
         payload: value,
         updated_at: new Date().toISOString()
       }, { onConflict: 'store_key' });
-      if (upResult && upResult.error) {
-        console.error('[CloudbaseSync] 云端写入失败:', key, upResult.error.message);
-        pendingWrites[key] = { value: value, ts: Date.now() };
+      if (res && res.error) {
+        console.error('[CloudbaseSync] 上传失败', key, ':', res.error.message);
+        return false;
       }
+      return true;
     } catch (e) {
-      console.warn('[CloudbaseSync] 同步异常:', key, e && e.message ? e.message : e);
-      pendingWrites[key] = { value: value, ts: Date.now() };
+      console.warn('[CloudbaseSync] 上传异常', key, ':', e && e.message ? e.message : e);
+      return false;
     }
+  }
+
+  // ===== 待上传队列管理 =====
+  function schedulePush(key, value) {
+    var cloudKey = toCloudKey(key);
+    pending[cloudKey] = { key: key, value: value, ts: Date.now(), tries: 0 };
+    scheduleFlush(100);
+  }
+
+  function scheduleFlush(delay) {
+    setTimeout(flushPending, Math.max(0, delay || 0));
+  }
+
+  function backoffMs(tries) {
+    return Math.min(60000, 1000 * Math.pow(2, Math.max(1, Math.min(tries || 1, 6))));
   }
 
   async function flushPending() {
-    var keys = Object.keys(pendingWrites);
+    if (flushing) return;
+    if (Date.now() < backoffUntil) { scheduleFlush(backoffUntil - Date.now() + 100); return; }
+    var keys = Object.keys(pending);
     if (keys.length === 0) return;
-    for (var i = 0; i < keys.length; i++) {
-      var key = keys[i];
-      var entry = pendingWrites[key];
-      var value = entry && entry.value !== undefined ? entry.value : entry;
-      delete pendingWrites[key];
-
-      if (entry && entry.ts && cacheTs[key]) {
-        try {
-          if (new Date(entry.ts) < new Date(cacheTs[key])) continue;
-        } catch (e) {}
-      }
-
-      if (isEmptyValue(value)) {
-        var raw = nativeGet(toLocalKey(key));
-        var cur;
-        try { cur = (raw === null || raw === undefined) ? undefined : JSON.parse(raw); } catch (e) { cur = raw; }
-        if (!isEmptyValue(cur)) continue;
-      }
-      await syncToCloud(key, value);
-    }
-  }
-
-  // ===== 从云端刷新 =====
-  async function refreshFromCloud() {
-    if (!sb || !initialized) return;
-
+    flushing = true;
     try {
-      var result = await sb.from(TABLE).select('store_key, payload, updated_at');
-      if (!result.data || result.error) return;
-
-      var now = Date.now();
-      var changedKeys = [];
-
-      result.data.forEach(function (row) {
-        var origKey = unprefixKey(row.store_key);
-        if (!origKey) return;
-        // 10 秒内自己写入的 key 跳过云端覆盖（短期防抖）
-        if (recentWrites[origKey] && now - recentWrites[origKey] < SKIP_WRITE_WINDOW) return;
-
-        // LWW 裁决：本机有更新的写入时，不接受旧云端数据
-        if (!takeCloud(origKey, row.updated_at)) return;
-
-        var newVal = row.payload;
-        var oldVal = cache[origKey];
-
-        var isChanged = false;
-        if (oldVal === undefined) {
-          isChanged = true;
+      for (var i = 0; i < keys.length; i++) {
+        var ck = keys[i];
+        var entry = pending[ck];
+        if (!entry) continue;
+        var ok = await pushOne(entry.key, entry.value);
+        if (ok) {
+          delete pending[ck];
+          backoffUntil = 0;
         } else {
-          try {
-            if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) isChanged = true;
-          } catch (e) { isChanged = true; }
+          entry.tries = (entry.tries || 0) + 1;
+          backoffUntil = Date.now() + backoffMs(entry.tries);
+          console.warn('[CloudbaseSync]', entry.key, '上传失败，', Math.round((backoffUntil - Date.now()) / 1000), '秒后重试');
+          scheduleFlush(backoffUntil - Date.now() + 100);
+          break;
         }
-
-        if (isChanged) {
-          cache[origKey] = newVal;
-          cacheTs[origKey] = row.updated_at;
-          var raw = typeof newVal === 'string' ? newVal : JSON.stringify(newVal);
-          nativeSet(toLocalKey(origKey), raw);
-          changedKeys.push(origKey);
-        }
-      });
-
-      if (changedKeys.length > 0) {
-        console.log('[CloudbaseSync] 云端更新:', changedKeys.join(', '));
-        window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { keys: changedKeys } }));
       }
-    } catch (e) {
-      console.warn('[CloudbaseSync] 刷新异常:', e && e.message ? e.message : e);
+    } finally {
+      flushing = false;
     }
   }
 
-  // ===== 拦截 localStorage（Storage.prototype 补丁；sessionStorage 透传）=====
-  _StorageProto.getItem = function (key) {
-    if (this === _lsInstance) {
+  // ===== 拦截 localStorage =====
+  var _ls = window.localStorage;
+  var _proto = Object.getPrototypeOf(_ls);
+  var _origGet = _proto.getItem;
+  var _origSet = _proto.setItem;
+  var _origDel = _proto.removeItem;
+
+  function nativeGet(k) { return _origGet.call(_ls, k); }
+  function nativeSet(k, v) { _origSet.call(_ls, k, v); }
+
+  _proto.getItem = function (key) {
+    if (this === _ls) {
       if (cache[key] !== undefined) {
-        var val = cache[key];
-        return typeof val === 'string' ? val : JSON.stringify(val);
+        var v = cache[key];
+        return typeof v === 'string' ? v : JSON.stringify(v);
       }
-      return _origGetItem.call(this, toLocalKey(key));
+      return _origGet.call(this, key);
     }
-    return _origGetItem.call(this, key);
+    return _origGet.call(this, key);
   };
 
-  _StorageProto.setItem = function (key, value) {
-    if (this === _lsInstance) {
-      _origSetItem.call(this, toLocalKey(key), value);
-
-      try { cache[key] = JSON.parse(value); } catch (e) { cache[key] = value; }
-
+  _proto.setItem = function (key, value) {
+    if (this === _ls) {
+      _origSet.call(this, key, value);
+      var parsed;
+      try { parsed = JSON.parse(value); } catch (e) { parsed = value; }
+      cache[key] = parsed;
       if (!shouldSkip(key)) {
-        setLocalMs(key, Date.now());
-        syncToCloud(key, cache[key]);
+        localMeta[key] = Date.now();
+        saveMeta();
+        // 立即推送云端（不阻塞 UI）
+        pushOne(key, parsed).then(function (ok) {
+          if (!ok) schedulePush(key, parsed);
+        });
       }
       return;
     }
-    return _origSetItem.call(this, key, value);
+    return _origSet.call(this, key, value);
   };
 
-  _StorageProto.removeItem = function (key) {
-    if (this === _lsInstance) {
-      _origRemoveItem.call(this, toLocalKey(key));
+  _proto.removeItem = function (key) {
+    if (this === _ls) {
+      _origDel.call(this, key);
       delete cache[key];
       delete cacheTs[key];
       delete localMeta[key];
-      persistLocalMeta();
-      recentWrites[key] = Date.now();
-
-      if (sb && initialized && !shouldSkip(key)) {
-        sb.from(TABLE).delete().eq('store_key', prefixKey(key)).then(function () {});
+      saveMeta();
+      if (sb && !shouldSkip(key)) {
+        sb.from(TABLE).delete().eq('id', toCloudKey(key)).catch(function () {});
       }
       return;
     }
-    return _origRemoveItem.call(this, key);
+    return _origDel.call(this, key);
   };
 
-  // 暴露状态供调试
-  window.CloudbaseSync = {
-    appId: APP_ID,
-    isReady: function () { return initialized; },
-    cache: cache,
-    reload: retryAuthAndReload
-  };
+  // ===== 定时轮询云端 =====
+  async function refreshLoop() {
+    if (!sb || !ready) return;
+    var before = JSON.stringify(cache);
+    await pullAll();
+    var after = JSON.stringify(cache);
+    if (before !== after) {
+      console.log('[CloudbaseSync] 云端数据有更新，通知应用');
+      try {
+        window.dispatchEvent(new CustomEvent('cloud-data-updated', {
+          detail: { keys: Object.keys(cache) }
+        }));
+      } catch (e) {}
+    }
+  }
 
   // ===== 启动 =====
+  async function init() {
+    if (initStarted) return;
+    initStarted = true;
+    console.log('[CloudbaseSync] 启动，应用前缀:', APP_ID);
+
+    await loadClient();
+    if (!sb) {
+      console.warn('[CloudbaseSync] 客户端未就绪，放行应用（离线模式）');
+      ready = true;
+      fireDomReady();
+      return;
+    }
+
+    await waitAuth();
+
+    // 初始拉取云端（限时）
+    var pullOk = await Promise.race([
+      pullAll(),
+      new Promise(function (resolve) { setTimeout(function () { resolve(false); }, INIT_LOAD_TIMEOUT); })
+    ]);
+
+    if (!pullOk) {
+      console.warn('[CloudbaseSync] 初始拉取超时/失败，使用本地数据放行应用');
+    }
+
+    ready = true;
+    fireDomReady();
+
+    // 启动轮询
+    setInterval(refreshLoop, REFRESH_INTERVAL);
+
+    // 网络恢复 / 回前台时立即拉取
+    window.addEventListener('online', function () { refreshLoop(); flushPending(); });
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) { refreshLoop(); flushPending(); }
+    });
+    window.addEventListener('beforeunload', flushPending);
+
+    console.log('[CloudbaseSync] 就绪，应用:', APP_ID);
+  }
+
+  // 暴露调试接口
+  window.CloudbaseSync = {
+    isReady: function () { return ready; },
+    cache: cache,
+    pending: pending,
+    refresh: refreshLoop,
+    flush: flushPending
+  };
+
   init();
 })();
