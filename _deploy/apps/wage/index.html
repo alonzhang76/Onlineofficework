@@ -10,6 +10,8 @@
 <script type="module" src="js/cloudbase.js?v=20260914b"></script>
 <!-- CloudBase 数据存储层（window.CloudbaseStore / window.SupabaseStore） -->
 <script src="js/cloudbase-store.js?v=20260914b"></script>
+<!-- 云端数据管理工具（同步 / 清空云端，window.CloudAdmin） -->
+<script src="../cloudbase-admin.js?v=20260914c"></script>
 <!-- 登录守卫：无有效邮箱会话则跳转 login.html -->
 <script src="js/auth-guard.js"></script>
 <script>
@@ -546,6 +548,8 @@ table.batch-table .batch-proc { width: 100%; }
       <h2 id="pageTitle">工序登记</h2>
       <div class="topbar-info">
         <span class="topbar-date" id="todayDate"></span>
+        <button class="btn btn-sm btn-primary" onclick="CloudAdmin.syncNow()">🔄 同步云端</button>
+        <button class="btn btn-sm btn-danger" onclick="CloudAdmin.clearCloudData()">🗑️ 清空云端</button>
       </div>
     </div>
     <div class="content">

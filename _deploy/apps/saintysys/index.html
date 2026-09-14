@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -14,6 +14,8 @@
       <button class="header-toggle">☰</button>
       <span class="header-title">首页仪表盘</span>
       <div class="header-actions">
+        <button class="btn btn-sm" onclick="CloudAdmin.syncNow()" title="同步云端数据">🔄</button>
+        <button class="btn btn-sm" onclick="CloudAdmin.clearCloudData()" title="清空云端数据" style="color:#dc2626;">🗑️</button>
         <button class="btn btn-sm" onclick="App.backupData()">📦</button>
         <div class="header-user">
           <span>👤</span>
@@ -59,6 +61,8 @@
 <!-- Supabase 云端同步 + 独立轮询 -->
 <script src="js/localstorage-patch.js?v=20260823a"></script>
 <script src="js/cloudbase-store.js?v=20260914b"></script>
+<!-- 云端数据管理工具（同步 / 清空云端，window.CloudAdmin） -->
+<script src="../cloudbase-admin.js?v=20260914c"></script>
 <script src="js/init-page.js?v=20260825b"></script>
 <!-- Supabase 登录守卫（经典脚本，同步覆盖 App.checkLogin 等方法 + 异步 getUser 校验）-->
 <script src="js/auth-guard.js?v=20260912a"></script>
