@@ -2,13 +2,15 @@
 <html lang="zh-CN">
 <head>
 	<script>window.SUPABASE_APP_ID='wicketorders';</script>
-	<script src="../cloudbase-sync.js?v=20260913a"></script>
+	<script src="../cloudbase-sync.js?v=20260914c"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>外贸出口管理系统</title>
     <script src="./tailwindcss.js"></script>
     <!-- Font Awesome -->
     <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- 云存储文件中心（共享模块，与 orderschedule / wage 共用同一云端目录） -->
+    <link rel="stylesheet" href="../cloudbase/cfb.css?v=20260914b">
     <script src="./xlsx.full.min.js"></script>
         <!-- jsPDF -->
         <script src="./jspdf.umd.min.js"></script>
@@ -1195,6 +1197,10 @@
                     <span class="mr-2">📊</span>
                     报表统计
                 </button>
+                <button class="nav-tab" data-tab="cloudfiles">
+                    <span class="mr-2">☁️</span>
+                    云存储
+                </button>
             </div>
             <div class="relative" style="margin-left: 2rem;">
                 <button class="nav-tab flex items-center gap-1" id="dataManagementBtn" style="background: rgba(255,255,255,0.15);">
@@ -2352,6 +2358,12 @@
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- 云存储文件中心（共享模块：与 orderschedule / wage 共用同一云端目录，自动同步） -->
+            <div id="cloudfilesTab" class="tab-content hidden">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">☁️ 云存储</h2>
+                <div id="cloudfiles" data-cfb-host></div>
             </div>
         </main>
     </div>
@@ -4887,6 +4899,11 @@
     <script src="app.js"></script>
     <!-- Enhanced Payment Functionality -->
     <script src="./enhanced-payment.js"></script>
+    <!-- 云存储文件中心（共享模块，三应用通用）：全局搜索 + 跨应用同步 -->
+    <script>
+    window.CFB_CONFIG = { app: 'wicketorders' };
+    </script>
+    <script src="../cloudbase/cfb.js?v=20260914b"></script>
     
     <!-- 发票商品条目管理脚本 -->
     <script>

@@ -12,14 +12,20 @@
  *        - 文件来自 Contents（排除以 / 结尾的目录占位对象）
  *
  * 入参（event）：
- *   - bucket  {string}  桶名（当前固定使用环境默认桶，参数保留兼容）
+ *   - bucket  {string}  逻辑桶名（如 app-photos）：会拼到物理前缀前（防重复）；
+ *                       不传或传物理桶名则按 prefix 列环境默认桶
  *   - prefix  {string}  目录前缀，如 "sample/" 或 ""（桶根）
  *   - limit   {number}  单次返回最大条数，默认 1000，最大 1000
  *
  * 返回：
- *   { data: [ { name, type: 'file'|'folder', path, size?, lastModified? } ... ],
- *     isTruncated, nextMarker }
+ *   { data: [ { name, type: 'file'|'folder', path, size?, lastModified?,
+ *               etag?, cloudObjectId? } ... ],
+ *     isTruncated, nextMarker, bucket }
  *   失败返回 { error: string, data: [] }
+ *
+ * cloudObjectId（fileID）：小程序端用它换取下载链接
+ * （get-objects-download-info 需要 cloud://<env>.<bucket>/<path> 形态）；
+ * 网页端兼容层忽略该字段，不影响既有调用。
  */
 
 const util = require("util");
@@ -61,6 +67,16 @@ exports.main = async function (event /*, context */) {
     // 规范化前缀：去掉开头的 /，非根目录保证以 / 结尾
     let prefix = String(prefixRaw).replace(/^\/+/, "");
     if (prefix && !prefix.endsWith("/")) prefix += "/";
+
+    // 逻辑桶名 → 物理前缀映射（PG 新环境：逻辑桶 app-photos = 物理前缀 app-photos/）。
+    // 网页兼容层回退调用传 { bucket: 'app-photos', prefix: '相对前缀' }；
+    // 仅当 bucket 是逻辑桶名（非物理桶名）且前缀未包含它时才拼接，避免重复限定。
+    const bucketArg = String((event && event.bucket) || "").replace(/^\/+|\/+$/g, "");
+    if (bucketArg && bucketArg !== bucket) {
+      if (!prefix || !prefix.startsWith(bucketArg + "/")) {
+        prefix = bucketArg + "/" + prefix;
+      }
+    }
 
     const res = await getBucket({
       Bucket: bucket,
