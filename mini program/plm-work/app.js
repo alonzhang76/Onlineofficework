@@ -107,25 +107,29 @@ App({
     cb.flushQueue();
   },
 
-  /** 把同步状态下发给当前页面（用于驱动指示灯 UI）+ 关键状态弹 toast */
+  /** 把同步状态下发给当前页面（用于驱动指示灯 UI）+ 关键状态弹 toast
+   *  注意：必须延迟到下一个 tick，避免在 App.onLaunch 早期阶段调用 setData
+   *  触发框架 "J.updatePage is not a function" 警告。
+   */
   propagateSyncState(state) {
-    try {
-      const pages = getCurrentPages();
-      const page = pages[pages.length - 1];
-      if (page && typeof page.setData === 'function') {
-        page.setData({ __syncState: state });
+    setTimeout(() => {
+      try {
+        const pages = getCurrentPages();
+        const page = pages[pages.length - 1];
+        if (page && typeof page.setData === 'function') {
+          page.setData({ __syncState: state });
+        }
+      } catch (e) {}
+      // 进入错误/离线时弹一次 toast（避免连续重复弹）
+      if (state === this._lastToastState) return;
+      this._lastToastState = state;
+      if (state === 'error') {
+        wx.showToast({ title: '上传失败，重试中', icon: 'none', duration: 1500 });
+      } else if (state === 'offline') {
+        wx.showToast({ title: '云端未连接', icon: 'none', duration: 1500 });
       }
-    } catch (e) {}
-    // 进入错误/离线时弹一次 toast（避免连续重复弹）
-    if (state === this._lastToastState) return;
-    this._lastToastState = state;
-    if (state === 'error') {
-      wx.showToast({ title: '上传失败，重试中', icon: 'none', duration: 1500 });
-    } else if (state === 'offline') {
-      wx.showToast({ title: '云端未连接', icon: 'none', duration: 1500 });
-    } else if (state === 'idle') {
-      // 静默：指示灯变绿即可，不打扰
-    }
+      // idle 状态静默：指示灯变绿即可，不打扰
+    }, 0);
   },
 
   /** 启动前台轮询（重复调用安全） */
