@@ -48,6 +48,13 @@ exports.main = async function (event /*, context */) {
     await manager.currentEnvironment().lazyInit();
     // 使用环境默认桶（CloudBase 个人版仅有一个环境桶）
     const { bucket, region } = storage.getStorageConfig();
+    // 环境 ID：拼接 cloud://<env>.<bucket>/<path> 形态的 fileID 用
+    let envId = "";
+    try { envId = manager.currentEnvironment().getEnvId() || ""; } catch (e) {}
+    if (!envId) {
+      envId = process.env.TCB_ENV || process.env.TCB_ENVID ||
+        process.env.SCF_NAMESPACE || "";
+    }
     const cos = storage.getCos();
     const getBucket = util.promisify(cos.getBucket).bind(cos);
 
@@ -93,6 +100,11 @@ exports.main = async function (event /*, context */) {
         size: Number(f.Size) || 0,
         lastModified: f.LastModified || "",
         etag: String(f.ETag || "").replace(/"/g, ""),
+        // cloudObjectId（fileID）：小程序端用它换取下载链接
+        //（get-objects-download-info 需要 cloud://<env>.<bucket>/<path> 形态）
+        cloudObjectId: bucket
+          ? "cloud://" + (envId || bucket) + "." + bucket + "/" + key
+          : "",
       });
     }
 
@@ -100,6 +112,8 @@ exports.main = async function (event /*, context */) {
       data: data,
       isTruncated: !!res.IsTruncated,
       nextMarker: res.NextMarker || "",
+      // 桶名：调用方可自行拼接 cloud://<bucket>/<key>
+      bucket: bucket || "",
     };
   } catch (err) {
     console.error("[tcb-file-list] 异常:", err);
