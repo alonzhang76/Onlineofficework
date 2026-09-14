@@ -468,10 +468,23 @@ async function bootstrapAuth(app) {
       if (typeof authS.hasLoginState === "function") {
         try {
           if (await authS.hasLoginState()) {
-            // 探活：SDK 里残留的登录态可能已过期，直接用会 401/FetchError
+            // 探活1：能否取到用户对象
             var alive = await fetchUser(app);
-            if (alive) { console.log("[cloudbase.js] 已有登录态，跳过登录"); return; }
-            console.warn("[cloudbase.js] 登录态已失效，重新登录");
+            // 探活2：JWT 是否有效（有 role claim 且未过期）
+            // 缓存会话里的 token 可能已过期，/auth/v1/token 返回 400，
+            // 此时 fetchUser 仍返回缓存用户，但所有请求都会 FetchError
+            var tokenValid = false;
+            try {
+              var tk = await fetchAccessToken(app);
+              if (tk) {
+                var p = _decodeJwtPayload(tk);
+                if (p && p.role && (!p.exp || p.exp * 1000 > Date.now() + 60000)) {
+                  tokenValid = true;
+                }
+              }
+            } catch (_t) {}
+            if (alive && tokenValid) { console.log("[cloudbase.js] 已有登录态，跳过登录"); return; }
+            console.warn("[cloudbase.js] 登录态已失效（token 无效或无 role），重新登录");
             try { if (typeof authS.signOut === "function") await authS.signOut(); } catch (_e) {}
           }
         } catch (_e) {}

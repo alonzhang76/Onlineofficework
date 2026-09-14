@@ -395,6 +395,9 @@
 
       var migrated = 0, rescued = 0;
       var nativeKeys = Object.keys(localStorage);
+      // 只迁移属于当前应用的 key：跳过已带其他应用前缀的 key（如 wicketorders__orderRecords、purchase__xxx）
+      // 这些 key 由对应应用自己的迁移负责，当前应用不应重复上传
+      var APP_PREFIX = APP_ID + '__';
       for (var i = 0; i < nativeKeys.length; i++) {
         var nativeKey = nativeKeys[i];
         if (isReservedKey(nativeKey)) continue;
@@ -406,6 +409,16 @@
           continue;
         } else {
           key = nativeKey;
+        }
+
+        // 跳过已带其他应用前缀的 key（如 wicketorders__orderRecords）
+        // 只保留无前缀的裸 key 或带当前应用前缀的 key
+        var underScoreIdx = key.indexOf('__');
+        if (underScoreIdx > 0) {
+          var keyPrefix = key.slice(0, underScoreIdx + 2);
+          if (keyPrefix !== APP_PREFIX) continue;
+          // 带当前应用前缀的 key 已在云端，无需重复迁移
+          continue;
         }
 
         if (shouldSkip(key)) continue;
@@ -522,8 +535,12 @@
   }
 
   /** 串行处理上传队列：同一时间只发一个请求，避免并发抢带宽 */
+  var _consecutiveFails = 0;   // 连续失败计数（用于触发自动重登）
+  var _reauthing = false;      // 是否正在强制重登
+  var _lastReauthAt = 0;       // 上次强制重登时间（60s 冷却）
   function processUploadQueue() {
     if (_isUploading) return;
+    if (_reauthing) return; // 重登期间暂停出队，重登完成后自动恢复
     if (_uploadQueue.length === 0) {
       // 队列清空，若无挂起失败写入则置 idle
       if (Object.keys(pendingWrites).length === 0) notifyStatus('idle');
@@ -541,6 +558,7 @@
 
     withTimeout(doUpload(key, value), _uploadTimeoutMs).then(function () {
       _isUploading = false;
+      _consecutiveFails = 0;
       delete pendingWrites[key]; // 成功则清除挂起
       if (hasNewer) {
         // 同 key 有更新值在队列里，跳过当前这次（用最新值）
@@ -552,8 +570,24 @@
       _isUploading = false;
       // 上传失败的加入待重试队列
       pendingWrites[key] = { value: value, ts: Date.now() };
-      console.warn('[CloudbaseSync] 上传失败:', key, err && err.message ? err.message : err);
+      _consecutiveFails++;
+      console.warn('[CloudbaseSync] 上传失败(' + _consecutiveFails + '):', key, err && err.message ? err.message : err);
       notifyStatus('error');
+
+      // 连续失败 ≥3 次 → 登录态可能已失效（token 过期 /auth/v1/token 400），
+      // 自动调用强制重登（60 秒冷却，避免无限循环），重登完成后继续消化队列
+      if (_consecutiveFails >= 3 && (Date.now() - _lastReauthAt) > 60000 &&
+          typeof window !== 'undefined' && typeof window.CloudbaseForceReauth === 'function') {
+        _reauthing = true;
+        _lastReauthAt = Date.now();
+        _consecutiveFails = 0;
+        console.log('[CloudbaseSync] 连续上传失败，尝试强制重登恢复登录态...');
+        Promise.resolve(window.CloudbaseForceReauth()).catch(function () {}).then(function () {
+          _reauthing = false;
+          processUploadQueue();
+        });
+        return;
+      }
       processUploadQueue();
     });
   }
