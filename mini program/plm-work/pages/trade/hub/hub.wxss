@@ -1,0 +1,125 @@
+.trade-hero {
+  position: relative;
+  border-radius: 28rpx;
+  padding: 40rpx 32rpx;
+  margin-bottom: 36rpx;
+  overflow: hidden;
+  background: linear-gradient(135deg, #34C759 0%, #248A3D 55%, #186B2E 100%);
+  box-shadow:
+    0 14rpx 32rpx rgba(36, 138, 61, 0.3),
+    inset 0 2rpx 4rpx rgba(255, 255, 255, 0.28),
+    inset 0 -4rpx 8rpx rgba(0, 60, 25, 0.28);
+}
+.trade-hero-glow {
+  position: absolute;
+  top: -80rpx;
+  right: -60rpx;
+  width: 240rpx;
+  height: 240rpx;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 70%);
+}
+.trade-hero-inner { position: relative; }
+.trade-hero-title {
+  font-size: 42rpx;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 2rpx;
+  text-shadow: 0 2rpx 6rpx rgba(0, 40, 15, 0.3);
+}
+.trade-hero-sub {
+  font-size: 18rpx;
+  color: rgba(255, 255, 255, 0.8);
+  letter-spacing: 2rpx;
+  margin-top: 10rpx;
+}
+
+.sec-head { display: flex; align-items: baseline; gap: 12rpx; padding: 0 8rpx 20rpx; }
+.sec-head-title { font-size: 32rpx; font-weight: 700; color: #1C1C1E; }
+.sec-head-sub { font-size: 20rpx; color: #C7C7CC; letter-spacing: 1rpx; }
+
+/* 模块宫格 */
+.mod-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18rpx;
+  margin-bottom: 40rpx;
+}
+.mod-card {
+  position: relative;
+  width: calc(33.33% - 12rpx);
+  box-sizing: border-box;
+  background: #fff;
+  border-radius: 24rpx;
+  padding: 24rpx 12rpx 20rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+  transition: transform 0.16s ease;
+}
+.mod-hover { transform: scale(0.94); }
+.mod-icon {
+  width: 84rpx;
+  height: 84rpx;
+  border-radius: 26rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16rpx;
+  box-shadow:
+    0 8rpx 16rpx rgba(0, 0, 0, 0.16),
+    inset 0 2rpx 3rpx rgba(255, 255, 255, 0.45),
+    inset 0 -3rpx 6rpx rgba(0, 0, 0, 0.2);
+}
+.mod-icon-text { font-size: 40rpx; line-height: 1; }
+.mod-name { font-size: 25rpx; font-weight: 600; color: #1C1C1E; }
+.mod-name-en { font-size: 16rpx; color: #C7C7CC; letter-spacing: 0.3rpx; margin-top: 4rpx; }
+.mod-badge {
+  position: absolute;
+  top: 12rpx;
+  right: 12rpx;
+  min-width: 30rpx;
+  height: 30rpx;
+  padding: 0 8rpx;
+  box-sizing: border-box;
+  border-radius: 999rpx;
+  background: #FF3B30;
+  color: #fff;
+  font-size: 18rpx;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 数据总览 */
+.ov-card {
+  display: flex;
+  flex-wrap: wrap;
+  background: #fff;
+  border-radius: 26rpx;
+  padding: 12rpx 8rpx;
+  margin-bottom: 28rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+}
+.ov-item { width: 33.33%; box-sizing: border-box; padding: 22rpx 10rpx; text-align: center; }
+.ov-label { display: block; font-size: 20rpx; color: #8E8E93; }
+.ov-value { display: block; font-size: 30rpx; font-weight: 700; margin-top: 6rpx; }
+
+.cloud-card {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  background: #fff;
+  border-radius: 24rpx;
+  padding: 26rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+}
+.cloud-icon { font-size: 40rpx; }
+.cloud-mid { flex: 1; display: flex; flex-direction: column; }
+.cloud-title { font-size: 28rpx; font-weight: 600; }
+.cloud-sub { font-size: 22rpx; color: #8E8E93; margin-top: 6rpx; }
+
+.ws-btn { margin-top: 24rpx; }
+.foot { text-align: center; color: #C7C7CC; font-size: 22rpx; padding: 40rpx 20rpx 0; }

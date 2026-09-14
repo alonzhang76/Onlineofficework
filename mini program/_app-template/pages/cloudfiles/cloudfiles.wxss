@@ -1,0 +1,135 @@
+.cf-page {
+  padding: 24rpx 28rpx 48rpx;
+  box-sizing: border-box;
+  min-height: 100vh;
+  background: #f2f2f7;
+}
+
+/* ===== 连接状态 ===== */
+.cf-status {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  background: #fff;
+  border-radius: 18rpx;
+  padding: 20rpx 24rpx;
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.04);
+}
+.cf-dot {
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.cf-dot.ok { background: #34c759; }
+.cf-dot.bad { background: #ff3b30; }
+.cf-status-text {
+  font-size: 24rpx;
+  color: #374151;
+  line-height: 1.5;
+}
+
+/* ===== 分区上传 ===== */
+.sec-title {
+  margin: 32rpx 4rpx 18rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #1c1c1e;
+}
+.zone-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18rpx;
+}
+.zone-card {
+  width: calc((100% - 36rpx) / 3);
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 26rpx 0 22rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10rpx;
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.04);
+}
+.zone-hover { opacity: 0.7; }
+.zone-icon { font-size: 44rpx; }
+.zone-name { font-size: 24rpx; color: #1c1c1e; }
+
+/* ===== 面包屑 ===== */
+.crumbs {
+  margin: 28rpx 0 14rpx;
+  white-space: nowrap;
+  padding: 12rpx 8rpx;
+  background: #fff;
+  border-radius: 14rpx;
+}
+.crumb {
+  font-size: 24rpx;
+  color: #0a84ff;
+  padding: 4rpx 8rpx;
+}
+.crumb.cur {
+  color: #6b7280;
+  font-weight: 600;
+}
+.crumb-sep {
+  font-size: 24rpx;
+  color: #c7c7cc;
+}
+
+/* ===== 文件列表 ===== */
+.file-list {
+  background: #fff;
+  border-radius: 20rpx;
+  overflow: hidden;
+}
+.f-row {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  padding: 24rpx 26rpx;
+  border-bottom: 1rpx solid #f0f0f2;
+}
+.f-hover { background: #f7f8fa; }
+.f-icon { font-size: 40rpx; flex-shrink: 0; }
+.f-mid { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4rpx; }
+.f-name {
+  font-size: 28rpx;
+  color: #1c1c1e;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.f-sub { font-size: 22rpx; color: #9ca3af; }
+.f-arrow { color: #c7c7cc; font-size: 32rpx; }
+
+/* ===== 空状态 ===== */
+.cf-empty {
+  padding: 72rpx 40rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.cf-empty-icon { font-size: 64rpx; }
+.cf-empty-text {
+  margin-top: 16rpx;
+  font-size: 28rpx;
+  color: #1c1c1e;
+  font-weight: 500;
+}
+.cf-empty-sub {
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  color: #9ca3af;
+  line-height: 1.6;
+}
+
+.cf-note {
+  margin-top: 28rpx;
+  font-size: 22rpx;
+  color: #9ca3af;
+  line-height: 1.6;
+  padding: 0 8rpx;
+}

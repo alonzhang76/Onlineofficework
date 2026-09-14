@@ -1,0 +1,126 @@
+<view class="page">
+  <!-- 页首品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <!-- 筛选区 -->
+  <view class="card">
+    <view class="form-item">
+      <text class="f-label">🔍</text>
+      <input value="{{kw}}" placeholder="客户名称/联系人/电话/标签" bindinput="onSearch" />
+    </view>
+    <view class="segment">
+      <view class="segment-item {{typeIdx === 0 ? 'active' : ''}}" data-i="0" bindtap="onTypeTab">全部</view>
+      <view class="segment-item {{typeIdx === 1 ? 'active' : ''}}" data-i="1" bindtap="onTypeTab">客户</view>
+      <view class="segment-item {{typeIdx === 2 ? 'active' : ''}}" data-i="2" bindtap="onTypeTab">供应商</view>
+    </view>
+    <view class="form-row2">
+      <picker range="{{regionOptions}}" value="{{regionIdx}}" bindchange="onRegion">
+        <view class="form-item"><text class="f-label">地区</text><text class="f-value">{{regionOptions[regionIdx]}}</text></view>
+      </picker>
+      <picker range="{{priorityOptions}}" value="{{priorityIdx}}" bindchange="onPriority">
+        <view class="form-item"><text class="f-label">优先级</text><text class="f-value">{{priorityOptions[priorityIdx]}}</text></view>
+      </picker>
+    </view>
+    <view class="form-row2">
+      <picker range="{{yearOptions}}" value="{{yearIdx}}" bindchange="onYear">
+        <view class="form-item"><text class="f-label">建档年份</text><text class="f-value">{{yearOptions[yearIdx]}}</text></view>
+      </picker>
+      <view class="form-item"><text class="f-label">客户/供应商</text><text class="f-value strong">{{custCount}} / {{supplierCount}}</text></view>
+    </view>
+    <view class="stat-line">共 <text class="stat-num">{{list.length}}</text> 条 ｜ 重点 <text class="stat-num">{{priorityCount}}</text> 条</view>
+    <view class="btn-row">
+      <view class="btn btn-outline btn-sm" bindtap="resetFilter">重置</view>
+      <view class="btn btn-outline btn-sm" bindtap="exportCSV">导出</view>
+    </view>
+  </view>
+
+  <view wx:if="{{list.length === 0}}" class="card">
+    <view class="empty"><view class="empty-icon">👥</view>暂无匹配客户</view>
+  </view>
+
+  <!-- 客户卡片 -->
+  <view class="cus-grid">
+    <view class="cus-card" wx:for="{{list}}" wx:key="id" wx:for-item="o" data-id="{{o.id}}" bindtap="openEdit">
+      <view class="cus-top">
+        <view class="cus-avatar" style="background: {{o.avatarColor}};">{{o.initial}}</view>
+        <view class="cus-mid">
+          <view class="cus-name">{{o.customerName}}</view>
+          <view class="cus-sub">{{o.contactName || '无联系人'}}<text wx:if="{{o.phone}}"> ｜ {{o.phone}}</text></view>
+        </view>
+        <text class="cus-star" data-id="{{o.id}}" catchtap="togglePriority">{{o.priority ? '★' : '☆'}}</text>
+      </view>
+      <view class="cus-tags">
+        <text class="badge {{o.typeClass}}">{{o.customerType}}</text>
+        <text class="badge badge-gray" wx:if="{{o.region}}">{{o.region}}</text>
+        <text class="badge badge-orange" wx:for="{{o.tagList}}" wx:key="*this" wx:for-item="t">{{t}}</text>
+      </view>
+      <view class="cus-info" wx:if="{{o.email}}">✉️ {{o.email}}</view>
+      <view class="cus-info" wx:if="{{o.address}}">📍 {{o.address}}</view>
+      <view class="cus-info" wx:if="{{o.website}}">🌐 {{o.website}}</view>
+      <view class="cus-remark" wx:if="{{o.remark}}">{{o.remark}}</view>
+      <view class="cus-foot">
+        <text class="cus-date">建档 {{o.createdAt || '-'}}</text>
+        <view class="cus-btns">
+          <text class="cus-btn" data-id="{{o.id}}" catchtap="callCustomer">联系</text>
+          <text class="cus-btn danger" data-id="{{o.id}}" catchtap="delItem">删除</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="fab" bindtap="openAdd">＋</view>
+
+  <!-- 新增/编辑弹层 -->
+  <view catchtouchmove="noop" class="mask" wx:if="{{modal}}" bindtap="closeModal">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">{{editId ? '编辑客户' : '新增客户'}}<text class="sheet-close" bindtap="closeModal">×</text></view>
+        <scroll-view scroll-y class="sheet-body">
+
+      <view class="form-item">
+        <text class="f-label">客户名称 <text class="req">*</text></text>
+        <input value="{{form.customerName}}" data-k="customerName" bindinput="onField" placeholder="必填" />
+      </view>
+      <view class="form-row2">
+        <picker range="{{typeOptions}}" value="{{typeIdx2}}" bindchange="onTypeForm">
+          <view class="form-item"><text class="f-label">类型</text><text class="f-value">{{typeOptions[typeIdx2]}}</text></view>
+        </picker>
+        <view class="form-item"><text class="f-label">地区</text><input value="{{form.region}}" data-k="region" bindinput="onField" /></view>
+      </view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">联系人</text><input value="{{form.contactName}}" data-k="contactName" bindinput="onField" /></view>
+        <view class="form-item"><text class="f-label">职务</text><input value="{{form.contactTitle}}" data-k="contactTitle" bindinput="onField" /></view>
+      </view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">电话</text><input type="number" value="{{form.phone}}" data-k="phone" bindinput="onField" /></view>
+        <view class="form-item"><text class="f-label">邮箱</text><input value="{{form.email}}" data-k="email" bindinput="onField" /></view>
+      </view>
+      <view class="form-item"><text class="f-label">地址</text><input value="{{form.address}}" data-k="address" bindinput="onField" /></view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">网站</text><input value="{{form.website}}" data-k="website" bindinput="onField" /></view>
+        <picker mode="date" value="{{form.createdAt}}" data-k="createdAt" bindchange="onDate">
+          <view class="form-item"><text class="f-label">建档日期</text><text class="f-value {{form.createdAt ? '' : 'placeholder'}}">{{form.createdAt || '选择'}}</text></view>
+        </picker>
+      </view>
+      <view class="form-item"><text class="f-label">标签</text><input value="{{form.tags}}" data-k="tags" bindinput="onField" placeholder="多个标签用逗号分隔" /></view>
+      <view class="form-item">
+        <text class="f-label">重点客户</text>
+        <switch checked="{{form.priority}}" bindchange="onPrioritySwitch" color="#FF9500" />
+      </view>
+      <view class="form-item"><text class="f-label">备注</text><input value="{{form.remark}}" data-k="remark" bindinput="onField" /></view>
+
+      <view class="btn-row">
+        <view class="btn btn-plain" bindtap="closeModal">取消</view>
+        <view class="btn btn-primary" bindtap="save">保存</view>
+      </view>
+    
+        </scroll-view>
+      </view>
+  </view>
+  <view class="page-foot"></view>
+</view>

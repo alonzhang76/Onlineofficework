@@ -1,0 +1,10 @@
+.row-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12rpx; }
+.row-no { font-size: 24rpx; color: #8E8E93; font-weight: 600; }
+.row-del { font-size: 26rpx; color: #FF3B30; padding: 8rpx 16rpx; }
+.today-item { padding: 20rpx 0; border-bottom: 1rpx solid rgba(60, 60, 67, 0.12); }
+.today-item:last-child { border-bottom: none; }
+.today-main { display: flex; justify-content: space-between; align-items: center; }
+.today-process { font-size: 30rpx; font-weight: 600; }
+.today-amount { font-size: 32rpx; font-weight: 700; color: #007AFF; }
+.today-sub { font-size: 24rpx; color: #8E8E93; margin: 8rpx 0 12rpx; }
+.today-actions { display: flex; gap: 12rpx; justify-content: flex-end; }

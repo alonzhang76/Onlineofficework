@@ -1,0 +1,60 @@
+<view class="page">
+  <!-- 页首品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <!-- 筛选条件 -->
+  <view class="card">
+    <view class="sec-title">筛选条件</view>
+    <view class="form-row2">
+      <picker mode="date" value="{{startDate}}" bindchange="onStartDate">
+        <view class="form-item"><text class="f-label">开始日期</text><text class="f-value {{startDate ? '' : 'placeholder'}}">{{startDate || '不限'}}</text></view>
+      </picker>
+      <picker mode="date" value="{{endDate}}" bindchange="onEndDate">
+        <view class="form-item"><text class="f-label">结束日期</text><text class="f-value {{endDate ? '' : 'placeholder'}}">{{endDate || '不限'}}</text></view>
+      </picker>
+    </view>
+    <picker range="{{empNames}}" value="{{empIndex}}" bindchange="onEmpFilter">
+      <view class="form-item"><text class="f-label">员工</text><text class="f-value {{empFilter ? '' : 'placeholder'}}">{{empFilter || '全部'}}</text></view>
+    </picker>
+    <view class="form-item"><text class="f-label">工序</text><input value="{{processFilter}}" placeholder="输入工序名称" bindinput="onProcessInput" /></view>
+    <view class="form-item"><text class="f-label">客户</text><input value="{{customerFilter}}" placeholder="客户名称" bindinput="onCustomerInput" /></view>
+    <view class="form-item"><text class="f-label">订单号</text><input value="{{orderNoFilter}}" placeholder="订单号" bindinput="onOrderNoInput" /></view>
+    <view class="btn-row">
+      <view class="btn btn-primary" bindtap="executeQuery">查询</view>
+      <view class="btn btn-outline" bindtap="exportCSV">导出</view>
+      <view class="btn btn-outline" bindtap="importCSV">导入</view>
+      <view class="btn btn-danger-ghost" bindtap="clearAll">清空</view>
+    </view>
+  </view>
+
+  <!-- 结果 -->
+  <view class="card">
+    <view class="sec-title">汇总结果 <text class="sec-sub">共 {{result.length}} 条 ｜ 合计 {{resultTotal}} 元</text></view>
+    <view wx:if="{{result.length === 0}}" class="empty"><view class="empty-icon">🔍</view>无匹配记录</view>
+    <view wx:else>
+      <view class="rec-item" wx:for="{{paged}}" wx:key="id">
+        <view class="rec-top">
+          <text class="rec-emp">{{item.employee}}</text>
+          <text class="rec-date">{{item.date}}</text>
+        </view>
+        <view class="rec-mid">
+          <text class="rec-process">{{item.process}}</text>
+          <text class="rec-amount">{{item.totalAmount}}</text>
+        </view>
+        <view class="rec-sub">{{item.quantity}} 件 × {{item.unitPrice}}<text wx:if="{{item.customer}}"> ｜ {{item.customer}}</text><text wx:if="{{item.orderNo}}"> ｜ {{item.orderNo}}</text><text wx:if="{{item.notes}}"> ｜ {{item.notes}}</text></view>
+        <view class="rec-actions">
+          <view class="btn btn-outline btn-sm" data-id="{{item.id}}" bindtap="editRecord">编辑</view>
+          <view class="btn btn-danger-ghost btn-sm" data-id="{{item.id}}" bindtap="deleteRecord">删除</view>
+        </view>
+      </view>
+      <view wx:if="{{paged.length < result.length}}" class="btn btn-plain btn-block" bindtap="loadMore">加载更多（{{paged.length}}/{{result.length}}）</view>
+    </view>
+  </view>
+  <view class="page-foot"></view>
+</view>

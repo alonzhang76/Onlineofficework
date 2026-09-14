@@ -1,0 +1,78 @@
+<view class="page">
+  <!-- 页首品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <!-- 搜索 -->
+  <view class="card">
+    <view class="form-item">
+      <text class="f-label">🔍</text>
+      <input value="{{kw}}" placeholder="搜索标题或内容" bindinput="onSearch" />
+    </view>
+    <view class="stat-line">共 <text class="stat-num">{{list.length}}</text> 条 ｜ 置顶 <text class="stat-num">{{pinnedCount}}</text> 条</view>
+  </view>
+
+  <view wx:if="{{list.length === 0}}" class="card">
+    <view class="empty"><view class="empty-icon">📝</view>暂无备忘录，点击右下角 ＋ 新建</view>
+  </view>
+
+  <!-- 备忘卡片网格 -->
+  <view class="memo-grid">
+    <view class="memo-card" wx:for="{{list}}" wx:key="id" wx:for-item="m"
+          style="background: {{m.color}}; border-left: 8rpx solid {{m.border}};"
+          data-id="{{m.id}}" bindtap="openEdit">
+      <view class="memo-pin" wx:if="{{m.pinned}}">📌</view>
+      <view class="memo-title">{{m.title || '（无标题）'}}</view>
+      <view class="memo-content">{{m.content || '（无内容）'}}</view>
+      <view class="memo-foot">
+        <text class="memo-time">{{m.updatedAt || m.createdAt}}</text>
+        <view class="memo-btns">
+          <text class="memo-btn" data-id="{{m.id}}" catchtap="togglePin">{{m.pinned ? '取消置顶' : '置顶'}}</text>
+          <text class="memo-btn danger" data-id="{{m.id}}" catchtap="delMemo">删除</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="fab" bindtap="addMemo">＋</view>
+
+  <!-- 编辑弹层 -->
+  <view catchtouchmove="noop" class="mask" wx:if="{{modal}}" bindtap="closeModal">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">{{editId ? '编辑备忘录' : '新建备忘录'}}<text class="sheet-close" bindtap="closeModal">×</text></view>
+        <scroll-view scroll-y class="sheet-body">
+
+      <view class="form-item">
+        <text class="f-label">标题</text>
+        <input value="{{form.title}}" data-k="title" bindinput="onField" placeholder="请输入标题" />
+      </view>
+      <view class="memo-textarea-wrap">
+        <textarea class="memo-textarea" value="{{form.content}}" data-k="content" bindinput="onField"
+                  placeholder="请输入内容…" maxlength="-1" auto-height />
+      </view>
+
+      <view class="color-label">颜色标签</view>
+      <view class="color-row">
+        <view class="color-dot {{form.color === c.value ? 'on' : ''}}"
+              wx:for="{{colors}}" wx:key="value" wx:for-item="c"
+              style="background: {{c.value}}; border-color: {{c.border}};"
+              data-val="{{c.value}}" bindtap="pickColor">
+          <text class="color-dot-text" wx:if="{{form.color === c.value}}">✓</text>
+        </view>
+      </view>
+
+      <view class="btn-row">
+        <view class="btn btn-plain" bindtap="closeModal">取消</view>
+        <view class="btn btn-primary" bindtap="saveMemo">保存</view>
+      </view>
+    
+        </scroll-view>
+      </view>
+  </view>
+  <view class="page-foot"></view>
+</view>

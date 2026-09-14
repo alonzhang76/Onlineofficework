@@ -1,0 +1,190 @@
+<view class="page">
+  <!-- 云同步状态指示灯（右上角悬浮） -->
+  <view class="sync-float sync-badge sync-badge-{{__syncState}}">
+    <view class="sync-dot"></view>
+    <text class="sync-text">{{__syncState === 'idle' ? '已同步' : __syncState === 'pending' ? '上传中' : __syncState === 'error' ? '上传失败' : '未连接'}}</text>
+  </view>
+  <!-- 页首品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <!-- 公共信息 -->
+  <view class="card">
+    <view class="sec-title">批量工序登记</view>
+    <view class="form-row2">
+      <picker mode="date" value="{{date}}" bindchange="onDateChange">
+        <view class="form-item">
+          <text class="f-label">日期 <text class="req">*</text></text>
+          <text class="f-value">{{date}}</text>
+        </view>
+      </picker>
+      <picker range="{{empNames}}" value="{{empIndex}}" bindchange="onEmpChange">
+        <view class="form-item">
+          <text class="f-label">员工 <text class="req">*</text></text>
+          <text class="f-value {{employee ? '' : 'placeholder'}}">{{employee || '请选择'}}</text>
+        </view>
+      </picker>
+    </view>
+    <view class="oi-row">
+      <view class="form-item oi-input">
+        <text class="f-label">订单信息</text>
+        <input value="{{defaultOrderInfo}}" placeholder="客户,订单号（可逐行修改）" bindinput="onDefOrderInput" />
+      </view>
+      <view class="btn btn-outline btn-sm oi-pick" catchtap="openOrderSheet">选订单</view>
+    </view>
+    <view class="sug-list" wx:if="{{sugFor === 'def' && sugs.length}}">
+      <view class="sug-head">匹配的订单（待生产 / 生产中）</view>
+      <view class="sug-item" wx:for="{{sugs}}" wx:key="id" data-idx="{{index}}" catchtap="onPickOrderSug">
+        <view class="sug-title">{{item.title}}</view>
+        <view class="sug-sub">{{item.sub}}</view>
+      </view>
+    </view>
+    <view class="oi-extras" wx:if="{{defPick.drawingNo || defPick.spec}}">图号 {{defPick.drawingNo || '-'}} ｜ 规格 {{defPick.spec || '-'}} ｜ 订单量 {{defPick.orderQty || '-'}}</view>
+    <view class="btn-row">
+      <view class="btn btn-outline btn-sm" bindtap="syncDefaults">同步至所有空白行</view>
+    </view>
+  </view>
+
+  <!-- 录入行卡片 -->
+  <view class="card" wx:for="{{rows}}" wx:key="rid" wx:for-item="row" wx:for-index="idx">
+    <view class="row-head">
+      <text class="row-no">第 {{idx + 1}} 行</text>
+      <text class="row-del" data-idx="{{idx}}" bindtap="delRow">删除</text>
+    </view>
+    <view class="proc-row">
+      <picker range="{{procNames}}" data-idx="{{idx}}" bindchange="onProcPick" class="proc-picker">
+        <view class="form-item">
+          <text class="f-label">工序 <text class="req">*</text></text>
+          <text class="f-value {{row.process ? '' : 'placeholder'}}">{{row.process || '选择工序'}}</text>
+        </view>
+      </picker>
+      <view class="proc-filter" data-idx="{{idx}}" catchtap="openProcSheet">🔍 筛选</view>
+    </view>
+    <view class="form-row2">
+      <view class="form-item">
+        <text class="f-label">单价</text>
+        <text class="f-value strong">{{row.price ? row.price : '-'}}</text>
+      </view>
+      <view class="form-item">
+        <text class="f-label">数量 <text class="req">*</text></text>
+        <input type="digit" value="{{row.qty}}" placeholder="0" data-idx="{{idx}}" bindinput="onQtyInput" />
+      </view>
+    </view>
+    <view class="form-row2">
+      <view class="form-item">
+        <text class="f-label">超产小计</text>
+        <text class="f-value">{{row.over}}</text>
+      </view>
+      <view class="form-item">
+        <text class="f-label">合计</text>
+        <text class="f-value strong">{{row.total}}</text>
+      </view>
+    </view>
+    <view class="oi-row">
+      <view class="form-item oi-input">
+        <text class="f-label">订单信息</text>
+        <input value="{{row.orderInfo}}" placeholder="客户,订单号" data-idx="{{idx}}" bindinput="onRowOrderInput" />
+      </view>
+      <view class="btn btn-outline btn-sm oi-pick" data-idx="{{idx}}" catchtap="openOrderSheet">选订单</view>
+    </view>
+    <view class="sug-list" wx:if="{{sugFor === idx && sugs.length}}">
+      <view class="sug-head">匹配的订单（待生产 / 生产中）</view>
+      <view class="sug-item" wx:for="{{sugs}}" wx:for-item="sug" wx:key="id" data-idx="{{index}}" catchtap="onPickOrderSug">
+        <view class="sug-title">{{sug.title}}</view>
+        <view class="sug-sub">{{sug.sub}}</view>
+      </view>
+    </view>
+    <view class="oi-extras" wx:if="{{row.drawingNo || row.spec}}">图号 {{row.drawingNo || '-'}} ｜ 规格 {{row.spec || '-'}} ｜ 订单量 {{row.orderQty || '-'}}</view>
+    <view class="form-item">
+      <text class="f-label">备注</text>
+      <input value="{{row.note}}" placeholder="备注" data-idx="{{idx}}" bindinput="onNoteInput" />
+    </view>
+  </view>
+
+  <view class="kpi-card" style="width: 100%; margin-bottom: 16rpx;">
+    <view class="kpi-label">当日合计</view>
+    <view class="kpi-value">{{grandTotal}}</view>
+  </view>
+
+  <view class="btn-row">
+    <view class="btn btn-outline" bindtap="addRow">＋ 添加行</view>
+    <view class="btn btn-success" bindtap="saveBatch">保存全部</view>
+    <view class="btn btn-plain" bindtap="clearBatch">清空</view>
+  </view>
+
+  <!-- 今日记录 -->
+  <view class="card">
+    <view class="sec-title">今日该员工记录 <text class="sec-sub">{{todayInfo}}</text></view>
+    <view wx:if="{{!employee}}" class="empty"><view class="empty-icon">📅</view>请选择日期和员工</view>
+    <view wx:elif="{{todayRecords.length === 0}}" class="empty"><view class="empty-icon">📭</view>今日该员工暂无记录</view>
+    <view wx:else>
+      <view class="today-item" wx:for="{{todayRecords}}" wx:key="id">
+        <view class="today-main">
+          <text class="today-process">{{item.process}}</text>
+          <text class="today-amount">{{item.totalAmount}}</text>
+        </view>
+        <view class="today-sub">{{item.quantity}} 件 × {{item.unitPrice}}<text wx:if="{{item.customer}}"> ｜ {{item.customer}}</text><text wx:if="{{item.orderNo}}"> ｜ {{item.orderNo}}</text><text wx:if="{{item.drawingNo}}"> ｜ 图号 {{item.drawingNo}}</text><text wx:if="{{item.notes}}"> ｜ {{item.notes}}</text></view>
+        <view class="today-actions">
+          <view class="btn btn-outline btn-sm" data-id="{{item.id}}" bindtap="editEntry">编辑</view>
+          <view class="btn btn-danger-ghost btn-sm" data-id="{{item.id}}" bindtap="deleteTodayRecord">删除</view>
+        </view>
+      </view>
+    </view>
+  </view>
+  <view class="page-foot page-foot--tab"></view>
+
+  <!-- 订单选择弹层：仅列出 待生产 / 生产中 -->
+  <view catchtouchmove="noop" class="mask" wx:if="{{showOrderSheet}}" bindtap="closeOrderSheet">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">选择订单（待生产 / 生产中）<text class="sheet-close" bindtap="closeOrderSheet">✕</text></view>
+      <scroll-view scroll-y class="sheet-body">
+        <view class="form-item"><text class="f-label">关键词</text><input value="{{orderKw}}" placeholder="客户 / 订单号 / 图号 / 规格" bindinput="onOrderKw" /></view>
+        <view class="op-card" wx:for="{{orderCandidates}}" wx:key="id" data-idx="{{index}}" bindtap="onPickOrder">
+          <view class="op-head">
+            <view>
+              <view class="op-cust">{{item.customer}}</view>
+              <view class="op-no">{{item.orderNo}}</view>
+            </view>
+            <text class="badge {{item.status === '生产中' ? 'badge-orange' : 'badge-gray'}}">{{item.status}}</text>
+          </view>
+          <view class="op-grid">
+            <view class="op-cell"><text class="op-label">类型</text><text class="op-val">{{item.type || '-'}}</text></view>
+            <view class="op-cell"><text class="op-label">图纸号</text><text class="op-val">{{item.drawingNo || '-'}}</text></view>
+            <view class="op-cell"><text class="op-label">规格</text><text class="op-val">{{item.spec || '-'}}</text></view>
+            <view class="op-cell"><text class="op-label">订单量</text><text class="op-val">{{item.qty || '-'}}</text></view>
+            <view class="op-cell"><text class="op-label">产出</text><text class="op-val strong">{{item.output}}</text></view>
+            <view class="op-cell"><text class="op-label">库存</text><text class="op-val {{item.stock < 0 ? 'neg' : ''}}">{{item.stock}}</text></view>
+            <view class="op-cell"><text class="op-label">投料</text><text class="op-val">{{item.materialDate || '-'}}</text></view>
+            <view class="op-cell"><text class="op-label">交期</text><text class="op-val">{{item.delivery || '-'}}</text></view>
+            <view class="op-cell"><text class="op-label">电镀</text><text class="op-val">{{item.plating || '-'}}</text></view>
+            <view class="op-cell"><text class="op-label">下单日</text><text class="op-val">{{item.orderDate || '-'}}</text></view>
+          </view>
+          <view class="op-notes" wx:if="{{item.notes}}">备注：{{item.notes}}</view>
+        </view>
+        <view wx:if="{{!orderCandidates.length}}" class="empty"><view class="empty-icon">📋</view>没有待生产 / 生产中的订单</view>
+      </scroll-view>
+    </view>
+  </view>
+
+  <!-- 工序筛选弹层：支持关键词过滤 -->
+  <view catchtouchmove="noop" class="mask" wx:if="{{showProcSheet}}" bindtap="closeProcSheet">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">选择工序<text class="sheet-close" bindtap="closeProcSheet">✕</text></view>
+      <scroll-view scroll-y class="sheet-body">
+        <view class="form-item"><text class="f-label">关键词</text><input value="{{procKw}}" placeholder="输入工序名称关键字" bindinput="onProcKw" /></view>
+        <view class="pp-item" wx:for="{{procCandidates}}" wx:key="name" data-idx="{{index}}" bindtap="onPickProc">
+          <text class="pp-name">{{item.name}}</text>
+          <text class="pp-price">{{item.priceText}}/件</text>
+        </view>
+        <view wx:if="{{!procCandidates.length}}" class="empty"><view class="empty-icon">🔧</view>没有匹配的工序</view>
+      </scroll-view>
+    </view>
+  </view>
+
+  <wage-tabbar selected="{{0}}"/>
+</view>

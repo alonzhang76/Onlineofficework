@@ -1,0 +1,66 @@
+.row-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12rpx; }
+.row-no { font-size: 24rpx; color: #8E8E93; font-weight: 600; }
+.row-del { font-size: 26rpx; color: #FF3B30; padding: 8rpx 16rpx; }
+.today-item { padding: 20rpx 0; border-bottom: 1rpx solid rgba(60, 60, 67, 0.12); }
+.today-item:last-child { border-bottom: none; }
+.today-main { display: flex; justify-content: space-between; align-items: center; }
+.today-process { font-size: 30rpx; font-weight: 600; }
+.today-amount { font-size: 32rpx; font-weight: 700; color: #007AFF; }
+.today-sub { font-size: 24rpx; color: #8E8E93; margin: 8rpx 0 12rpx; }
+.today-actions { display: flex; gap: 12rpx; justify-content: flex-end; }
+
+/* 订单信息行：输入框 + 选订单按钮 */
+.oi-row { display: flex; align-items: center; gap: 12rpx; }
+.oi-row .oi-input { flex: 1; min-width: 0; margin-bottom: 16rpx; }
+.oi-pick { flex-shrink: 0; margin-bottom: 16rpx; white-space: nowrap; }
+.oi-extras {
+  font-size: 24rpx; color: #007AFF; background: rgba(0, 122, 255, 0.07);
+  border-radius: 10rpx; padding: 12rpx 18rpx; margin: -6rpx 0 16rpx;
+}
+
+/* 工序行：下拉选择 + 关键词筛选入口 */
+.proc-row { display: flex; align-items: center; gap: 12rpx; }
+.proc-row .proc-picker { flex: 1; min-width: 0; }
+.proc-filter {
+  flex-shrink: 0; font-size: 26rpx; color: #007AFF;
+  background: rgba(0, 122, 255, 0.09); border-radius: 12rpx;
+  padding: 16rpx 20rpx; white-space: nowrap;
+}
+.proc-filter:active { background: rgba(0, 122, 255, 0.18); }
+
+/* 订单选择弹层里的候选卡片（完整信息，与订单页列表一致） */
+.op-card {
+  background: #fff; border-radius: 16rpx; padding: 20rpx 22rpx;
+  margin-bottom: 16rpx; border: 2rpx solid transparent;
+}
+.op-card:active { border-color: #007AFF; background: #F7FAFF; }
+.op-head { display: flex; justify-content: space-between; align-items: center; padding-bottom: 12rpx; margin-bottom: 8rpx; border-bottom: 1rpx solid rgba(0,0,0,0.06); }
+.op-cust { font-size: 30rpx; font-weight: 600; color: #1C1C1E; }
+.op-no { font-size: 24rpx; color: #8E8E93; margin-top: 4rpx; }
+.op-grid { display: flex; flex-wrap: wrap; gap: 6rpx 0; }
+.op-cell { width: 50%; display: flex; padding: 6rpx 0; font-size: 26rpx; }
+.op-label { width: 130rpx; color: #8E8E93; flex-shrink: 0; }
+.op-val { flex: 1; color: #1C1C1E; word-break: break-all; }
+.op-val.neg { color: #FF3B30; }
+.op-notes { font-size: 24rpx; color: #8E8E93; margin-top: 8rpx; }
+
+/* 工序筛选弹层里的候选行 */
+.pp-item {
+  background: #fff; border-radius: 14rpx; padding: 24rpx 24rpx;
+  margin-bottom: 14rpx; display: flex; justify-content: space-between; align-items: center;
+}
+.pp-item:active { background: #F7FAFF; }
+.pp-name { font-size: 30rpx; font-weight: 500; color: #1C1C1E; }
+.pp-price { font-size: 26rpx; color: #007AFF; font-weight: 600; }
+
+/* 订单信息即时匹配（与网页版一致：标题"客户,订单号" + 详情行） */
+.sug-list {
+  background: #fff; border-radius: 12rpx;
+  margin: -6rpx 0 16rpx; overflow: hidden;
+  box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.06);
+}
+.sug-head { padding: 14rpx 24rpx 6rpx; font-size: 22rpx; color: #8E8E93; }
+.sug-item { padding: 16rpx 24rpx; border-top: 1rpx solid #F2F2F7; }
+.sug-item:active { background: #F0FAFF; }
+.sug-title { font-size: 28rpx; font-weight: 600; color: #1C1C1E; }
+.sug-sub { font-size: 22rpx; color: #8E8E93; margin-top: 4rpx; word-break: break-all; }

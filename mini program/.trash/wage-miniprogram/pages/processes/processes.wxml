@@ -1,0 +1,52 @@
+<view class="page">
+  <!-- 页首品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="form-item">
+      <text class="f-label">搜索</text>
+      <input value="{{keyword}}" placeholder="搜索工序名称/备注" bindinput="onSearch" />
+    </view>
+    <view class="sec-sub-line">共 {{list.length}} 条工序</view>
+  </view>
+
+  <view wx:if="{{list.length === 0}}" class="card"><view class="empty"><view class="empty-icon">🔧</view>暂无工序</view></view>
+  <view class="card" wx:for="{{list}}" wx:key="id" wx:for-item="p">
+    <view class="proc-head">
+      <text class="proc-name">{{p.name}}</text>
+      <text class="proc-price">{{p.unitPrice}} 元/件</text>
+    </view>
+    <view class="proc-meta" wx:if="{{p.dailyQuota || p.overPrice}}">
+      每日定额 {{p.dailyQuota || '-'}} 件<text wx:if="{{p.overPrice}}"> ｜ 超额 {{p.overPrice}} 元/件</text>
+    </view>
+    <view class="proc-meta" wx:if="{{p.notes}}">{{p.notes}}</view>
+    <view class="proc-actions">
+      <view class="btn btn-outline btn-sm" data-id="{{p.id}}" bindtap="editProcess">编辑</view>
+      <view class="btn btn-danger-ghost btn-sm" data-id="{{p.id}}" bindtap="deleteProcess">删除</view>
+    </view>
+  </view>
+
+  <view class="fab" bindtap="openAdd">＋</view>
+
+  <view class="mask" wx:if="{{modal}}" bindtap="closeModal">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">{{editId ? '编辑工序' : '新增工序'}}<text class="sheet-close" bindtap="closeModal">×</text></view>
+      <view class="form-item"><text class="f-label">工序名称 <text class="req">*</text></text><input value="{{form.name}}" data-k="name" bindinput="onField" placeholder="必填" /></view>
+      <view class="form-item"><text class="f-label">单件计价 <text class="req">*</text></text><input type="digit" value="{{form.unitPrice}}" data-k="unitPrice" bindinput="onField" placeholder="如 0.5" /></view>
+      <view class="form-item"><text class="f-label">每日定额（件）</text><input type="number" value="{{form.dailyQuota}}" data-k="dailyQuota" bindinput="onField" /></view>
+      <view class="form-item"><text class="f-label">超额计价</text><input type="digit" value="{{form.overPrice}}" data-k="overPrice" bindinput="onField" /></view>
+      <view class="form-item"><text class="f-label">备注</text><input value="{{form.notes}}" data-k="notes" bindinput="onField" /></view>
+      <view class="btn-row">
+        <view class="btn btn-plain" bindtap="closeModal">取消</view>
+        <view class="btn btn-primary" bindtap="saveProcess">保存</view>
+      </view>
+    </view>
+  </view>
+  <view class="page-foot"></view>
+</view>

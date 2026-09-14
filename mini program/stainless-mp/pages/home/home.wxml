@@ -1,0 +1,77 @@
+<view class="page">
+  <!-- 云同步状态指示灯（右上角悬浮） -->
+  <view class="sync-float sync-badge sync-badge-{{__syncState}}">
+    <view class="sync-dot"></view>
+    <text class="sync-text">{{__syncState === 'idle' ? '已同步' : __syncState === 'pending' ? '上传中' : __syncState === 'error' ? '上传失败' : '未连接'}}</text>
+  </view>
+  <!-- 品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">不锈钢业务管理系统</view>
+      <view class="brand-name-en">STAINLESS STEEL BUSINESS SYSTEM</view>
+    </view>
+  </view>
+
+  <!-- 欢迎横幅 -->
+  <view class="hero">
+    <view class="hero-title">{{appName}}</view>
+    <view class="hero-sub">STAINLESS STEEL BUSINESS</view>
+    <view class="hero-date">{{todayText}} · {{weekText}}</view>
+    <view class="user-chip" wx:if="{{user}}" bindtap="logout">
+      <view class="user-avatar">{{userBadge}}</view>
+      <view class="user-meta">
+        <text class="user-name">{{userLabel}}</text>
+        <text class="user-role">点击退出登录</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 数据概览 -->
+  <view class="sec-title">数据概览</view>
+  <view class="stat-row" wx:if="{{stats.length}}">
+    <view class="stat-item" wx:for="{{stats}}" wx:key="key">
+      <view class="stat-num" style="color: {{item.color}};">{{item.value}}</view>
+      <view class="stat-label">{{item.label}}</view>
+    </view>
+  </view>
+
+  <view style="height: 24rpx;"></view>
+
+  <!-- 功能模块 -->
+  <view class="sec-title">功能模块</view>
+  <view class="mod-grid">
+    <view class="mod-item" wx:for="{{modules}}" wx:key="key" data-url="{{item.url}}" bindtap="openModule" hover-class="none">
+      <view class="mod-icon" style="background: {{item.color}}22;">
+        <text>{{item.icon}}</text>
+      </view>
+      <view class="mod-name">{{item.name}}</view>
+      <view class="mod-count">{{item.count}}</view>
+    </view>
+  </view>
+
+  <view style="height: 24rpx;"></view>
+
+  <!-- 云同步状态 -->
+  <view class="cloud-card" bindtap="goCloud">
+    <text class="cloud-icon">☁️</text>
+    <view class="cloud-mid">
+      <text class="cloud-title">云存储</text>
+      <text class="cloud-sub">文件上传 / 预览 / 下载</text>
+    </view>
+    <text class="badge {{cloudOn ? 'badge-green' : 'badge-gray'}}">进入</text>
+  </view>
+  <view class="cloud-card" bindtap="goBackup">
+    <text class="cloud-icon">💾</text>
+    <view class="cloud-mid">
+      <text class="cloud-title">数据备份</text>
+      <text class="cloud-sub">导出 / 恢复 / 云同步</text>
+    </view>
+    <text class="badge {{cloudOn ? 'badge-green' : 'badge-gray'}}">进入</text>
+  </view>
+
+  <view class="foot" style="text-align:center;color:#C7C7CC;font-size:22rpx;padding:40rpx 20rpx 0;">
+    不锈钢业务管理系统 · 不锈钢业务管理
+  </view>
+  <view class="page-foot"></view>
+</view>

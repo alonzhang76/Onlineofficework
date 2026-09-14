@@ -1,0 +1,152 @@
+<view class="page">
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <view class="filter-card">
+    <view class="form-item"><text class="f-label">关键词</text><input class="f-value" value="{{kw}}" placeholder="支持逗号分隔多条件" bindinput="f" data-k="kw" /></view>
+    <view class="form-item"><text class="f-label">客户</text><input class="f-value" value="{{fCustomer}}" placeholder="客户名称" bindinput="f" data-k="fCustomer" /></view>
+    <view class="form-item"><text class="f-label">订单号</text><input class="f-value" value="{{fOrderNo}}" placeholder="多个用英文逗号分隔" bindinput="f" data-k="fOrderNo" /></view>
+    <view class="form-row2">
+      <picker range="{{statusOptions}}" data-k="statusIdx" bindchange="onPick">
+        <view class="form-item"><text class="f-label">状态</text><view class="f-value {{statusIdx === 0 ? 'placeholder' : ''}}">{{statusOptions[statusIdx]}}</view></view>
+      </picker>
+      <picker range="{{dateTypeOptions}}" data-k="dateTypeIdx" bindchange="onPick">
+        <view class="form-item"><text class="f-label">日期类型</text><view class="f-value">{{dateTypeOptions[dateTypeIdx]}}</view></view>
+      </picker>
+    </view>
+    <view class="form-row2">
+      <view class="form-item"><text class="f-label">从</text><input class="f-value" value="{{dateFrom}}" placeholder="YYYY-MM-DD" bindinput="f" data-k="dateFrom" /></view>
+      <view class="form-item"><text class="f-label">至</text><input class="f-value" value="{{dateTo}}" placeholder="YYYY-MM-DD" bindinput="f" data-k="dateTo" /></view>
+    </view>
+    <view class="btn-row">
+      <view class="btn btn-primary btn-sm" bindtap="search">查询</view>
+      <view class="btn btn-plain btn-sm" bindtap="resetFilter">重置</view>
+    </view>
+  </view>
+
+  <view class="list-head">
+    <text class="list-count">共 {{list.length}} 条</text>
+    <text class="list-sum">合计 ¥{{sumText}}</text>
+  </view>
+
+  <view class="empty" wx:if="{{list.length === 0}}">
+    <text class="empty-icon">📋</text>
+    <text>暂无订单，点击 + 新增</text>
+  </view>
+
+  <view class="card og-card" wx:for="{{list}}" wx:key="id">
+    <view class="og-head">
+      <text class="og-no">{{item.orderNo || '-'}}</text>
+      <text class="badge {{item.badgeClass}}">{{item.status}}</text>
+    </view>
+    <view class="og"><text class="og-label">客户</text><text class="og-val">{{item.customer || '-'}}</text></view>
+    <view class="og"><text class="og-label">产品</text><text class="og-val">{{item.product || '-'}}{{item.spec ? ' / ' + item.spec : ''}}</text></view>
+    <view class="og"><text class="og-label">图号</text><text class="og-val">{{item.drawing || '-'}}</text></view>
+    <view class="og"><text class="og-label">订单日期</text><text class="og-val">{{item.date || '-'}}</text></view>
+    <view class="og"><text class="og-label">数量 × 单价</text><text class="og-val">{{item.quantity}} × ¥{{item.price}}</text></view>
+    <view class="og"><text class="og-label">模具费</text><text class="og-val">¥{{item.moldFee}}</text></view>
+    <view class="og"><text class="og-label">订单金额</text><text class="og-val strong">{{item.currency}} {{item.orderAmount}}</text></view>
+    <view class="og"><text class="og-label">交期</text><text class="og-val">{{item.deadline || '-'}}</text></view>
+    <view class="og"><text class="og-label">出货日期</text><text class="og-val">{{item.shipDate || '未出货'}}</text></view>
+    <view class="og"><text class="og-label">开票 / 付款</text><text class="og-val">{{item.invoiceStatus}} · {{item.paymentStatus}}</text></view>
+    <view class="og-actions">
+      <view class="btn btn-outline btn-sm" data-id="{{item.id}}" bindtap="editOrder">编辑</view>
+      <view class="btn btn-danger-ghost btn-sm" data-id="{{item.id}}" bindtap="deleteOrder">删除</view>
+    </view>
+  </view>
+
+  <view class="page-foot"></view>
+  <view class="fab" bindtap="openNew">＋</view>
+
+  <view catchtouchmove="noop" class="mask" wx:if="{{showForm}}" bindtap="closeForm">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">{{form.id ? '编辑订单' : '新增订单'}}<text class="sheet-close" bindtap="closeForm">✕</text></view>
+        <scroll-view scroll-y class="sheet-body">
+
+      <view class="sheet-sec">基本信息</view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">订单日期</text><picker mode="date" value="{{form.date}}" data-k="date" bindchange="onField"><view class="f-value {{form.date ? '' : 'placeholder'}}">{{form.date || '选择'}}</view></picker></view>
+        <view class="form-item"><text class="f-label">交期</text><picker mode="date" value="{{form.deadline}}" data-k="deadline" bindchange="onField"><view class="f-value {{form.deadline ? '' : 'placeholder'}}">{{form.deadline || '选择'}}</view></picker></view>
+      </view>
+      <view class="form-item"><text class="f-label">客户 <text class="req">*</text></text><input class="f-value" value="{{form.customer}}" bindinput="onInput" data-k="customer" /></view>
+      <view class="form-item"><text class="f-label">订单号</text><input class="f-value" value="{{form.orderNo}}" bindinput="onInput" data-k="orderNo" /></view>
+      <view class="form-item"><text class="f-label">图号</text><input class="f-value" value="{{form.drawing}}" bindinput="onInput" data-k="drawing" /></view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">产品</text><input class="f-value" value="{{form.product}}" bindinput="onInput" data-k="product" /></view>
+        <view class="form-item"><text class="f-label">规格</text><input class="f-value" value="{{form.spec}}" bindinput="onInput" data-k="spec" /></view>
+      </view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">电镀</text><input class="f-value" value="{{form.plating}}" bindinput="onInput" data-k="plating" /></view>
+        <view class="form-item"><text class="f-label">LOGO</text><input class="f-value" value="{{form.logo}}" bindinput="onInput" data-k="logo" /></view>
+      </view>
+
+      <view class="sheet-sec">金额</view>
+      <view class="form-row2">
+        <picker range="{{currencies}}" data-k="currencyIdx" bindchange="onPickField">
+          <view class="form-item"><text class="f-label">币种</text><view class="f-value">{{currencies[form.currencyIdx]}}</view></view>
+        </picker>
+        <view class="form-item"><text class="f-label">数量 <text class="req">*</text></text><input class="f-value" type="digit" value="{{form.quantity}}" bindinput="onInput" data-k="quantity" /></view>
+      </view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">单价</text><input class="f-value" type="digit" value="{{form.price}}" bindinput="onInput" data-k="price" /></view>
+        <view class="form-item"><text class="f-label">模具费</text><input class="f-value" type="digit" value="{{form.moldFee}}" bindinput="onInput" data-k="moldFee" /></view>
+      </view>
+      <view class="calc-line">订单金额 = 数量 × 单价 + 模具费 = <text class="mono">{{form.currency}} {{form.orderAmount}}</text></view>
+
+      <view class="sheet-sec">生产</view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">产出月份1</text><input class="f-value" value="{{form.month1}}" placeholder="如 2026-01" bindinput="onInput" data-k="month1" /></view>
+        <view class="form-item"><text class="f-label">产出数量1</text><input class="f-value" type="number" value="{{form.output1}}" bindinput="onInput" data-k="output1" /></view>
+      </view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">产出月份2</text><input class="f-value" value="{{form.month2}}" bindinput="onInput" data-k="month2" /></view>
+        <view class="form-item"><text class="f-label">产出数量2</text><input class="f-value" type="number" value="{{form.output2}}" bindinput="onInput" data-k="output2" /></view>
+      </view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">出货日期</text><picker mode="date" value="{{form.shipDate}}" data-k="shipDate" bindchange="onField"><view class="f-value {{form.shipDate ? '' : 'placeholder'}}">{{form.shipDate || '选择（出货后填写）'}}</view></picker></view>
+        <view class="form-item"><text class="f-label">打箱日期</text><picker mode="date" value="{{form.packDate}}" data-k="packDate" bindchange="onField"><view class="f-value {{form.packDate ? '' : 'placeholder'}}">{{form.packDate || '选择'}}</view></picker></view>
+      </view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">箱规</text><input class="f-value" value="{{form.boxSize}}" bindinput="onInput" data-k="boxSize" /></view>
+        <view class="form-item"><text class="f-label">包装</text><input class="f-value" value="{{form.packaging}}" bindinput="onInput" data-k="packaging" /></view>
+      </view>
+
+      <view class="sheet-sec">发票与付款</view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">开票日期</text><picker mode="date" value="{{form.invoiceDate}}" data-k="invoiceDate" bindchange="onField"><view class="f-value {{form.invoiceDate ? '' : 'placeholder'}}">{{form.invoiceDate || '选择'}}</view></picker></view>
+        <view class="form-item"><text class="f-label">开票金额</text><input class="f-value" type="digit" value="{{form.invoiceAmount}}" bindinput="onInput" data-k="invoiceAmount" /></view>
+      </view>
+      <view class="form-item"><text class="f-label">发票抬头</text><input class="f-value" value="{{form.invoiceTitle}}" bindinput="onInput" data-k="invoiceTitle" /></view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">付款日期1</text><picker mode="date" value="{{form.payDate1}}" data-k="payDate1" bindchange="onField"><view class="f-value {{form.payDate1 ? '' : 'placeholder'}}">{{form.payDate1 || '选择'}}</view></picker></view>
+        <view class="form-item"><text class="f-label">付款金额1</text><input class="f-value" type="digit" value="{{form.payAmount1}}" bindinput="onInput" data-k="payAmount1" /></view>
+      </view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">付款日期2</text><picker mode="date" value="{{form.payDate2}}" data-k="payDate2" bindchange="onField"><view class="f-value {{form.payDate2 ? '' : 'placeholder'}}">{{form.payDate2 || '选择'}}</view></picker></view>
+        <view class="form-item"><text class="f-label">付款金额2</text><input class="f-value" type="digit" value="{{form.payAmount2}}" bindinput="onInput" data-k="payAmount2" /></view>
+      </view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">付款日期3</text><picker mode="date" value="{{form.payDate3}}" data-k="payDate3" bindchange="onField"><view class="f-value {{form.payDate3 ? '' : 'placeholder'}}">{{form.payDate3 || '选择'}}</view></picker></view>
+        <view class="form-item"><text class="f-label">付款金额3</text><input class="f-value" type="digit" value="{{form.payAmount3}}" bindinput="onInput" data-k="payAmount3" /></view>
+      </view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">付款日期4</text><picker mode="date" value="{{form.payDate4}}" data-k="payDate4" bindchange="onField"><view class="f-value {{form.payDate4 ? '' : 'placeholder'}}">{{form.payDate4 || '选择'}}</view></picker></view>
+        <view class="form-item"><text class="f-label">付款金额4</text><input class="f-value" type="digit" value="{{form.payAmount4}}" bindinput="onInput" data-k="payAmount4" /></view>
+      </view>
+
+      <view class="form-item ta"><text class="f-label">备注</text><textarea class="f-value" value="{{form.remark}}" bindinput="onInput" data-k="remark" auto-height /></view>
+
+      <view class="btn-row">
+        <view class="btn btn-success" bindtap="save">保存</view>
+        <view class="btn btn-plain" bindtap="closeForm">取消</view>
+      </view>
+    
+        </scroll-view>
+      </view>
+  </view>
+</view>

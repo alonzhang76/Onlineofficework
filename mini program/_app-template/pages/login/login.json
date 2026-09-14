@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "登录 · @APP_NAME@",
+  "navigationBarBackgroundColor": "@BRAND_BG@",
+  "navigationBarTextStyle": "black",
+  "backgroundColor": "@BRAND_BG@"
+}

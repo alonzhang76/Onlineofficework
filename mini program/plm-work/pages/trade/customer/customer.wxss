@@ -1,0 +1,41 @@
+/* ===== 外贸 · 客户信息 ===== */
+.stat-line { font-size: 24rpx; color: #8E8E93; padding: 16rpx 4rpx 4rpx; }
+.stat-num { color: #FF9500; font-weight: 700; }
+
+.cus-grid { display: flex; flex-wrap: wrap; gap: 18rpx; }
+.cus-card {
+  width: 100%;
+  box-sizing: border-box;
+  background: #fff;
+  border-radius: 24rpx;
+  padding: 24rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+}
+.cus-top { display: flex; align-items: center; gap: 18rpx; }
+.cus-avatar {
+  width: 76rpx; height: 76rpx; border-radius: 24rpx;
+  color: #fff; font-size: 34rpx; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 6rpx 14rpx rgba(0, 0, 0, 0.16), inset 0 2rpx 3rpx rgba(255, 255, 255, 0.4);
+}
+.cus-mid { flex: 1; min-width: 0; }
+.cus-name { font-size: 31rpx; font-weight: 700; color: #1C1C1E; }
+.cus-sub { font-size: 23rpx; color: #8E8E93; margin-top: 6rpx; }
+.cus-star { font-size: 40rpx; color: #FF9500; padding: 0 8rpx; }
+
+.cus-tags { display: flex; flex-wrap: wrap; gap: 10rpx; margin-top: 16rpx; }
+.cus-info { font-size: 23rpx; color: #3C3C43; margin-top: 10rpx; line-height: 1.5; word-break: break-all; }
+.cus-remark {
+  font-size: 23rpx; color: #8E8E93; margin-top: 14rpx;
+  background: #F2F2F7; border-radius: 12rpx; padding: 14rpx 18rpx; line-height: 1.6;
+}
+.cus-foot {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 18rpx; padding-top: 16rpx;
+  border-top: 1rpx solid rgba(60, 60, 67, 0.08);
+}
+.cus-date { font-size: 21rpx; color: #A1A1A6; }
+.cus-btns { display: flex; gap: 20rpx; }
+.cus-btn { font-size: 24rpx; color: #007AFF; }
+.cus-btn.danger { color: #FF3B30; }

@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "计件工资 · 统计",
+  "usingComponents": {
+    "wage-tabbar": "/components/wage-tabbar/index"
+  }
+}

@@ -1,0 +1,231 @@
+/* ===== 普利美工作 · 门户首页 ===== */
+.home-page { padding-bottom: 60rpx; }
+
+/* 欢迎横幅 */
+.hero {
+  position: relative;
+  border-radius: 28rpx;
+  padding: 44rpx 36rpx;
+  margin-bottom: 36rpx;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0A84FF 0%, #0062D6 55%, #004A9F 100%);
+  box-shadow:
+    0 14rpx 32rpx rgba(0, 98, 214, 0.32),
+    inset 0 2rpx 4rpx rgba(255, 255, 255, 0.28),
+    inset 0 -4rpx 8rpx rgba(0, 40, 100, 0.28);
+}
+.hero-glow {
+  position: absolute;
+  top: -80rpx;
+  right: -60rpx;
+  width: 260rpx;
+  height: 260rpx;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0) 70%);
+}
+.hero-inner { position: relative; }
+.hero-title {
+  font-size: 50rpx;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 4rpx;
+  text-shadow: 0 2rpx 6rpx rgba(0, 40, 100, 0.3);
+}
+.hero-sub {
+  font-size: 20rpx;
+  color: rgba(255, 255, 255, 0.78);
+  letter-spacing: 4rpx;
+  margin-top: 10rpx;
+}
+.hero-date {
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.9);
+  margin-top: 20rpx;
+}
+
+/* 分区标题 */
+.sec-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12rpx;
+  padding: 0 8rpx 20rpx;
+}
+.sec-head-title { font-size: 32rpx; font-weight: 700; color: #1C1C1E; }
+.sec-head-sub { font-size: 20rpx; color: #C7C7CC; letter-spacing: 1rpx; }
+
+/* 应用卡片网格 */
+.app-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20rpx;
+  margin-bottom: 40rpx;
+}
+.app-card {
+  position: relative;
+  width: calc(50% - 10rpx);
+  box-sizing: border-box;
+  background: #fff;
+  border-radius: 26rpx;
+  padding: 30rpx 26rpx 26rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+/* 需密码验证的模块角标 */
+.app-lock {
+  position: absolute;
+  top: 18rpx;
+  right: 18rpx;
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 24rpx;
+  background: rgba(120, 120, 128, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.app-lock-icon { font-size: 24rpx; line-height: 1; }
+.app-card-hover {
+  transform: scale(0.965);
+  box-shadow: 0 1rpx 6rpx rgba(0, 0, 0, 0.06);
+}
+.app-icon {
+  width: 100rpx;
+  height: 100rpx;
+  border-radius: 30rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 22rpx;
+  box-shadow:
+    0 10rpx 20rpx rgba(0, 0, 0, 0.16),
+    inset 0 3rpx 4rpx rgba(255, 255, 255, 0.45),
+    inset 0 -4rpx 8rpx rgba(0, 0, 0, 0.2);
+}
+.app-icon-text { font-size: 48rpx; line-height: 1; }
+.app-name { font-size: 32rpx; font-weight: 700; color: #1C1C1E; }
+.app-name-en { font-size: 18rpx; color: #C7C7CC; letter-spacing: 0.5rpx; margin-top: 4rpx; }
+.app-desc { font-size: 22rpx; color: #8E8E93; margin-top: 10rpx; }
+.app-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 8rpx;
+  margin-top: 18rpx;
+  padding-top: 16rpx;
+  border-top: 1rpx solid rgba(60, 60, 67, 0.1);
+}
+.app-stat-num { font-size: 34rpx; font-weight: 700; color: #007AFF; }
+.app-stat-label { font-size: 20rpx; color: #A1A1A6; }
+
+/* 数据总览 */
+.ov-card {
+  display: flex;
+  flex-wrap: wrap;
+  background: #fff;
+  border-radius: 26rpx;
+  padding: 12rpx 8rpx;
+  margin-bottom: 28rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+}
+.ov-item {
+  width: 33.33%;
+  box-sizing: border-box;
+  padding: 22rpx 14rpx;
+  text-align: center;
+}
+.ov-label { display: block; font-size: 20rpx; color: #8E8E93; }
+.ov-value { display: block; font-size: 32rpx; font-weight: 700; margin-top: 6rpx; }
+
+/* 云同步 */
+.cloud-card {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  background: #fff;
+  border-radius: 24rpx;
+  padding: 26rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+}
+.cloud-icon { font-size: 40rpx; }
+.cloud-mid { flex: 1; display: flex; flex-direction: column; }
+.cloud-title { font-size: 28rpx; font-weight: 600; }
+.cloud-sub { font-size: 22rpx; color: #8E8E93; margin-top: 6rpx; }
+
+.foot {
+  text-align: center;
+  color: #C7C7CC;
+  font-size: 22rpx;
+  padding: 40rpx 20rpx 0;
+  line-height: 1.6;
+}
+
+/* ===== 登录用户徽章（hero 右上角） ===== */
+.user-chip {
+  position: absolute;
+  top: 20rpx;
+  right: 20rpx;
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1rpx solid rgba(255, 255, 255, 0.25);
+  border-radius: 40rpx;
+  padding: 8rpx 20rpx 8rpx 8rpx;
+  max-width: 320rpx;
+}
+.user-avatar {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 50%;
+  background: #fff;
+  color: #0a84ff;
+  font-size: 28rpx;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.user-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.user-name {
+  font-size: 20rpx;
+  color: #fff;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220rpx;
+}
+.user-role {
+  font-size: 18rpx;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* ===== 未分配权限提示 ===== */
+.perm-empty {
+  background: #fff;
+  border-radius: 24rpx;
+  padding: 64rpx 40rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+}
+.perm-empty-icon { font-size: 72rpx; }
+.perm-empty-title {
+  margin-top: 20rpx;
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #1c1c1e;
+}
+.perm-empty-desc {
+  margin-top: 14rpx;
+  font-size: 24rpx;
+  color: #8E8E93;
+  line-height: 1.7;
+  white-space: pre-line;
+}

@@ -1,0 +1,110 @@
+<view class="page">
+  <!-- 页首品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="sec-title">月度工资汇总</view>
+    <view class="form-row2">
+      <picker range="{{yearList}}" value="{{yearIndex}}" bindchange="onYearChange">
+        <view class="form-item"><text class="f-label">年份</text><text class="f-value">{{yearList[yearIndex]}}年</text></view>
+      </picker>
+      <picker range="{{monthNames}}" value="{{monthIndex}}" bindchange="onMonthChange">
+        <view class="form-item"><text class="f-label">月份</text><text class="f-value">{{monthIndex + 1}}月</text></view>
+      </picker>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="sec-title">{{yearList[yearIndex]}}年{{monthIndex + 1}}月工资汇总 <text class="sec-sub">合计 {{grandTotal}} 元</text></view>
+    <view wx:if="{{summary.length === 0}}" class="empty"><view class="empty-icon">📊</view>本月暂无工资数据</view>
+    <view wx:for="{{summary}}" wx:key="name" wx:for-item="emp" class="emp-block">
+      <view class="emp-head">
+        <text class="emp-name">{{emp.name}}</text>
+        <text class="emp-total">{{emp.total}}</text>
+      </view>
+      <view class="emp-meta">出勤 {{emp.attendDays}} 天 ｜ 基本工资 {{emp.baseWage}} ｜ {{emp.recordCount}} 条记录</view>
+      <view class="adj-grid">
+        <view class="adj-item" wx:for="{{adjFields}}" wx:key="key" wx:for-item="f"
+              data-emp="{{emp.name}}" data-field="{{f.key}}" data-label="{{f.label}}" data-type="{{f.type}}"
+              bindtap="onFieldTap" bindlongpress="onFieldLongpress">
+          <text class="adj-label">{{f.label}}{{f.type === 'dropdown' ? ' ⌄' : ''}}</text>
+          <text class="adj-val">{{emp[f.key]}}</text>
+        </view>
+      </view>
+    </view>
+    <view wx:if="{{summary.length > 0}}" class="sum-row">
+      <text>合计</text>
+      <text class="sum-val">{{grandTotal}}</text>
+    </view>
+  </view>
+
+  <!-- 员工工序明细 -->
+  <view class="card">
+    <view class="sec-title">员工工序明细</view>
+    <picker range="{{empOptions}}" value="{{detailIndex}}" bindchange="onDetailEmpChange">
+      <view class="form-item"><text class="f-label">选择员工</text><text class="f-value {{detailEmp ? '' : 'placeholder'}}">{{detailEmp || '请选择'}}</text></view>
+    </picker>
+    <view wx:if="{{!detailEmp}}" class="empty">请选择员工查看工序明细</view>
+    <view wx:elif="{{detailRows.length === 0}}" class="empty">该员工本月无记录</view>
+    <view wx:else>
+      <view class="detail-item" wx:for="{{detailRows}}" wx:key="process">
+        <view class="detail-top">
+          <text class="detail-process">{{item.process}}</text>
+          <text class="detail-amount">{{item.total}}</text>
+        </view>
+        <view class="detail-sub">{{item.days}} 天 ｜ {{item.quantity}} 件 ｜ 占比 {{item.pct}}</view>
+      </view>
+      <view class="sum-row"><text>合计</text><text class="sum-val">{{detailTotal}}</text></view>
+    </view>
+  </view>
+
+  <!-- 字段编辑弹层 -->
+  <view catchtouchmove="noop" class="mask" wx:if="{{editor.show}}" bindtap="closeEditor">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">{{editor.label}} - {{editor.emp}}</view>
+        <scroll-view scroll-y class="sheet-body">
+      <block wx:if="{{editor.type === 'dropdown'}}">
+        <view class="opt-item {{editor.value == opt ? 'active' : ''}}" wx:for="{{editor.options}}" wx:key="*this"
+              data-val="{{item}}" bindtap="pickOption">{{item}}</view>
+      </block>
+      <block wx:else>
+        <view class="form-item">
+          <text class="f-label">数值</text>
+          <input type="digit" focus value="{{editor.value}}" bindinput="onEditorInput" />
+        </view>
+        <view class="btn btn-primary btn-block" bindtap="confirmInput">确定</view>
+      </block>
+    
+        </scroll-view>
+      </view>
+  </view>
+
+  <!-- 下拉选项管理弹层 -->
+  <view catchtouchmove="noop" class="mask center" wx:if="{{mgr.show}}" bindtap="closeMgr">
+    <view class="modal-box" catchtap="noop">
+      <view class="sheet-title">管理「{{mgr.label}}」选项</view>
+        <scroll-view scroll-y class="modal-body">
+      <view class="mgr-item" wx:for="{{mgr.options}}" wx:key="*this">
+        <text>{{item}}</text>
+        <text class="mgr-del" data-idx="{{index}}" bindtap="removeOption">删除</text>
+      </view>
+      <view class="form-item">
+        <text class="f-label">新选项</text>
+        <input type="digit" value="{{mgr.newVal}}" bindinput="onNewOptInput" placeholder="输入数字" />
+      </view>
+      <view class="btn-row">
+        <view class="btn btn-outline" bindtap="addOption">添加</view>
+        <view class="btn btn-plain" bindtap="closeMgr">关闭</view>
+      </view>
+    
+        </scroll-view>
+      </view>
+  </view>
+  <view class="page-foot"></view>
+</view>

@@ -1,0 +1,121 @@
+<view class="page">
+  <!-- 页首品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="form-item">
+      <text class="f-label">搜索</text>
+      <input value="{{keyword}}" placeholder="订单号/客户/规格/备注" bindinput="onSearch" />
+    </view>
+    <view class="form-row2">
+      <picker range="{{custOptions}}" value="{{custIdx}}" bindchange="onCustFilter">
+        <view class="form-item"><text class="f-label">客户</text><text class="f-value">{{custOptions[custIdx]}}</text></view>
+      </picker>
+      <picker range="{{statusOptions}}" value="{{statusIdx}}" bindchange="onStatusFilter">
+        <view class="form-item"><text class="f-label">状态</text><text class="f-value">{{statusOptions[statusIdx]}}</text></view>
+      </picker>
+    </view>
+    <view class="sec-sub-line">共 {{list.length}} 条 ｜ 订单量 {{sumQty}} ｜ 产出 {{sumOutput}}</view>
+    <view class="btn-row">
+      <view class="btn btn-outline btn-sm" bindtap="exportCSV">导出</view>
+      <view class="btn btn-outline btn-sm" bindtap="importCSV">导入</view>
+    </view>
+  </view>
+
+  <view wx:if="{{list.length === 0}}" class="card"><view class="empty"><view class="empty-icon">📋</view>暂无匹配订单</view></view>
+  <view class="card" wx:for="{{list}}" wx:key="id" wx:for-item="o">
+    <view class="ord-head">
+      <view>
+        <view class="ord-cust">{{o.customer}}</view>
+        <view class="ord-no">{{o.orderNo}}</view>
+      </view>
+      <text class="badge {{o.status === '已出货' ? 'badge-green' : o.status === '生产中' ? 'badge-orange' : o.status === '生产结束' ? 'badge-blue' : 'badge-gray'}}">{{o.status}}</text>
+    </view>
+    <view class="ord-grid">
+      <view class="og"><text class="og-label">类型</text><text class="og-val">{{o.type || '-'}}</text></view>
+      <view class="og"><text class="og-label">图纸号</text><text class="og-val">{{o.drawingNo || '-'}}</text></view>
+      <view class="og"><text class="og-label">规格</text><text class="og-val">{{o.spec || '-'}}</text></view>
+      <view class="og"><text class="og-label">订单量</text><text class="og-val">{{o.qty || '-'}}</text></view>
+      <view class="og"><text class="og-label">产出</text><text class="og-val strong">{{o.output}}</text></view>
+      <view class="og"><text class="og-label">库存</text><text class="og-val {{o.stock < 0 ? 'neg' : ''}}">{{o.stock}}</text></view>
+      <view class="og"><text class="og-label">投料</text><text class="og-val">{{o.materialDate || '-'}}</text></view>
+      <view class="og"><text class="og-label">交期</text><text class="og-val">{{o.delivery || '-'}}</text></view>
+      <view class="og"><text class="og-label">出货</text><text class="og-val">{{o.shipDate || '-'}}</text></view>
+      <view class="og"><text class="og-label">电镀</text><text class="og-val">{{o.plating || '-'}}</text></view>
+      <view class="og"><text class="og-label">蝴蝶结</text><text class="og-val">{{o.bow || '-'}}</text></view>
+      <view class="og"><text class="og-label">下单日</text><text class="og-val">{{o.orderDate || '-'}}</text></view>
+    </view>
+    <view class="ord-notes" wx:if="{{o.notes}}">备注：{{o.notes}}</view>
+    <view class="ord-actions">
+      <view class="btn btn-outline btn-sm" data-id="{{o.id}}" bindtap="editOrder">编辑</view>
+      <view class="btn btn-danger-ghost btn-sm" data-id="{{o.id}}" bindtap="deleteOrder">删除</view>
+    </view>
+  </view>
+
+  <view class="fab" bindtap="openAdd">＋</view>
+
+  <!-- 新增/编辑弹层 -->
+  <view class="mask" wx:if="{{modal}}" bindtap="closeModal">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">{{editId ? '编辑订单' : '新增订单'}}<text class="sheet-close" bindtap="closeModal">×</text></view>
+      <view class="form-item"><text class="f-label">客户 <text class="req">*</text></text><input value="{{form.customer}}" data-k="customer" bindinput="onField" placeholder="必填" /></view>
+      <view class="form-item"><text class="f-label">订单号 <text class="req">*</text></text><input value="{{form.orderNo}}" data-k="orderNo" bindinput="onField" placeholder="必填" /></view>
+      <view class="form-row2">
+        <picker mode="date" value="{{form.orderDate}}" bindchange="onDate('orderDate')">
+          <view class="form-item"><text class="f-label">下单日期</text><text class="f-value {{form.orderDate ? '' : 'placeholder'}}">{{form.orderDate || '选择'}}</text></view>
+        </picker>
+        <view class="form-item"><text class="f-label">订单数量</text><input type="number" value="{{form.qty}}" data-k="qty" bindinput="onField" /></view>
+      </view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">炉架类型</text><input value="{{form.type}}" data-k="type" bindinput="onField" /></view>
+        <view class="form-item"><text class="f-label">图纸号</text><input value="{{form.drawingNo}}" data-k="drawingNo" bindinput="onField" /></view>
+      </view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">规格</text><input value="{{form.spec}}" data-k="spec" bindinput="onField" /></view>
+        <view class="form-item"><text class="f-label">电镀</text><input value="{{form.plating}}" data-k="plating" bindinput="onField" /></view>
+      </view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">蝴蝶结</text><input value="{{form.bow}}" data-k="bow" bindinput="onField" /></view>
+        <picker mode="date" value="{{form.delivery}}" data-k="delivery" bindchange="onDateChange">
+          <view class="form-item"><text class="f-label">交期</text><text class="f-value {{form.delivery ? '' : 'placeholder'}}">{{form.delivery || '选择'}}</text></view>
+        </picker>
+      </view>
+      <view class="form-row2">
+        <picker mode="date" value="{{form.materialDate}}" data-k="materialDate" bindchange="onDateChange">
+          <view class="form-item"><text class="f-label">投料日期</text><text class="f-value {{form.materialDate ? '' : 'placeholder'}}">{{form.materialDate || '选择'}}</text></view>
+        </picker>
+        <picker mode="date" value="{{form.packDate}}" data-k="packDate" bindchange="onDateChange">
+          <view class="form-item"><text class="f-label">包装结束</text><text class="f-value {{form.packDate ? '' : 'placeholder'}}">{{form.packDate || '选择'}}</text></view>
+        </picker>
+      </view>
+      <view class="form-row2">
+        <picker mode="date" value="{{form.shipDate}}" data-k="shipDate" bindchange="onDateChange">
+          <view class="form-item"><text class="f-label">出货日期</text><text class="f-value {{form.shipDate ? '' : 'placeholder'}}">{{form.shipDate || '选择'}}</text></view>
+        </picker>
+        <view class="form-item"><text class="f-label">状态</text><text class="f-value strong">{{formStatus}}</text></view>
+      </view>
+      <view class="month-sec">
+        <view class="month-sec-title">月度产出（产出 = 全年合计，库存 = 产出 - 订单量）</view>
+        <view class="month-grid">
+          <view class="mg" wx:for="{{monthFields}}" wx:key="key">
+            <text class="mg-label">{{item.label}}</text>
+            <input type="number" value="{{form[item.key]}}" data-k="{{item.key}}" bindinput="onField" />
+          </view>
+        </view>
+        <view class="month-sum">产出数量：{{formOutput}} ｜ 库存：{{formStock}}</view>
+      </view>
+      <view class="form-item"><text class="f-label">备注</text><input value="{{form.notes}}" data-k="notes" bindinput="onField" /></view>
+      <view class="btn-row">
+        <view class="btn btn-plain" bindtap="closeModal">取消</view>
+        <view class="btn btn-primary" bindtap="saveOrder">保存</view>
+      </view>
+    </view>
+  </view>
+  <view class="page-foot"></view>
+</view>

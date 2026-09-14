@@ -1,0 +1,82 @@
+<view class="page">
+  <!-- 云同步状态指示灯（右上角悬浮） -->
+  <view class="sync-float sync-badge sync-badge-{{__syncState}}">
+    <view class="sync-dot"></view>
+    <text class="sync-text">{{__syncState === 'idle' ? '已同步' : __syncState === 'pending' ? '上传中' : __syncState === 'error' ? '上传失败' : '未连接'}}</text>
+  </view>
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <view class="inc-hero">
+    <view class="inc-hero-label">账户结余（{{companyName}}）</view>
+    <view class="inc-hero-value">¥{{stats.balanceText}}</view>
+    <view class="inc-hero-row">
+      <view class="inc-hero-item">
+        <text class="inc-hero-item-label">总收入</text>
+        <text class="inc-hero-item-val">+¥{{stats.incomeText}}</text>
+      </view>
+      <view class="inc-hero-item">
+        <text class="inc-hero-item-label">总支出</text>
+        <text class="inc-hero-item-val">-¥{{stats.expenseText}}</text>
+      </view>
+      <view class="inc-hero-item">
+        <text class="inc-hero-item-label">流水笔数</text>
+        <text class="inc-hero-item-val">{{stats.count}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="segment">
+    <view class="segment-item {{companyIdx === 0 ? 'active' : ''}}" data-i="0" bindtap="onCompany">普利美</view>
+    <view class="segment-item {{companyIdx === 1 ? 'active' : ''}}" data-i="1" bindtap="onCompany">无锡龙力</view>
+  </view>
+
+  <view class="card">
+    <view class="sec-title">功能入口</view>
+    <view class="mod-grid">
+      <view class="mod-item" wx:for="{{modules}}" wx:key="key" data-url="{{item.url}}" bindtap="go">
+        <view class="mod-icon" style="background: linear-gradient(145deg, {{item.color}}CC 0%, {{item.color}} 55%, {{item.colorDark}} 100%);">
+          <text class="mod-icon-text">{{item.icon}}</text>
+        </view>
+        <text class="mod-name">{{item.name}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="sec-title">最近流水</view>
+    <view class="empty" wx:if="{{recent.length === 0}}">
+      <text class="empty-icon">💹</text>
+      <text>暂无流水记录</text>
+    </view>
+    <view class="recent-row" wx:for="{{recent}}" wx:key="id">
+      <view class="recent-main">
+        <text class="recent-cate">{{item.categoryName || item.categoryId}}</text>
+        <text class="recent-date">{{item.date}}{{item.description ? ' · ' + item.description : ''}}</text>
+      </view>
+      <text class="recent-amt {{item.type === 'income' ? 'in' : 'out'}}">{{item.type === 'income' ? '+' : '-'}}¥{{item.amountText}}</text>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="cell" bindtap="pullCloud">
+      <view class="cell-label">☁️ 云同步</view>
+      <view class="cell-value {{cloudOn ? 'strong' : ''}}">{{cloudOn ? 'CloudBase 已连接' : '未配置'}}</view>
+    </view>
+    <view class="cell" bindtap="lockModule">
+      <view class="cell-label">🔒 锁定收支模块</view>
+      <view class="cell-value">›</view>
+    </view>
+    <view class="cell" bindtap="goWorkspace">
+      <view class="cell-label">🏠 返回普利美工作</view>
+      <view class="cell-value">›</view>
+    </view>
+  </view>
+
+  <view class="page-foot"></view>
+</view>

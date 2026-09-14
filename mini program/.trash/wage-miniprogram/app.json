@@ -1,0 +1,39 @@
+{
+  "pages": [
+    "pages/entry/entry",
+    "pages/query/query",
+    "pages/stats/stats",
+    "pages/orders/orders",
+    "pages/more/more",
+    "pages/monthly/monthly",
+    "pages/annual/annual",
+    "pages/employees/employees",
+    "pages/processes/processes",
+    "pages/calendar/calendar",
+    "pages/backup/backup"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#F7F7F9",
+    "navigationBarTitleText": "计件工资",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#F2F2F7",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "custom": true,
+    "color": "#8E8E93",
+    "selectedColor": "#007AFF",
+    "backgroundColor": "#F9F9F9",
+    "borderStyle": "white",
+    "list": [
+      { "pagePath": "pages/entry/entry", "text": "登记" },
+      { "pagePath": "pages/query/query", "text": "汇总" },
+      { "pagePath": "pages/stats/stats", "text": "统计" },
+      { "pagePath": "pages/orders/orders", "text": "订单" },
+      { "pagePath": "pages/more/more", "text": "更多" }
+    ]
+  },
+  "lazyCodeLoading": "requiredComponents",
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

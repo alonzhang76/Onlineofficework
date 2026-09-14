@@ -1,0 +1,47 @@
+<view class="page">
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <view class="card cal-card">
+    <view class="cal-head">
+      <view class="cal-nav" bindtap="prevMonth">‹</view>
+      <text class="cal-title">{{year}}年{{month}}月</text>
+      <view class="cal-nav" bindtap="nextMonth">›</view>
+    </view>
+    <view class="cal-week">
+      <text class="cal-wd" wx:for="{{weekHeads}}" wx:key="*this">{{item}}</text>
+    </view>
+    <view class="cal-grid">
+      <view class="cal-cell {{d.inMonth ? '' : 'out'}} {{d.today ? 'today' : ''}}" wx:for="{{cells}}" wx:key="key" data-date="{{d.date}}" bindtap="pickDay">
+        <text class="cal-day">{{d.day}}</text>
+        <view class="cal-dots" wx:if="{{d.noteCount > 0}}">
+          <view class="cal-dot"></view>
+          <text class="cal-note-count" wx:if="{{d.noteCount > 1}}">{{d.noteCount}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="sec-title">{{selected}} 的记事</view>
+    <view class="empty" wx:if="{{notes.length === 0}}"><text class="empty-icon">📭</text><text>这一天还没有记事</text></view>
+    <view class="note-row" wx:for="{{notes}}" wx:key="index">
+      <view class="note-check {{item.completed ? 'done' : ''}}" data-idx="{{index}}" bindtap="toggleNote">{{item.completed ? '✓' : ''}}</view>
+      <text class="note-content {{item.completed ? 'completed' : ''}}">{{item.content}}</text>
+      <view class="note-del" data-idx="{{index}}" bindtap="deleteNote">✕</view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="sec-title">添加记事</view>
+    <view class="form-item"><text class="f-label">内容</text><input class="f-value" value="{{newContent}}" placeholder="输入记事内容" bindinput="onContent" confirm-type="done" bindconfirm="addNote" /></view>
+    <view class="btn-row"><view class="btn btn-primary" bindtap="addNote">添加到 {{selected}}</view></view>
+  </view>
+
+  <view class="page-foot"></view>
+</view>

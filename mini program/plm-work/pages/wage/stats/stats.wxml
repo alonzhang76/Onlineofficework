@@ -1,0 +1,220 @@
+<view class="page">
+  <!-- 页首品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <!-- 子标签 -->
+  <scroll-view scroll-x class="tabs-scroll">
+    <view class="tabs">
+      <view class="tab {{tab === 'overview' ? 'on' : ''}}" data-tab="overview" bindtap="onTab">经营总览</view>
+      <view class="tab {{tab === 'employee' ? 'on' : ''}}" data-tab="employee" bindtap="onTab">员工排名</view>
+      <view class="tab {{tab === 'order' ? 'on' : ''}}" data-tab="order" bindtap="onTab">订单分析</view>
+      <view class="tab {{tab === 'orderStat' ? 'on' : ''}}" data-tab="orderStat" bindtap="onTab">订单统计</view>
+      <view class="tab {{tab === 'trend' ? 'on' : ''}}" data-tab="trend" bindtap="onTab">月度趋势</view>
+      <view class="tab {{tab === 'matrix' ? 'on' : ''}}" data-tab="matrix" bindtap="onTab">员工×工序</view>
+    </view>
+  </scroll-view>
+
+  <!-- 筛选 -->
+  <view class="card" wx:if="{{tab !== 'orderStat'}}">
+    <view class="form-row2">
+      <picker mode="date" value="{{startDate}}" bindchange="onStartDate">
+        <view class="form-item"><text class="f-label">开始日期</text><text class="f-value">{{startDate}}</text></view>
+      </picker>
+      <picker mode="date" value="{{endDate}}" bindchange="onEndDate">
+        <view class="form-item"><text class="f-label">结束日期</text><text class="f-value">{{endDate}}</text></view>
+      </picker>
+    </view>
+    <view class="btn btn-outline btn-sm" bindtap="exportCSV" style="width: 240rpx;">导出当前统计</view>
+  </view>
+  <view class="card" wx:else>
+    <picker range="{{yearList}}" value="{{yearIdx}}" bindchange="onStatYear">
+      <view class="form-item"><text class="f-label">统计年份</text><text class="f-value">{{yearList[yearIdx]}}年</text></view>
+    </picker>
+  </view>
+
+  <!-- 经营总览 -->
+  <block wx:if="{{tab === 'overview'}}">
+    <view class="kpi-grid">
+      <view class="kpi-card"><view class="kpi-label">工资总额</view><view class="kpi-value">{{ov.totalAmount}}</view><view class="kpi-sub">{{ov.totalRecords}}条记录</view></view>
+      <view class="kpi-card"><view class="kpi-label">日均工资</view><view class="kpi-value green">{{ov.avgDaily}}</view><view class="kpi-sub">{{ov.dateCount}}个工作日</view></view>
+      <view class="kpi-card"><view class="kpi-label">人均工资</view><view class="kpi-value orange">{{ov.avgEmp}}</view><view class="kpi-sub">{{ov.empCount}}名员工</view></view>
+      <view class="kpi-card"><view class="kpi-label">总产量</view><view class="kpi-value">{{ov.totalOutput}}</view><view class="kpi-sub">件（订单产出合计）</view></view>
+    </view>
+    <view class="card" wx:if="{{ov.daily.length}}">
+      <view class="sec-title">每日工资明细（近15天）</view>
+      <view class="day-row" wx:for="{{ov.daily}}" wx:key="date">
+        <text class="day-date">{{item.date}}</text>
+        <view class="day-bar-wrap"><view class="bar-track"><view class="bar-fill" style="width: {{item.bar}}%;"></view></view></view>
+        <text class="day-amt">{{item.amount}}</text>
+        <text class="day-vs {{item.up ? 'up' : 'down'}}">{{item.vs}}</text>
+      </view>
+    </view>
+    <view class="card" wx:if="{{ov.procTop.length}}">
+      <view class="sec-title">工序成本 TOP6</view>
+      <view class="rank-row" wx:for="{{ov.procTop}}" wx:key="name">
+        <text class="rank-name">{{item.name}}</text>
+        <text class="rank-amt">{{item.totalAmount}}</text>
+        <text class="rank-pct">{{item.pct}}%</text>
+      </view>
+    </view>
+    <view class="card" wx:if="{{ov.empTop.length}}">
+      <view class="sec-title">员工工资 TOP5</view>
+      <view class="rank-row" wx:for="{{ov.empTop}}" wx:key="name">
+        <text class="rank-name">{{item.name}}</text>
+        <text class="rank-amt">{{item.totalAmount}}</text>
+        <text class="rank-pct">{{item.pct}}%</text>
+      </view>
+    </view>
+    <view class="card" wx:if="{{ov.custTop.length}}">
+      <view class="sec-title">客户成本 TOP5</view>
+      <view class="rank-row" wx:for="{{ov.custTop}}" wx:key="name">
+        <text class="rank-name">{{item.name || '-'}}</text>
+        <text class="rank-amt">{{item.totalAmount}}</text>
+        <text class="rank-pct">{{item.pct}}%</text>
+      </view>
+    </view>
+  </block>
+
+  <!-- 员工排名 -->
+  <block wx:if="{{tab === 'employee'}}">
+    <view class="kpi-grid">
+      <view class="kpi-card"><view class="kpi-label">员工总数</view><view class="kpi-value">{{em.count}}</view></view>
+      <view class="kpi-card"><view class="kpi-label">工资总额</view><view class="kpi-value green">{{em.grandTotal}}</view></view>
+      <view class="kpi-card"><view class="kpi-label">人均工资</view><view class="kpi-value orange">{{em.avgTotal}}</view></view>
+      <view class="kpi-card"><view class="kpi-label">总出勤天数</view><view class="kpi-value">{{em.grandDays}}</view></view>
+    </view>
+    <view class="card" wx:if="{{em.rows.length}}">
+      <view class="sec-title">员工日均工资排名</view>
+      <view class="rank-row" wx:for="{{em.rows}}" wx:key="name">
+        <text class="rank-idx {{index === 0 ? 'top1' : ''}}">{{index + 1}}</text>
+        <view class="rank-mid">
+          <view class="rank-line1"><text class="rank-name">{{item.name}}</text><text class="rank-amt">{{item.dailyAvg}}/天</text></view>
+          <view class="bar-track" style="margin-top: 8rpx;"><view class="bar-fill green" style="width: {{item.bar}}%;"></view></view>
+          <view class="rank-line2">合计 {{item.totalAmount}} ｜ {{item.totalDays}}天</view>
+        </view>
+      </view>
+    </view>
+  </block>
+
+  <!-- 订单分析 -->
+  <block wx:if="{{tab === 'order'}}">
+    <view class="kpi-grid">
+      <view class="kpi-card"><view class="kpi-label">订单总数</view><view class="kpi-value">{{ord.count}}</view></view>
+      <view class="kpi-card"><view class="kpi-label">工资总成本</view><view class="kpi-value green">{{ord.totalAmount}}</view></view>
+      <view class="kpi-card"><view class="kpi-label">最高成本订单</view><view class="kpi-value orange">{{ord.maxAmount}}</view><view class="kpi-sub">{{ord.maxOrderNo}}</view></view>
+      <view class="kpi-card"><view class="kpi-label">异常订单数</view><view class="kpi-value red">{{ord.warnCount}}</view><view class="kpi-sub">产出为0或低于订单量</view></view>
+    </view>
+    <view class="card" wx:if="{{ord.rows.length}}">
+      <view class="sec-title">订单单品工资成本</view>
+      <view class="ord-row" wx:for="{{ord.rows}}" wx:key="orderNo">
+        <view class="ord-top">
+          <text class="ord-no">{{index + 1}}. {{item.orderNo}}</text>
+          <text class="badge {{item.warning ? 'badge-red' : 'badge-green'}}">{{item.warning ? '异常' : '正常'}}</text>
+        </view>
+        <view class="ord-sub">{{item.customer || '-'}}<text wx:if="{{item.productType}}"> ｜ {{item.productType}}</text><text wx:if="{{item.drawingNo}}"> ｜ {{item.drawingNo}}</text></view>
+        <view class="ord-line">工资 <text class="strong">{{item.amount}}</text> ｜ 产出 {{item.output}} ｜ 订单量 {{item.orderQty || '-'}} ｜ 单品成本 <text class="strong">{{item.unitCost}}</text></view>
+      </view>
+    </view>
+  </block>
+
+  <!-- 订单统计 -->
+  <block wx:if="{{tab === 'orderStat'}}">
+    <view class="kpi-grid">
+      <view class="kpi-card"><view class="kpi-label">年度总产出</view><view class="kpi-value">{{os.yearTotal}}</view><view class="kpi-sub">{{yearList[yearIdx]}}年</view></view>
+      <view class="kpi-card"><view class="kpi-label">炉架类型数</view><view class="kpi-value green">{{os.typeCount}}</view></view>
+      <view class="kpi-card"><view class="kpi-label">图纸号数</view><view class="kpi-value orange">{{os.dwgCount}}</view></view>
+      <view class="kpi-card"><view class="kpi-label">客户数</view><view class="kpi-value">{{os.custCount}}</view></view>
+    </view>
+    <view class="card" wx:if="{{os.monthly.length}}">
+      <view class="sec-title">月度产出统计</view>
+      <view class="day-row" wx:for="{{os.monthly}}" wx:key="month">
+        <text class="day-date">{{item.month}}月</text>
+        <view class="day-bar-wrap"><view class="bar-track"><view class="bar-fill" style="width: {{item.bar}}%;"></view></view></view>
+        <text class="day-amt">{{item.value}}</text>
+      </view>
+    </view>
+    <view class="card" wx:if="{{os.byType.length}}">
+      <view class="sec-title">按炉架类型产出</view>
+      <view class="rank-row" wx:for="{{os.byType}}" wx:key="name">
+        <text class="rank-name">{{item.name}}</text><text class="rank-amt">{{item.sum}}</text><text class="rank-pct">{{item.pct}}%</text>
+      </view>
+    </view>
+    <view class="card" wx:if="{{os.byDrawing.length}}">
+      <view class="sec-title">按图纸号产出</view>
+      <view class="rank-row" wx:for="{{os.byDrawing}}" wx:key="name">
+        <text class="rank-name">{{item.name}}</text><text class="rank-amt">{{item.sum}}</text><text class="rank-pct">{{item.pct}}%</text>
+      </view>
+    </view>
+    <view class="card" wx:if="{{os.byCustomer.length}}">
+      <view class="sec-title">按客户产出</view>
+      <view class="rank-row" wx:for="{{os.byCustomer}}" wx:key="name">
+        <text class="rank-name">{{item.name}}</text><text class="rank-amt">{{item.sum}}</text><text class="rank-pct">{{item.pct}}%</text>
+      </view>
+    </view>
+    <view wx:if="{{!os.hasData}}" class="empty"><view class="empty-icon">📦</view>{{yearList[yearIdx]}}年暂无订单数据</view>
+  </block>
+
+  <!-- 月度趋势 -->
+  <block wx:if="{{tab === 'trend'}}">
+    <view wx:if="{{!tr.months.length}}" class="empty"><view class="empty-icon">📉</view>暂无数据</view>
+    <block wx:else>
+      <view class="kpi-grid">
+        <view class="kpi-card"><view class="kpi-label">月份数</view><view class="kpi-value">{{tr.months.length}}</view></view>
+        <view class="kpi-card"><view class="kpi-label">月均工资</view><view class="kpi-value green">{{tr.avgMonth}}</view></view>
+        <view class="kpi-card"><view class="kpi-label">最高月份</view><view class="kpi-value orange">{{tr.maxAmt}}</view><view class="kpi-sub">{{tr.maxMonth}}</view></view>
+        <view class="kpi-card"><view class="kpi-label">最低月份</view><view class="kpi-value">{{tr.minAmt}}</view><view class="kpi-sub">{{tr.minMonth}}</view></view>
+      </view>
+      <view class="card">
+        <view class="sec-title">月度工资趋势</view>
+        <view class="day-row" wx:for="{{tr.months}}" wx:key="month">
+          <text class="day-date">{{item.month}}</text>
+          <view class="day-bar-wrap"><view class="bar-track"><view class="bar-fill" style="width: {{item.bar}}%;"></view></view></view>
+          <text class="day-amt">{{item.amount}}</text>
+        </view>
+      </view>
+      <view class="card">
+        <view class="sec-title">月度明细</view>
+        <view class="trend-row" wx:for="{{tr.months}}" wx:key="month">
+          <text class="tr-month">{{item.month}}</text>
+          <text class="tr-amt">{{item.amount}}</text>
+          <text class="tr-meta">{{item.qty}}件 ｜ {{item.emps}}人 ｜ {{item.days}}天</text>
+        </view>
+      </view>
+    </block>
+  </block>
+
+  <!-- 员工×工序矩阵 -->
+  <block wx:if="{{tab === 'matrix'}}">
+    <view wx:if="{{!mx.emps.length}}" class="empty"><view class="empty-icon">🔢</view>无数据</view>
+    <view class="card" wx:else>
+      <view class="sec-title">员工 × 工序 金额矩阵</view>
+      <scroll-view scroll-x class="table-scroll">
+        <view class="tb">
+          <view class="tb-row tb-head">
+            <view class="tb-cell w100">员工</view>
+            <view class="tb-cell w120" wx:for="{{mx.procs}}" wx:key="*this">{{item}}</view>
+            <view class="tb-cell w100">合计</view>
+          </view>
+          <view class="tb-row" wx:for="{{mx.emps}}" wx:key="*this" wx:for-item="emp">
+            <view class="tb-cell w100 strong-cell">{{emp}}</view>
+            <view class="tb-cell w120" wx:for="{{mx.procs}}" wx:key="*this" wx:for-item="proc">{{mx.matrix[emp][proc] > 0 ? mx.matrix[emp][proc] : ''}}</view>
+            <view class="tb-cell w100 primary">{{mx.rowTotals[emp]}}</view>
+          </view>
+          <view class="tb-row total-row">
+            <view class="tb-cell w100">合计</view>
+            <view class="tb-cell w120" wx:for="{{mx.colTotals}}" wx:key="index">{{item > 0 ? item : ''}}</view>
+            <view class="tb-cell w100 primary">{{mx.grandTotal}}</view>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+  </block>
+  <view class="page-foot page-foot--tab"></view>
+  <wage-tabbar selected="{{2}}"/>
+</view>

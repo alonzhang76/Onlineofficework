@@ -1,0 +1,8 @@
+.memo-card { border-left: 8rpx solid #AF52DE; }
+.memo-done { opacity: 0.55; }
+.memo-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10rpx; }
+.memo-title { font-size: 30rpx; font-weight: 600; color: #1C1C1E; }
+.memo-content { font-size: 26rpx; color: #3C3C43; line-height: 1.6; display: block; margin-bottom: 12rpx; }
+.memo-foot { display: flex; justify-content: space-between; align-items: center; }
+.memo-deadline { font-size: 24rpx; color: #8E8E93; }
+.memo-actions { display: flex; gap: 12rpx; }

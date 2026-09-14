@@ -1,0 +1,2 @@
+.desc { font-size: 26rpx; color: #8E8E93; line-height: 1.8; }
+.btn-col { display: flex; flex-direction: column; gap: 20rpx; }

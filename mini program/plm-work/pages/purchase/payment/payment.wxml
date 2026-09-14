@@ -1,0 +1,84 @@
+<view class="page">
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <view class="filter-card">
+    <view class="form-row2">
+      <view class="form-item"><text class="f-label">供应商</text><input class="f-value" value="{{fSupplier}}" bindinput="f" data-k="fSupplier" /></view>
+      <picker range="{{typeOptions}}" data-k="typeIdx" bindchange="onPick">
+        <view class="form-item"><text class="f-label">付款模式</text><view class="f-value {{typeIdx === 0 ? 'placeholder' : ''}}">{{typeOptions[typeIdx]}}</view></view>
+      </picker>
+    </view>
+    <view class="form-row2">
+      <view class="form-item"><text class="f-label">从</text><input class="f-value" value="{{dateFrom}}" placeholder="YYYY-MM-DD" bindinput="f" data-k="dateFrom" /></view>
+      <view class="form-item"><text class="f-label">至</text><input class="f-value" value="{{dateTo}}" placeholder="YYYY-MM-DD" bindinput="f" data-k="dateTo" /></view>
+    </view>
+    <view class="btn-row">
+      <view class="btn btn-primary btn-sm" bindtap="search">查询</view>
+      <view class="btn btn-plain btn-sm" bindtap="resetFilter">重置</view>
+    </view>
+  </view>
+
+  <view class="list-head"><text class="list-count">{{companyName}} · 共 {{list.length}} 笔</text><text class="list-sum">合计 ¥{{sumText}}</text></view>
+
+  <view class="empty" wx:if="{{list.length === 0}}"><text class="empty-icon">💳</text><text>暂无付款记录</text></view>
+
+  <view class="card" wx:for="{{list}}" wx:key="id">
+    <view class="og-head">
+      <text class="og-no">{{item.paymentNumber}}</text>
+      <text class="badge badge-purple">{{item.typeName}}</text>
+    </view>
+    <view class="og"><text class="og-label">供应商</text><text class="og-val">{{item.supplier || '-'}}</text></view>
+    <view class="og"><text class="og-label">{{item.contractLabel}}</text><text class="og-val">{{item.contractValue || '-'}}</text></view>
+    <view class="og"><text class="og-label">付款日期</text><text class="og-val">{{item.paymentDate || '-'}}</text></view>
+    <view class="og"><text class="og-label">金额</text><text class="og-val strong">¥{{item.amountText}}</text></view>
+    <view class="og" wx:if="{{item.paymentMethod}}"><text class="og-label">付款方式</text><text class="og-val">{{item.paymentMethod}}</text></view>
+    <view class="og" wx:if="{{item.remark}}"><text class="og-label">备注</text><text class="og-val">{{item.remark}}</text></view>
+    <view class="og-actions">
+      <view class="btn btn-outline btn-sm" data-id="{{item.id}}" bindtap="edit">编辑</view>
+      <view class="btn btn-danger-ghost btn-sm" data-id="{{item.id}}" bindtap="del">删除</view>
+    </view>
+  </view>
+
+  <view class="page-foot"></view>
+  <view class="fab" bindtap="openNew">＋</view>
+
+  <view catchtouchmove="noop" class="mask" wx:if="{{showForm}}" bindtap="closeForm">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">{{form.id ? '编辑付款' : '新增付款'}}<text class="sheet-close" bindtap="closeForm">✕</text></view>
+        <scroll-view scroll-y class="sheet-body">
+
+      <view class="segment">
+        <view class="segment-item {{form.paymentType === 'contract-first' ? 'active' : ''}}" data-t="contract-first" bindtap="onType">凭合同付款</view>
+        <view class="segment-item {{form.paymentType === 'invoice-first' ? 'active' : ''}}" data-t="invoice-first" bindtap="onType">凭发票付款</view>
+      </view>
+
+      <view class="form-item" wx:if="{{form.paymentType === 'invoice-first'}}"><text class="f-label">关联发票号</text><input class="f-value" value="{{form.invoiceNumbers}}" placeholder="多个用英文逗号分隔" bindinput="onInput" data-k="invoiceNumbers" /></view>
+      <view class="form-item" wx:if="{{form.paymentType === 'contract-first'}}"><text class="f-label">合同编号</text><input class="f-value" value="{{form.contractNumber}}" placeholder="多个用英文逗号分隔" bindinput="onInput" data-k="contractNumber" /></view>
+
+      <view class="form-item"><text class="f-label">供应商</text>
+        <picker range="{{supplierNames}}" bindchange="onSupplier">
+          <view class="f-value {{form.supplier ? '' : 'placeholder'}}">{{form.supplier || '选择供应商'}}</view>
+        </picker>
+      </view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">付款日期</text><picker mode="date" value="{{form.paymentDate}}" bindchange="onDate" data-k="paymentDate"><view class="f-value {{form.paymentDate ? '' : 'placeholder'}}">{{form.paymentDate || '选择'}}</view></picker></view>
+        <view class="form-item"><text class="f-label">金额 <text class="req">*</text></text><input class="f-value" type="digit" value="{{form.amount}}" bindinput="onInput" data-k="amount" /></view>
+      </view>
+      <view class="form-item"><text class="f-label">付款方式</text><input class="f-value" value="{{form.paymentMethod}}" placeholder="如 银行转账 / 承兑" bindinput="onInput" data-k="paymentMethod" /></view>
+      <view class="form-item ta"><text class="f-label">备注</text><textarea class="f-value" value="{{form.remark}}" bindinput="onInput" data-k="remark" auto-height /></view>
+
+      <view class="btn-row">
+        <view class="btn btn-success" bindtap="save">保存</view>
+        <view class="btn btn-plain" bindtap="closeForm">取消</view>
+      </view>
+    
+        </scroll-view>
+      </view>
+  </view>
+</view>

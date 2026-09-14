@@ -1,0 +1,108 @@
+<view class="page">
+  <!-- 品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">{{icon}}</text></view>
+    <view class="brand-text">
+      <view class="brand-name">{{title}}</view>
+      <view class="brand-name-en">共 {{total}} 条记录</view>
+    </view>
+  </view>
+
+  <!-- 搜索 -->
+  <view class="search-bar">
+    <text>🔍</text>
+    <input class="search-input" value="{{q}}" placeholder="搜索关键字" placeholder-class="ph" bindinput="onSearch" confirm-type="search" />
+    <text class="search-clear" wx:if="{{q}}" bindtap="clearSearch">✕</text>
+  </view>
+
+  <!-- 状态筛选 -->
+  <view class="chips" wx:if="{{hasStatuses}}">
+    <view class="chip {{statusFilter === '' ? 'on' : ''}}" bindtap="filterByStatus" data-status="">全部</view>
+    <view class="chip {{statusFilter === item ? 'on' : ''}}" wx:for="{{statuses}}" wx:key="*this"
+          bindtap="filterByStatus" data-status="{{item}}">{{item}}</view>
+  </view>
+
+  <!-- 记录卡片 -->
+  <view class="empty" wx:if="{{!list.length}}">
+    <text class="empty-icon">{{icon}}</text>
+    <view>暂无记录，点击右下角 + 新增</view>
+  </view>
+
+  <view class="rec-card" wx:for="{{list}}" wx:key="id" data-id="{{item.id}}" bindtap="openEdit" hover-class="none">
+    <view class="rec-head">
+      <view style="flex:1; min-width:0;">
+        <view class="rec-title">{{item.title}}</view>
+        <view class="rec-sub" wx:if="{{item.sub}}">{{item.sub}}</view>
+      </view>
+      <text class="tag {{item.tagClass}}" wx:if="{{item.tag}}">{{item.tag}}</text>
+    </view>
+    <view class="kv-grid" wx:if="{{item.kvs.length}}">
+      <view class="kv {{it.wide ? 'kv-wide' : ''}}" wx:for="{{item.kvs}}" wx:for-item="it" wx:key="k">
+        <text class="kv-k">{{it.k}}</text>
+        <text class="kv-v">{{it.v}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="page-foot"></view>
+</view>
+
+<!-- 新增/编辑弹层 -->
+<view class="mask" wx:if="{{modal}}" catchtouchmove="noop" bindtap="closeModal"></view>
+<view class="sheet" wx:if="{{modal}}" catchtouchmove="noop">
+  <view class="sheet-head">
+    <text class="sheet-title">{{editingId ? '编辑' : '新增'}}{{title}}</text>
+    <view class="sheet-close" bindtap="closeModal">✕</view>
+  </view>
+  <scroll-view class="sheet-body" scroll-y>
+    <block wx:for="{{fields}}" wx:key="k">
+      <!-- 通讯录选择 -->
+      <view class="form-item" wx:if="{{item.type === 'contact'}}">
+        <text class="f-label {{item.required ? 'f-req' : ''}}">{{item.label}}</text>
+        <picker class="f-input" mode="selector" range="{{contactNames}}" data-f="{{item.k}}" bindchange="onFormPick">
+          <view wx:if="{{form[item.k]}}">{{form[item.k + '__name'] || form[item.k]}}</view>
+          <view class="ph" wx:else>请选择</view>
+        </picker>
+      </view>
+      <!-- 下拉选择 -->
+      <view class="form-item" wx:elif="{{item.type === 'select'}}">
+        <text class="f-label {{item.required ? 'f-req' : ''}}">{{item.label}}</text>
+        <picker class="f-input" mode="selector" range="{{item.options}}" data-f="{{item.k}}" bindchange="onFormPick">
+          <view wx:if="{{form[item.k]}}">{{form[item.k]}}</view>
+          <view class="ph" wx:else>请选择</view>
+        </picker>
+      </view>
+      <!-- 日期 -->
+      <view class="form-item" wx:elif="{{item.type === 'date'}}">
+        <text class="f-label {{item.required ? 'f-req' : ''}}">{{item.label}}</text>
+        <picker class="f-input" mode="date" value="{{form[item.k]}}" data-f="{{item.k}}" bindchange="onFormDate">
+          <view wx:if="{{form[item.k]}}">{{form[item.k]}}</view>
+          <view class="ph" wx:else>请选择日期</view>
+        </picker>
+      </view>
+      <!-- 多行文本 -->
+      <view class="form-item" wx:elif="{{item.type === 'textarea'}}">
+        <text class="f-label {{item.required ? 'f-req' : ''}}">{{item.label}}</text>
+        <textarea class="f-input" value="{{form[item.k]}}" placeholder="{{item.placeholder || '请输入'}}"
+                  placeholder-class="ph" auto-height maxlength="500"
+                  data-f="{{item.k}}" bindinput="onFormInput" />
+      </view>
+      <!-- 单行文本 / 数字 -->
+      <view class="form-item" wx:else>
+        <text class="f-label {{item.required ? 'f-req' : ''}}">{{item.label}}</text>
+        <input class="f-input" type="{{item.type === 'number' ? 'digit' : 'text'}}"
+               value="{{form[item.k]}}" placeholder="{{item.placeholder || '请输入'}}"
+               placeholder-class="ph" data-f="{{item.k}}" bindinput="onFormInput" />
+      </view>
+    </block>
+    <view style="height: 20rpx;"></view>
+  </scroll-view>
+  <view class="sheet-foot">
+    <button class="btn btn-danger" wx:if="{{deleting}}" bindtap="deleteRecord">删除</button>
+    <button class="btn btn-plain" bindtap="closeModal">取消</button>
+    <button class="btn btn-primary" bindtap="saveForm">保存</button>
+  </view>
+</view>
+
+<!-- 悬浮新增按钮 -->
+<view class="fab" wx:if="{{!modal}}" bindtap="openAdd"><text class="fab-btn">+</text></view>

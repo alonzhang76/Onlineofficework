@@ -1,0 +1,38 @@
+<view class="page">
+  <!-- 页首品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <view class="card hero">
+    <view class="hero-title">计件工资管理系统</view>
+    <view class="hero-sub">Piece-rate Wage System</view>
+    <view class="hero-sub2">普利美（常州）环境工程科技有限公司</view>
+  </view>
+
+  <view class="card">
+    <view class="nav-cell" wx:for="{{menu}}" wx:key="title" data-url="{{item.url}}" bindtap="go">
+      <text class="nav-icon">{{item.icon}}</text>
+      <text class="nav-label">{{item.title}}</text>
+      <text class="nav-arrow">›</text>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="nav-cell" bindtap="goCloud">
+      <text class="nav-icon">☁️</text>
+      <view class="nav-mid">
+        <text class="nav-label">云同步状态</text>
+        <text class="nav-sub">{{cloudOn ? 'Supabase 已配置，自动同步中' : '未配置（utils/supabase.js）'}}</text>
+      </view>
+      <text class="badge {{cloudOn ? 'badge-green' : 'badge-gray'}}">{{cloudOn ? '已连接' : '未配置'}}</text>
+    </view>
+  </view>
+
+  <view class="foot">普利美（常州）环境工程科技有限公司 · 计件工资管理 v1.0</view>
+  <view class="page-foot"></view>
+</view>

@@ -1,4 +1,4 @@
-﻿/* ===== CloudBase 统一数据存储层 cloudbase-store.js =====
+/* ===== CloudBase 统一数据存储层 cloudbase-store.js =====
  *
  * 替代 App.store 的 localStorage 实现，所有业务数据存到 CloudBase 云数据库
  * 使用方式：与 App.store 完全兼容
@@ -92,6 +92,15 @@ const _cacheTimestamps = {};
 let _initialized = false;
 let _initPromise = null;
 let _lastRefreshDebugTs = 0;
+
+// 上传状态通知：转发到 window.CloudSyncStatus 指示灯
+function notifyStatus(state) {
+  try {
+    if (window.CloudSyncStatus && typeof window.CloudSyncStatus.setState === 'function') {
+      window.CloudSyncStatus.setState(state);
+    }
+  } catch (e) {}
+}
 
 // 需要迁移的 localStorage 键 → 云端 store_key 映射
 const MIGRATION_KEYS = [
@@ -367,6 +376,7 @@ async function set(key, value) {
 
   _cache[key] = JSON.parse(JSON.stringify(value));
   _recentWrites[key] = Date.now();
+  notifyStatus('pending');
 
   try {
     const { error } = await getSupabase()
@@ -380,11 +390,14 @@ async function set(key, value) {
 
     if (error) {
       console.error('[CloudbaseStore] set 失败:', key, error);
+      notifyStatus('error');
       return false;
     }
+    notifyStatus('idle');
     return true;
   } catch (e) {
     console.error('[CloudbaseStore] set 异常:', key, e);
+    notifyStatus('error');
     return false;
   }
 }
@@ -398,6 +411,7 @@ async function remove(key) {
   delete _cache[key];
   delete _cacheTimestamps[key];
   _recentWrites[key] = Date.now();
+  notifyStatus('pending');
 
   try {
     const { error } = await getSupabase()
@@ -405,9 +419,11 @@ async function remove(key) {
       .delete()
       .eq('store_key', key);
 
-    if (error) return false;
+    if (error) { notifyStatus('error'); return false; }
+    notifyStatus('idle');
     return true;
   } catch (e) {
+    notifyStatus('error');
     return false;
   }
 }
@@ -463,6 +479,7 @@ function setSync(key, value) {
   _cache[key] = JSON.parse(JSON.stringify(value));
   _cacheTimestamps[key] = new Date().toISOString();
   _recentWrites[key] = Date.now();
+  notifyStatus('pending');
   _asyncWrite(key, value, 0);
 }
 
@@ -475,6 +492,7 @@ async function _asyncWrite(key, value, retryCount) {
         setTimeout(() => _asyncWrite(key, value, retryCount + 1), 1000 * (retryCount + 1));
       } else {
         _addToPending(key, value);
+        notifyStatus('error');
       }
       return;
     }
@@ -490,15 +508,18 @@ async function _asyncWrite(key, value, retryCount) {
     if (error) {
       console.warn('[CloudbaseStore] setSync 写入失败，加入重试队列:', key, error);
       _addToPending(key, value);
+      notifyStatus('error');
     } else {
       const ts = new Date().toISOString();
       _cacheTimestamps[key] = ts;
       const count = Array.isArray(value) ? value.length + ' 条' : typeof value;
       console.log('[CloudbaseStore] ✅ 已同步到云端:', key, count);
+      notifyStatus('idle');
     }
   } catch (e) {
     console.warn('[CloudbaseStore] setSync 异常，加入重试队列:', key, e);
     _addToPending(key, value);
+    notifyStatus('error');
   }
 }
 
@@ -860,7 +881,15 @@ readyPromise.then(function (ok) {
   if (ok) {
     console.log('[CloudbaseStore] ✅ 已连接到云端存储');
     recoverFromLocalStorage();
+    notifyStatus('idle');
+    // 启动定时云端刷新（10 秒一次），感知其他端写入
+    setInterval(refreshFromCloud, 10000);
+    window.addEventListener('online', function () { refreshFromCloud(); });
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) refreshFromCloud();
+    });
   } else {
+    notifyStatus('offline');
     console.log('[CloudbaseStore] ⚠️ 初始连接失败，启动后台重试机制...');
     var retryCount = 0;
     var maxRetries = 12;
@@ -868,6 +897,7 @@ readyPromise.then(function (ok) {
       retryCount++;
       if (_initialized) {
         clearInterval(retryTimer);
+        notifyStatus('idle');
         console.log('[CloudbaseStore] ✅ 重试成功（第', retryCount, '次）');
         recoverFromLocalStorage();
         forceRefreshFromCloud();
@@ -875,6 +905,7 @@ readyPromise.then(function (ok) {
       }
       if (retryCount > maxRetries) {
         clearInterval(retryTimer);
+        notifyStatus('offline');
         console.warn('[CloudbaseStore] ❌ 重试次数耗尽，停止自动重试');
         return;
       }
@@ -889,3 +920,155 @@ readyPromise.then(function (ok) {
     }, 5000);
   }
 });
+
+window.addEventListener('offline', function () { notifyStatus('offline'); });
+
+/* ===== CloudSyncStatus 指示灯模块（在激活的 Tab 按钮内嵌彩色圆点）=====
+ * 状态: idle(绿,已同步) / pending(黄,上传中) / error(红,上传失败) / offline(灰,未连接)
+ */
+(function () {
+  if (window.CloudSyncStatus && window.CloudSyncStatus._initd) return;
+
+  var STATES = {
+    idle:    { color: '#10b981', text: '已同步',  title: '云端同步完成' },
+    pending: { color: '#f59e0b', text: '上传中',  title: '正在上传到云端…' },
+    error:   { color: '#ef4444', text: '上传失败', title: '上传失败，正在重试…' },
+    offline: { color: '#9ca3af', text: '未连接',  title: '云端未连接' }
+  };
+  var currentState = 'idle';
+  var fallbackEl = null;
+
+  function injectCSS() {
+    if (document.getElementById('__cs_style')) return;
+    var css = document.createElement('style');
+    css.id = '__cs_style';
+    css.textContent = [
+      '.__cs_dot { display:inline-block; width:8px; height:8px; border-radius:50%;',
+      '  margin-left:6px; vertical-align:middle; background:#10b981;',
+      '  box-shadow:0 0 4px rgba(16,185,129,.6); transition:background .3s,box-shadow .3s; pointer-events:none; }',
+      '.__cs_dot.__cs_pending { background:#f59e0b; box-shadow:0 0 6px rgba(245,158,11,.7); animation:__cs_pulse 1.2s infinite; }',
+      '.__cs_dot.__cs_error   { background:#ef4444; box-shadow:0 0 6px rgba(239,68,68,.7);  animation:__cs_pulse .8s infinite; }',
+      '.__cs_dot.__cs_offline { background:#9ca3af; box-shadow:none; }',
+      '@keyframes __cs_pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }',
+      '.__cs_fallback_badge { position:fixed; right:8px; bottom:8px; z-index:99998;',
+      '  display:inline-flex; align-items:center; gap:4px; padding:4px 8px; border-radius:12px;',
+      '  font:11px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;',
+      '  color:#fff; background:rgba(16,185,129,.92); box-shadow:0 2px 8px rgba(0,0,0,.25);',
+      '  -webkit-tap-highlight-color:transparent; }',
+      '.__cs_fallback_badge.__cs_pending { background:rgba(245,158,11,.95); }',
+      '.__cs_fallback_badge.__cs_error   { background:rgba(239,68,68,.95); cursor:pointer; pointer-events:auto; }',
+      '.__cs_fallback_badge.__cs_offline { background:rgba(156,163,175,.95); }'
+    ].join('\n');
+    (document.head || document.documentElement).appendChild(css);
+  }
+
+  var TAB_SELECTORS = [
+    '.sidebar-menu-item.active',
+    '.nav-item.active',
+    '.nav-tab.active',
+    '.nav-link.active',
+    '.company-btn.bg-primary',
+    '.ant-tabs-tab-active',
+    '[role="tab"][aria-selected="true"]'
+  ];
+
+  function findActiveTabs() {
+    var found = [];
+    for (var i = 0; i < TAB_SELECTORS.length; i++) {
+      try {
+        var els = document.querySelectorAll(TAB_SELECTORS[i]);
+        for (var j = 0; j < els.length; j++) found.push(els[j]);
+      } catch (e) {}
+    }
+    return found;
+  }
+
+  function refreshDots() {
+    var tabs = findActiveTabs();
+    var stateClass = '__cs_' + currentState;
+    var title = STATES[currentState].title;
+
+    for (var i = 0; i < tabs.length; i++) {
+      var tab = tabs[i];
+      var dot = tab.querySelector('.__cs_dot');
+      if (!dot) {
+        dot = document.createElement('span');
+        dot.className = '__cs_dot ' + stateClass;
+        tab.appendChild(dot);
+      } else {
+        dot.className = '__cs_dot ' + stateClass;
+      }
+      dot.title = title;
+    }
+
+    var allDots = document.querySelectorAll('.__cs_dot');
+    for (var k = 0; k < allDots.length; k++) {
+      var parent = allDots[k].parentElement;
+      if (parent && tabs.indexOf(parent) === -1) {
+        parent.removeChild(allDots[k]);
+      }
+    }
+
+    if (tabs.length === 0) {
+      ensureFallback();
+    } else if (fallbackEl) {
+      fallbackEl.style.display = 'none';
+    }
+  }
+
+  function ensureFallback() {
+    if (fallbackEl) {
+      fallbackEl.style.display = 'inline-flex';
+      fallbackEl.className = '__cs_fallback_badge __cs_' + currentState;
+      fallbackEl.innerHTML = '<span class="__cs_dot __cs_' + currentState + '"></span>' + STATES[currentState].text;
+      fallbackEl.title = STATES[currentState].title;
+      return;
+    }
+    if (!document || !document.body) return;
+    fallbackEl = document.createElement('div');
+    fallbackEl.className = '__cs_fallback_badge __cs_' + currentState;
+    fallbackEl.innerHTML = '<span class="__cs_dot __cs_' + currentState + '"></span>' + STATES[currentState].text;
+    fallbackEl.title = STATES[currentState].title;
+    fallbackEl.addEventListener('click', function () {
+      if (currentState === 'error' || currentState === 'offline') {
+        try { location.reload(); } catch (e) {}
+      }
+    });
+    document.body.appendChild(fallbackEl);
+  }
+
+  function setState(state) {
+    if (!STATES[state]) state = 'idle';
+    currentState = state;
+    try { refreshDots(); } catch (e) {}
+    try { window.dispatchEvent(new CustomEvent('cloud-sync-status', { detail: { state: state } })); } catch (e) {}
+  }
+
+  function startAutoRefresh() {
+    setInterval(refreshDots, 2000);
+    if (window.MutationObserver) {
+      try {
+        var observer = new MutationObserver(function () { try { refreshDots(); } catch (e) {} });
+        observer.observe(document.body || document.documentElement, {
+          childList: true, subtree: true, attributes: true, attributeFilter: ['class']
+        });
+      } catch (e) {}
+    }
+  }
+
+  function boot() { try { injectCSS(); refreshDots(); startAutoRefresh(); } catch (e) {} }
+
+  if (document && document.body) {
+    boot();
+  } else if (document) {
+    document.addEventListener('DOMContentLoaded', boot);
+    window.addEventListener('load', boot);
+  }
+
+  window.CloudSyncStatus = {
+    _initd: true,
+    setState: setState,
+    getState: function () { return currentState; },
+    refresh: refreshDots
+  };
+})();

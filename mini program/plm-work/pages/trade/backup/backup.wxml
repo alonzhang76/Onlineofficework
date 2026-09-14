@@ -1,0 +1,57 @@
+<view class="page">
+  <!-- 页首品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <!-- 数据概览 -->
+  <view class="card">
+    <view class="sec-title">数据概览</view>
+    <view class="ov-grid">
+      <view class="ov-item" wx:for="{{overview}}" wx:key="label">
+        <text class="ov-label">{{item.label}}</text>
+        <text class="ov-value">{{item.value}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 备份 -->
+  <view class="card">
+    <view class="sec-title">数据备份</view>
+    <view class="desc">将外贸系统全部数据（订单、客户、出口、收汇、发票、账务、备忘录、业务跟踪）导出为 JSON 备份文件，可通过微信发送给好友或保存到手机。建议定期备份以防数据丢失。</view>
+    <view class="btn btn-primary btn-block" bindtap="backupData">立即备份</view>
+  </view>
+
+  <!-- 恢复 -->
+  <view class="card">
+    <view class="sec-title">数据恢复</view>
+    <view class="desc">从之前导出的 JSON 备份文件中恢复全部数据。恢复操作会覆盖当前所有数据。</view>
+    <view class="btn btn-success btn-block" bindtap="restoreData">选择备份文件恢复</view>
+    <view class="note">注意：恢复操作将覆盖当前全部数据，请谨慎操作。建议在恢复前先做一次备份。</view>
+  </view>
+
+  <!-- 云同步 -->
+  <view class="card">
+    <view class="sec-title">云同步（CloudBase）</view>
+    <view class="sync-row">
+      <text>状态</text>
+      <text class="badge {{cloudOn ? 'badge-green' : 'badge-gray'}}">{{cloudOn ? '已配置' : '未配置'}}</text>
+    </view>
+    <view class="desc" wx:if="{{cloudOn}}">云端数据在每次保存时自动上传；启动小程序时自动拉取云端最新数据，实现与网页版多端同步。</view>
+    <view class="desc" wx:else>在 utils/cloudbase.js 中填入项目 URL 和 anon key 即可开启云端同步。</view>
+    <view class="btn btn-outline btn-block" bindtap="pullCloud">立即从云端拉取</view>
+  </view>
+
+  <!-- 备份说明 -->
+  <view class="card">
+    <view class="sec-title">备份说明</view>
+    <view class="desc">1. 备份文件为 JSON 格式，包含全部八类数据&#10;2. 恢复时请选择之前导出的 .json 备份文件&#10;3. 建议每周或每月做一次定期备份&#10;4. 如需在 Excel 中查看数据，可使用各模块的"导出"功能（CSV 格式）&#10;5. 开启 CloudBase 云同步后无需手动备份</view>
+  </view>
+
+  <view class="btn btn-outline btn-block" bindtap="goWorkspace">🏠 返回普利美工作</view>
+  <view class="page-foot"></view>
+</view>

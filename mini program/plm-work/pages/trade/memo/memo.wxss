@@ -1,0 +1,67 @@
+/* ===== 外贸 · 备忘录 ===== */
+.stat-line { font-size: 24rpx; color: #8E8E93; padding: 16rpx 4rpx 4rpx; }
+.stat-num { color: #FF9500; font-weight: 700; }
+
+.memo-grid { display: flex; flex-wrap: wrap; gap: 18rpx; }
+.memo-card {
+  position: relative;
+  width: calc(50% - 9rpx);
+  box-sizing: border-box;
+  border-radius: 20rpx;
+  padding: 22rpx 20rpx 16rpx;
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+  min-height: 220rpx;
+}
+.memo-pin { position: absolute; top: 12rpx; right: 14rpx; font-size: 24rpx; }
+.memo-title {
+  font-size: 27rpx; font-weight: 700; color: #1C1C1E;
+  padding-right: 36rpx; line-height: 1.4;
+}
+.memo-content {
+  flex: 1;
+  font-size: 23rpx; color: #3C3C43; margin-top: 10rpx; line-height: 1.6;
+  max-height: 160rpx; overflow: hidden;
+  white-space: pre-wrap; word-break: break-word;
+}
+.memo-foot {
+  display: flex; flex-direction: column; gap: 10rpx;
+  margin-top: 16rpx; padding-top: 14rpx;
+  border-top: 1rpx solid rgba(60, 60, 67, 0.1);
+}
+.memo-time { font-size: 19rpx; color: #8E8E93; }
+.memo-btns { display: flex; gap: 16rpx; justify-content: flex-end; }
+.memo-btn { font-size: 21rpx; color: #007AFF; }
+.memo-btn.danger { color: #FF3B30; }
+
+/* 编辑弹层 */
+.memo-textarea-wrap {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 20rpx 22rpx;
+  margin-bottom: 16rpx;
+}
+.memo-textarea {
+  width: 100%;
+  min-height: 220rpx;
+  font-size: 28rpx;
+  color: #1C1C1E;
+  line-height: 1.6;
+}
+.color-label { font-size: 26rpx; color: #8E8E93; padding: 8rpx 4rpx 14rpx; }
+.color-row { display: flex; gap: 18rpx; padding: 0 4rpx 12rpx; }
+.color-dot {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 50%;
+  border: 3rpx solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 2rpx 4rpx rgba(0, 0, 0, 0.06);
+}
+.color-dot.on {
+  box-shadow: 0 0 0 4rpx rgba(0, 122, 255, 0.35), inset 0 2rpx 4rpx rgba(0, 0, 0, 0.06);
+}
+.color-dot-text { font-size: 30rpx; color: #007AFF; font-weight: 700; }

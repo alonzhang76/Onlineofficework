@@ -1,0 +1,9 @@
+.og-head { display: flex; justify-content: space-between; align-items: center; padding-bottom: 14rpx; margin-bottom: 10rpx; border-bottom: 1rpx solid rgba(0,0,0,0.06); }
+.og-no { font-size: 30rpx; font-weight: 600; color: #1C1C1E; }
+.og { display: flex; padding: 8rpx 0; font-size: 26rpx; line-height: 1.5; }
+.og-label { width: 180rpx; color: #8E8E93; flex-shrink: 0; }
+.og-val { flex: 1; color: #1C1C1E; word-break: break-all; }
+.prod-block { background: rgba(88, 86, 214, 0.05); border-radius: 14rpx; padding: 8rpx 16rpx; margin: 10rpx 0; }
+.og-actions { display: flex; justify-content: flex-end; gap: 16rpx; padding-top: 16rpx; margin-top: 8rpx; border-top: 1rpx solid rgba(0,0,0,0.06); }
+.list-head { display: flex; padding: 0 8rpx 16rpx; }
+.list-count { font-size: 24rpx; color: #8E8E93; }

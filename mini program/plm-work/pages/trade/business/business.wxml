@@ -1,0 +1,148 @@
+<view class="page">
+  <!-- 页首品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <!-- 筛选区 -->
+  <view class="card">
+    <view class="form-item">
+      <text class="f-label">🔍</text>
+      <input value="{{kw}}" placeholder="客户名称/联系人" bindinput="onSearch" />
+    </view>
+    <view class="form-row2">
+      <picker range="{{statusOptions}}" value="{{statusIdx}}" bindchange="onStatus">
+        <view class="form-item"><text class="f-label">状态</text><text class="f-value">{{statusOptions[statusIdx]}}</text></view>
+      </picker>
+      <picker range="{{reminderOptions}}" value="{{reminderIdx}}" bindchange="onReminder">
+        <view class="form-item"><text class="f-label">提醒</text><text class="f-value">{{reminderOptions[reminderIdx]}}</text></view>
+      </picker>
+    </view>
+    <view class="stat-line">共 <text class="stat-num">{{list.length}}</text> 条 ｜ 待跟进 <text class="stat-num">{{pendingCount}}</text> 条</view>
+    <view class="btn-row">
+      <view class="btn btn-outline btn-sm" bindtap="resetFilter">重置</view>
+      <view class="btn btn-outline btn-sm" bindtap="exportCSV">导出</view>
+    </view>
+  </view>
+
+  <view wx:if="{{list.length === 0}}" class="card">
+    <view class="empty"><view class="empty-icon">📈</view>暂无匹配业务跟踪记录</view>
+  </view>
+
+  <view class="card" wx:for="{{list}}" wx:key="id" wx:for-item="o">
+    <view class="biz-head">
+      <view class="biz-head-left">
+        <view class="biz-name">{{o.customerName || '-'}}</view>
+        <view class="biz-contact">{{o.contact || '无联系人'}}<text wx:if="{{o.phone}}"> ｜ {{o.phone}}</text></view>
+      </view>
+      <text class="badge {{o.statusClass}}">{{o.status}}</text>
+    </view>
+    <view class="biz-grid">
+      <view class="bg"><text class="bg-label">联系日期</text><text class="bg-val">{{o.contactDate || '-'}}</text></view>
+      <view class="bg"><text class="bg-label">下次跟进</text><text class="bg-val {{o.nextClass}}">{{o.nextFollowup || '-'}}</text></view>
+      <view class="bg"><text class="bg-label">跟进单号</text><text class="bg-val">{{o.followupNo || '-'}}</text></view>
+      <view class="bg"><text class="bg-label">报价单号</text><text class="bg-val">{{o.quoteNo || '-'}}</text></view>
+      <view class="bg w-full"><text class="bg-label">行业·产品</text><text class="bg-val">{{o.industry || '-'}}</text></view>
+      <view class="bg w-full"><text class="bg-label">需求简述</text><text class="bg-val">{{o.needs || '-'}}</text></view>
+    </view>
+
+    <!-- 联系记录 -->
+    <view class="rec-block" wx:if="{{o.contactRecords.length > 0}}">
+      <view class="rec-title">联系记录（{{o.contactRecords.length}}）</view>
+      <view class="rec-item" wx:for="{{o.contactRecords}}" wx:key="idx" wx:for-item="r" wx:for-index="ri">
+        <view class="rec-top">
+          <text class="rec-date">{{r.date || '-'}}</text>
+          <text class="badge {{r.fbClass}}">{{r.feedback || '待回复'}}</text>
+        </view>
+        <view class="rec-text">{{r.content || '-'}}</view>
+      </view>
+    </view>
+
+    <view class="ord-actions">
+      <view class="btn btn-outline btn-sm" data-id="{{o.id}}" bindtap="openContact">＋ 联系记录</view>
+      <view class="btn btn-outline btn-sm" data-id="{{o.id}}" bindtap="editItem">编辑</view>
+      <view class="btn btn-danger-ghost btn-sm" data-id="{{o.id}}" bindtap="delItem">删除</view>
+    </view>
+  </view>
+
+  <view class="fab" bindtap="openAdd">＋</view>
+
+  <!-- 新增/编辑弹层 -->
+  <view catchtouchmove="noop" class="mask" wx:if="{{modal}}" bindtap="closeModal">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">{{editId ? '编辑业务跟踪' : '新增业务跟踪'}}<text class="sheet-close" bindtap="closeModal">×</text></view>
+        <scroll-view scroll-y class="sheet-body">
+
+      <view class="form-item">
+        <text class="f-label">客户名称 <text class="req">*</text></text>
+        <input value="{{form.customerName}}" data-k="customerName" bindinput="onField" placeholder="必填" />
+      </view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">联系人</text><input value="{{form.contact}}" data-k="contact" bindinput="onField" /></view>
+        <view class="form-item"><text class="f-label">电话</text><input type="number" value="{{form.phone}}" data-k="phone" bindinput="onField" /></view>
+      </view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">邮箱</text><input value="{{form.email}}" data-k="email" bindinput="onField" /></view>
+        <view class="form-item"><text class="f-label">地址</text><input value="{{form.address}}" data-k="address" bindinput="onField" /></view>
+      </view>
+      <view class="form-item"><text class="f-label">行业·产品</text><input value="{{form.industry}}" data-k="industry" bindinput="onField" /></view>
+      <view class="form-row2">
+        <picker range="{{statusList}}" value="{{statusIdx2}}" bindchange="onStatusForm">
+          <view class="form-item"><text class="f-label">当前状态</text><text class="f-value">{{statusList[statusIdx2]}}</text></view>
+        </picker>
+        <picker mode="date" value="{{form.contactDate}}" data-k="contactDate" bindchange="onDate">
+          <view class="form-item"><text class="f-label">联系日期</text><text class="f-value {{form.contactDate ? '' : 'placeholder'}}">{{form.contactDate || '选择'}}</text></view>
+        </picker>
+      </view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">跟进单号</text><input value="{{form.followupNo}}" data-k="followupNo" bindinput="onField" /></view>
+        <view class="form-item"><text class="f-label">报价单号</text><input value="{{form.quoteNo}}" data-k="quoteNo" bindinput="onField" /></view>
+      </view>
+      <view class="form-row2">
+        <picker mode="date" value="{{form.nextFollowup}}" data-k="nextFollowup" bindchange="onDate">
+          <view class="form-item"><text class="f-label">下次跟进</text><text class="f-value {{form.nextFollowup ? '' : 'placeholder'}}">{{form.nextFollowup || '选择'}}</text></view>
+        </picker>
+        <view class="form-item"><text class="f-label">需求简述</text><input value="{{form.needs}}" data-k="needs" bindinput="onField" /></view>
+      </view>
+
+      <view class="btn-row">
+        <view class="btn btn-plain" bindtap="closeModal">取消</view>
+        <view class="btn btn-primary" bindtap="save">保存</view>
+      </view>
+    
+        </scroll-view>
+      </view>
+  </view>
+
+  <!-- 联系记录弹层 -->
+  <view catchtouchmove="noop" class="mask" wx:if="{{contactModal}}" bindtap="closeContact">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">新增联系记录<text class="sheet-close" bindtap="closeContact">×</text></view>
+        <scroll-view scroll-y class="sheet-body">
+      <picker mode="date" value="{{contactForm.date}}" bindchange="onContactDate">
+        <view class="form-item"><text class="f-label">联系日期</text><text class="f-value">{{contactForm.date}}</text></view>
+      </picker>
+      <view class="color-label">反馈</view>
+      <view class="chip-row">
+        <view class="chip {{contactForm.feedback === f ? 'active' : ''}}"
+              wx:for="{{feedbacks}}" wx:key="*this" wx:for-item="f"
+              data-val="{{f}}" bindtap="pickFeedback">{{f}}</view>
+      </view>
+      <view class="memo-textarea-wrap">
+        <textarea class="memo-textarea" value="{{contactForm.content}}" bindinput="onContactContent"
+                  placeholder="记录本次联系内容…" maxlength="-1" auto-height />
+      </view>
+      <view class="btn-row">
+        <view class="btn btn-plain" bindtap="closeContact">取消</view>
+        <view class="btn btn-primary" bindtap="saveContact">保存</view>
+      </view>
+    
+        </scroll-view>
+      </view>
+  </view>
+  <view class="page-foot"></view>
+</view>

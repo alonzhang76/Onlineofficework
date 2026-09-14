@@ -1,0 +1,105 @@
+<view class="page">
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <view class="filter-card">
+    <view class="form-row2">
+      <view class="form-item"><text class="f-label">合同号</text><input class="f-value" value="{{fContract}}" bindinput="f" data-k="fContract" /></view>
+      <view class="form-item"><text class="f-label">供应商</text><input class="f-value" value="{{fSupplier}}" bindinput="f" data-k="fSupplier" /></view>
+    </view>
+    <view class="form-item"><text class="f-label">关键词</text><input class="f-value" value="{{kw}}" placeholder="全字段搜索" bindinput="f" data-k="kw" /></view>
+    <view class="btn-row">
+      <view class="btn btn-primary btn-sm" bindtap="search">查询</view>
+      <view class="btn btn-plain btn-sm" bindtap="resetFilter">重置</view>
+    </view>
+  </view>
+
+  <view class="list-head"><text class="list-count">{{companyName}} · 共 {{list.length}} 单</text><text class="list-sum">合计 ¥{{sumText}}</text></view>
+
+  <view class="empty" wx:if="{{list.length === 0}}"><text class="empty-icon">📋</text><text>暂无采购订单</text></view>
+
+  <view class="card" wx:for="{{list}}" wx:key="id">
+    <view class="og-head">
+      <text class="og-no">{{item.contractNumber || '-'}}</text>
+      <text class="badge badge-purple">¥{{item.totalAmountText}}</text>
+    </view>
+    <view class="og"><text class="og-label">供应商</text><text class="og-val">{{item.supplier || '-'}}</text></view>
+    <view class="og"><text class="og-label">下单 / 交期</text><text class="og-val">{{item.orderDate || '-'}} ~ {{item.deliveryDate || '-'}}</text></view>
+    <view class="og" wx:if="{{item.actualArrivalDate}}"><text class="og-label">实际到货</text><text class="og-val">{{item.actualArrivalDate}}</text></view>
+    <view class="og" wx:if="{{item.costCategory}}"><text class="og-label">成本类别</text><text class="og-val">{{item.costCategory}}</text></view>
+    <view class="prod-block" wx:for="{{item.products}}" wx:for-item="p" wx:key="index">
+      <view class="og"><text class="og-label">产品</text><text class="og-val">{{p.productName}}{{p.specification ? ' / ' + p.specification : ''}}</text></view>
+      <view class="og"><text class="og-label">单价 × 数量</text><text class="og-val">¥{{p.unitPrice}} × {{p.quantity}}{{p.unit}}</text></view>
+      <view class="og"><text class="og-label">金额</text><text class="og-val">¥{{p.amountText}}</text></view>
+    </view>
+    <view class="og-actions">
+      <view class="btn btn-outline btn-sm" data-id="{{item.id}}" bindtap="editOrder">编辑</view>
+      <view class="btn btn-danger-ghost btn-sm" data-id="{{item.id}}" bindtap="deleteOrder">删除</view>
+    </view>
+  </view>
+
+  <view class="page-foot"></view>
+  <view class="fab" bindtap="openNew">＋</view>
+
+  <view catchtouchmove="noop" class="mask" wx:if="{{showForm}}" bindtap="closeForm">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">{{form.id ? '编辑采购订单' : '新增采购订单'}}<text class="sheet-close" bindtap="closeForm">✕</text></view>
+        <scroll-view scroll-y class="sheet-body">
+
+      <view class="form-item"><text class="f-label">合同号 <text class="req">*</text></text><input class="f-value" value="{{form.contractNumber}}" bindinput="onInput" data-k="contractNumber" /></view>
+      <view class="form-item"><text class="f-label">供应商</text>
+        <picker range="{{supplierNames}}" bindchange="onSupplier">
+          <view class="f-value {{form.supplier ? '' : 'placeholder'}}">{{form.supplier || '选择供应商'}}</view>
+        </picker>
+      </view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">下单日期</text><picker mode="date" value="{{form.orderDate}}" bindchange="onDate" data-k="orderDate"><view class="f-value {{form.orderDate ? '' : 'placeholder'}}">{{form.orderDate || '选择'}}</view></picker></view>
+        <view class="form-item"><text class="f-label">交货日期</text><picker mode="date" value="{{form.deliveryDate}}" bindchange="onDate" data-k="deliveryDate"><view class="f-value {{form.deliveryDate ? '' : 'placeholder'}}">{{form.deliveryDate || '选择'}}</view></picker></view>
+      </view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">实际到货</text><picker mode="date" value="{{form.actualArrivalDate}}" bindchange="onDate" data-k="actualArrivalDate"><view class="f-value {{form.actualArrivalDate ? '' : 'placeholder'}}">{{form.actualArrivalDate || '选择'}}</view></picker></view>
+        <picker range="{{costCategories}}" bindchange="onCost">
+          <view class="form-item"><text class="f-label">成本类别</text><view class="f-value {{form.costCategory ? '' : 'placeholder'}}">{{form.costCategory || '选择'}}</view></view>
+        </picker>
+      </view>
+
+      <view class="sheet-sec">产品明细</view>
+      <view class="prod-editor" wx:for="{{form.products}}" wx:for-item="p" wx:for-index="pi" wx:key="rid">
+        <view class="prod-editor-head">
+          <text class="prod-editor-title">产品 {{pi + 1}}</text>
+          <text class="prod-del" data-i="{{pi}}" bindtap="removeProduct">删除</text>
+        </view>
+        <view class="form-row2">
+          <view class="form-item"><text class="f-label">名称</text><input class="f-value" value="{{p.productName}}" bindinput="onProd" data-i="{{pi}}" data-k="productName" /></view>
+          <view class="form-item"><text class="f-label">规格</text><input class="f-value" value="{{p.specification}}" bindinput="onProd" data-i="{{pi}}" data-k="specification" /></view>
+        </view>
+        <view class="form-row2">
+          <view class="form-item"><text class="f-label">单价</text><input class="f-value" type="digit" value="{{p.unitPrice}}" bindinput="onProd" data-i="{{pi}}" data-k="unitPrice" /></view>
+          <view class="form-item"><text class="f-label">数量</text><input class="f-value" type="digit" value="{{p.quantity}}" bindinput="onProd" data-i="{{pi}}" data-k="quantity" /></view>
+        </view>
+        <view class="form-row2">
+          <picker range="{{units}}" bindchange="onProdUnit" data-i="{{pi}}">
+            <view class="form-item"><text class="f-label">单位</text><view class="f-value">{{p.unit}}</view></view>
+          </picker>
+          <view class="form-item"><text class="f-label">金额</text><view class="f-value">¥{{p.amount}}</view></view>
+        </view>
+      </view>
+      <view class="btn btn-outline btn-sm add-prod" bindtap="addProduct">＋ 添加产品行</view>
+      <view class="calc-line">总金额 = <text class="mono">¥{{form.totalAmount}}</text></view>
+
+      <view class="form-item ta"><text class="f-label">备注</text><textarea class="f-value" value="{{form.remarks}}" bindinput="onInput" data-k="remarks" auto-height /></view>
+
+      <view class="btn-row">
+        <view class="btn btn-success" bindtap="save">保存</view>
+        <view class="btn btn-plain" bindtap="closeForm">取消</view>
+      </view>
+    
+        </scroll-view>
+      </view>
+  </view>
+</view>

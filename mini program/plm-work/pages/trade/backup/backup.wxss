@@ -1,0 +1,22 @@
+/* ===== 外贸 · 数据备份 ===== */
+.ov-grid { display: flex; flex-wrap: wrap; gap: 12rpx; }
+.ov-item {
+  width: calc(33.33% - 8rpx);
+  box-sizing: border-box;
+  background: #F2F2F7;
+  border-radius: 14rpx;
+  padding: 16rpx;
+}
+.ov-label { display: block; font-size: 21rpx; color: #8E8E93; }
+.ov-value { display: block; font-size: 28rpx; font-weight: 700; color: #007AFF; margin-top: 4rpx; word-break: break-all; }
+.desc { font-size: 26rpx; color: #8E8E93; line-height: 1.7; margin-bottom: 20rpx; white-space: pre-line; }
+.note {
+  background: rgba(255, 149, 0, 0.1);
+  border-radius: 14rpx;
+  padding: 16rpx 20rpx;
+  font-size: 24rpx;
+  color: #92400e;
+  margin-top: 16rpx;
+  line-height: 1.6;
+}
+.sync-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12rpx; font-size: 28rpx; }

@@ -1,0 +1,6 @@
+.emp-card-head { display: flex; align-items: center; gap: 16rpx; margin-bottom: 16rpx; }
+.emp-card-name { flex: 1; font-size: 32rpx; font-weight: 600; }
+.info-line { display: flex; padding: 6rpx 0; font-size: 26rpx; }
+.ilabel { width: 110rpx; color: #8E8E93; flex-shrink: 0; }
+.ival { flex: 1; word-break: break-all; }
+.emp-actions { display: flex; gap: 12rpx; justify-content: flex-end; margin-top: 16rpx; }

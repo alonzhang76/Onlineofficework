@@ -1,0 +1,172 @@
+<view class="page">
+  <!-- 页首品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <!-- 分段：收汇/付款/提醒/欠款 -->
+  <view class="segment">
+    <view class="segment-item {{tab === 0 ? 'active' : ''}}" data-i="0" bindtap="onTab">收汇</view>
+    <view class="segment-item {{tab === 1 ? 'active' : ''}}" data-i="1" bindtap="onTab">付款</view>
+    <view class="segment-item {{tab === 2 ? 'active' : ''}}" data-i="2" bindtap="onTab">提醒</view>
+    <view class="segment-item {{tab === 3 ? 'active' : ''}}" data-i="3" bindtap="onTab">欠款</view>
+  </view>
+
+  <!-- 收汇统计 -->
+  <block wx:if="{{tab === 0}}">
+    <view class="kpi-grid">
+      <view class="kpi-card">
+        <view class="kpi-label">本月收汇（CNY）</view>
+        <view class="kpi-value green">{{stat.monthlyReceipt}}</view>
+      </view>
+      <view class="kpi-card">
+        <view class="kpi-label">本年收汇（CNY）</view>
+        <view class="kpi-value green">{{stat.yearlyReceipt}}</view>
+      </view>
+      <view class="kpi-card wide">
+        <view class="kpi-label">累计收汇（CNY）</view>
+        <view class="kpi-value green">{{stat.totalReceipt}}</view>
+        <view class="kpi-sub">按 (收汇金额 − 手续费) × 汇率 折算</view>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="sec-title">按客户汇总 <text class="sec-sub">Top {{receiptByCustomer.length}}</text></view>
+      <view wx:if="{{receiptByCustomer.length === 0}}" class="empty">暂无收汇数据</view>
+      <view class="rank-row" wx:for="{{receiptByCustomer}}" wx:key="name">
+        <view class="rank-idx {{index === 0 ? 'top1' : ''}}">{{index + 1}}</view>
+        <view class="rank-mid">
+          <view class="rank-line1">
+            <text class="rank-name">{{item.name}}</text>
+            <text class="rank-amt">{{item.cny}}</text>
+          </view>
+          <view class="rank-line2">{{item.count}} 笔 ｜ 原币合计 {{item.amount}}</view>
+        </view>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="sec-title">按货币汇总</view>
+      <view wx:if="{{receiptByCurrency.length === 0}}" class="empty">暂无收汇数据</view>
+      <view class="cur-row" wx:for="{{receiptByCurrency}}" wx:key="name">
+        <text class="cur-name">{{item.name}}</text>
+        <text class="cur-amount">{{item.amount}}</text>
+        <text class="cur-cny">≈ {{item.cny}}</text>
+      </view>
+    </view>
+  </block>
+
+  <!-- 付款统计 -->
+  <block wx:if="{{tab === 1}}">
+    <view class="kpi-grid">
+      <view class="kpi-card">
+        <view class="kpi-label">本月付款（CNY）</view>
+        <view class="kpi-value">{{stat.monthlyPayment}}</view>
+      </view>
+      <view class="kpi-card">
+        <view class="kpi-label">本年付款（CNY）</view>
+        <view class="kpi-value">{{stat.yearlyPayment}}</view>
+      </view>
+      <view class="kpi-card wide">
+        <view class="kpi-label">累计付款（CNY）</view>
+        <view class="kpi-value">{{stat.totalPayment}}</view>
+        <view class="kpi-sub">累计净额（收汇 − 付款）：{{netAmount}} CNY</view>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="sec-title">按客户汇总</view>
+      <view wx:if="{{paymentByCustomer.length === 0}}" class="empty">暂无付款数据</view>
+      <view class="rank-row" wx:for="{{paymentByCustomer}}" wx:key="name">
+        <view class="rank-idx {{index === 0 ? 'top1' : ''}}">{{index + 1}}</view>
+        <view class="rank-mid">
+          <view class="rank-line1">
+            <text class="rank-name">{{item.name}}</text>
+            <text class="rank-amt">{{item.amount}}</text>
+          </view>
+          <view class="rank-line2">{{item.count}} 笔付款记录</view>
+        </view>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="sec-title">按付款类型汇总</view>
+      <view wx:if="{{paymentByType.length === 0}}" class="empty">暂无付款数据</view>
+      <view class="cur-row" wx:for="{{paymentByType}}" wx:key="name">
+        <text class="cur-name">{{item.name}}</text>
+        <text class="cur-amount">{{item.amount}}</text>
+        <text class="cur-cny">{{item.count}} 笔</text>
+      </view>
+    </view>
+  </block>
+
+  <!-- 订单动态提醒 -->
+  <block wx:if="{{tab === 2}}">
+    <view class="card">
+      <view class="sec-title">订单动态提醒 <text class="sec-sub">共 {{reminders.length}} 条</text></view>
+      <view wx:if="{{reminders.length === 0}}" class="empty">
+        <view class="empty-icon">✅</view>暂无提醒事项
+      </view>
+      <view class="rem-item {{item.type}}" wx:for="{{reminders}}" wx:key="idx">
+        <text class="rem-icon">{{item.icon}}</text>
+        <view class="rem-mid">
+          <view class="rem-text">{{item.text}}</view>
+          <view class="rem-no" wx:if="{{item.orderNo}}">订单号：{{item.orderNo}}</view>
+        </view>
+      </view>
+    </view>
+    <view class="card">
+      <view class="sec-title">提醒统计</view>
+      <view class="cur-row"><text class="cur-name">⚠️ 警告</text><text class="cur-amount">{{remWarning}}</text><text class="cur-cny">条</text></view>
+      <view class="cur-row"><text class="cur-name">ℹ️ 提示</text><text class="cur-amount">{{remInfo}}</text><text class="cur-cny">条</text></view>
+      <view class="cur-row"><text class="cur-name">✅ 关注</text><text class="cur-amount">{{remSuccess}}</text><text class="cur-cny">条</text></view>
+    </view>
+  </block>
+
+  <!-- 欠款统计 -->
+  <block wx:if="{{tab === 3}}">
+    <view class="kpi-grid">
+      <view class="kpi-card">
+        <view class="kpi-label">欠款订单数</view>
+        <view class="kpi-value orange">{{debtCount}}</view>
+      </view>
+      <view class="kpi-card">
+        <view class="kpi-label">合计欠款（CNY）</view>
+        <view class="kpi-value red">{{totalDebtCNY}}</view>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="sec-title">欠款订单明细 <text class="sec-sub">按欠款金额降序</text></view>
+      <view wx:if="{{debts.length === 0}}" class="empty">
+        <view class="empty-icon">🎉</view>暂无欠款统计数据
+      </view>
+      <view class="debt-item" wx:for="{{debts}}" wx:key="orderNo">
+        <view class="debt-head">
+          <view>
+            <view class="debt-no">{{item.orderNo}}</view>
+            <view class="debt-cust">{{item.customer || '-'}} ｜ {{item.createTime || '-'}}</view>
+          </view>
+          <text class="badge {{item.statusClass}}">{{item.status || '—'}}</text>
+        </view>
+        <view class="debt-grid">
+          <view class="dg"><text class="dg-label">订单金额</text><text class="dg-val">{{item.orderAmount}} {{item.currency}}</text></view>
+          <view class="dg"><text class="dg-label">累计收汇</text><text class="dg-val">{{item.totalReceived}} {{item.currency}}</text></view>
+          <view class="dg"><text class="dg-label">欠款金额</text><text class="dg-val debt">{{item.debtAmount}} {{item.currency}}</text></view>
+          <view class="dg"><text class="dg-label">折人民币</text><text class="dg-val debt">{{item.debtCNY}}</text></view>
+        </view>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="sec-title">折算说明</view>
+      <view class="desc">合计欠款按固定汇率折算为人民币：&#10;USD 7.2 ｜ EUR 8.0 ｜ GBP 9.2 ｜ JPY 0.048 ｜ CNY 1&#10;&#10;欠款判定规则：&#10;1. 订单金额按订单号聚合（多产品行累加）&#10;2. 收汇按 (收汇金额 − 手续费) × 汇率 折算&#10;3. 已收 &lt; 订单金额 → 列入欠款&#10;4. 待生产/生产中且无收汇 → 欠款 = 全款</view>
+    </view>
+  </block>
+
+  <view class="page-foot"></view>
+</view>

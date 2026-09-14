@@ -1,0 +1,130 @@
+<view class="page">
+  <!-- 页首品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <!-- 筛选区 -->
+  <view class="card">
+    <view class="form-item">
+      <text class="f-label">🔍</text>
+      <input value="{{kw}}" placeholder="订单号/客户/付款单位/备注" bindinput="onSearch" />
+    </view>
+    <view class="form-row2">
+      <picker range="{{custOptions}}" value="{{custIdx}}" bindchange="onCust">
+        <view class="form-item"><text class="f-label">客户</text><text class="f-value">{{custOptions[custIdx]}}</text></view>
+      </picker>
+      <picker range="{{typeOptions}}" value="{{typeIdx}}" bindchange="onType">
+        <view class="form-item"><text class="f-label">付款类型</text><text class="f-value">{{typeOptions[typeIdx]}}</text></view>
+      </picker>
+    </view>
+    <view class="form-row2">
+      <picker range="{{recipientOptions}}" value="{{recipientIdx}}" bindchange="onRecipient">
+        <view class="form-item"><text class="f-label">收款单位</text><text class="f-value">{{recipientOptions[recipientIdx]}}</text></view>
+      </picker>
+      <picker mode="date" value="{{dateFrom}}" bindchange="onDateFrom">
+        <view class="form-item"><text class="f-label">起</text><text class="f-value {{dateFrom ? '' : 'placeholder'}}">{{dateFrom || '不限'}}</text></view>
+      </picker>
+    </view>
+    <view class="form-row2">
+      <picker mode="date" value="{{dateTo}}" bindchange="onDateTo">
+        <view class="form-item"><text class="f-label">止</text><text class="f-value {{dateTo ? '' : 'placeholder'}}">{{dateTo || '不限'}}</text></view>
+      </picker>
+      <view class="form-item"><text class="f-label">合计金额</text><text class="f-value strong">{{sumAmount}}</text></view>
+    </view>
+    <view class="stat-line">共 <text class="stat-num">{{list.length}}</text> 条付款记录</view>
+    <view class="btn-row">
+      <view class="btn btn-outline btn-sm" bindtap="resetFilter">重置</view>
+      <view class="btn btn-outline btn-sm" bindtap="exportCSV">导出</view>
+    </view>
+  </view>
+
+  <view wx:if="{{list.length === 0}}" class="card">
+    <view class="empty"><view class="empty-icon">💳</view>暂无匹配付款记录</view>
+  </view>
+
+  <view class="card" wx:for="{{list}}" wx:key="id" wx:for-item="o">
+    <view class="ord-head">
+      <view class="ord-head-left">
+        <view class="ord-cust">{{o.customer || '-'}}</view>
+        <view class="ord-no">{{o.orderNo || '无订单号'}}</view>
+      </view>
+      <text class="badge badge-blue">{{o.paymentMethod || '其他'}}</text>
+    </view>
+    <view class="ord-grid">
+      <view class="og"><text class="og-label">付款日期</text><text class="og-val">{{o.paymentDate || '-'}}</text></view>
+      <view class="og"><text class="og-label">付款金额</text><text class="og-val strong">{{o.amount}}</text></view>
+      <view class="og"><text class="og-label">付款单位</text><text class="og-val">{{o.payer || '-'}}</text></view>
+      <view class="og"><text class="og-label">收款单位</text><text class="og-val">{{o.recipient || '-'}}</text></view>
+    </view>
+    <view class="ord-notes" wx:if="{{o.remark}}">备注：{{o.remark}}</view>
+    <view class="ord-actions">
+      <view class="btn btn-outline btn-sm" data-id="{{o.id}}" bindtap="editItem">编辑</view>
+      <view class="btn btn-danger-ghost btn-sm" data-id="{{o.id}}" bindtap="delItem">删除</view>
+    </view>
+  </view>
+
+  <view class="fab" bindtap="openAdd">＋</view>
+
+  <!-- 新增/编辑弹层 -->
+  <view catchtouchmove="noop" class="mask" wx:if="{{modal}}" bindtap="closeModal">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">{{editId ? '编辑付款记录' : '新增付款记录'}}<text class="sheet-close" bindtap="closeModal">×</text></view>
+        <scroll-view scroll-y class="sheet-body">
+
+      <view class="form-item">
+        <text class="f-label">客户 <text class="req">*</text></text>
+        <input value="{{form.customer}}" data-k="customer" bindinput="onField" placeholder="必填" />
+      </view>
+      <view class="form-item">
+        <text class="f-label">订单号</text>
+        <input value="{{form.orderNo}}" data-k="orderNo" bindinput="onField" />
+      </view>
+      <view class="btn btn-outline btn-block btn-sm" bindtap="pickOrders">从订单中选择</view>
+      <view class="form-row2">
+        <picker mode="date" value="{{form.paymentDate}}" data-k="paymentDate" bindchange="onDate">
+          <view class="form-item"><text class="f-label">付款日期</text><text class="f-value {{form.paymentDate ? '' : 'placeholder'}}">{{form.paymentDate || '选择'}}</text></view>
+        </picker>
+        <view class="form-item"><text class="f-label">付款金额</text><input type="digit" value="{{form.amount}}" data-k="amount" bindinput="onField" /></view>
+      </view>
+      <picker range="{{methodOptions}}" value="{{methodIdx}}" bindchange="onMethod">
+        <view class="form-item"><text class="f-label">付款类型</text><text class="f-value">{{methodOptions[methodIdx]}}</text></view>
+      </picker>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">付款单位</text><input value="{{form.payer}}" data-k="payer" bindinput="onField" /></view>
+        <view class="form-item"><text class="f-label">收款单位</text><input value="{{form.recipient}}" data-k="recipient" bindinput="onField" /></view>
+      </view>
+      <view class="form-item"><text class="f-label">备注</text><input value="{{form.remark}}" data-k="remark" bindinput="onField" /></view>
+
+      <view class="btn-row">
+        <view class="btn btn-plain" bindtap="closeModal">取消</view>
+        <view class="btn btn-primary" bindtap="save">保存</view>
+      </view>
+    
+        </scroll-view>
+      </view>
+  </view>
+
+  <!-- 订单单选弹层 -->
+  <view catchtouchmove="noop" class="mask" wx:if="{{pickModal}}" bindtap="closePick">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">选择订单号<text class="sheet-close" bindtap="closePick">×</text></view>
+        <scroll-view scroll-y class="sheet-body">
+      <view class="pick-item" wx:for="{{allOrders}}" wx:key="orderNo" data-no="{{item.orderNo}}" bindtap="chooseOrder">
+        <view class="pick-mid">
+          <text class="pick-no">{{item.orderNo}}</text>
+          <text class="pick-sub">{{item.customer}} ｜ {{item.amount}} {{item.currency}}</text>
+        </view>
+      </view>
+      <view wx:if="{{allOrders.length === 0}}" class="empty">暂无订单可选</view>
+      <view class="btn btn-plain btn-block" bindtap="closePick">取消</view>
+    
+        </scroll-view>
+      </view>
+  </view>
+  <view class="page-foot"></view>
+</view>

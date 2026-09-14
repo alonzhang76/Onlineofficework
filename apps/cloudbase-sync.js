@@ -24,7 +24,7 @@
   // ===== 配置 =====
   var APP_ID = window.CLOUDBASE_APP_ID || window.SUPABASE_APP_ID || 'default';
   var TABLE = 'app_data_store';
-  var REFRESH_INTERVAL = 30000; // 30 秒刷新一次
+  var REFRESH_INTERVAL = 8000; // 8 秒刷新一次（更快感知另一端的更新）
   var SKIP_WRITE_WINDOW = 10000; // 10 秒内自己写入的 key 跳过云端覆盖
 
   // 专用数据同步账号（authenticated 角色）。
@@ -327,7 +327,10 @@
       }
 
       if (cloudLoadDenied) {
+        notifyStatus('offline');
         setInterval(retryAuthAndReload, 30000);
+      } else {
+        notifyStatus('idle');
       }
       bindBadgeWhenReady();
 
@@ -347,6 +350,7 @@
         }
       });
       window.addEventListener('beforeunload', flushPending);
+      window.addEventListener('offline', function () { notifyStatus('offline'); });
 
       initialized = true;
       console.log('[CloudbaseSync] 就绪。应用:', APP_ID, '用户:', user ? (user.email || user.id || 'authed') : 'none');
@@ -475,9 +479,11 @@
 
     if (!sb || !initialized) {
       pendingWrites[key] = { value: value, ts: Date.now() };
+      notifyStatus('pending');
       return;
     }
 
+    notifyStatus('pending');
     try {
       var upResult = await sb.from(TABLE).upsert({
         store_key: prefixKey(key),
@@ -487,16 +493,30 @@
       if (upResult && upResult.error) {
         console.error('[CloudbaseSync] 云端写入失败:', key, upResult.error.message);
         pendingWrites[key] = { value: value, ts: Date.now() };
+        notifyStatus('error');
+      } else {
+        // 单条上传成功；若没有其它挂起写入，置为 idle
+        if (Object.keys(pendingWrites).length === 0) notifyStatus('idle');
       }
     } catch (e) {
       console.warn('[CloudbaseSync] 同步异常:', key, e && e.message ? e.message : e);
       pendingWrites[key] = { value: value, ts: Date.now() };
+      notifyStatus('error');
     }
+  }
+
+  function notifyStatus(state) {
+    try {
+      if (window.CloudSyncStatus && typeof window.CloudSyncStatus.setState === 'function') {
+        window.CloudSyncStatus.setState(state);
+      }
+    } catch (e) {}
   }
 
   async function flushPending() {
     var keys = Object.keys(pendingWrites);
     if (keys.length === 0) return;
+    notifyStatus('pending');
     for (var i = 0; i < keys.length; i++) {
       var key = keys[i];
       var entry = pendingWrites[key];
@@ -517,6 +537,9 @@
       }
       await syncToCloud(key, value);
     }
+    // 整批重试完成后，若仍无挂起写入则置为 idle
+    if (Object.keys(pendingWrites).length === 0) notifyStatus('idle');
+    else notifyStatus('error');
   }
 
   // ===== 从云端刷新 =====
@@ -525,7 +548,13 @@
 
     try {
       var result = await sb.from(TABLE).select('store_key, payload, updated_at');
-      if (!result.data || result.error) return;
+      if (!result.data || result.error) {
+        // 网络或权限错误：若没有挂起写入，标记 offline
+        if (Object.keys(pendingWrites).length === 0) notifyStatus('offline');
+        return;
+      }
+      // 刷新成功：若没有挂起写入则标记 idle
+      if (Object.keys(pendingWrites).length === 0) notifyStatus('idle');
 
       var now = Date.now();
       var changedKeys = [];
@@ -562,6 +591,7 @@
       }
     } catch (e) {
       console.warn('[CloudbaseSync] 刷新异常:', e && e.message ? e.message : e);
+      if (Object.keys(pendingWrites).length === 0) notifyStatus('offline');
     }
   }
 
@@ -616,4 +646,167 @@
 
   // ===== 启动 =====
   init();
+})();
+
+/* ===== CloudSyncStatus 指示灯模块（在激活的 Tab 按钮内嵌彩色圆点）=====
+ * 状态: idle(绿,已同步) / pending(黄,上传中) / error(红,上传失败) / offline(灰,未连接)
+ * 由各同步层调用 window.CloudSyncStatus.setState(state) 切换状态
+ * 自动注入 .__cs_dot 到当前激活的 tab/nav 元素中（支持多种 selector）
+ */
+(function () {
+  if (window.CloudSyncStatus && window.CloudSyncStatus._initd) return;
+
+  var STATES = {
+    idle:    { color: '#10b981', text: '已同步',  title: '云端同步完成' },
+    pending: { color: '#f59e0b', text: '上传中',  title: '正在上传到云端…' },
+    error:   { color: '#ef4444', text: '上传失败', title: '上传失败，正在重试…' },
+    offline: { color: '#9ca3af', text: '未连接',  title: '云端未连接' }
+  };
+  var currentState = 'idle';
+  var fallbackEl = null;
+
+  function injectCSS() {
+    if (document.getElementById('__cs_style')) return;
+    var css = document.createElement('style');
+    css.id = '__cs_style';
+    css.textContent = [
+      '.__cs_dot {',
+      '  display:inline-block; width:8px; height:8px; border-radius:50%;',
+      '  margin-left:6px; vertical-align:middle; background:#10b981;',
+      '  box-shadow:0 0 4px rgba(16,185,129,0.6);',
+      '  transition:background .3s, box-shadow .3s; pointer-events:none;',
+      '}',
+      '.__cs_dot.__cs_pending { background:#f59e0b; box-shadow:0 0 6px rgba(245,158,11,.7); animation:__cs_pulse 1.2s infinite; }',
+      '.__cs_dot.__cs_error   { background:#ef4444; box-shadow:0 0 6px rgba(239,68,68,.7);  animation:__cs_pulse .8s infinite; }',
+      '.__cs_dot.__cs_offline { background:#9ca3af; box-shadow:none; }',
+      '@keyframes __cs_pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }',
+      '.__cs_fallback_badge {',
+      '  position:fixed; right:8px; bottom:8px; z-index:99998;',
+      '  display:inline-flex; align-items:center; gap:4px;',
+      '  padding:4px 8px; border-radius:12px;',
+      '  font:11px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;',
+      '  color:#fff; background:rgba(16,185,129,.92);',
+      '  box-shadow:0 2px 8px rgba(0,0,0,.25);',
+      '  -webkit-tap-highlight-color:transparent;',
+      '}',
+      '.__cs_fallback_badge.__cs_pending { background:rgba(245,158,11,.95); }',
+      '.__cs_fallback_badge.__cs_error   { background:rgba(239,68,68,.95); cursor:pointer; pointer-events:auto; }',
+      '.__cs_fallback_badge.__cs_offline { background:rgba(156,163,175,.95); }'
+    ].join('\n');
+    (document.head || document.documentElement).appendChild(css);
+  }
+
+  var TAB_SELECTORS = [
+    '.nav-tab.active',                  // wicketorders / orderschedule
+    '.nav-item.active',                // wage
+    '.sidebar-menu-item.active',       // saintysys
+    '.nav-link.active',                // purchase
+    '.company-btn.bg-primary',         // incomeexpense
+    '.ant-tabs-tab-active',            // stainlessbusiness (antd)
+    '[role="tab"][aria-selected="true"]' // 通用 ARIA
+  ];
+
+  function findActiveTabs() {
+    var found = [];
+    for (var i = 0; i < TAB_SELECTORS.length; i++) {
+      try {
+        var els = document.querySelectorAll(TAB_SELECTORS[i]);
+        for (var j = 0; j < els.length; j++) found.push(els[j]);
+      } catch (e) {}
+    }
+    return found;
+  }
+
+  function refreshDots() {
+    var tabs = findActiveTabs();
+    var stateClass = '__cs_' + currentState;
+    var title = STATES[currentState].title;
+
+    for (var i = 0; i < tabs.length; i++) {
+      var tab = tabs[i];
+      var dot = tab.querySelector('.__cs_dot');
+      if (!dot) {
+        dot = document.createElement('span');
+        dot.className = '__cs_dot ' + stateClass;
+        tab.appendChild(dot);
+      } else {
+        dot.className = '__cs_dot ' + stateClass;
+      }
+      dot.title = title;
+    }
+
+    // 清理非激活 tab 上的残留圆点
+    var allDots = document.querySelectorAll('.__cs_dot');
+    for (var k = 0; k < allDots.length; k++) {
+      var parent = allDots[k].parentElement;
+      if (parent && tabs.indexOf(parent) === -1) {
+        parent.removeChild(allDots[k]);
+      }
+    }
+
+    // 找不到任何激活 tab 时，回退为右下角徽标
+    if (tabs.length === 0) {
+      ensureFallback();
+    } else if (fallbackEl) {
+      fallbackEl.style.display = 'none';
+    }
+  }
+
+  function ensureFallback() {
+    if (fallbackEl) {
+      fallbackEl.style.display = 'inline-flex';
+      fallbackEl.className = '__cs_fallback_badge __cs_' + currentState;
+      fallbackEl.innerHTML = '<span class="__cs_dot __cs_' + currentState + '"></span>' + STATES[currentState].text;
+      fallbackEl.title = STATES[currentState].title;
+      return;
+    }
+    if (!document || !document.body) return;
+    fallbackEl = document.createElement('div');
+    fallbackEl.className = '__cs_fallback_badge __cs_' + currentState;
+    fallbackEl.innerHTML = '<span class="__cs_dot __cs_' + currentState + '"></span>' + STATES[currentState].text;
+    fallbackEl.title = STATES[currentState].title;
+    fallbackEl.addEventListener('click', function () {
+      if (currentState === 'error' || currentState === 'offline') {
+        try { location.reload(); } catch (e) {}
+      }
+    });
+    document.body.appendChild(fallbackEl);
+  }
+
+  function setState(state) {
+    if (!STATES[state]) state = 'idle';
+    currentState = state;
+    try { refreshDots(); } catch (e) {}
+    try { window.dispatchEvent(new CustomEvent('cloud-sync-status', { detail: { state: state } })); } catch (e) {}
+  }
+
+  function startAutoRefresh() {
+    setInterval(refreshDots, 2000);
+    if (window.MutationObserver) {
+      try {
+        var observer = new MutationObserver(function () { try { refreshDots(); } catch (e) {} });
+        observer.observe(document.body || document.documentElement, {
+          childList: true, subtree: true, attributes: true, attributeFilter: ['class']
+        });
+      } catch (e) {}
+    }
+  }
+
+  function boot() {
+    try { injectCSS(); refreshDots(); startAutoRefresh(); } catch (e) {}
+  }
+
+  if (document && document.body) {
+    boot();
+  } else if (document) {
+    document.addEventListener('DOMContentLoaded', boot);
+    window.addEventListener('load', boot);
+  }
+
+  window.CloudSyncStatus = {
+    _initd: true,
+    setState: setState,
+    getState: function () { return currentState; },
+    refresh: refreshDots
+  };
 })();

@@ -1,0 +1,32 @@
+<view class="page">
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="sec-title">数据概览</view>
+    <view class="cell"><view class="cell-label">普利美流水</view><view class="cell-value strong">{{counts.c1}} 笔</view></view>
+    <view class="cell"><view class="cell-label">无锡龙力流水</view><view class="cell-value strong">{{counts.c2}} 笔</view></view>
+    <view class="cell"><view class="cell-label">待办事项</view><view class="cell-value strong">{{counts.todos}} 条</view></view>
+  </view>
+
+  <view class="card">
+    <view class="sec-title">备份与恢复</view>
+    <view class="btn-col">
+      <view class="btn btn-primary" bindtap="backupData">📤 导出备份文件（JSON）</view>
+      <view class="btn btn-outline" bindtap="restoreData">📥 从备份文件恢复</view>
+      <view class="btn btn-success" bindtap="pullCloud">☁️ 从云端拉取数据</view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="sec-title">说明</view>
+    <view class="desc">1. 备份文件为 JSON 格式，包含两家公司的全部流水与待办&#10;2. 恢复时请选择之前导出的 .json 备份文件&#10;3. 开启 CloudBase 云同步后无需手动备份</view>
+  </view>
+
+  <view class="page-foot"></view>
+</view>

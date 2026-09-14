@@ -1,0 +1,95 @@
+<view class="page home-page">
+  <!-- 页首品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <!-- 欢迎横幅 -->
+  <view class="hero">
+    <view class="hero-glow"></view>
+    <view class="hero-inner">
+      <view class="hero-title">普利美工作</view>
+      <view class="hero-sub">PULIMEI WORKSPACE</view>
+      <view class="hero-date">{{todayText}} · {{weekText}}</view>
+    </view>
+    <!-- 登录用户 -->
+    <view class="user-chip" wx:if="{{user}}" bindtap="logout">
+      <view class="user-avatar">{{userBadge}}</view>
+      <view class="user-meta">
+        <text class="user-name">{{userLabel}}</text>
+        <text class="user-role">{{user.isAdmin ? '管理员' : '点击退出登录'}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 应用入口 -->
+  <view class="sec-head">
+    <text class="sec-head-title">应用中心</text>
+    <text class="sec-head-sub">Applications</text>
+  </view>
+
+  <!-- 未分配任何应用时的提示 -->
+  <view class="perm-empty" wx:if="{{noPerms}}">
+    <text class="perm-empty-icon">🔐</text>
+    <view class="perm-empty-title">尚未分配应用权限</view>
+    <view class="perm-empty-desc">当前账号 {{userLabel}} 还没有任何可用的应用。\n请联系管理员在网页版门户管理面板中配置。</view>
+  </view>
+
+  <view class="app-grid" wx:else>
+    <view
+      class="app-card"
+      wx:for="{{apps}}"
+      wx:key="key"
+      data-url="{{item.url}}"
+      data-key="{{item.key}}"
+      bindtap="openApp"
+      hover-class="app-card-hover"
+    >
+      <view class="app-lock" wx:if="{{item.needPwd}}">
+        <text class="app-lock-icon">{{item.locked ? '🔒' : '🔓'}}</text>
+      </view>
+      <view class="app-icon" style="background: linear-gradient(145deg, {{item.color}}CC 0%, {{item.color}} 55%, {{item.colorDark}} 100%);">
+        <text class="app-icon-text">{{item.icon}}</text>
+      </view>
+      <view class="app-name">{{item.name}}</view>
+      <view class="app-name-en">{{item.nameEn}}</view>
+      <view class="app-desc">{{item.desc}}</view>
+      <view class="app-stat" wx:if="{{item.stat}}">
+        <text class="app-stat-num">{{item.stat}}</text>
+        <text class="app-stat-label">{{item.statLabel}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 数据总览 -->
+  <view class="sec-head">
+    <text class="sec-head-title">数据总览</text>
+    <text class="sec-head-sub">Overview</text>
+  </view>
+  <view class="ov-card">
+    <view class="ov-item" wx:for="{{overview}}" wx:key="label">
+      <text class="ov-label">{{item.label}}</text>
+      <text class="ov-value" style="color: {{item.color}};">{{item.value}}</text>
+    </view>
+  </view>
+
+  <!-- 云同步状态 -->
+  <view class="cloud-card" bindtap="goCloud">
+    <text class="cloud-icon">☁️</text>
+    <view class="cloud-mid">
+      <text class="cloud-title">云同步（CloudBase）</text>
+      <text class="cloud-sub">{{cloudOn ? '已配置，数据自动同步到云端' : '未配置，数据仅保存在本机'}}</text>
+    </view>
+    <view class="sync-badge sync-badge-{{__syncState}}">
+      <view class="sync-dot"></view>
+      <text class="sync-text">{{__syncState === 'idle' ? '已同步' : __syncState === 'pending' ? '上传中' : __syncState === 'error' ? '上传失败' : '未连接'}}</text>
+    </view>
+  </view>
+
+  <view class="foot">普利美（常州）环境工程科技有限公司 · 普利美工作 v1.0</view>
+  <view class="page-foot"></view>
+</view>

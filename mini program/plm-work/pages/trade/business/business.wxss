@@ -1,0 +1,50 @@
+/* ===== 外贸 · 业务跟踪 ===== */
+.stat-line { font-size: 24rpx; color: #8E8E93; padding: 16rpx 4rpx 4rpx; }
+.stat-num { color: #5856D6; font-weight: 700; }
+
+.biz-head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  padding-bottom: 18rpx; border-bottom: 1rpx solid rgba(60, 60, 67, 0.1);
+  margin-bottom: 16rpx;
+}
+.biz-head-left { flex: 1; min-width: 0; }
+.biz-name { font-size: 32rpx; font-weight: 700; color: #1C1C1E; }
+.biz-contact { font-size: 23rpx; color: #8E8E93; margin-top: 6rpx; }
+
+.biz-grid { display: flex; flex-wrap: wrap; gap: 12rpx 0; }
+.bg { width: 50%; box-sizing: border-box; display: flex; gap: 10rpx; padding-right: 12rpx; }
+.bg.w-full { width: 100%; }
+.bg-label { font-size: 23rpx; color: #A1A1A6; flex-shrink: 0; }
+.bg-val {
+  font-size: 23rpx; color: #1C1C1E; flex: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* 下次跟进样式（与网页版一致） */
+.bg-val.nf-red { background: #FF3B30; color: #fff; border-radius: 8rpx; padding: 2rpx 10rpx; font-weight: 600; }
+.bg-val.nf-green { background: #34C759; color: #fff; border-radius: 8rpx; padding: 2rpx 10rpx; font-weight: 600; }
+.bg-val.nf-light { background: rgba(52, 199, 89, 0.16); color: #248A3D; border-radius: 8rpx; padding: 2rpx 10rpx; }
+
+/* 联系记录 */
+.rec-block {
+  margin-top: 18rpx; padding-top: 16rpx;
+  border-top: 1rpx solid rgba(60, 60, 67, 0.08);
+}
+.rec-title { font-size: 24rpx; color: #8E8E93; margin-bottom: 12rpx; }
+.rec-item {
+  background: #F2F2F7; border-radius: 14rpx;
+  padding: 16rpx 18rpx; margin-bottom: 10rpx;
+}
+.rec-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8rpx; }
+.rec-date { font-size: 22rpx; color: #8E8E93; }
+.rec-text { font-size: 24rpx; color: #3C3C43; line-height: 1.6; white-space: pre-wrap; }
+
+.ord-actions {
+  display: flex; justify-content: flex-end; gap: 12rpx;
+  margin-top: 20rpx; padding-top: 18rpx;
+  border-top: 1rpx solid rgba(60, 60, 67, 0.08);
+}
+
+/* 弹层 */
+.memo-textarea-wrap { background: #fff; border-radius: 16rpx; padding: 20rpx 22rpx; margin-bottom: 16rpx; }
+.memo-textarea { width: 100%; min-height: 200rpx; font-size: 28rpx; color: #1C1C1E; line-height: 1.6; }
+.color-label { font-size: 26rpx; color: #8E8E93; padding: 8rpx 4rpx 14rpx; }

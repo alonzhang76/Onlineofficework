@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="BjbjE4wXWTX3XzwDybesma">
+<head data-page-node-id="3VqR6tU3Z2yxLtDvOBC8Ht">
+<meta charset="utf-8" data-page-node-id="PgMJHmSa8U1dBdZt00Q7T4">
+<title>表单高度统一 + 弹层滚动修复 · 效果对照</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; padding: 40px 24px 64px;
+    background: #E9E9EE;
+    font-family: -apple-system, "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: #1C1C1E;
+  }
+  h1 { font-size: 19px; font-weight: 500; margin: 0 0 6px; }
+  h2 { font-size: 15px; font-weight: 500; margin: 34px 0 12px; }
+  .lead { font-size: 13px; color: #6B6B70; margin: 0 0 26px; line-height: 1.75; }
+
+  .stage { display: flex; gap: 28px; flex-wrap: wrap; justify-content: center; }
+  .col { width: 330px; }
+  .col-title { font-size: 13px; font-weight: 500; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+  .tag { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 400; }
+  .tag.before { background: #F7C1C1; color: #501313; }
+  .tag.after { background: #C0DD97; color: #173404; }
+
+  /* 手机框：375px 宽，1rpx = 0.5px */
+  .phone { background: #F2F2F7; border-radius: 22px; padding: 14px 12px 20px; }
+  .card { background: #fff; border-radius: 12px; padding: 12px 12px 4px; margin-bottom: 12px; }
+  .card-h { font-size: 13px; font-weight: 500; margin: 0 0 10px 2px; color: #1C1C1E; }
+
+  .form-item {
+    display: flex; align-items: center; justify-content: space-between;
+    background: #F2F2F7; border-radius: 8px;
+    padding: 9px 12px; margin-bottom: 8px;
+  }
+  .f-label { color: #8E8E93; font-size: 14px; flex-shrink: 0; margin-right: 8px; }
+  .f-label .req { color: #FF3B30; }
+  input, textarea {
+    flex: 1; min-width: 0; font: inherit; font-size: 14px; color: #1C1C1E;
+    text-align: right; border: none; outline: none; background: transparent;
+  }
+  input::placeholder, textarea::placeholder { color: #C7C7CC; }
+  .two { display: flex; gap: 8px; }
+  .two > * { flex: 1; min-width: 0; }
+  .two .form-item { padding: 9px 7px; }
+  .pill {
+    flex: 1; text-align: right; font-size: 14px; color: #C7C7CC;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .pill.filled { color: #1C1C1E; }
+
+  /* ===== 修改前 ===== */
+  /* 输入框没有显式高度：靠组件默认值，高低不齐 */
+  .before input { padding: 0; }
+  .before .form-item { min-height: 0; }
+  .before .row-tall input { height: 20px; }        /* 矮的：文字被裁 */
+  .before .row-short input { height: 27px; }       /* 高的：整行变高 */
+  .before .pill { padding: 2px 0; }
+  .before textarea {
+    width: 100%; height: 60px; text-align: left; resize: none;
+    padding: 4px 0; overflow: hidden;
+  }
+  .before .form-item.ta { align-items: center; }
+
+  /* ===== 修改后：统一高度 ===== */
+  .after input {
+    height: 36px; line-height: 34px; padding: 0 8px;
+    background: #fff; border: 1px solid #DCDCE0; border-radius: 6px;
+  }
+  .after .pill {
+    height: 36px; line-height: 34px; padding: 0 8px;
+    background: #fff; border: 1px solid #DCDCE0; border-radius: 6px;
+  }
+  .after input:focus, .after .pill:focus { border-color: #007AFF; box-shadow: 0 0 0 2px rgba(0,122,255,0.12); }
+  .after .two .form-item { padding: 8px 7px; }
+  .after .two input, .after .two .pill { padding: 0 6px; }
+  .after textarea {
+    width: 100%; min-height: 88px; text-align: left;
+    line-height: 22px; padding: 7px 8px; resize: none;
+    background: #fff; border: 1px solid #DCDCE0; border-radius: 6px;
+  }
+  .after textarea.grown { min-height: 132px; }
+  .after .form-item.ta { align-items: flex-start; padding-top: 8px; }
+  .after .form-item.ta .f-label { padding-top: 9px; }
+
+  .measure { font-size: 11px; color: #8E8E93; margin: 2px 0 8px 2px; }
+  .measure b { color: #1C1C1E; font-weight: 500; }
+
+  /* 滚动修复示意 */
+  .scrollbox { display: flex; gap: 28px; flex-wrap: wrap; justify-content: center; }
+  .demo { width: 330px; }
+  .mock {
+    position: relative; height: 300px; border-radius: 14px; overflow: hidden;
+    background: #fff; border: 1px solid #D8D8DE;
+  }
+  .mock-page {
+    position: absolute; inset: 0; padding: 14px; overflow: hidden;
+    background: repeating-linear-gradient(#fff, #fff 34px, #F2F2F7 34px, #F2F2F7 44px);
+    font-size: 12px; color: #B9B9BF;
+  }
+  .mock-page span { background: #F2F2F7; display: inline-block; padding: 2px 6px; border-radius: 5px; }
+  .mock-mask {
+    position: absolute; inset: 0; background: rgba(0,0,0,0.4);
+    display: flex; align-items: flex-end;
+  }
+  .mock-sheet {
+    width: 100%; background: #F2F2F7; border-radius: 16px 16px 0 0;
+    height: 78%; display: flex; flex-direction: column; overflow: hidden;
+  }
+  .mock-title {
+    text-align: center; font-size: 13px; font-weight: 600;
+    padding: 12px 12px 8px; flex-shrink: 0; position: relative;
+  }
+  .mock-close { position: absolute; right: 12px; top: 8px; color: #8E8E93; font-size: 15px; font-weight: 400; }
+  .mock-body { flex: 1; min-height: 0; padding: 0 12px 14px; overflow-y: auto; }
+  .mock-body::-webkit-scrollbar { width: 4px; }
+  .mock-body::-webkit-scrollbar-thumb { background: #C7C7CC; border-radius: 2px; }
+  .mock-row {
+    background: #F2F2F7; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px;
+    display: flex; justify-content: space-between; font-size: 12px;
+  }
+  .mock-row .lb { color: #8E8E93; }
+  .mock-row .vl {
+    background: #fff; border: 1px solid #DCDCE0; border-radius: 5px;
+    padding: 3px 7px; color: #6B6B70; min-width: 96px; text-align: right;
+  }
+  .mock-fixed { background: #F2F2F7; border-radius: 8px; padding: 8px 10px; }
+  .arrow { font-size: 11px; color: #FF3B30; text-align: center; margin-top: 8px; }
+  .ok { color: #248A3D; }
+
+  .note { font-size: 12px; color: #6B6B70; line-height: 1.85; margin-top: 26px; background: #fff; padding: 16px 20px; border-radius: 12px; }
+  .note b { font-weight: 500; color: #1C1C1E; }
+  .note code { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 11.5px; background: #F2F2F7; padding: 1px 5px; border-radius: 4px; }
+  .note ul { margin: 8px 0 0; padding-left: 18px; }
+  .note li { margin-bottom: 4px; }
+</style>
+</head>
+<body data-page-node-id="6w8ymquE802SU4SBnWFBDm">
+
+<h1 data-page-node-id="2a0vRuVkcdPT9ntcEhjBk1">表单输入框高度统一 + 弹层滚动修复</h1>
+<p class="lead" data-page-node-id="KqjKxi7nW1PwkWOC3DENjH">左侧是修复前，右侧是修复后。可点击右侧输入框查看聚焦高亮，右上滚动框可直接滚轮 / 拖动验证。</p>
+
+<h2 data-page-node-id="7FBXpAWWK4QiBrWTEK2gyc">一、输入框高度与文字裁切</h2>
+<div class="stage" data-page-node-id="lRXsQapQEZ8qLR5plaHI0Q">
+  <div class="col before" data-page-node-id="MLjiim4nzhLDY1iTHrE1tR">
+    <p class="col-title" data-page-node-id="n3719UMJCHWFrjvfGg3BOd">修复前 <span class="tag before" data-page-node-id="frgiGN1IqiMUAFthBJpota">高低不齐 · 文字被裁</span></p>
+    <div class="phone" data-page-node-id="jMxWP0W7mFMZUggWGP0EDT">
+      <div class="card" data-page-node-id="qbCOr59pgYBevgbPNBImXc">
+        <p class="card-h" data-page-node-id="YeYdYk228ABVnlMDJjheA6">基本信息</p>
+        <div class="form-item row-tall" data-page-node-id="IJNRE03j7SbCweLfWMvUa5"><span class="f-label" data-page-node-id="Bst5Rw1oObkEGcW6izCn6e">客户 <span class="req" data-page-node-id="VmZzH1ErE0dmA8tTYFXgcv">*</span></span><input value="无锡龙力印铁" readonly data-page-node-id="OqQHDfbw0LSIpDvWfsWU2r"></div>
+        <div class="form-item row-short" data-page-node-id="Zb3QQFA6qrpP66YvaVxT2Z"><span class="f-label" data-page-node-id="Bm07OLEDQAbPyevFtF78x6">订单号</span><input value="PO-20260301" readonly data-page-node-id="x6FcR3JNDn93eSXx8rRBxA"></div>
+        <div class="two" data-page-node-id="U8RqwPIQqos3UZpksQC3rC">
+          <div class="form-item row-tall" data-page-node-id="v6iLbMExmR19GDovmLIbaz"><span class="f-label" data-page-node-id="rSFmvcsAU5MeD3H6aZ0OgZ">日期</span><span class="pill filled" data-page-node-id="4XGm2kFGPS5FA5mFp4XBuF">2026-03-01</span></div>
+          <div class="form-item row-short" data-page-node-id="hilCQjY1K2SDAM4W8w57S4"><span class="f-label" data-page-node-id="GrhQcT40bLD8sx1ubYaxvc">数量</span><input value="120" readonly data-page-node-id="1OVZODQvGISCUMNGvTvslf"></div>
+        </div>
+        <p class="measure" data-page-node-id="r281FHUtG2w8h0GxqkNrHv">↑ 三行高度各不相同，日期与数量文字显示不全</p>
+      </div>
+      <div class="card" data-page-node-id="fa0bBpdl2NRGD4RjEIB9CH">
+        <p class="card-h" data-page-node-id="eqPMotKT1H6YO6X9Fffn9v">备注（固定 120rpx）</p>
+        <div class="form-item ta" data-page-node-id="O5UNGRBDSabjcqYNWI0hs0">
+          <span class="f-label" data-page-node-id="pW8b2rxYSKDomrw5G5oUpl">备注</span>
+          <textarea readonly>客户要求 3 月 15 日前交货，木箱包装，随货附质检报告与装箱单。尾款见提单副本后 30 天电汇。</textarea>
+        </div>
+        <p class="measure" data-page-node-id="7n15QubGCYi223T5XGnLyk">↑ 只露出两行，后面的内容看不到，也无法拉高</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="col after" data-page-node-id="mFSyrlTRGUO6ZOJqWA8riP">
+    <p class="col-title" data-page-node-id="QF6KTpLWDzliNJebfuMO7E">修复后 <span class="tag after" data-page-node-id="hxm3ShnHkpHAmMJxhYi2RU">统一 72rpx · 自适应</span></p>
+    <div class="phone" data-page-node-id="32toUSGYP26kkgvVJRsaeJ">
+      <div class="card" data-page-node-id="TJF0xOhPc7MB9HRCvDCT7d">
+        <p class="card-h" data-page-node-id="HhfbJGucPFldC0msdgfERe">基本信息</p>
+        <div class="form-item" data-page-node-id="9co7gHjBOuw7qfCghGfCQo"><span class="f-label" data-page-node-id="KwVSarh4ugUSZRyN4eOPpI">客户 <span class="req" data-page-node-id="KZaxK4jum5xZTwrQFtNAhE">*</span></span><input value="无锡龙力印铁" readonly data-page-node-id="HKsAdKnO4jqm9D0gNo0UXD"></div>
+        <div class="form-item" data-page-node-id="NDXsuK2Hfn7sqj6FqzusvV"><span class="f-label" data-page-node-id="HJJn0No5EOuRUMWoPYdNyS">订单号</span><input value="PO-20260301" readonly data-page-node-id="JqRB8t9D01GfxR3XQidYB2"></div>
+        <div class="two" data-page-node-id="xpmIT7XHEq5wqixi9dQ14X">
+          <div class="form-item" data-page-node-id="gEHJ1CNPRGHBGgN83H4nQr"><span class="f-label" data-page-node-id="R0JxVtbAZDdiI9CL5Uko7w">日期</span><span class="pill filled" tabindex="0" data-page-node-id="nqC8hf8wZalv62XN8jUWKu">2026-03-01</span></div>
+          <div class="form-item" data-page-node-id="tqx3jBUzx8RScJ2PffCflg"><span class="f-label" data-page-node-id="7iclu1XY1Erm2fFPsGp14D">数量</span><input value="120" readonly data-page-node-id="vuosW2h0qxGCr08CZ3FvKg"></div>
+        </div>
+        <p class="measure" data-page-node-id="T5oCuvcZAPBCeXhCmayde5">↑ 四行完全等高，日期完整显示</p>
+      </div>
+      <div class="card" data-page-node-id="KDRWBkiDWt0RBRBFnLuBUt">
+        <p class="card-h" data-page-node-id="o1InpFG0wdLT1VtLv9igNB">备注（min 176rpx，随内容增高）</p>
+        <div class="form-item ta" data-page-node-id="RIeyQ1Kmx7ouGmI59X6QkC">
+          <span class="f-label" data-page-node-id="w8LQvI7i9mgPMTLDaG8Q1E">备注</span>
+          <textarea class="grown" readonly>客户要求 3 月 15 日前交货，木箱包装，随货附质检报告与装箱单。尾款见提单副本后 30 天电汇。</textarea>
+        </div>
+        <p class="measure" data-page-node-id="j1YIXqhSDpgmBd5ADO1rlP">↑ 完整可见，内容再多会继续向下长</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2 data-page-node-id="bmep4mIjCKrNtHGAdiajtz">二、编辑弹层滑动</h2>
+<div class="scrollbox" data-page-node-id="lQkfK0FLJj5hBpvbrXf89j">
+  <div class="demo" data-page-node-id="ywDCR1SetkuuJtJ3TRa6Gq">
+    <p class="col-title" data-page-node-id="15cjXDEc7VTZxfs3MgqQE0">修复前 <span class="tag before" data-page-node-id="D7fqKpHwwQnOBv3KyUvaVw">弹层不动 · 背景在动</span></p>
+    <div class="mock" data-page-node-id="qGtRuU2NOMEd6Mns4eN8aG">
+      <div class="mock-page" data-page-node-id="6iaHpDjwIrBnYxrFapUab2">
+        <span data-page-node-id="tqazLEvwgz4kQiqBtvz9tn">首页 · 普利美工作</span><br data-page-node-id="Bsbf0GBkBPdXC2I74Y9Ihz"><br data-page-node-id="aF7yA8eCYjn94QchQloMqH"><span data-page-node-id="1cl7JD3ay1AHo8elFRdR5m">💰 计件工资管理</span><br data-page-node-id="isVvJvnYwrKcOS3WpgobHW"><br data-page-node-id="zkAn2FrUb5EHdIPtHCZfAU"><span data-page-node-id="Yaa2heIBC7CsHJFwoipkaD">🚢 外贸出口管理系统</span><br data-page-node-id="HJ3OgPxmBs5rOEvlVofKbz"><br data-page-node-id="FoGiEdKovkzTpvv3Xhysz4"><span data-page-node-id="QumTabvuaw7ZCrKeD4Ek8i">📅 订单排程</span><br data-page-node-id="Sz1G0BekzTXaENFpRwOCVk"><br data-page-node-id="CmiKFEGFtSA2zfRE0y9DxA"><span data-page-node-id="VzrhjUieoDHpzikoeiQCGN">🛒 采购管理</span><br data-page-node-id="fvQ3WYTX7Czh9nI6JjIsPT"><br data-page-node-id="3BBv11oBEjMHkKjV2AguBT"><span data-page-node-id="4741CvZluFukYOrPCuDTpC">💹 收支管理</span>
+      </div>
+      <div class="mock-mask" data-page-node-id="SG37WIDry7KIVZgnvi78IT">
+        <div class="mock-sheet" style="height:78%" data-page-node-id="lj4OFei7hHIWrShWiOAKsn">
+          <div class="mock-title" data-page-node-id="AAtjqEMydkIRRHdXZnhrhN">编辑订单<span class="mock-close" data-page-node-id="OayFQGdHNHBHF4LlonqhDq">✕</span></div>
+          <div class="mock-body" style="overflow:hidden" data-page-node-id="fwfvrilhIisyP8prA3IKrt">
+            <div class="mock-row" data-page-node-id="hDd4IuZlVBWNd4M1vcCKBK"><span class="lb" data-page-node-id="nHGezOAYRIOACoFTReosgC">订单日期</span><span class="vl" data-page-node-id="TZOI82SWcYauH5pq2MrdLh">2026-03-01</span></div>
+            <div class="mock-row" data-page-node-id="2SB6MS8HErGhSAYdHQuzQz"><span class="lb" data-page-node-id="WuTcrRBnhSCdq1HASgda0J">客户</span><span class="vl" data-page-node-id="0NUqTjOec2FKMafXsohjjv">无锡龙力</span></div>
+            <div class="mock-row" data-page-node-id="9p2TGHWFlb5KBPwmD51pn7"><span class="lb" data-page-node-id="KrYTKilQy7gk8ZnQgfqXWe">订单号</span><span class="vl" data-page-node-id="Gdy2l3A4cvkdk07RmIFpEt">PO-2026</span></div>
+            <div class="mock-row" data-page-node-id="mrAgxhNnEpI4g43h517RUs"><span class="lb" data-page-node-id="e0W0iYkUpWMM1qA5fZIR3k">图号</span><span class="vl" data-page-node-id="3eYgfHA26MCgRUhCtVKHWY">LL-G-01</span></div>
+            <div class="mock-row" data-page-node-id="QMY01H9CGOjBGe3RNX8RFc"><span class="lb" data-page-node-id="vkqDELfAkn66kjHFDpIrAB">数量</span><span class="vl" data-page-node-id="R7tu3bUjvUM5mYd4pP8rUF">120</span></div>
+            <div class="mock-fixed" style="color:#C7C7CC;font-size:12px;text-align:center" data-page-node-id="GQEGJUbDwadymN0uqi8CxQ">…… 下方字段被截断，滑不动 ……</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="arrow" data-page-node-id="yeuTZX6CVzjenXULNDDYYP">手指在弹层上滑动 → 只有背后的页面在滚</p>
+  </div>
+
+  <div class="demo" data-page-node-id="BhyJYIlD5BsYkf9RzqUFBK">
+    <p class="col-title" data-page-node-id="giLUyq9ju8JNdyZbxgXfdX">修复后 <span class="tag after ok" data-page-node-id="6kF5derf70nHdQWN1shC4V">弹层自身滚动</span></p>
+    <div class="mock" data-page-node-id="WlOrgt9bICn245yuKYEjKc">
+      <div class="mock-page" data-page-node-id="KkA4Dn3mbrROwPby05339b">
+        <span data-page-node-id="RDtQs3dhqqmYWfUa8Mk39b">首页 · 普利美工作</span><br data-page-node-id="Angc2NaKgAGW2vHI9jPnpR"><br data-page-node-id="wQuIz34ZfcbJCZ7Pl3qmKv"><span data-page-node-id="AjObrbOg2iL4bVkqiEe1ia">💰 计件工资管理</span><br data-page-node-id="uXPI8NpWPPPiUh49ehkCAG"><br data-page-node-id="FvdS2WMv67SU19rmLdsi6v"><span data-page-node-id="5cXJEzQy9wd8mQvTOgFyRN">🚢 外贸出口管理系统</span><br data-page-node-id="zD6AW3BnVQeKSic101WprY"><br data-page-node-id="nF3EdtIZafp8nl8P7sIowA"><span data-page-node-id="UsVTx88wQ0xXV0vmE5A9jC">📅 订单排程</span><br data-page-node-id="V8yFWgOLbAISMe4xmmIuSW"><br data-page-node-id="xzuvWDLDe7a2OUcJiUWaQs"><span data-page-node-id="FLe8NXuuaNT5iY1VTjCg2S">🛒 采购管理</span><br data-page-node-id="qhSF3zMyokqBPp2M94YGxe"><br data-page-node-id="POGJPNrzxeKupQp3Itp2xF"><span data-page-node-id="ulbqs2QqCC7qzexMvuomjd">💹 收支管理</span>
+      </div>
+      <div class="mock-mask" data-page-node-id="7H5mIAueWao8yH8WARxaUR">
+        <div class="mock-sheet" style="height:78%" data-page-node-id="A9u8EfNGADBDwCHShyXfNz">
+          <div class="mock-title" data-page-node-id="jZ45bGZfUKCX1B33GQ9lpO">编辑订单<span class="mock-close" data-page-node-id="vuDIUjs3iR31BPx3xrq9OH">✕</span></div>
+          <div class="mock-body" data-page-node-id="xDAAy0a7mSeSssTb4Mwshw">
+            <div class="mock-row" data-page-node-id="omVbfi1o1A5qPXctjfiUl6"><span class="lb" data-page-node-id="DaD9tRBEXbuFC6JimpUTUb">订单日期</span><span class="vl" data-page-node-id="BNo11c9rTqsd7pJ5sVNlpk">2026-03-01</span></div>
+            <div class="mock-row" data-page-node-id="uqmhUE0OYAH6SzEp8SkB4B"><span class="lb" data-page-node-id="09ldbyjRAtrLJh6uh2mn8j">客户</span><span class="vl" data-page-node-id="gNWokGPDNbzjFvgldTUpNj">无锡龙力</span></div>
+            <div class="mock-row" data-page-node-id="KNkoQy0qnixVy3mjNdyBf3"><span class="lb" data-page-node-id="XxorDn6TQujnkqyNYtHcRC">订单号</span><span class="vl" data-page-node-id="8y4kr1fBDqUDyEZuNvVC1S">PO-2026</span></div>
+            <div class="mock-row" data-page-node-id="b7XBClSOdLqo6UYG5QlHYW"><span class="lb" data-page-node-id="J3VOXwc2DBSHNtMyZCy8os">图号</span><span class="vl" data-page-node-id="irQMWk3fz6gn0gVk8sWgWv">LL-G-01</span></div>
+            <div class="mock-row" data-page-node-id="JQYhmVwBEcXAnxjHVDYPTq"><span class="lb" data-page-node-id="f6ZzaeE7GdeuIbJORCfKJp">数量</span><span class="vl" data-page-node-id="gsvwiGy8Qsrp4GHFllE1Md">120</span></div>
+            <div class="mock-row" data-page-node-id="0hgSxUS7EFIIPyfs7UIM3k"><span class="lb" data-page-node-id="bVKd7GDNpps6K3OE948y4q">单价</span><span class="vl" data-page-node-id="7vfwhvxKJaoF51k0wEO59F">86.00</span></div>
+            <div class="mock-row" data-page-node-id="Kxji150lQjuKGBCnudaxiH"><span class="lb" data-page-node-id="RC73dgYlcQYdUaHr5wkuZB">币种</span><span class="vl" data-page-node-id="001fbwDtHFS9vELIX0T7P5">USD</span></div>
+            <div class="mock-row" data-page-node-id="g8QTEHi7qS6e2bUsqj9Mtw"><span class="lb" data-page-node-id="TxQxdm03T1Ems8ZOOqz3hE">交期</span><span class="vl" data-page-node-id="jUxhqsDWWItIFCanRxrNqb">2026-03-15</span></div>
+            <div class="mock-row" data-page-node-id="PmZj8agerw190Hw8o2ZTPz"><span class="lb" data-page-node-id="kN66VPGeKCnuUDoKDCrmBD">出货日期</span><span class="vl" data-page-node-id="13PJlKF5LDp6noejaKqnd0">2026-03-12</span></div>
+            <div class="mock-row" data-page-node-id="YpOkJ084EF7tdHGOc7hYPK"><span class="lb" data-page-node-id="I8aJHIFgjBpgoTwDrEUafz">备注</span><span class="vl" data-page-node-id="pn28j0vHcvxcLaFcKha3Bq">木箱包装</span></div>
+            <div class="mock-fixed" style="color:#248A3D;font-size:12px;text-align:center" data-page-node-id="VcXTSQLaKuUs3SU9txTQBY">滚动到底，保存 / 取消 可正常操作</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="arrow ok" data-page-node-id="RWRUrz1JwkdVkZNIPk8tGc">标题与 ✕ 固定不动，正文可滚动，背景锁死</p>
+  </div>
+</div>
+
+<div class="note" data-page-node-id="m0MPa4RTQHbimXDgmcKw4V">
+  <b data-page-node-id="vvm5AbXkkC4XIkoDnk4OQ9">本次改动</b>
+  <ul data-page-node-id="GLmkhNQg3lddKbe6dLitc7">
+    <li data-page-node-id="lb46DRGrauRpfEotniIagB"><b data-page-node-id="oLbYzgU1yh43bTO0BMvVvG">统一控件高度</b>：输入框、日期/下拉选择项一律 <code data-page-node-id="ZSbfrUXurk6qWo0v595oqD">72rpx</code>，文字 <code data-page-node-id="1GugqKruI2PgJ7p9nBEbZL">line-height 68rpx</code> 垂直居中，不再出现高低不齐与文字上下被裁。</li>
+    <li data-page-node-id="XezywJXMqDFscjKcpRIQ3D"><b data-page-node-id="V2s2AAvaXhhKCPJcB9HIHg">更紧凑的间距</b>：表单行内边距 <code data-page-node-id="C6CCEH32YJBF1axmAyn6kr">18/24 → 16/20</code>，标签右边距 <code data-page-node-id="UaoTa5S3kJ20mulbs4QVKn">16 → 12</code>，两列间距 <code data-page-node-id="U7tqfCoJekPCbaegASwZBh">16 → 12</code>，两列内输入框内边距再收窄，把宽度让给文字。</li>
+    <li data-page-node-id="2jzko41joqOlrRbmF4DipN"><b data-page-node-id="2SZloC5FKU5h8CWVMwDoRI">多行文本可长</b>：全部 textarea 加 <code data-page-node-id="BxVocWRfCaPK7wcppzphFN">auto-height</code>，最小高度 <code data-page-node-id="WD4Tg7gOfn3zeLy7YEMr2O">176rpx</code>（约 4 行），内容多了一直往下长，不再被固定高度截断；行首标签改为顶对齐。</li>
+    <li data-page-node-id="TAvSmXZ61DXHsfEbWpqgpB"><b data-page-node-id="TR1Gp9C1pNFp0FAbEvAxZU">弹层真正能滚</b>：正文改为 <code data-page-node-id="fnkZcL1c7ldDCLrjDA8kta">&lt;scroll-view scroll-y&gt;</code>（小程序里 <code data-page-node-id="1I2NyQymfVzTGCEeA431wz">view + overflow:auto</code> 不响应触摸滚动），标题与关闭按钮固定；遮罩加 <code data-page-node-id="6OetTeoT9G0Hsi6ZYgSpZM">catchtouchmove</code> 阻断背景滚动穿透。</li>
+  </ul>
+  共 <b data-page-node-id="h60MOkfaXpjf77LozKZzta">20 个页面</b>、<b data-page-node-id="glWG3nGEnaIABimCFc15RJ">25 个底部弹层 + 1 个居中弹窗 + 26 个遮罩</b>、<b data-page-node-id="uEvTys81AWCJwbrO3ryo2Z">10 处多行文本</b> 参与本次改造。
+</div>
+
+</body>
+</html>

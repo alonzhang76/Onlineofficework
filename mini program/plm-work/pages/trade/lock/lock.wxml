@@ -1,0 +1,41 @@
+<view class="page">
+  <view class="brand">
+    <view class="brand-logo">普</view>
+    <view class="brand-text">
+      <text class="brand-cn">{{companyName}}</text>
+      <text class="brand-en">{{companyNameEn}}</text>
+    </view>
+  </view>
+
+  <view class="lock-wrap">
+    <view class="lock-icon {{themeClass}}">
+      <text class="lock-glyph">🔒</text>
+    </view>
+    <view class="lock-title">{{title}}</view>
+    <view class="lock-sub">该模块受密码保护，请输入访问密码</view>
+
+    <view class="pwd-box {{shake ? 'shake' : ''}}">
+      <input
+        class="pwd-input"
+        type="text"
+        password="{{true}}"
+        value="{{pwd}}"
+        maxlength="32"
+        placeholder="请输入访问密码"
+        placeholder-class="pwd-ph"
+        confirm-type="done"
+        bindinput="onInput"
+        bindconfirm="submit"
+      />
+      <view class="pwd-clear" wx:if="{{pwd}}" bindtap="clear">✕</view>
+    </view>
+
+    <view class="err" wx:if="{{err}}">{{err}}</view>
+
+    <view class="btn btn-primary btn-block theme-btn-{{btnClass}} {{pwd ? '' : 'btn-disabled'}}" bindtap="submit">进 入</view>
+
+    <view class="back-link" bindtap="goBack">返回普利美工作</view>
+  </view>
+
+  <view class="page-foot"></view>
+</view>

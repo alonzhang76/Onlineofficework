@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="VA8z0fp1FQGmdB7SCNgUcf">
+<head data-page-node-id="drgIRm8IbrEylhwMS6ENes">
+<meta charset="utf-8" data-page-node-id="wSfzLXTSNAtygXfT2LfHlG">
+<title>订单排程 · 输入框样式对比</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; padding: 40px 24px 56px;
+    background: #E9E9EE;
+    font-family: -apple-system, "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: #1C1C1E;
+  }
+  h1 { font-size: 19px; font-weight: 500; margin: 0 0 6px; }
+  .lead { font-size: 13px; color: #6B6B70; margin: 0 0 28px; line-height: 1.7; }
+  .stage { display: flex; gap: 32px; flex-wrap: wrap; justify-content: center; }
+  .col { width: 340px; }
+  .col-title { font-size: 13px; font-weight: 500; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+  .tag { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 400; }
+  .tag.before { background: #F7C1C1; color: #501313; }
+  .tag.after { background: #C0DD97; color: #173404; }
+  .phone { background: #F2F2F7; border-radius: 28px; padding: 18px 14px 24px; min-height: 420px; }
+  .card { background: #fff; border-radius: 14px; padding: 14px 12px 8px; margin-bottom: 12px; }
+  .card-h { font-size: 14px; font-weight: 500; margin: 0 0 10px 2px; }
+  .row {
+    display: flex; align-items: center; justify-content: space-between;
+    background: #F2F2F7; border-radius: 9px;
+    padding: 9px 12px; margin-bottom: 8px;
+  }
+  .row.tight { padding: 7px 8px; }
+  .label { color: #8E8E93; font-size: 14px; flex-shrink: 0; margin-right: 8px; }
+  .label .req { color: #FF3B30; }
+  input {
+    flex: 1; font: inherit; font-size: 14px; color: #1C1C1E;
+    border: none; outline: none; background: transparent;
+    text-align: right; padding: 0; min-width: 0;
+  }
+  input::placeholder { color: #C7C7CC; }
+  .two { display: flex; gap: 8px; }
+  .two > * { flex: 1; min-width: 0; }
+  .picker { text-align: right; font-size: 14px; color: #C7C7CC; flex: 1; }
+  .picker.filled { color: #1C1C1E; }
+
+  /* ===== 修改后：白底 + 描边 + 聚焦高亮 ===== */
+  .after input {
+    background: #fff; border: 1px solid #DCDCE0; border-radius: 6px;
+    padding: 6px 9px; text-align: right;
+  }
+  .after input::placeholder { color: #C7C7CC; }
+  .after input:focus { border-color: #007AFF; box-shadow: 0 0 0 2px rgba(0,122,255,0.12); }
+  .after .row.tight { padding: 7px 8px; }
+  /* picker 类展示值也变成输入区域 */
+  .after .picker {
+    flex: 1; text-align: right; background: #fff;
+    border: 1px solid #DCDCE0; border-radius: 6px;
+    padding: 6px 9px; margin-left: 0;
+  }
+  .after .picker.filled { color: #1C1C1E; }
+
+  .note { font-size: 12px; color: #6B6B70; line-height: 1.8; margin-top: 26px; background: #fff; padding: 14px 18px; border-radius: 12px; }
+  .note b { font-weight: 500; color: #1C1C1E; }
+  .note code { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 11.5px; background: #F2F2F7; padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body data-page-node-id="HKZoq1BApGF7PUGNZ7t3hT">
+  <h1 data-page-node-id="aHTGQoXPWHyuEc8b3VHMSV">订单排程 · 表单输入框样式对比</h1>
+  <p class="lead" data-page-node-id="KaL9O7omhkx5x6b1Q1gKSq">同一个「订单管理」筛选区与编辑弹层的写法，左侧是修改前（只有浅灰底、无描边），右侧是修改后（白底 + 描边，聚焦时蓝色高亮）。可点击右侧输入框查看聚焦效果。</p>
+
+  <div class="stage" data-page-node-id="4IoipCQViEdcoHkaMYPPyl">
+    <div class="col" data-page-node-id="YB2sqoYO4GpKFTzkUm6uCY">
+      <p class="col-title" data-page-node-id="R5LdYHyCuLxMUOZcYUu0BI">修改前 <span class="tag before" data-page-node-id="64iQOp72E5PNcdWARvTNF6">不易辨识</span></p>
+      <div class="phone" data-page-node-id="7cDgYaZrbLSKzj7zOPCyaP">
+        <div class="card" data-page-node-id="PvjQEw59WEsoXpbE6cuOcA">
+          <p class="card-h" data-page-node-id="7YbuhcUkrSedRiHQQYnWLn">筛选</p>
+          <div class="row tight" data-page-node-id="Pr38Hj51lmXa7j2CoNlCk0"><span class="label" data-page-node-id="xtgU1sk7wFNxMK9H6SWItn">客户</span><input placeholder="客户名称" data-page-node-id="zwMS9PameCJD2sEAizb1Bj"></div>
+          <div class="row tight" data-page-node-id="5Xhe7x0pVicyEmHRrQSTrL"><span class="label" data-page-node-id="2aWJzboEhHrnLj5GjzfYDe">订单号</span><input placeholder="多个用英文逗号分隔" data-page-node-id="bBUgb3tZSBNp8yiOyJc5Mq"></div>
+          <div class="two" data-page-node-id="CT5SsyNzP6Ba4LVsipoleN">
+            <div class="row tight" data-page-node-id="iy8B7VYSWFTZvNPOW8UHqc"><span class="label" data-page-node-id="lmaJsujBtELV66N0d8m89n">状态</span><span class="picker" data-page-node-id="kMaS0eyVOYbSd7PyYsNi7t">全部</span></div>
+            <div class="row tight" data-page-node-id="0uFXuqymzUncCs9PMvaSSZ"><span class="label" data-page-node-id="fMd2DKM8MDFOySd3lQVagE">日期</span><span class="picker filled" data-page-node-id="9nbqEA8R7DPbsniMaMQiu5">2026-03-01</span></div>
+          </div>
+        </div>
+        <div class="card" data-page-node-id="W9uHYuAbgV3XVtL8h9vQqG">
+          <p class="card-h" data-page-node-id="Fswopp2GsbhzkTF268nnWn">新增订单</p>
+          <div class="row" data-page-node-id="mVuvFZy2WBpvBNnLBj403p"><span class="label" data-page-node-id="0CI9Loq5e2Eh5u3VUniBne">客户 <span class="req" data-page-node-id="OsZ0nFYPGmVEYKJEfHB9S0">*</span></span><input placeholder="必填" data-page-node-id="tnBcKi2q3bmgHEJ0HMgMZb"></div>
+          <div class="two" data-page-node-id="9FJUg4pvXAP7Bevlkj0lbo">
+            <div class="row" data-page-node-id="ib6zF5c027YXUo1S3T6q1R"><span class="label" data-page-node-id="SH71aN5ZoCbNLSDzmUmasW">数量</span><input placeholder="0" data-page-node-id="5MD8ZnEnLU0z4Z8rdqC0A8"></div>
+            <div class="row" data-page-node-id="5JusOEbZqRcjq3K1r0c9Vv"><span class="label" data-page-node-id="4SrAvjDWCVW7sJStxFDlRU">单价</span><input placeholder="0.00" data-page-node-id="7TM0OLTK9HSJMVyMXSCOKe"></div>
+          </div>
+          <div class="row" data-page-node-id="8RtvqOv5EJASYgFOQi2RA8"><span class="label" data-page-node-id="07WdsC6evYjU4bhCHXb8Cu">图号</span><input placeholder="选择" data-page-node-id="AuwbhSvQCE6Cq2o5ASAEaJ"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col after" data-page-node-id="3LKErNT6BWif6tYtcRa8kv">
+      <p class="col-title" data-page-node-id="Q4lM3HUXAWq10phFeLcywK">修改后 <span class="tag after" data-page-node-id="bXhpflGmZLMRi2g8ZloL5M">白底 + 描边</span></p>
+      <div class="phone" data-page-node-id="LTrr3Cnljc6dLYribPme3A">
+        <div class="card" data-page-node-id="0mBnzmy4bD6qd4HkMKnWRt">
+          <p class="card-h" data-page-node-id="KjArI76nPfbKe2R0rdWwzW">筛选</p>
+          <div class="row tight" data-page-node-id="TbgZ8R7aTI31XR4AvqkmQx"><span class="label" data-page-node-id="5q0gfmKVMyCi8luoOfqEoD">客户</span><input placeholder="客户名称" data-page-node-id="p6P1Ie1CpeVMq6hVUdlUEI"></div>
+          <div class="row tight" data-page-node-id="DAyrexI8XweLOzg3eamiL5"><span class="label" data-page-node-id="iHiRIKzNkbViCAxAWwCDLH">订单号</span><input placeholder="多个用英文逗号分隔" data-page-node-id="FLFlfJJiz3gVBHfVBjGaqU"></div>
+          <div class="two" data-page-node-id="d9VOdPb1t0PbdTNobucbUt">
+            <div class="row tight" data-page-node-id="Jx7NjStsrAaBQFylgjVJL9"><span class="label" data-page-node-id="fxkOUiq2rEPFj4bFwEue9Y">状态</span><span class="picker" data-page-node-id="zqbjI9LntOo61hCLDTUtMG">全部</span></div>
+            <div class="row tight" data-page-node-id="qajEAqQSEKO4BxW8e0iX21"><span class="label" data-page-node-id="eyDEPlFxSmHGXEv9LpaY9Y">日期</span><span class="picker filled" data-page-node-id="XpRPCgNWCI5kX86WPqXviC">2026-03-01</span></div>
+          </div>
+        </div>
+        <div class="card" data-page-node-id="1Ssf6GRbqUlMs2r2y3F2FX">
+          <p class="card-h" data-page-node-id="ISgMjw963B504ZQxwX1nEI">新增订单</p>
+          <div class="row" data-page-node-id="RYdrFAqQlRY1XU5bFLYPvL"><span class="label" data-page-node-id="olCgqAFP9m0J6xXNMSax7s">客户 <span class="req" data-page-node-id="cUIsiixLoHSlXRZ68zBbel">*</span></span><input placeholder="必填" data-page-node-id="7QST7M9orMc1HK86cHYXtX"></div>
+          <div class="two" data-page-node-id="9xIyDlUcpzOdsweA9gKfKC">
+            <div class="row" data-page-node-id="lRp4DUkwRMBRRAOWL1ENjF"><span class="label" data-page-node-id="m4mGgcKrtqhaNbARuwGMmE">数量</span><input placeholder="0" data-page-node-id="xoAXMMBC6SU871547mZi4G"></div>
+            <div class="row" data-page-node-id="Y8zx9teqV5d8qgX0qbavLW"><span class="label" data-page-node-id="FAgsoL4BC9tSFzWjJ4EtC0">单价</span><input placeholder="0.00" data-page-node-id="5D0cdRrAPswtwEOZYZ8L1B"></div>
+          </div>
+          <div class="row" data-page-node-id="CabyVoJubEkGow2q9EJTP5"><span class="label" data-page-node-id="i3Exi8xaZQj4UBZ9TyQ9qk">图号</span><input placeholder="选择" data-page-node-id="LP53XHbf2mnCaiWUsLFGae"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note" data-page-node-id="llyzz4ST101vDBHPzhTQf1">
+    <b data-page-node-id="09TAs5t8rsAE8XFp7vyInN">改动内容</b>：输入框新增白底 <code data-page-node-id="Xi0lmcVBf2yW8YxWDJGAQB">#FFFFFF</code>、1px 描边 <code data-page-node-id="r2LzgEuohLWpsDuKFZsDCQ">#DCDCE0</code>、圆角 <code data-page-node-id="xwoW9StfNEgFWbdVULoYfJ">12rpx</code> 与内边距；聚焦时描边变主色 <code data-page-node-id="8LsrLwwGBdzAgYZBFkV3PP">#007AFF</code> 并带一圈淡蓝光晕。<b data-page-node-id="EmEqkETQNxBxTpV9pEtl3b">日期、状态下拉（picker）的展示值也套用同一套样式</b>，按下时有描边反馈。<br data-page-node-id="bfAePK3BJC4ZkJPGP4iIpq">
+    同一套样式定义在 <code data-page-node-id="tI9b2OyIYEHphQoskiNhTw">app.wxss</code>，因此工资、外贸、采购、收支模块的输入框也一并变得清晰。<br data-page-node-id="ujfTtUm8DKiW60Z3sQa18T">
+    另外修复了筛选区行内边距（原本左右为 0，白底输入框会贴边），并让两列布局中的 <code data-page-node-id="nb47AqfAkZJv8BeKqZHQ85">picker</code> 与输入框等宽。
+  </div>
+</body>
+</html>

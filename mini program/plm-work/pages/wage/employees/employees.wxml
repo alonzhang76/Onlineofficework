@@ -1,0 +1,71 @@
+<view class="page">
+  <!-- 页首品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="form-item">
+      <text class="f-label">搜索</text>
+      <input value="{{keyword}}" placeholder="姓名/电话/身份证/银行卡号" bindinput="onSearch" />
+    </view>
+    <view class="segment">
+      <view class="segment-item {{statusFilter === '' ? 'active' : ''}}" data-v="" bindtap="onStatusFilter">全部</view>
+      <view class="segment-item {{statusFilter === '在职' ? 'active' : ''}}" data-v="在职" bindtap="onStatusFilter">在职</view>
+      <view class="segment-item {{statusFilter === '离职' ? 'active' : ''}}" data-v="离职" bindtap="onStatusFilter">离职</view>
+    </view>
+  </view>
+
+  <view wx:if="{{list.length === 0}}" class="card"><view class="empty"><view class="empty-icon">👥</view>暂无员工</view></view>
+  <view class="card" wx:for="{{list}}" wx:key="id" wx:for-item="e">
+    <view class="emp-card-head">
+      <view class="avatar {{e.isLeave ? 'gray' : ''}}">{{e.initial}}</view>
+      <text class="emp-card-name">{{e.name}}</text>
+      <text class="badge {{e.isLeave ? 'badge-red' : 'badge-green'}}">{{e.isLeave ? '离职' : '在职'}}</text>
+    </view>
+    <view class="info-line"><text class="ilabel">入职</text><text class="ival">{{e.hireDate || '-'}}</text></view>
+    <view class="info-line" wx:if="{{e.leaveDate}}"><text class="ilabel">离职</text><text class="ival">{{e.leaveDate}}</text></view>
+    <view class="info-line"><text class="ilabel">电话</text><text class="ival">{{e.phone || '-'}}</text></view>
+    <view class="info-line"><text class="ilabel">开户行</text><text class="ival">{{e.bank || '-'}}</text></view>
+    <view class="info-line"><text class="ilabel">卡号</text><text class="ival mono">{{e.bankCard || '-'}}</text></view>
+    <view class="info-line"><text class="ilabel">身份</text><text class="ival mono">{{e.idCard || '-'}}</text></view>
+    <view class="info-line" wx:if="{{e.notes}}"><text class="ilabel">备注</text><text class="ival">{{e.notes}}</text></view>
+    <view class="emp-actions">
+      <view class="btn btn-outline btn-sm" data-id="{{e.id}}" bindtap="editEmployee">编辑</view>
+      <view class="btn btn-danger-ghost btn-sm" data-id="{{e.id}}" bindtap="deleteEmployee">删除</view>
+    </view>
+  </view>
+
+  <view class="fab" bindtap="openAdd">＋</view>
+
+  <!-- 新增/编辑弹层 -->
+  <view catchtouchmove="noop" class="mask" wx:if="{{modal}}" bindtap="closeModal">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">{{editId ? '编辑员工' : '新增员工'}}<text class="sheet-close" bindtap="closeModal">×</text></view>
+        <scroll-view scroll-y class="sheet-body">
+      <view class="form-item"><text class="f-label">姓名 <text class="req">*</text></text><input value="{{form.name}}" data-k="name" bindinput="onField" placeholder="必填" /></view>
+      <view class="form-item"><text class="f-label">身份证号</text><input value="{{form.idCard}}" data-k="idCard" bindinput="onField" /></view>
+      <view class="form-item"><text class="f-label">手机号</text><input type="number" value="{{form.phone}}" data-k="phone" bindinput="onField" /></view>
+      <view class="form-item"><text class="f-label">开户行</text><input value="{{form.bank}}" data-k="bank" bindinput="onField" /></view>
+      <view class="form-item"><text class="f-label">银行卡号</text><input type="number" value="{{form.bankCard}}" data-k="bankCard" bindinput="onField" /></view>
+      <picker mode="date" value="{{form.hireDate}}" bindchange="onHireDate">
+        <view class="form-item"><text class="f-label">入职日期</text><text class="f-value {{form.hireDate ? '' : 'placeholder'}}">{{form.hireDate || '选择日期'}}</text></view>
+      </picker>
+      <picker mode="date" value="{{form.leaveDate}}" bindchange="onLeaveDate">
+        <view class="form-item"><text class="f-label">离职日期</text><text class="f-value {{form.leaveDate ? '' : 'placeholder'}}">{{form.leaveDate || '留空为在职'}}</text></view>
+      </picker>
+      <view class="form-item"><text class="f-label">备注</text><input value="{{form.notes}}" data-k="notes" bindinput="onField" /></view>
+      <view class="btn-row">
+        <view class="btn btn-plain" bindtap="closeModal">取消</view>
+        <view class="btn btn-primary" bindtap="saveEmployee">保存</view>
+      </view>
+    
+        </scroll-view>
+      </view>
+  </view>
+  <view class="page-foot"></view>
+</view>

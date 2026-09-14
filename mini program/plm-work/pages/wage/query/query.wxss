@@ -1,0 +1,9 @@
+.rec-item { padding: 20rpx 0; border-bottom: 1rpx solid rgba(60, 60, 67, 0.12); }
+.rec-item:last-child { border-bottom: none; }
+.rec-top, .rec-mid { display: flex; justify-content: space-between; align-items: center; }
+.rec-emp { font-size: 26rpx; color: #8E8E93; }
+.rec-date { font-size: 24rpx; color: #C7C7CC; }
+.rec-process { font-size: 30rpx; font-weight: 600; }
+.rec-amount { font-size: 32rpx; font-weight: 700; color: #007AFF; }
+.rec-sub { font-size: 24rpx; color: #8E8E93; margin: 8rpx 0 12rpx; }
+.rec-actions { display: flex; gap: 12rpx; justify-content: flex-end; }

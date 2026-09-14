@@ -1,0 +1,62 @@
+<view class="page">
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <view class="segment">
+    <view class="segment-item {{tab === 'category' ? 'active' : ''}}" data-t="category" bindtap="onTab">按分类</view>
+    <view class="segment-item {{tab === 'month' ? 'active' : ''}}" data-t="month" bindtap="onTab">按月</view>
+  </view>
+
+  <picker range="{{years}}" data-k="yearIdx" bindchange="onYear">
+    <view class="year-bar">年份：{{yearIdx === 0 ? '全部' : years[yearIdx]}} ▾</view>
+  </picker>
+
+  <view class="kpi-grid">
+    <view class="kpi-card"><text class="kpi-label">总收入</text><text class="kpi-value green">¥{{s.incomeText}}</text></view>
+    <view class="kpi-card"><text class="kpi-label">总支出</text><text class="kpi-value red">¥{{s.expenseText}}</text></view>
+    <view class="kpi-card"><text class="kpi-label">结余</text><text class="kpi-value">¥{{s.balanceText}}</text></view>
+    <view class="kpi-card"><text class="kpi-label">流水笔数</text><text class="kpi-value">{{s.count}}</text></view>
+  </view>
+
+  <block wx:if="{{tab === 'category'}}">
+    <view class="card">
+      <view class="sec-title">收入分类</view>
+      <view class="empty" wx:if="{{incomeCats.length === 0}}"><text class="empty-icon">📈</text><text>暂无收入数据</text></view>
+      <view class="cat-row" wx:for="{{incomeCats}}" wx:key="name">
+        <view class="cat-main"><text class="cat-name">{{item.name}}</text><text class="cat-sub">{{item.count}} 笔 · 占比 {{item.pct}}%</text></view>
+        <text class="cat-amt in">+¥{{item.amountText}}</text>
+      </view>
+    </view>
+    <view class="card">
+      <view class="sec-title">支出分类</view>
+      <view class="empty" wx:if="{{expenseCats.length === 0}}"><text class="empty-icon">📉</text><text>暂无支出数据</text></view>
+      <view class="cat-row" wx:for="{{expenseCats}}" wx:key="name">
+        <view class="cat-main"><text class="cat-name">{{item.name}}</text><text class="cat-sub">{{item.count}} 笔 · 占比 {{item.pct}}%</text></view>
+        <text class="cat-amt out">-¥{{item.amountText}}</text>
+      </view>
+    </view>
+  </block>
+
+  <block wx:if="{{tab === 'month'}}">
+    <view class="card">
+      <view class="sec-title">月度收支</view>
+      <view class="empty" wx:if="{{s.byMonth.length === 0}}"><text class="empty-icon">📅</text><text>暂无数据</text></view>
+      <view class="month-block" wx:for="{{s.byMonth}}" wx:key="month">
+        <view class="month-head">
+          <text class="month-title">{{item.month}}</text>
+          <text class="month-bal">结余 ¥{{item.balanceText}}</text>
+        </view>
+        <view class="month-row"><text class="month-label">收入</text><text class="cat-amt in">+¥{{item.incomeText}}</text></view>
+        <view class="month-row"><text class="month-label">支出</text><text class="cat-amt out">-¥{{item.expenseText}}</text></view>
+        <view class="month-row"><text class="month-label">笔数</text><text class="month-count">{{item.count}} 笔</text></view>
+      </view>
+    </view>
+  </block>
+
+  <view class="page-foot"></view>
+</view>

@@ -1,0 +1,67 @@
+<view class="page">
+  <!-- 云同步状态指示灯（右上角悬浮） -->
+  <view class="sync-float sync-badge sync-badge-{{__syncState}}">
+    <view class="sync-dot"></view>
+    <text class="sync-text">{{__syncState === 'idle' ? '已同步' : __syncState === 'pending' ? '上传中' : __syncState === 'error' ? '上传失败' : '未连接'}}</text>
+  </view>
+  <!-- 页首品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <!-- 应用头 -->
+  <view class="trade-hero">
+    <view class="trade-hero-glow"></view>
+    <view class="trade-hero-inner">
+      <view class="trade-hero-title">外贸出口管理系统</view>
+      <view class="trade-hero-sub">EXPORT TRADE MANAGEMENT SYSTEM</view>
+    </view>
+  </view>
+
+  <!-- 模块宫格 -->
+  <view class="sec-head">
+    <text class="sec-head-title">功能模块</text>
+    <text class="sec-head-sub">Modules</text>
+  </view>
+  <view class="mod-grid">
+    <view class="mod-card" wx:for="{{modules}}" wx:key="key"
+          data-url="{{item.url}}" bindtap="go" hover-class="mod-hover">
+      <view class="mod-icon" style="background: linear-gradient(145deg, {{item.color}}CC 0%, {{item.color}} 55%, {{item.colorDark}} 100%);">
+        <text class="mod-icon-text">{{item.icon}}</text>
+      </view>
+      <view class="mod-name">{{item.name}}</view>
+      <view class="mod-name-en">{{item.nameEn}}</view>
+      <view class="mod-badge" wx:if="{{item.count > 0}}">{{item.count}}</view>
+    </view>
+  </view>
+
+  <!-- 数据总览 -->
+  <view class="sec-head">
+    <text class="sec-head-title">数据总览</text>
+    <text class="sec-head-sub">Overview</text>
+  </view>
+  <view class="ov-card">
+    <view class="ov-item" wx:for="{{overview}}" wx:key="label">
+      <text class="ov-label">{{item.label}}</text>
+      <text class="ov-value" style="color: {{item.color}};">{{item.value}}</text>
+    </view>
+  </view>
+
+  <view class="cloud-card" bindtap="goBackup">
+    <text class="cloud-icon">☁️</text>
+    <view class="cloud-mid">
+      <text class="cloud-title">数据备份与云同步</text>
+      <text class="cloud-sub">{{cloudOn ? 'CloudBase 已配置，自动同步中' : '未配置，数据仅保存在本机'}}</text>
+    </view>
+    <text class="badge {{cloudOn ? 'badge-green' : 'badge-gray'}}">{{cloudOn ? '已连接' : '未配置'}}</text>
+  </view>
+
+  <view class="btn btn-outline btn-block ws-btn" bindtap="goWorkspace">🏠 返回普利美工作</view>
+
+  <view class="foot">Designed By AlonZhang ｜ Contact 136 6511 9291</view>
+  <view class="page-foot"></view>
+</view>

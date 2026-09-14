@@ -1,0 +1,61 @@
+<view class="page">
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <view class="filter-card">
+    <view class="form-item"><text class="f-label">关键词</text><input class="f-value" value="{{kw}}" placeholder="全字段搜索，逗号分隔多条件" bindinput="f" data-k="kw" /></view>
+    <view class="form-row2">
+      <view class="form-item"><text class="f-label">客户</text><input class="f-value" value="{{fCustomer}}" bindinput="f" data-k="fCustomer" /></view>
+      <view class="form-item"><text class="f-label">订单号</text><input class="f-value" value="{{fOrderNo}}" placeholder="逗号分隔" bindinput="f" data-k="fOrderNo" /></view>
+    </view>
+    <view class="form-row2">
+      <picker range="{{payOptions}}" data-k="payIdx" bindchange="onPick">
+        <view class="form-item"><text class="f-label">付款状态</text><view class="f-value {{payIdx === 0 ? 'placeholder' : ''}}">{{payOptions[payIdx]}}</view></view>
+      </picker>
+      <picker range="{{invOptions}}" data-k="invIdx" bindchange="onPick">
+        <view class="form-item"><text class="f-label">开票状态</text><view class="f-value {{invIdx === 0 ? 'placeholder' : ''}}">{{invOptions[invIdx]}}</view></view>
+      </picker>
+    </view>
+    <view class="form-row2">
+      <view class="form-item"><text class="f-label">从</text><input class="f-value" value="{{dateFrom}}" placeholder="YYYY-MM-DD" bindinput="f" data-k="dateFrom" /></view>
+      <view class="form-item"><text class="f-label">至</text><input class="f-value" value="{{dateTo}}" placeholder="YYYY-MM-DD" bindinput="f" data-k="dateTo" /></view>
+    </view>
+    <view class="btn-row">
+      <view class="btn btn-primary btn-sm" bindtap="search">查询</view>
+      <view class="btn btn-plain btn-sm" bindtap="resetFilter">重置</view>
+    </view>
+  </view>
+
+  <view class="kpi-grid">
+    <view class="kpi-card"><text class="kpi-label">筛选开票</text><text class="kpi-value">¥{{sumInvText}}</text></view>
+    <view class="kpi-card"><text class="kpi-label">筛选收款</text><text class="kpi-value green">¥{{sumPayText}}</text></view>
+  </view>
+
+  <view class="list-head"><text class="list-count">共 {{list.length}} 条</text></view>
+
+  <view class="empty" wx:if="{{list.length === 0}}"><text class="empty-icon">💰</text><text>暂无财务数据</text></view>
+
+  <view class="card" wx:for="{{list}}" wx:key="id">
+    <view class="og-head">
+      <text class="og-no">{{item.orderNo || '-'}}</text>
+      <text class="badge {{item.payClass}}">{{item.paymentStatus}}</text>
+    </view>
+    <view class="og"><text class="og-label">客户</text><text class="og-val">{{item.customer || '-'}}</text></view>
+    <view class="og"><text class="og-label">开票状态</text><text class="og-val">{{item.invoiceStatus}}</text></view>
+    <view class="og"><text class="og-label">开票日期</text><text class="og-val">{{item.invoiceDate || '-'}}</text></view>
+    <view class="og"><text class="og-label">开票金额</text><text class="og-val strong">{{item.currency}} {{item.invoiceAmount || 0}}</text></view>
+    <view class="og"><text class="og-label">折算单价</text><text class="og-val">{{item.rmbPrice}}</text></view>
+    <view class="og"><text class="og-label">付款1</text><text class="og-val">{{item.payDate1 || '-'}} · {{item.payAmount1 || 0}}</text></view>
+    <view class="og"><text class="og-label">付款2</text><text class="og-val">{{item.payDate2 || '-'}} · {{item.payAmount2 || 0}}</text></view>
+    <view class="og"><text class="og-label">付款3</text><text class="og-val">{{item.payDate3 || '-'}} · {{item.payAmount3 || 0}}</text></view>
+    <view class="og"><text class="og-label">付款4</text><text class="og-val">{{item.payDate4 || '-'}} · {{item.payAmount4 || 0}}</text></view>
+    <view class="og"><text class="og-label">累计收款</text><text class="og-val strong paid">{{item.currency}} {{item.paidTotal}}</text></view>
+  </view>
+
+  <view class="page-foot"></view>
+</view>

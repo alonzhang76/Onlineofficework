@@ -1,0 +1,33 @@
+.tabs-scroll { white-space: nowrap; margin-bottom: 24rpx; }
+.tabs { display: inline-flex; background: #E9E9EB; border-radius: 18rpx; padding: 6rpx; }
+.tab { padding: 14rpx 30rpx; font-size: 26rpx; color: #8E8E93; border-radius: 14rpx; display: inline-block; }
+.tab.on { background: #fff; color: #007AFF; font-weight: 600; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.08); }
+.day-row { display: flex; align-items: center; gap: 14rpx; padding: 12rpx 0; }
+.day-date { width: 150rpx; font-size: 24rpx; font-weight: 600; flex-shrink: 0; }
+.day-bar-wrap { flex: 1; }
+.day-amt { width: 150rpx; text-align: right; font-size: 24rpx; font-weight: 600; color: #007AFF; flex-shrink: 0; }
+.day-vs { width: 90rpx; text-align: right; font-size: 22rpx; flex-shrink: 0; }
+.day-vs.up { color: #FF3B30; }
+.day-vs.down { color: #34C759; }
+.rank-row { display: flex; align-items: center; gap: 14rpx; padding: 14rpx 0; border-bottom: 1rpx solid rgba(60,60,67,0.08); }
+.rank-row:last-child { border-bottom: none; }
+.rank-idx { width: 44rpx; height: 44rpx; border-radius: 50%; background: #F2F2F7; color: #8E8E93; font-size: 24rpx; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.rank-idx.top1 { background: #FF9500; color: #fff; font-weight: 700; }
+.rank-name { flex: 1; font-size: 28rpx; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-amt { font-size: 28rpx; font-weight: 600; color: #007AFF; flex-shrink: 0; }
+.rank-pct { width: 100rpx; text-align: right; font-size: 24rpx; color: #8E8E93; flex-shrink: 0; }
+.rank-mid { flex: 1; }
+.rank-line1 { display: flex; justify-content: space-between; }
+.rank-line2 { font-size: 22rpx; color: #8E8E93; margin-top: 6rpx; }
+.ord-row { padding: 18rpx 0; border-bottom: 1rpx solid rgba(60,60,67,0.1); }
+.ord-row:last-child { border-bottom: none; }
+.ord-top { display: flex; justify-content: space-between; align-items: center; }
+.ord-no { font-size: 28rpx; font-weight: 600; }
+.ord-sub { font-size: 24rpx; color: #8E8E93; margin: 6rpx 0; }
+.ord-line { font-size: 24rpx; color: #3C3C43; }
+.ord-line .strong { color: #007AFF; font-weight: 600; }
+.trend-row { display: flex; align-items: center; justify-content: space-between; padding: 14rpx 0; border-bottom: 1rpx solid rgba(60,60,67,0.08); flex-wrap: wrap; gap: 6rpx; }
+.tr-month { font-weight: 600; width: 120rpx; }
+.tr-amt { color: #007AFF; font-weight: 600; flex: 1; text-align: right; }
+.tr-meta { width: 100%; font-size: 22rpx; color: #8E8E93; }
+.strong-cell { font-weight: 600; }

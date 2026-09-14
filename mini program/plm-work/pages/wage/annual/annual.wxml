@@ -1,0 +1,62 @@
+<view class="page">
+  <!-- 页首品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="sec-title">年度工资汇总</view>
+    <view class="form-row2">
+      <picker range="{{yearList}}" value="{{yearIndex}}" bindchange="onYearChange">
+        <view class="form-item"><text class="f-label">年份</text><text class="f-value">{{yearList[yearIndex]}}年</text></view>
+      </picker>
+      <picker range="{{empOptions}}" value="{{empIndex}}" bindchange="onEmpChange">
+        <view class="form-item"><text class="f-label">员工</text><text class="f-value">{{empOptions[empIndex]}}</text></view>
+      </picker>
+    </view>
+    <picker range="{{monthOptions}}" value="{{monthIdx}}" bindchange="onMonthFilter">
+      <view class="form-item"><text class="f-label">月份</text><text class="f-value">{{monthOptions[monthIdx]}}</text></view>
+    </picker>
+    <view class="btn btn-success btn-block" bindtap="exportCSV">导出 CSV</view>
+  </view>
+
+  <view class="card">
+    <view class="sec-title">{{title}} <text class="sec-sub">全年合计 {{grandTotal}} 元</text></view>
+    <view wx:if="{{rows.length === 0}}" class="empty"><view class="empty-icon">📈</view>{{yearList[yearIndex]}}年暂无工资数据</view>
+    <view wx:else>
+      <view class="emp-row" wx:for="{{rows}}" wx:key="name" data-idx="{{index}}" bindtap="toggleExpand">
+        <view class="emp-row-head">
+          <text class="emp-row-name">{{item.name}}</text>
+          <text class="emp-row-total">{{item.total}}</text>
+        </view>
+        <view class="month-chips" wx:if="{{expanded === index}}">
+          <view class="mchip" wx:for="{{item.monthly}}" wx:for-item="mv" wx:for-index="mi" wx:key="mi">
+            <text class="mchip-label">{{mi + 1}}月</text>
+            <text class="mchip-val">{{mv > 0 ? mv : '-'}}</text>
+          </view>
+        </view>
+        <view class="emp-row-sums" wx:if="{{expanded === index}}">
+          <view class="sline"><text>基本工资</text><text>{{item.baseWageSum}}</text></view>
+          <view class="sline"><text>绩效奖</text><text>{{item.perfSum}}</text></view>
+          <view class="sline"><text>房贴</text><text>{{item.housingSum}}</text></view>
+          <view class="sline"><text>其它补贴</text><text>{{item.otherSum}}</text></view>
+          <view class="sline"><text>年终奖</text><text>{{item.yearEndSum}}</text></view>
+          <view class="sline"><text>代扣社保</text><text class="neg">-{{item.socialSum}}</text></view>
+          <view class="sline"><text>代扣公积金</text><text class="neg">-{{item.fundSum}}</text></view>
+          <view class="sline"><text>扣借款</text><text class="neg">-{{item.loanSum}}</text></view>
+          <view class="sline"><text>代扣个税</text><text class="neg">-{{item.taxSum}}</text></view>
+        </view>
+        <view class="expand-hint">{{expanded === index ? '收起 ▲' : '展开明细 ▼'}}</view>
+      </view>
+      <view class="sum-row">
+        <text>全年合计（{{rows.length}}人）</text>
+        <text class="sum-val">{{grandTotal}}</text>
+      </view>
+    </view>
+  </view>
+  <view class="page-foot"></view>
+</view>

@@ -1,0 +1,129 @@
+<view class="page">
+  <!-- 页首品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <!-- 统计 -->
+  <view class="cal-stats">
+    <view class="cs" style="background: rgba(59,130,246,0.1);">
+      <view class="cs-num" style="color:#3b82f6;">{{stats.today}}</view><view class="cs-label">今日事件</view>
+    </view>
+    <view class="cs" style="background: rgba(245,158,11,0.1);">
+      <view class="cs-num" style="color:#f59e0b;">{{stats.pending}}</view><view class="cs-label">待完成</view>
+    </view>
+    <view class="cs" style="background: rgba(16,185,129,0.1);">
+      <view class="cs-num" style="color:#10b981;">{{stats.completed}}</view><view class="cs-label">已完成</view>
+    </view>
+    <view class="cs" style="background: rgba(239,68,68,0.1);">
+      <view class="cs-num" style="color:#ef4444;">{{stats.overdue}}</view><view class="cs-label">已逾期</view>
+    </view>
+  </view>
+
+  <!-- 月历 -->
+  <view class="card">
+    <view class="cal-head">
+      <view class="cal-nav" bindtap="prevMonth">‹</view>
+      <text class="cal-title">{{calYear}}年{{calMonth + 1}}月</text>
+      <view class="cal-nav" bindtap="nextMonth">›</view>
+      <view class="btn btn-plain btn-sm" bindtap="goToday" style="margin-left: auto;">今天</view>
+    </view>
+    <view class="week-row">
+      <text class="week-cell" wx:for="{{weekDays}}" wx:key="*this">{{item}}</text>
+    </view>
+    <view class="grid-row" wx:for="{{grid}}" wx:key="index" wx:for-item="week">
+      <view class="day-cell {{day.inMonth ? '' : 'out'}} {{day.isToday ? 'today' : ''}} {{day.date === selected ? 'selected' : ''}}"
+            wx:for="{{week}}" wx:key="date" wx:for-item="day"
+            data-date="{{day.date}}" bindtap="selectDate">
+        <view class="day-num {{day.dot ? 'has-dot' : ''}}" style="{{day.dot ? 'background:' + day.dotColor + ';' : ''}}">{{day.day}}</view>
+        <view class="day-ev" wx:if="{{day.events.length > 0}}">{{day.events[0]}}</view>
+        <view class="day-ev" wx:if="{{day.events.length > 1}}">{{day.events[1]}}</view>
+        <view class="day-more" wx:if="{{day.events.length > 2}}">+{{day.events.length - 2}}</view>
+      </view>
+    </view>
+    <!-- 当日事件 -->
+    <view class="day-detail">
+      <block wx:if="{{!selected}}"><text class="placeholder-text">点击日期查看当天事件</text></block>
+      <block wx:else>
+        <view class="dd-title">{{selected}}（{{dayEvents.length}}个事件）</view>
+        <view wx:if="{{dayEvents.length === 0}}" class="placeholder-text">当天无事件</view>
+        <view class="dd-item" wx:for="{{dayEvents}}" wx:key="id">
+          <view class="dd-left">
+            <text class="dd-name {{item.status === 'completed' ? 'done' : ''}}">{{item.time ? item.time + ' ' : ''}}{{item.title}}{{item.sourceType === 'order' ? ' [订单]' : ''}}</text>
+          </view>
+          <view class="dd-actions">
+            <text class="badge {{item.status === 'completed' ? 'badge-green' : item.status === 'overdue' ? 'badge-red' : 'badge-orange'}}">{{item.statusText}}</text>
+            <text class="dd-btn" data-id="{{item.id}}" catchtap="editEvent">✎</text>
+            <text wx:if="{{item.sourceType !== 'order'}}" class="dd-btn del" data-id="{{item.id}}" catchtap="deleteEvent">×</text>
+          </view>
+        </view>
+      </block>
+    </view>
+  </view>
+
+  <!-- 事件列表 -->
+  <view class="card">
+    <view class="list-head">
+      <text class="sec-title" style="margin-bottom: 0;">事件列表</text>
+      <view class="btn btn-outline btn-sm" bindtap="openAdd">＋ 新增</view>
+    </view>
+    <view class="form-row2" style="margin-top: 16rpx;">
+      <view class="form-item"><text class="f-label">搜索</text><input value="{{keyword}}" placeholder="标题/描述" bindinput="onSearch" /></view>
+      <picker range="{{statusOptions}}" value="{{statusIdx}}" bindchange="onStatusFilter">
+        <view class="form-item"><text class="f-label">状态</text><text class="f-value">{{statusOptions[statusIdx]}}</text></view>
+      </picker>
+    </view>
+    <view wx:if="{{filteredList.length === 0}}" class="empty"><view class="empty-icon">🗓</view>暂无事件</view>
+    <view class="ev-item" wx:for="{{filteredList}}" wx:key="id">
+      <view class="ev-top">
+        <text class="ev-title {{item.status === 'completed' ? 'done' : ''}}">{{item.title}}{{item.sourceType === 'order' ? ' [订单]' : ''}}</text>
+        <text class="badge {{item.status === 'completed' ? 'badge-green' : item.status === 'overdue' ? 'badge-red' : 'badge-orange'}}">{{item.statusText}}</text>
+      </view>
+      <view class="ev-sub">{{item.type}} ｜ {{item.date}} {{item.time || ''}}</view>
+      <view class="ev-desc" wx:if="{{item.description}}">{{item.description}}</view>
+      <view class="ev-actions">
+        <view wx:if="{{item.status !== 'completed'}}" class="btn btn-outline btn-sm" data-id="{{item.id}}" bindtap="completeEvent">完成</view>
+        <view class="btn btn-outline btn-sm" data-id="{{item.id}}" bindtap="editEvent">编辑</view>
+        <view wx:if="{{item.sourceType !== 'order'}}" class="btn btn-danger-ghost btn-sm" data-id="{{item.id}}" bindtap="deleteEvent">删除</view>
+      </view>
+    </view>
+    <view wx:if="{{filteredList.length > shown}}" class="btn btn-plain btn-block" bindtap="showMore">加载更多</view>
+  </view>
+
+  <!-- 事件编辑弹层 -->
+  <view class="mask" wx:if="{{modal}}" bindtap="closeModal">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">{{editId ? '编辑事件' : '新增事件'}}<text class="sheet-close" bindtap="closeModal">×</text></view>
+      <view class="form-item"><text class="f-label">标题 <text class="req">*</text></text><input value="{{form.title}}" data-k="title" bindinput="onField" placeholder="必填" /></view>
+      <view class="form-row2">
+        <picker range="{{typeOptions}}" value="{{typeIdx}}" bindchange="onTypePick">
+          <view class="form-item"><text class="f-label">类型</text><text class="f-value">{{typeOptions[typeIdx]}}</text></view>
+        </picker>
+        <picker range="{{priorities}}" range-key="label" value="{{priorityIdx}}" bindchange="onPriorityPick">
+          <view class="form-item"><text class="f-label">优先级</text><text class="f-value">{{priorities[priorityIdx].label}}</text></view>
+        </picker>
+      </view>
+      <view class="form-row2">
+        <picker mode="date" value="{{form.date}}" bindchange="onEvDate">
+          <view class="form-item"><text class="f-label">日期 <text class="req">*</text></text><text class="f-value">{{form.date}}</text></view>
+        </picker>
+        <picker mode="time" value="{{form.time}}" bindchange="onEvTime">
+          <view class="form-item"><text class="f-label">时间</text><text class="f-value {{form.time ? '' : 'placeholder'}}">{{form.time || '选择'}}</text></view>
+        </picker>
+      </view>
+      <picker range="{{evStatusOptions}}" range-key="label" value="{{evStatusIdx}}" bindchange="onEvStatusPick">
+        <view class="form-item"><text class="f-label">状态</text><text class="f-value">{{evStatusOptions[evStatusIdx].label}}</text></view>
+      </picker>
+      <view class="form-item ta"><textarea value="{{form.description}}" data-k="description" bindinput="onField" placeholder="描述" /></view>
+      <view class="btn-row">
+        <view class="btn btn-plain" bindtap="closeModal">取消</view>
+        <view class="btn btn-primary" bindtap="saveEvent">保存</view>
+      </view>
+    </view>
+  </view>
+  <view class="page-foot"></view>
+</view>

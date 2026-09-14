@@ -1,0 +1,25 @@
+{
+  "pages": [
+    "pages/login/login",
+    "pages/home/home",
+    "pages/backup/backup",
+    "pages/cloudfiles/cloudfiles",
+    "pages/purchaseOrders/purchaseOrders",
+    "pages/salesOrders/salesOrders",
+    "pages/inquiries/inquiries",
+    "pages/returnRecords/returnRecords",
+    "pages/salesReturnRecords/salesReturnRecords",
+    "pages/contacts/contacts",
+    "pages/memoRecords/memoRecords"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#F7F7F9",
+    "navigationBarTitleText": "不锈钢业务管理",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#F2F2F7",
+    "backgroundTextStyle": "dark"
+  },
+  "lazyCodeLoading": "requiredComponents",
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

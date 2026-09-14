@@ -1,0 +1,108 @@
+<view class="page">
+  <!-- 页首品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <!-- 公共信息 -->
+  <view class="card">
+    <view class="sec-title">批量工序登记</view>
+    <view class="form-row2">
+      <picker mode="date" value="{{date}}" bindchange="onDateChange">
+        <view class="form-item">
+          <text class="f-label">日期 <text class="req">*</text></text>
+          <text class="f-value">{{date}}</text>
+        </view>
+      </picker>
+      <picker range="{{empNames}}" value="{{empIndex}}" bindchange="onEmpChange">
+        <view class="form-item">
+          <text class="f-label">员工 <text class="req">*</text></text>
+          <text class="f-value {{employee ? '' : 'placeholder'}}">{{employee || '请选择'}}</text>
+        </view>
+      </picker>
+    </view>
+    <view class="form-item">
+      <text class="f-label">订单信息</text>
+      <input value="{{defaultOrderInfo}}" placeholder="客户,订单号（可逐行修改）" bindinput="onDefOrderInput" />
+    </view>
+    <view class="btn btn-outline btn-sm" bindtap="syncDefaults" style="width: 240rpx;">同步至所有空白行</view>
+  </view>
+
+  <!-- 录入行卡片 -->
+  <view class="card" wx:for="{{rows}}" wx:key="rid" wx:for-item="row" wx:for-index="idx">
+    <view class="row-head">
+      <text class="row-no">第 {{idx + 1}} 行</text>
+      <text class="row-del" data-idx="{{idx}}" bindtap="delRow">删除</text>
+    </view>
+    <picker range="{{procNames}}" data-idx="{{idx}}" bindchange="onProcPick">
+      <view class="form-item">
+        <text class="f-label">工序 <text class="req">*</text></text>
+        <text class="f-value {{row.process ? '' : 'placeholder'}}">{{row.process || '选择工序'}}</text>
+      </view>
+    </picker>
+    <view class="form-row2">
+      <view class="form-item">
+        <text class="f-label">单价</text>
+        <text class="f-value strong">{{row.price ? row.price : '-'}}</text>
+      </view>
+      <view class="form-item">
+        <text class="f-label">数量 <text class="req">*</text></text>
+        <input type="digit" value="{{row.qty}}" placeholder="0" data-idx="{{idx}}" bindinput="onQtyInput" />
+      </view>
+    </view>
+    <view class="form-row2">
+      <view class="form-item">
+        <text class="f-label">超产小计</text>
+        <text class="f-value">{{row.over}}</text>
+      </view>
+      <view class="form-item">
+        <text class="f-label">合计</text>
+        <text class="f-value strong">{{row.total}}</text>
+      </view>
+    </view>
+    <view class="form-item">
+      <text class="f-label">订单信息</text>
+      <input value="{{row.orderInfo}}" placeholder="客户,订单号" data-idx="{{idx}}" bindinput="onRowOrderInput" />
+    </view>
+    <view class="form-item">
+      <text class="f-label">备注</text>
+      <input value="{{row.note}}" placeholder="备注" data-idx="{{idx}}" bindinput="onNoteInput" />
+    </view>
+  </view>
+
+  <view class="kpi-card" style="width: 100%; margin-bottom: 16rpx;">
+    <view class="kpi-label">当日合计</view>
+    <view class="kpi-value">{{grandTotal}}</view>
+  </view>
+
+  <view class="btn-row">
+    <view class="btn btn-outline" bindtap="addRow">＋ 添加行</view>
+    <view class="btn btn-success" bindtap="saveBatch">保存全部</view>
+    <view class="btn btn-plain" bindtap="clearBatch">清空</view>
+  </view>
+
+  <!-- 今日记录 -->
+  <view class="card">
+    <view class="sec-title">今日该员工记录 <text class="sec-sub">{{todayInfo}}</text></view>
+    <view wx:if="{{!employee}}" class="empty"><view class="empty-icon">📅</view>请选择日期和员工</view>
+    <view wx:elif="{{todayRecords.length === 0}}" class="empty"><view class="empty-icon">📭</view>今日该员工暂无记录</view>
+    <view wx:else>
+      <view class="today-item" wx:for="{{todayRecords}}" wx:key="id">
+        <view class="today-main">
+          <text class="today-process">{{item.process}}</text>
+          <text class="today-amount">{{item.totalAmount}}</text>
+        </view>
+        <view class="today-sub">{{item.quantity}} 件 × {{item.unitPrice}}<text wx:if="{{item.customer}}"> ｜ {{item.customer}}</text><text wx:if="{{item.orderNo}}"> ｜ {{item.orderNo}}</text><text wx:if="{{item.notes}}"> ｜ {{item.notes}}</text></view>
+        <view class="today-actions">
+          <view class="btn btn-outline btn-sm" data-id="{{item.id}}" bindtap="editEntry">编辑</view>
+          <view class="btn btn-danger-ghost btn-sm" data-id="{{item.id}}" bindtap="deleteTodayRecord">删除</view>
+        </view>
+      </view>
+    </view>
+  </view>
+  <view class="page-foot"></view>
+</view>

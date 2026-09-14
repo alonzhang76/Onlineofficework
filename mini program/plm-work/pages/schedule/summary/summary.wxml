@@ -1,0 +1,72 @@
+<view class="page">
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <view class="segment">
+    <view class="segment-item {{tab === 'customer' ? 'active' : ''}}" data-t="customer" bindtap="onTab">按客户</view>
+    <view class="segment-item {{tab === 'month' ? 'active' : ''}}" data-t="month" bindtap="onTab">按月份</view>
+    <view class="segment-item {{tab === 'status' ? 'active' : ''}}" data-t="status" bindtap="onTab">按状态</view>
+  </view>
+
+  <picker range="{{years}}" data-k="yearIdx" bindchange="onYear">
+    <view class="year-bar">年份：{{yearIdx === 0 ? '全部' : years[yearIdx]}} ▾</view>
+  </picker>
+
+  <view class="kpi-grid">
+    <view class="kpi-card"><text class="kpi-label">订单数</text><text class="kpi-value">{{sum.totalOrders}}</text></view>
+    <view class="kpi-card"><text class="kpi-label">订单总额</text><text class="kpi-value">¥{{sum.totalAmountText}}</text></view>
+    <view class="kpi-card"><text class="kpi-label">累计收款</text><text class="kpi-value green">¥{{sum.totalReceivedText}}</text></view>
+    <view class="kpi-card"><text class="kpi-label">累计开票</text><text class="kpi-value orange">¥{{sum.totalInvoicedText}}</text></view>
+  </view>
+
+  <block wx:if="{{tab === 'customer'}}">
+    <view class="card">
+      <view class="sec-title">客户汇总（欠款 = 已开票 − 已收款）</view>
+      <view class="empty" wx:if="{{sum.byCustomer.length === 0}}"><text class="empty-icon">📈</text><text>暂无数据</text></view>
+      <view class="sum-row head">
+        <text class="sr-cust">客户</text><text class="sr-num">订单</text><text class="sr-amt">金额</text><text class="sr-amt">欠款</text>
+      </view>
+      <view class="sum-row" wx:for="{{sum.byCustomer}}" wx:key="name">
+        <view class="sr-cust-wrap">
+          <text class="sr-cust">{{item.name}}</text>
+          <text class="sr-ratio">占比 {{item.ratio}}%</text>
+        </view>
+        <text class="sr-num">{{item.count}}</text>
+        <text class="sr-amt">{{item.amountText}}</text>
+        <text class="sr-amt {{item.debt > 0 ? 'neg' : ''}}">{{item.debtText}}</text>
+      </view>
+    </view>
+  </block>
+
+  <block wx:if="{{tab === 'month'}}">
+    <view class="card">
+      <view class="sec-title">月度汇总</view>
+      <view class="empty" wx:if="{{sum.byMonth.length === 0}}"><text class="empty-icon">📅</text><text>暂无数据</text></view>
+      <view class="sum-row" wx:for="{{sum.byMonth}}" wx:key="month">
+        <text class="sr-month">{{item.month}}</text>
+        <text class="sr-num">{{item.count}} 单</text>
+        <text class="sr-amt">{{item.amountText}}</text>
+        <text class="sr-amt green">{{item.receivedText}}</text>
+      </view>
+    </view>
+  </block>
+
+  <block wx:if="{{tab === 'status'}}">
+    <view class="card">
+      <view class="sec-title">状态分布</view>
+      <view class="sum-row" wx:for="{{sum.byStatus}}" wx:key="status">
+        <text class="sr-month">{{item.status}}</text>
+        <text class="sr-num">{{item.count}} 单</text>
+        <text class="sr-amt">{{item.amountText}}</text>
+        <view class="bar-track"><view class="bar-fill" style="width: {{item.pct}}%;"></view></view>
+      </view>
+    </view>
+  </block>
+
+  <view class="page-foot"></view>
+</view>

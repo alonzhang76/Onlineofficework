@@ -1,0 +1,113 @@
+.login-page {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #FDF2F8 0%, #f6f8fc 40%, #f2f2f7 100%);
+  padding: 0 48rpx;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===== 品牌区 ===== */
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 120rpx 0 64rpx;
+}
+.logo {
+  width: 132rpx;
+  height: 132rpx;
+  border-radius: 36rpx;
+  background: linear-gradient(135deg, #EC4899, #BE185D);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12rpx 32rpx rgba(10, 132, 255, 0.35);
+}
+.logo-text {
+  color: #fff;
+  font-size: 64rpx;
+  font-weight: 700;
+}
+.brand-name {
+  margin-top: 28rpx;
+  font-size: 44rpx;
+  font-weight: 700;
+  color: #1c1c1e;
+}
+.brand-name-en {
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: #8e8e93;
+  letter-spacing: 4rpx;
+}
+.brand-sub {
+  margin-top: 18rpx;
+  font-size: 24rpx;
+  color: #6b7280;
+}
+
+/* ===== 表单卡片 ===== */
+.card {
+  background: #fff;
+  border-radius: 28rpx;
+  padding: 40rpx 36rpx 44rpx;
+  box-shadow: 0 8rpx 32rpx rgba(17, 24, 39, 0.06);
+}
+.field {
+  margin-bottom: 28rpx;
+}
+.f-label {
+  display: block;
+  font-size: 26rpx;
+  color: #374151;
+  margin-bottom: 12rpx;
+  font-weight: 500;
+}
+.f-input {
+  height: 88rpx;
+  line-height: 88rpx;
+  background: #f4f5f7;
+  border-radius: 16rpx;
+  padding: 0 24rpx;
+  font-size: 30rpx;
+  color: #1c1c1e;
+}
+.ph { color: #b0b4bb; }
+
+.err {
+  margin: -6rpx 0 20rpx;
+  font-size: 24rpx;
+  color: #e02020;
+  line-height: 1.5;
+}
+
+.login-btn {
+  margin-top: 12rpx;
+  height: 92rpx;
+  line-height: 92rpx;
+  border-radius: 20rpx;
+  background: linear-gradient(135deg, #EC4899, #BE185D);
+  color: #fff;
+  font-size: 32rpx;
+  font-weight: 600;
+}
+.login-btn.disabled { opacity: 0.6; }
+.login-btn::after { border: none; }
+
+/* ===== 页脚 ===== */
+.foot {
+  margin-top: auto;
+  padding: 48rpx 0 60rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8rpx;
+}
+.foot-line {
+  font-size: 22rpx;
+  color: #6b7280;
+}
+.foot-line.dim {
+  color: #9ca3af;
+}

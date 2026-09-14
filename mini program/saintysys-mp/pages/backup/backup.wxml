@@ -1,0 +1,23 @@
+<view class="page">
+  <view class="card">
+    <view class="sec-title">云同步</view>
+    <view class="cloud-sub" style="margin-bottom:20rpx;">
+      {{cloudOn ? 'CloudBase 已连接，数据自动双向同步' : '云端未配置，数据仅保存在本机'}}
+    </view>
+    <view style="font-size:22rpx;color:#9ca3af;margin-bottom:20rpx;" wx:if="{{lastSyncText}}">{{lastSyncText}}</view>
+    <button class="btn btn-primary" style="flex:1;" bindtap="pullCloud">{{syncing ? '同步中…' : '立即同步云端'}}</button>
+  </view>
+
+  <view class="card">
+    <view class="sec-title">本地数据</view>
+    <view class="cloud-sub" style="margin-bottom:20rpx;">共 {{keyCount}} 个数据集，{{recordCount}} 条记录</view>
+    <view style="display:flex;gap:16rpx;">
+      <button class="btn btn-primary" bindtap="exportBackup">导出备份</button>
+      <button class="btn btn-plain" bindtap="importBackup">导入恢复</button>
+    </view>
+    <view style="font-size:22rpx;color:#9ca3af;margin-top:16rpx;">
+      导出的备份文件可通过微信发送给同事，在「导入恢复」中选择即可整包恢复并同步云端。
+    </view>
+  </view>
+  <view class="page-foot"></view>
+</view>

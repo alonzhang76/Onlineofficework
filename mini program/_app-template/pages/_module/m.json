@@ -1,0 +1,5 @@
+{
+  "navigationBarTitleText": "@MODULE_TITLE@",
+  "enablePullDownRefresh": true,
+  "backgroundTextStyle": "dark"
+}

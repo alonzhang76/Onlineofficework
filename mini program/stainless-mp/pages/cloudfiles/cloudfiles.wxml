@@ -1,0 +1,58 @@
+<view class="page cf-page">
+  <!-- 连接状态 -->
+  <view class="cf-status">
+    <text class="cf-dot {{statusOk ? 'ok' : 'bad'}}"></text>
+    <text class="cf-status-text">{{statusText || '连接中…'}}</text>
+  </view>
+
+  <!-- 分区上传 -->
+  <view class="sec-title">分区上传</view>
+  <view class="zone-grid">
+    <view class="zone-card" wx:for="{{zones}}" wx:key="key"
+          data-zone="{{item.key}}" bindtap="pickAndUpload" hover-class="zone-hover">
+      <text class="zone-icon">{{item.icon}}</text>
+      <text class="zone-name">上传{{item.name}}</text>
+    </view>
+  </view>
+
+  <!-- 面包屑 -->
+  <scroll-view scroll-x class="crumbs" scroll-into-view="crumb-{{crumbs.length - 1}}">
+    <text class="crumb {{index === crumbs.length - 1 ? 'cur' : ''}}"
+          wx:for="{{crumbs}}" wx:key="path" id="crumb-{{index}}"
+          data-path="{{item.path}}" bindtap="tapCrumb">{{item.name}}</text>
+    <text class="crumb-sep" wx:if="{{index < crumbs.length - 1}}">›</text>
+  </scroll-view>
+
+  <!-- 文件列表 -->
+  <view class="file-list">
+    <view class="cf-empty" wx:if="{{!loading && folders.length === 0 && files.length === 0}}">
+      <text class="cf-empty-icon">🗂️</text>
+      <view class="cf-empty-text">当前目录为空</view>
+      <view class="cf-empty-sub">使用上方分区卡片上传文件，或回到网页版查看历史文件</view>
+    </view>
+
+    <view class="f-row" wx:for="{{folders}}" wx:key="path"
+          data-path="{{item.path}}" bindtap="enterFolder" hover-class="f-hover">
+      <text class="f-icon">{{item.icon}}</text>
+      <view class="f-mid">
+        <text class="f-name">{{item.name}}</text>
+        <text class="f-sub">文件夹</text>
+      </view>
+      <text class="f-arrow">›</text>
+    </view>
+
+    <view class="f-row" wx:for="{{files}}" wx:key="fullPath"
+          data-index="{{index}}" bindtap="tapFile" hover-class="f-hover">
+      <text class="f-icon">{{item.icon}}</text>
+      <view class="f-mid">
+        <text class="f-name">{{item.name}}</text>
+        <text class="f-sub">{{item.sizeText}}{{item.lastModified ? ' · ' + item.lastModified : ''}}</text>
+      </view>
+      <text class="f-arrow">›</text>
+    </view>
+  </view>
+
+  <view class="cf-note">
+    云端路径根目录：{{root}}/（与网页版同一目录，手机端与电脑端文件互通）
+  </view>
+</view>

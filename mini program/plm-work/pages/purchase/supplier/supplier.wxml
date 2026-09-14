@@ -1,0 +1,66 @@
+<view class="page">
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <view class="filter-card">
+    <view class="form-item"><text class="f-label">搜索</text><input class="f-value" value="{{kw}}" placeholder="名称 / 联系人 / 电话" bindinput="f" data-k="kw" /></view>
+  </view>
+
+  <view class="list-head"><text class="list-count">共 {{list.length}} 家供应商（全局共享）</text></view>
+
+  <view class="empty" wx:if="{{list.length === 0}}"><text class="empty-icon">🏭</text><text>暂无供应商</text></view>
+
+  <view class="card" wx:for="{{list}}" wx:key="id">
+    <view class="og-head">
+      <text class="og-no">{{item.supplierName || '-'}}</text>
+      <text class="badge badge-teal">No.{{item.supplierNumber || '-'}}</text>
+    </view>
+    <view class="og"><text class="og-label">联系人</text><text class="og-val">{{item.contactPerson || '-'}} {{item.phoneNumber || ''}}</text></view>
+    <view class="og" wx:if="{{item.email}}"><text class="og-label">邮箱</text><text class="og-val">{{item.email}}</text></view>
+    <view class="og" wx:if="{{item.companyAddress}}"><text class="og-label">地址</text><text class="og-val">{{item.companyAddress}}</text></view>
+    <view class="og" wx:if="{{item.bankName}}"><text class="og-label">开户行</text><text class="og-val">{{item.bankName}}</text></view>
+    <view class="og" wx:if="{{item.bankAccount}}"><text class="og-label">账号</text><text class="og-val mono">{{item.bankAccount}}</text></view>
+    <view class="og-actions">
+      <view class="btn btn-outline btn-sm" data-id="{{item.id}}" bindtap="callSupplier">📞 联系</view>
+      <view class="btn btn-outline btn-sm" data-id="{{item.id}}" bindtap="edit">编辑</view>
+      <view class="btn btn-danger-ghost btn-sm" data-id="{{item.id}}" bindtap="del">删除</view>
+    </view>
+  </view>
+
+  <view class="page-foot"></view>
+  <view class="fab" bindtap="openNew">＋</view>
+
+  <view catchtouchmove="noop" class="mask" wx:if="{{showForm}}" bindtap="closeForm">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">{{form.id ? '编辑供应商' : '新增供应商'}}<text class="sheet-close" bindtap="closeForm">✕</text></view>
+        <scroll-view scroll-y class="sheet-body">
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">编号</text><input class="f-value" value="{{form.supplierNumber}}" bindinput="onInput" data-k="supplierNumber" /></view>
+        <view class="form-item"><text class="f-label">名称 <text class="req">*</text></text><input class="f-value" value="{{form.supplierName}}" bindinput="onInput" data-k="supplierName" /></view>
+      </view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">联系人</text><input class="f-value" value="{{form.contactPerson}}" bindinput="onInput" data-k="contactPerson" /></view>
+        <view class="form-item"><text class="f-label">电话</text><input class="f-value" type="number" value="{{form.phoneNumber}}" bindinput="onInput" data-k="phoneNumber" /></view>
+      </view>
+      <view class="form-item"><text class="f-label">邮箱</text><input class="f-value" value="{{form.email}}" bindinput="onInput" data-k="email" /></view>
+      <view class="form-item"><text class="f-label">公司地址</text><input class="f-value" value="{{form.companyAddress}}" bindinput="onInput" data-k="companyAddress" /></view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">开户行</text><input class="f-value" value="{{form.bankName}}" bindinput="onInput" data-k="bankName" /></view>
+        <view class="form-item"><text class="f-label">银行代码</text><input class="f-value" value="{{form.bankCode}}" bindinput="onInput" data-k="bankCode" /></view>
+      </view>
+      <view class="form-item"><text class="f-label">银行账号</text><input class="f-value" type="number" value="{{form.bankAccount}}" bindinput="onInput" data-k="bankAccount" /></view>
+      <view class="form-item ta"><text class="f-label">备注</text><textarea class="f-value" value="{{form.remarks}}" bindinput="onInput" data-k="remarks" auto-height /></view>
+      <view class="btn-row">
+        <view class="btn btn-success" bindtap="save">保存</view>
+        <view class="btn btn-plain" bindtap="closeForm">取消</view>
+      </view>
+    
+        </scroll-view>
+      </view>
+  </view>
+</view>

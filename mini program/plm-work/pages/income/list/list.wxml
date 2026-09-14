@@ -1,0 +1,110 @@
+<view class="page">
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <view class="filter-card">
+    <view class="segment">
+      <view class="segment-item {{fType === 'all' ? 'active' : ''}}" data-t="all" bindtap="onType">全部</view>
+      <view class="segment-item {{fType === 'income' ? 'active' : ''}}" data-t="income" bindtap="onType">收入</view>
+      <view class="segment-item {{fType === 'expense' ? 'active' : ''}}" data-t="expense" bindtap="onType">支出</view>
+    </view>
+    <view class="form-row2">
+      <picker range="{{categoryNames}}" data-k="cateIdx" bindchange="onPick">
+        <view class="form-item"><text class="f-label">分类</text><view class="f-value {{cateIdx === 0 ? 'placeholder' : ''}}">{{categoryNames[cateIdx]}}</view></view>
+      </picker>
+      <view class="form-item"><text class="f-label">关键词</text><input class="f-value" value="{{kw}}" placeholder="说明/单位/金额" bindinput="f" data-k="kw" /></view>
+    </view>
+    <view class="form-row2">
+      <view class="form-item"><text class="f-label">从</text><input class="f-value" value="{{dateFrom}}" placeholder="YYYY-MM-DD" bindinput="f" data-k="dateFrom" /></view>
+      <view class="form-item"><text class="f-label">至</text><input class="f-value" value="{{dateTo}}" placeholder="YYYY-MM-DD" bindinput="f" data-k="dateTo" /></view>
+    </view>
+    <view class="btn-row">
+      <view class="btn btn-primary btn-sm" bindtap="search">查询</view>
+      <view class="btn btn-plain btn-sm" bindtap="resetFilter">重置</view>
+    </view>
+  </view>
+
+  <view class="kpi-grid">
+    <view class="kpi-card"><text class="kpi-label">筛选收入</text><text class="kpi-value green">¥{{sum.incomeText}}</text></view>
+    <view class="kpi-card"><text class="kpi-label">筛选支出</text><text class="kpi-value red">¥{{sum.expenseText}}</text></view>
+    <view class="kpi-card"><text class="kpi-label">结余</text><text class="kpi-value">¥{{sum.balanceText}}</text></view>
+    <view class="kpi-card"><text class="kpi-label">笔数</text><text class="kpi-value">{{list.length}}</text></view>
+  </view>
+
+  <view class="empty" wx:if="{{list.length === 0}}">
+    <text class="empty-icon">📒</text>
+    <text>暂无流水记录，点击 + 记一笔</text>
+  </view>
+
+  <view class="card" wx:for="{{list}}" wx:key="id">
+    <view class="og-head">
+      <view class="tx-left">
+        <text class="tx-type {{item.type === 'income' ? 'in' : 'out'}}">{{item.type === 'income' ? '收' : '支'}}</text>
+        <text class="og-no">{{item.categoryName || item.categoryId}}</text>
+      </view>
+      <text class="tx-amt {{item.type === 'income' ? 'in' : 'out'}}">{{item.type === 'income' ? '+' : '-'}}¥{{item.amountText}}</text>
+    </view>
+    <view class="og"><text class="og-label">日期</text><text class="og-val">{{item.date}}</text></view>
+    <view class="og" wx:if="{{item.description}}"><text class="og-label">说明</text><text class="og-val">{{item.description}}</text></view>
+    <view class="og" wx:if="{{item.payeeUnit}}"><text class="og-label">收款单位</text><text class="og-val">{{item.payeeUnit}}</text></view>
+    <view class="og" wx:if="{{item.payerUnit}}"><text class="og-label">付款单位</text><text class="og-val">{{item.payerUnit}}</text></view>
+    <view class="og" wx:if="{{item.unit}}"><text class="og-label">单位</text><text class="og-val">{{item.unit}}</text></view>
+    <view class="og" wx:if="{{item.paymentMethod}}"><text class="og-label">支付方式</text><text class="og-val">{{item.paymentMethod}}</text></view>
+    <view class="og-actions">
+      <view class="btn btn-outline btn-sm" data-id="{{item.id}}" bindtap="edit">编辑</view>
+      <view class="btn btn-danger-ghost btn-sm" data-id="{{item.id}}" bindtap="del">删除</view>
+    </view>
+  </view>
+
+  <view class="page-foot"></view>
+  <view class="fab" bindtap="openNew">＋</view>
+
+  <view catchtouchmove="noop" class="mask" wx:if="{{showForm}}" bindtap="closeForm">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">{{form.id ? '编辑流水' : '记一笔'}}<text class="sheet-close" bindtap="closeForm">✕</text></view>
+        <scroll-view scroll-y class="sheet-body">
+
+      <view class="segment">
+        <view class="segment-item {{form.type === 'income' ? 'active' : ''}}" data-t="income" bindtap="onFormType">收入</view>
+        <view class="segment-item {{form.type === 'expense' ? 'active' : ''}}" data-t="expense" bindtap="onFormType">支出</view>
+      </view>
+
+      <view class="form-item"><text class="f-label">当前抬头</text><view class="f-value">{{unitName}}</view></view>
+
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">金额 <text class="req">*</text></text><input class="f-value" type="digit" value="{{form.amount}}" bindinput="onInput" data-k="amount" /></view>
+        <view class="form-item"><text class="f-label">日期</text><picker mode="date" value="{{form.date}}" bindchange="onDate"><view class="f-value {{form.date ? '' : 'placeholder'}}">{{form.date || '选择'}}</view></picker></view>
+      </view>
+      <view class="form-row2">
+        <view class="form-item"><text class="f-label">分类 <text class="req">*</text></text>
+          <picker range="{{formCategoryNames}}" bindchange="onCategory">
+            <view class="f-value {{form.categoryName ? '' : 'placeholder'}}">{{form.categoryName || '选择'}}</view>
+          </picker>
+        </view>
+        <view class="form-item"><text class="f-label">支付方式</text><input class="f-value" value="{{form.paymentMethod}}" placeholder="如 银行转账" bindinput="onInput" data-k="paymentMethod" /></view>
+      </view>
+      <view class="form-item"><text class="f-label">说明</text><input class="f-value" value="{{form.description}}" placeholder="备注说明" bindinput="onInput" data-k="description" /></view>
+
+      <view class="f-sug-wrap">
+        <view class="form-item" wx:if="{{form.type === 'income'}}"><text class="f-label">付款单位</text><input class="f-value" value="{{form.payerUnit}}" placeholder="输入可筛选已有单位" bindinput="onInput" data-k="payerUnit" /></view>
+        <view class="form-item" wx:if="{{form.type === 'expense'}}"><text class="f-label">收款单位</text><input class="f-value" value="{{form.payeeUnit}}" placeholder="输入可筛选已有单位" bindinput="onInput" data-k="payeeUnit" /></view>
+        <view class="sug-list" wx:if="{{sugs.length}}">
+          <view class="sug-head">从已有往来单位中选择</view>
+          <view class="sug-item" wx:for="{{sugs}}" wx:key="*this" data-val="{{item}}" catchtap="onPickSug">{{item}}</view>
+        </view>
+      </view>
+
+      <view class="btn-row">
+        <view class="btn btn-success" bindtap="save">保存</view>
+        <view class="btn btn-plain" bindtap="closeForm">取消</view>
+      </view>
+    
+        </scroll-view>
+      </view>
+  </view>
+</view>

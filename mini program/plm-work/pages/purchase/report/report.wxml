@@ -1,0 +1,41 @@
+<view class="page">
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <view class="kpi-grid">
+    <view class="kpi-card"><text class="kpi-label">采购总额</text><text class="kpi-value">¥{{stats.purchaseTotalText}}</text></view>
+    <view class="kpi-card"><text class="kpi-label">发票总额</text><text class="kpi-value orange">¥{{stats.invoiceTotalText}}</text></view>
+    <view class="kpi-card"><text class="kpi-label">付款总额</text><text class="kpi-value green">¥{{stats.paymentTotalText}}</text></view>
+    <view class="kpi-card"><text class="kpi-label">应付净额</text><text class="kpi-value {{stats.payable > 0 ? 'red' : ''}}">¥{{stats.payableText}}</text></view>
+  </view>
+
+  <view class="card">
+    <view class="sec-title">单据统计</view>
+    <view class="cell"><view class="cell-label">采购订单</view><view class="cell-value strong">{{stats.orderCount}} 单</view></view>
+    <view class="cell"><view class="cell-label">合同台账</view><view class="cell-value strong">{{stats.contractCount}} 份</view></view>
+    <view class="cell"><view class="cell-label">发票记录</view><view class="cell-value strong">{{stats.invoiceCount}} 张</view></view>
+    <view class="cell"><view class="cell-label">付款记录</view><view class="cell-value strong">{{stats.paymentCount}} 笔</view></view>
+  </view>
+
+  <view class="card">
+    <view class="sec-title">按供应商汇总（应付 = 发票 − 付款）</view>
+    <view class="empty" wx:if="{{stats.bySupplier.length === 0}}"><text class="empty-icon">📈</text><text>暂无数据</text></view>
+    <view class="rank-row" wx:for="{{stats.bySupplier}}" wx:key="name">
+      <view class="rank-main">
+        <text class="rank-name">{{item.name}}</text>
+        <text class="rank-sub">{{item.orderCount}} 单 · 采购 ¥{{item.purchaseTotalText}}</text>
+      </view>
+      <view class="rank-side">
+        <text class="rank-amt">应付 ¥{{item.unpaidText}}</text>
+        <text class="rank-sub">发票 ¥{{item.invoiceTotalText}} · 付款 ¥{{item.paymentTotalText}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="page-foot"></view>
+</view>

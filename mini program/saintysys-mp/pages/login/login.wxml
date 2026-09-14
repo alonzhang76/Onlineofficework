@@ -1,0 +1,34 @@
+<view class="login-page">
+  <!-- 品牌区 -->
+  <view class="brand">
+    <view class="logo"><text class="logo-text">普</text></view>
+    <view class="brand-name">服装外贸系统</view>
+    <view class="brand-name-en">SAINTY GARMENT EXPORT</view>
+    <view class="brand-sub">统一工作台 · 登录后开始使用</view>
+  </view>
+
+  <!-- 登录表单 -->
+  <view class="card">
+    <view class="field">
+      <text class="f-label">账号</text>
+      <input class="f-input" type="text" value="{{account}}" placeholder="邮箱或用户名"
+             placeholder-class="ph" bindinput="onInputAccount" />
+    </view>
+    <view class="field">
+      <text class="f-label">密码</text>
+      <input class="f-input" password value="{{password}}" placeholder="请输入密码"
+             placeholder-class="ph" bindinput="onInputPwd" />
+    </view>
+
+    <view class="err" wx:if="{{errMsg}}">{{errMsg}}</view>
+
+    <button class="login-btn {{loading ? 'disabled' : ''}}" bindtap="doLogin">
+      {{loading ? '登录中…' : '登 录'}}
+    </button>
+  </view>
+
+  <view class="foot">
+    <text class="foot-line">与网页版使用同一账号体系</text>
+    <text class="foot-line dim">与网页版 Onlineofficework 使用同一账号体系</text>
+  </view>
+</view>

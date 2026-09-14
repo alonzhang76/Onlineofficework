@@ -1,0 +1,56 @@
+<view class="page">
+  <!-- 云同步状态指示灯（右上角悬浮） -->
+  <view class="sync-float sync-badge sync-badge-{{__syncState}}">
+    <view class="sync-dot"></view>
+    <text class="sync-text">{{__syncState === 'idle' ? '已同步' : __syncState === 'pending' ? '上传中' : __syncState === 'error' ? '上传失败' : '未连接'}}</text>
+  </view>
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <view class="pur-hero">
+    <view class="pur-hero-title">采购管理</view>
+    <view class="pur-hero-sub">PURCHASE MANAGEMENT</view>
+  </view>
+
+  <view class="segment">
+    <view class="segment-item {{companyIdx === 0 ? 'active' : ''}}" data-i="0" bindtap="onCompany">普利美</view>
+    <view class="segment-item {{companyIdx === 1 ? 'active' : ''}}" data-i="1" bindtap="onCompany">无锡龙力</view>
+  </view>
+
+  <view class="kpi-grid">
+    <view class="kpi-card"><text class="kpi-label">采购总额</text><text class="kpi-value">¥{{stats.purchaseTotalText}}</text></view>
+    <view class="kpi-card"><text class="kpi-label">发票总额</text><text class="kpi-value orange">¥{{stats.invoiceTotalText}}</text></view>
+    <view class="kpi-card"><text class="kpi-label">付款总额</text><text class="kpi-value green">¥{{stats.paymentTotalText}}</text></view>
+    <view class="kpi-card"><text class="kpi-label">应付净额</text><text class="kpi-value {{stats.payable > 0 ? 'red' : ''}}">¥{{stats.payableText}}</text></view>
+  </view>
+
+  <view class="card">
+    <view class="sec-title">功能入口</view>
+    <view class="mod-grid">
+      <view class="mod-item" wx:for="{{modules}}" wx:key="key" data-url="{{item.url}}" bindtap="go">
+        <view class="mod-icon" style="background: linear-gradient(145deg, {{item.color}}CC 0%, {{item.color}} 55%, {{item.colorDark}} 100%);">
+          <text class="mod-icon-text">{{item.icon}}</text>
+        </view>
+        <text class="mod-name">{{item.name}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="cell" bindtap="pullCloud">
+      <view class="cell-label">☁️ 云同步</view>
+      <view class="cell-value {{cloudOn ? 'strong' : ''}}">{{cloudOn ? 'CloudBase 已连接' : '未配置'}}</view>
+    </view>
+    <view class="cell" bindtap="goWorkspace">
+      <view class="cell-label">🏠 返回普利美工作</view>
+      <view class="cell-value">›</view>
+    </view>
+  </view>
+
+  <view class="page-foot"></view>
+</view>
