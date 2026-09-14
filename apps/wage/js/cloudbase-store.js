@@ -50,6 +50,10 @@ var _recentWrites = {};
 var _initialized = false;
 var _initPromise = null;
 
+// 防抖：同一 key 400ms 内多次写入只上传最后一次
+var _debounceTimers = {};
+var UPLOAD_DEBOUNCE = 400;
+
 var WAGE_KEYS = [
   'wage_records', 'wage_employees', 'wage_processes', 'wage_orders',
   'wage_adjustments', 'wage_dropdown_options', 'wage_calendar_events', 'wage_calendar_event_types'
@@ -130,35 +134,12 @@ var CloudbaseStore = {
     // 同步写 localStorage 作为缓存
     try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
 
-    var sb = getClient();
-    if (!sb || !sb.from) { notifyStatus('error'); return; }
-
-    try {
-      var user = null;
-      try { var ud = await sb.auth.getUser(); user = ud.data ? ud.data.user : null; } catch (e) {}
-      if (user && user.is_anonymous) {
-        console.warn('[CloudbaseStore] 当前为匿名会话（只读），写入将被拒绝：', key);
-      }
-
-      // 兼容层 upsert：onConflict=store_key 时以该字段作为 PG 行 id
-      var { error } = await sb.from('app_data_store')
-        .upsert({
-          store_key: key,
-          payload: value,
-          updated_at: new Date().toISOString(),
-          user_id: user ? user.id : null
-        }, { onConflict: 'store_key' });
-
-      if (error) {
-        console.warn('[CloudbaseStore] 云端写入失败:', key, error.message || error);
-        notifyStatus('error');
-      } else {
-        notifyStatus('idle');
-      }
-    } catch (e) {
-      console.warn('[CloudbaseStore] 写入云端失败:', key, e);
-      notifyStatus('error');
-    }
+    // 防抖：同一 key 400ms 内多次写入只上传最后一次
+    if (_debounceTimers[key]) clearTimeout(_debounceTimers[key]);
+    _debounceTimers[key] = setTimeout(function () {
+      delete _debounceTimers[key];
+      _doUpload(key, value);
+    }, UPLOAD_DEBOUNCE);
   },
 
   async remove(key) {
@@ -182,6 +163,38 @@ var CloudbaseStore = {
 
   refreshFromCloud: function () { return refreshFromCloud(); }
 };
+
+/** 实际执行上传（由防抖定时器调用） */
+async function _doUpload(key, value) {
+  var sb = getClient();
+  if (!sb || !sb.from) { notifyStatus('error'); return; }
+
+  try {
+    var user = null;
+    try { var ud = await sb.auth.getUser(); user = ud.data ? ud.data.user : null; } catch (e) {}
+    if (user && user.is_anonymous) {
+      console.warn('[CloudbaseStore] 当前为匿名会话（只读），写入将被拒绝：', key);
+    }
+
+    var { error } = await sb.from('app_data_store')
+      .upsert({
+        store_key: key,
+        payload: value,
+        updated_at: new Date().toISOString(),
+        user_id: user ? user.id : null
+      }, { onConflict: 'store_key' });
+
+    if (error) {
+      console.warn('[CloudbaseStore] 云端写入失败:', key, error.message || error);
+      notifyStatus('error');
+    } else {
+      notifyStatus('idle');
+    }
+  } catch (e) {
+    console.warn('[CloudbaseStore] 写入云端失败:', key, e);
+    notifyStatus('error');
+  }
+}
 
 // 从云端刷新数据（感知其他端的写入）
 async function refreshFromCloud() {

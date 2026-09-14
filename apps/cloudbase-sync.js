@@ -24,7 +24,8 @@
   // ===== 配置 =====
   var APP_ID = window.CLOUDBASE_APP_ID || window.SUPABASE_APP_ID || 'default';
   var TABLE = 'app_data_store';
-  var REFRESH_INTERVAL = 8000; // 8 秒刷新一次（更快感知另一端的更新）
+  var REFRESH_INTERVAL = 15000; // 15 秒刷新一次（平衡实时性与带宽，避免和上传抢资源）
+  var UPLOAD_DEBOUNCE = 400; // 同一 key 400ms 内多次写入只上传最后一次，避免并发请求堆积
   var SKIP_WRITE_WINDOW = 10000; // 10 秒内自己写入的 key 跳过云端覆盖
 
   // 专用数据同步账号（authenticated 角色）。
@@ -473,8 +474,13 @@
 
   // ===== 同步到云端 =====
   var pendingWrites = {};
+  // 防抖 + 串行上传：避免连续编辑时并发请求堆积导致上传变慢
+  var _debounceTimers = {};   // key → timerId
+  var _uploadQueue = [];      // 待上传队列 [{key, value}]
+  var _isUploading = false;   // 是否正在上传（串行控制）
 
-  async function syncToCloud(key, value) {
+  /** 防抖入口：同一 key 在 UPLOAD_DEBOUNCE ms 内多次写入只保留最后一次 */
+  function syncToCloud(key, value) {
     recentWrites[key] = Date.now();
 
     if (!sb || !initialized) {
@@ -483,26 +489,70 @@
       return;
     }
 
+    // 清除该 key 之前的定时器（防抖）
+    if (_debounceTimers[key]) {
+      clearTimeout(_debounceTimers[key]);
+    }
+
     notifyStatus('pending');
-    try {
-      var upResult = await sb.from(TABLE).upsert({
-        store_key: prefixKey(key),
-        payload: value,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'store_key' });
-      if (upResult && upResult.error) {
-        console.error('[CloudbaseSync] 云端写入失败:', key, upResult.error.message);
-        pendingWrites[key] = { value: value, ts: Date.now() };
-        notifyStatus('error');
-      } else {
-        // 单条上传成功；若没有其它挂起写入，置为 idle
-        if (Object.keys(pendingWrites).length === 0) notifyStatus('idle');
+    _debounceTimers[key] = setTimeout(function () {
+      delete _debounceTimers[key];
+      // 加入上传队列
+      _uploadQueue.push({ key: key, value: value });
+      processUploadQueue();
+    }, UPLOAD_DEBOUNCE);
+  }
+
+  /** 串行处理上传队列：同一时间只发一个请求，避免并发抢带宽 */
+  function processUploadQueue() {
+    if (_isUploading) return;
+    if (_uploadQueue.length === 0) {
+      // 队列清空，若无挂起失败写入则置 idle
+      if (Object.keys(pendingWrites).length === 0) notifyStatus('idle');
+      return;
+    }
+
+    _isUploading = true;
+    var item = _uploadQueue.shift();
+    var key = item.key;
+    var value = item.value;
+
+    // 检查是否有更新的值已入队（跳过旧值）
+    var hasNewer = _uploadQueue.some(function (it) { return it.key === key; });
+
+    doUpload(key, value).then(function () {
+      _isUploading = false;
+      // 如果有更新的同 key 写入在队列里，跳过当前这次（用最新值）
+      if (hasNewer) {
+        processUploadQueue();
+        return;
       }
-    } catch (e) {
-      console.warn('[CloudbaseSync] 同步异常:', key, e && e.message ? e.message : e);
+      processUploadQueue();
+    }, function () {
+      _isUploading = false;
+      // 上传失败的交给 flushPending 重试
       pendingWrites[key] = { value: value, ts: Date.now() };
       notifyStatus('error');
-    }
+      processUploadQueue();
+    });
+  }
+
+  /** 实际执行单次 upsert */
+  function doUpload(key, value) {
+    return sb.from(TABLE).upsert({
+      store_key: prefixKey(key),
+      payload: value,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'store_key' }).then(function (upResult) {
+      if (upResult && upResult.error) {
+        console.error('[CloudbaseSync] 云端写入失败:', key, upResult.error.message);
+        throw upResult.error;
+      }
+      // 单条上传成功
+    }, function (e) {
+      console.warn('[CloudbaseSync] 同步异常:', key, e && e.message ? e.message : e);
+      throw e;
+    });
   }
 
   function notifyStatus(state) {
@@ -513,10 +563,11 @@
     } catch (e) {}
   }
 
-  async function flushPending() {
+  function flushPending() {
     var keys = Object.keys(pendingWrites);
     if (keys.length === 0) return;
     notifyStatus('pending');
+    var queued = 0;
     for (var i = 0; i < keys.length; i++) {
       var key = keys[i];
       var entry = pendingWrites[key];
@@ -535,11 +586,16 @@
         try { cur = (raw === null || raw === undefined) ? undefined : JSON.parse(raw); } catch (e) { cur = raw; }
         if (!isEmptyValue(cur)) continue;
       }
-      await syncToCloud(key, value);
+      // 直接加入上传队列（不走防抖，立即重试）
+      _uploadQueue.push({ key: key, value: value });
+      queued++;
     }
-    // 整批重试完成后，若仍无挂起写入则置为 idle
-    if (Object.keys(pendingWrites).length === 0) notifyStatus('idle');
-    else notifyStatus('error');
+    if (queued > 0) {
+      processUploadQueue();
+    } else {
+      // 没有需要重试的，直接 idle
+      if (Object.keys(pendingWrites).length === 0) notifyStatus('idle');
+    }
   }
 
   // ===== 从云端刷新 =====

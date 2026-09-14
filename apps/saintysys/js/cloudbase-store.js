@@ -475,12 +475,24 @@ function getSync(key, defaultVal) {
 // 最近写入记录（避免自己写入的数据触发刷新）
 var _recentWrites = {};
 
+// 防抖：同一 key 400ms 内多次写入只上传最后一次，避免并发请求堆积
+var _debounceTimers = {};
+var UPLOAD_DEBOUNCE = 400;
+
 function setSync(key, value) {
   _cache[key] = JSON.parse(JSON.stringify(value));
   _cacheTimestamps[key] = new Date().toISOString();
   _recentWrites[key] = Date.now();
   notifyStatus('pending');
-  _asyncWrite(key, value, 0);
+
+  // 清除该 key 之前的定时器（防抖）
+  if (_debounceTimers[key]) {
+    clearTimeout(_debounceTimers[key]);
+  }
+  _debounceTimers[key] = setTimeout(function () {
+    delete _debounceTimers[key];
+    _asyncWrite(key, value, 0);
+  }, UPLOAD_DEBOUNCE);
 }
 
 // 异步写入（支持重试）— 共享模式
