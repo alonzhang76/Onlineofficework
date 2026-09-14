@@ -185,6 +185,7 @@ async function init() {
               if (_cache[row.store_key] === undefined) {
                 _cache[row.store_key] = normalizePayload(row.payload);
                 _cacheTimestamps[row.store_key] = row.updated_at || new Date().toISOString();
+                _cloudSeen[row.store_key] = 1; // 标记：此 key 曾在云端存在
               }
             });
             queryOk = true;
@@ -477,6 +478,9 @@ var _recentWrites = {};
 
 // 防抖：同一 key 400ms 内多次写入只上传最后一次，避免并发请求堆积
 var _debounceTimers = {};
+// 曾从云端拉取到过的 key 集合：用于区分"云端真删除"（可同步删除本地）
+// 与"本地新写入但上传失败"（绝不能删，否则导入的数据会凭空消失）
+var _cloudSeen = {};
 var UPLOAD_DEBOUNCE = 400;
 
 function setSync(key, value) {
@@ -689,6 +693,7 @@ async function refreshFromCloud() {
       if (isChanged) {
         _cache[key] = normalizePayload(row.payload);
         _cacheTimestamps[key] = remoteTs || new Date().toISOString();
+        _cloudSeen[key] = 1; // 标记：此 key 曾在云端存在
         changedKeys.push(key);
       }
     }
@@ -696,9 +701,13 @@ async function refreshFromCloud() {
     // 检查已删除的 key
     const remoteKeys = new Set(data.map(r => r.store_key));
     for (const localKey of Object.keys(_cache)) {
-      if (!remoteKeys.has(localKey) && !_recentWrites[localKey]) {
+      // 只删除"曾在云端存在、现在云端没有"的 key（真删除同步）。
+      // 本地新写入且从未上过云的 key（上传失败/防抖中）不能删——那是用户刚导入的数据
+      if (!remoteKeys.has(localKey) && !_recentWrites[localKey] &&
+          !_debounceTimers[localKey] && _cloudSeen[localKey]) {
         delete _cache[localKey];
         delete _cacheTimestamps[localKey];
+        delete _cloudSeen[localKey];
         changedKeys.push(localKey);
         detailLogs.push(localKey + ': 已删除');
       }
@@ -777,6 +786,7 @@ async function forceRefreshFromCloud() {
 
       _cache[key] = newVal;
       _cacheTimestamps[key] = row.updated_at || new Date().toISOString();
+      _cloudSeen[key] = 1; // 标记：此 key 曾在云端存在
       updatedCount++;
 
       if (needsEvent) {
@@ -787,9 +797,13 @@ async function forceRefreshFromCloud() {
     // 清理云端已删除的 key
     const remoteKeys = new Set(data.map(r => r.store_key));
     for (const localKey of Object.keys(_cache)) {
-      if (!remoteKeys.has(localKey)) {
+      // 同 refreshFromCloud：只删"曾在云端存在、现在没了"的 key，
+      // 本地新写入未上云的 key（上传失败）绝不能删
+      if (!remoteKeys.has(localKey) && !_recentWrites[localKey] &&
+          !_debounceTimers[localKey] && _cloudSeen[localKey]) {
         delete _cache[localKey];
         delete _cacheTimestamps[localKey];
+        delete _cloudSeen[localKey];
         changedKeys.push(localKey);
       }
     }

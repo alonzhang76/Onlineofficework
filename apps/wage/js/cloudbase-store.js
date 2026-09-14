@@ -216,6 +216,17 @@ async function refreshFromCloud() {
       if (!key) return;
       // 跳过最近本地写入的 key（10 秒宽限）
       if (_recentWrites[key] && now - _recentWrites[key] < SKIP_WINDOW) return;
+      // 防抖窗口内的 key 跳过：上传还没发出，本地即最新
+      if (_debounceTimers[key]) return;
+      // LWW 保护：云端不比本地新则跳过。典型场景：导入数据后 token 失效上传失败，
+      // 若无此保护，10 秒后刷新会用云端旧数据覆盖刚导入的本地数据（数据消失）
+      var localTs = _cacheTimestamps[key];
+      var cloudTs = row.updated_at || '';
+      if (localTs && cloudTs) {
+        var lt = new Date(localTs).getTime();
+        var ct = new Date(cloudTs).getTime();
+        if (!isNaN(lt) && !isNaN(ct) && ct <= lt) return;
+      }
 
       var newVal = normalizePayload(row.payload);
       var oldVal = _cache[key];
