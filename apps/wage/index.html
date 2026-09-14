@@ -14,6 +14,8 @@ window.CLOUDBASE_SYNC = { email: 'sync@lori.app', password: 'LoriSync2026!' };
 <script type="module" src="js/cloudbase.js?v=20260914d"></script>
 <!-- CloudBase 数据存储层（window.CloudbaseStore / window.SupabaseStore） -->
 <script src="js/cloudbase-store.js?v=20260915f"></script>
+<!-- 云端数据管理工具（同步 / 清空云端，window.CloudAdmin） -->
+<script src="../cloudbase-admin.js?v=20260915g"></script>
 <!-- 用户信息展示（不再跳转登录页） -->
 <script src="js/auth-guard.js"></script>
 <!-- 云存储文件中心（共享模块，与 orderschedule / wicketorders 共用同一云端目录） -->
@@ -556,6 +558,8 @@ table.batch-table .batch-proc { width: 100%; }
       <h2 id="pageTitle">工序登记</h2>
       <div class="topbar-info">
         <span class="topbar-date" id="todayDate"></span>
+        <button class="btn btn-sm btn-primary" onclick="CloudAdmin.syncNow()">🔄 同步云端</button>
+        <button class="btn btn-sm btn-danger" onclick="CloudAdmin.clearCloudData()">🗑️ 清空云端</button>
       </div>
     </div>
     <div class="content">
