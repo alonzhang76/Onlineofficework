@@ -2,8 +2,8 @@
 <html lang="zh-CN">
 <head>
 	<script>window.SUPABASE_APP_ID='wicketorders';</script>
-        <script src="../cloudbase-sync.js?v=20260915f"></script>
-        <script src="../cloudbase-admin.js?v=20260915h"></script>
+        <script src="../cloudbase-sync.js?v=20260915i"></script>
+        <script src="../cloudbase-admin.js?v=20260915i"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>外贸出口管理系统</title>
@@ -1218,9 +1218,13 @@
                         <span class="mr-2">📤</span>
                         恢复数据
                     </button>
-                    <button class="block w-full text-left px-4 py-2 text-blue-700 hover:bg-blue-100" onclick="CloudAdmin.syncNow()">
-                        <span class="mr-2">🔄</span>
-                        立即同步云端
+                    <button class="block w-full text-left px-4 py-2 text-blue-700 hover:bg-blue-100" onclick="CloudAdmin.pullFromCloud()">
+                        <span class="mr-2">⬇️</span>
+                        下载云端数据
+                    </button>
+                    <button class="block w-full text-left px-4 py-2 text-green-700 hover:bg-green-100" onclick="CloudAdmin.pushToCloud()">
+                        <span class="mr-2">⬆️</span>
+                        上传本地到云端
                     </button>
                     <button class="block w-full text-left px-4 py-2 text-red-600 hover:bg-red-100" onclick="CloudAdmin.clearCloudData()">
                         <span class="mr-2">🗑️</span>

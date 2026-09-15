@@ -369,10 +369,11 @@
     return initPromise;
   }
 
-  // ===== 迁移 localStorage → CloudBase =====
+  // ===== 迁移（仅本地键名重映射，不自动上传云端） =====
+  // 手动同步模式下，上传统一由 CloudbaseSync.pushAll() 负责。
   async function migrateLocalStorage() {
     try {
-      // 本地键名重映射搬迁
+      // 本地键名重映射搬迁（如 stainlessbusiness 的 contacts → sb_contacts）
       var remapKeys = Object.keys(LOCAL_KEY_REMAP);
       for (var rk = 0; rk < remapKeys.length; rk++) {
         var orig = remapKeys[rk];
@@ -384,102 +385,7 @@
           console.log('[CloudbaseSync] 本地键迁移:', orig, '→', localK);
         }
       }
-
-      var existing = {};
-      try {
-        var result = await sb.from(TABLE).select('store_key, payload');
-        if (!result.error && result.data) {
-          result.data.forEach(function (row) { existing[row.store_key] = row.payload; });
-        }
-      } catch (e) {}
-
-      var migrated = 0, rescued = 0;
-      var nativeKeys = Object.keys(localStorage);
-      // 只迁移属于当前应用的 key：跳过已带其他应用前缀的 key（如 wicketorders__orderRecords、purchase__xxx）
-      // 这些 key 由对应应用自己的迁移负责，当前应用不应重复上传
-      var APP_PREFIX = APP_ID + '__';
-      for (var i = 0; i < nativeKeys.length; i++) {
-        var nativeKey = nativeKeys[i];
-        if (isReservedKey(nativeKey)) continue;
-
-        var key;
-        if (REMAP_REVERSE[nativeKey] !== undefined) {
-          key = REMAP_REVERSE[nativeKey];
-        } else if (REMAP_ORIGINALS[nativeKey]) {
-          continue;
-        } else {
-          key = nativeKey;
-        }
-
-        // 跳过已带其他应用前缀的 key（如 wicketorders__orderRecords）
-        // 只保留无前缀的裸 key 或带当前应用前缀的 key
-        var underScoreIdx = key.indexOf('__');
-        if (underScoreIdx > 0) {
-          var keyPrefix = key.slice(0, underScoreIdx + 2);
-          if (keyPrefix !== APP_PREFIX) continue;
-          // 带当前应用前缀的 key 已在云端，无需重复迁移
-          continue;
-        }
-
-        if (shouldSkip(key)) continue;
-
-        var prefixedKey = prefixKey(key);
-        var raw = nativeGet(nativeKey);
-        var localVal;
-        try { localVal = (raw === null || raw === undefined) ? undefined : JSON.parse(raw); } catch (e) { localVal = raw; }
-
-        if (existing[prefixedKey] !== undefined) {
-          var cloudVal = existing[prefixedKey];
-          var cloudEmpty = isEmptyValue(cloudVal);
-          var localEmpty = isEmptyValue(localVal);
-
-          if (cloudEmpty && !localEmpty) {
-            try {
-              var rescueResult = await sb.from(TABLE).upsert({
-                store_key: prefixedKey,
-                payload: localVal,
-                updated_at: new Date().toISOString()
-              }, { onConflict: 'store_key' });
-              if (!rescueResult.error) {
-                cache[key] = localVal;
-                rescued++;
-              } else {
-                console.error('[CloudbaseSync] 抢救上传失败:', key, rescueResult.error.message);
-              }
-            } catch (e) {}
-            continue;
-          }
-
-          if (!cloudEmpty) {
-            var rawC = typeof cloudVal === 'string' ? cloudVal : JSON.stringify(cloudVal);
-            if (nativeGet(nativeKey) !== rawC) {
-              nativeSet(nativeKey, rawC);
-            }
-            cache[key] = cloudVal;
-            cacheTs[key] = new Date().toISOString();
-            delete pendingWrites[key];
-          }
-          continue;
-        }
-
-        if (raw === null || raw === undefined || raw === '') continue;
-
-        try {
-          var upsertResult = await sb.from(TABLE).upsert({
-            store_key: prefixedKey,
-            payload: localVal,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'store_key' });
-          if (!upsertResult.error) {
-            cache[key] = localVal;
-            migrated++;
-          } else {
-            console.error('[CloudbaseSync] 迁移上传失败:', key, upsertResult.error.message);
-          }
-        } catch (e) {}
-      }
-      if (migrated > 0) console.log('[CloudbaseSync] 迁移', migrated, '个 key 到云端');
-      if (rescued > 0) console.log('[CloudbaseSync] 抢救', rescued, '个本地 key（云端为空）');
+      console.log('[CloudbaseSync] 手动同步模式：已完成本地键名重映射，未自动上传（请用"上传云端"按钮手动推送）');
     } catch (e) {
       console.warn('[CloudbaseSync] 迁移异常:', e && e.message ? e.message : e);
     }
@@ -655,9 +561,9 @@
     }
   }
 
-  // ===== 从云端刷新 =====
+  // ===== 从云端刷新（只下载，不写云端） =====
   async function refreshFromCloud() {
-    if (!sb || !initialized) return;
+    if (!sb || !initialized) return false;
 
     try {
       var result = await sb.from(TABLE).select('store_key, payload, updated_at');
@@ -721,9 +627,11 @@
         console.log('[CloudbaseSync] 云端更新:', changedKeys.join(', '));
         window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { keys: changedKeys } }));
       }
+      return true;
     } catch (e) {
       console.warn('[CloudbaseSync] 刷新异常:', e && e.message ? e.message : e);
       if (Object.keys(pendingWrites).length === 0) notifyStatus('offline');
+      return false;
     }
   }
 
@@ -744,13 +652,14 @@
       _origSetItem.call(this, toLocalKey(key), value);
 
       try { cache[key] = JSON.parse(value); } catch (e) { cache[key] = value; }
-      // 关键：本地写入必须同步更新时间戳，否则 refreshFromCloud 的 LWW 比较
-      // 用的还是初始化时从云端加载的旧值，云端旧数据会覆盖刚写入的本地数据（导入后数据消失的根因）
+      // 本地写入必须同步更新时间戳，否则 refreshFromCloud 的 LWW 比较
+      // 用的还是初始化时从云端加载的旧值，云端旧数据会覆盖刚写入的本地数据
       cacheTs[key] = new Date().toISOString();
+      recentWrites[key] = Date.now();
 
-      if (!shouldSkip(key)) {
-        syncToCloud(key, cache[key]);
-      }
+      // ⚠️ 手动同步模式：不再自动上传云端。
+      // 用户需点击"上传云端"按钮手动调用 CloudbaseSync.pushAll()。
+      // 这样避免自动上传覆盖云端最新数据，也避免多端冲突。
       return;
     }
     return _origSetItem.call(this, key, value);
@@ -763,20 +672,107 @@
       delete cacheTs[key];
       recentWrites[key] = Date.now();
 
-      if (sb && initialized && !shouldSkip(key)) {
-        sb.from(TABLE).delete().eq('store_key', prefixKey(key)).then(function () {});
-      }
+      // ⚠️ 手动同步模式：不再自动删除云端对应行。
+      // 上传时云端旧 key 仍存在，需手动用 CloudbaseSync.pushAll(true) 清理（删云端有、本地无的 key）。
       return;
     }
     return _origRemoveItem.call(this, key);
   };
 
-  // 暴露状态供调试
+  // ===== 手动上传：把本地所有数据推送到云端（覆盖云端） =====
+  async function pushAll(alsoDelete) {
+    if (!sb) return { ok: false, msg: '同步层未就绪' };
+
+    // 空库保护：本地一个非 skip key 都没有时禁止上传
+    var keysToUpload = [];
+    var APP_PREFIX = APP_ID + '__';
+    for (var i = 0; i < localStorage.length; i++) {
+      var nativeKey = localStorage.key(i);
+      if (!nativeKey || isReservedKey(nativeKey)) continue;
+      var key;
+      if (REMAP_REVERSE[nativeKey] !== undefined) {
+        key = REMAP_REVERSE[nativeKey];
+      } else if (REMAP_ORIGINALS[nativeKey]) {
+        continue;
+      } else {
+        key = nativeKey;
+      }
+      // 跳过带其他应用前缀的 key
+      var underScoreIdx = key.indexOf('__');
+      if (underScoreIdx > 0 && key.slice(0, underScoreIdx + 2) !== APP_PREFIX) continue;
+      if (shouldSkip(key)) continue;
+      var raw = nativeGet(nativeKey);
+      if (raw === null || raw === undefined || raw === '') continue;
+      keysToUpload.push({ key: key, raw: raw });
+    }
+
+    if (keysToUpload.length === 0) {
+      return { ok: false, msg: '本地无数据可上传（空库保护，避免清空云端）' };
+    }
+
+    notifyStatus('pending');
+    var okCount = 0, failCount = 0;
+    for (var j = 0; j < keysToUpload.length; j++) {
+      var item = keysToUpload[j];
+      var value;
+      try { value = JSON.parse(item.raw); } catch (e) { value = item.raw; }
+      try {
+        var res = await doUpload(item.key, value);
+        if (res) {
+          okCount++;
+          cache[item.key] = value;
+          cacheTs[item.key] = new Date().toISOString();
+        } else {
+          failCount++;
+        }
+      } catch (e) {
+        console.warn('[CloudbaseSync] 上传失败', item.key, ':', e && e.message ? e.message : e);
+        failCount++;
+      }
+    }
+
+    // 可选：删除云端有、本地没有的 key（清理残留）
+    if (alsoDelete) {
+      try {
+        var listRes = await sb.from(TABLE).select('store_key');
+        var localSet = new Set(keysToUpload.map(function (x) { return prefixKey(x.key); }));
+        if (listRes && !listRes.error && Array.isArray(listRes.data)) {
+          for (var k = 0; k < listRes.data.length; k++) {
+            var sk = listRes.data[k].store_key;
+            if (sk && sk.indexOf(APP_PREFIX) === 0 && !localSet.has(sk)) {
+              try { await sb.from(TABLE).delete().eq('store_key', sk); } catch (e) {}
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    if (failCount === 0) {
+      notifyStatus('idle');
+      return { ok: true, uploaded: okCount, failed: 0 };
+    }
+    notifyStatus('error');
+    return { ok: false, uploaded: okCount, failed: failCount };
+  }
+
+  // ===== 手动下载：强制从云端拉取全量数据并更新本地 =====
+  async function pullAll() {
+    if (!sb) return { ok: false, msg: '同步层未就绪' };
+    var before = JSON.stringify(cache);
+    var ok = await refreshFromCloud();
+    var after = JSON.stringify(cache);
+    var changed = before !== after;
+    return { ok: true, changed: changed };
+  }
+
+  // 暴露状态供调试 / 手动同步按钮调用
   window.CloudbaseSync = {
     appId: APP_ID,
     isReady: function () { return initialized; },
     cache: cache,
-    reload: retryAuthAndReload
+    reload: retryAuthAndReload,
+    pullAll: pullAll,
+    pushAll: pushAll
   };
 
   // ===== 启动 =====

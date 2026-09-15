@@ -233,76 +233,59 @@ async function init() {
  * 将 localStorage 中存在但云端没有的数据迁移过来
  * 共享模式：不按 user_id 区分，所有数据共享一行（doc id = store_key）
  */
+// 手动同步模式：只把 localStorage 数据加载到缓存，不自动上传。
+// 上传由 CloudbaseStore.forceSync() 手动触发。
 async function migrateFromLocalStorage() {
   const origGetItem = (window._origLocalStorage && window._origLocalStorage.getItem) || localStorage.getItem.bind(localStorage);
 
-  // 1. 一次性获取云端所有已存在的 store_key
-  let existingKeys = new Set();
-  try {
-    const { data, error } = await getSupabase().from('app_data_store').select('store_key');
-    if (!error && data) {
-      data.forEach(row => existingKeys.add(row.store_key));
-    }
-  } catch (e) {
-    console.warn('[CloudbaseStore] 迁移：查询已有 keys 失败:', e);
-  }
-
-  // 2. 遍历 localStorage，只迁移云端不存在的 key
-  let migratedCount = 0;
-  const user = await getCurrentUser();
-
+  let loadedCount = 0;
   for (const key of LOCAL_KEYS) {
     if (['isLoggedIn', 'username', 'userRole', 'currentUserId', 'refDPR'].includes(key)) continue;
-    if (existingKeys.has(key)) continue;
+    if (_cache[key] !== undefined) continue; // 云端已有，不覆盖
 
     const raw = origGetItem(key);
     if (!raw) continue;
 
     try {
       let payload;
-      try {
-        payload = JSON.parse(raw);
-      } catch (e) {
-        payload = raw;
-      }
+      try { payload = JSON.parse(raw); } catch (e) { payload = raw; }
       payload = normalizePayload(payload);
-
-      // 共享模式：doc id = store_key，set 即 upsert；云端已有则跳过（已在 existingKeys 中过滤）
-      const { error } = await getSupabase()
-        .from('app_data_store')
-        .upsert({
-          user_id: user ? user.id : null,
-          store_key: key,
-          payload: payload,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'store_key' });
-
-      if (error) {
-        console.warn('[CloudbaseStore] 迁移失败:', key, error);
-      } else {
-        migratedCount++;
-        console.log('[CloudbaseStore] 已迁移:', key);
-      }
+      _cache[key] = payload;
+      loadedCount++;
     } catch (e) {
-      console.warn('[CloudbaseStore] 迁移解析失败:', key, e);
+      console.warn('[CloudbaseStore] 本地加载失败:', key, e);
     }
   }
 
-  if (migratedCount > 0) {
-    console.log('[CloudbaseStore] 共迁移', migratedCount, '个数据集');
+  if (loadedCount > 0) {
+    console.log('[CloudbaseStore] 从 localStorage 加载了', loadedCount, '个数据集（未自动上传，需手动"上传云端"）');
   }
 }
 
 /**
- * 强制重新同步 localStorage → 云端
+ * 强制重新同步 localStorage → 云端（手动上传）
+ * alsoDelete=true 时，同时删除云端有但本地没有的 key（清理残留）
  */
-async function forceSync() {
+async function forceSync(alsoDelete) {
   const user = await getCurrentUser();
   if (!user) return { success: false, message: '未登录' };
 
   const origLS = window._origLocalStorage || window.localStorage;
   let synced = 0;
   let skipped = 0;
+  let hasAny = false;
+  for (const key of LOCAL_KEYS) {
+    if (['isLoggedIn', 'username', 'userRole', 'currentUserId', 'refDPR'].includes(key)) continue;
+    const raw = origLS.getItem(key);
+    if (!raw) { skipped++; continue; }
+    hasAny = true;
+  }
+
+  // 空库保护：本地一个业务数据都没有时禁止上传，避免清空云端
+  if (!hasAny) {
+    return { success: false, message: '本地无数据可上传（空库保护，避免清空云端）' };
+  }
+
   for (const key of LOCAL_KEYS) {
     if (['isLoggedIn', 'username', 'userRole', 'currentUserId', 'refDPR'].includes(key)) continue;
     const raw = origLS.getItem(key);
@@ -373,38 +356,23 @@ async function get(key, defaultVal) {
 async function set(key, value) {
   if (!_initialized) await init();
 
-  const user = await getCurrentUser();
-
   _cache[key] = JSON.parse(JSON.stringify(value));
   _recentWrites[key] = Date.now();
-  notifyStatus('pending');
+  _cacheTimestamps[key] = new Date().toISOString();
 
+  // 同步写 localStorage 作为缓存
   try {
-    const { error } = await getSupabase()
-      .from('app_data_store')
-      .upsert({
-        user_id: user ? user.id : null,
-        store_key: key,
-        payload: value,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'store_key' });
+    const origSet = (window._origLocalStorage && window._origLocalStorage.setItem) || localStorage.setItem.bind(localStorage);
+    origSet(key, JSON.stringify(value));
+  } catch (e) {}
 
-    if (error) {
-      console.error('[CloudbaseStore] set 失败:', key, error);
-      notifyStatus('error');
-      return false;
-    }
-    notifyStatus('idle');
-    return true;
-  } catch (e) {
-    console.error('[CloudbaseStore] set 异常:', key, e);
-    notifyStatus('error');
-    return false;
-  }
+  // ⚠️ 手动同步模式：不再自动上传云端。
+  // 请点击"上传云端"按钮手动调用 CloudbaseStore.forceSync()。
+  return true;
 }
 
 /**
- * 删除数据（共享模式：按 store_key 删除 → doc id = store_key）
+ * 删除数据（手动同步模式：只删本地，不自动删云端）
  */
 async function remove(key) {
   if (!_initialized) await init();
@@ -412,21 +380,15 @@ async function remove(key) {
   delete _cache[key];
   delete _cacheTimestamps[key];
   _recentWrites[key] = Date.now();
-  notifyStatus('pending');
 
   try {
-    const { error } = await getSupabase()
-      .from('app_data_store')
-      .delete()
-      .eq('store_key', key);
+    const origDel = (window._origLocalStorage && window._origLocalStorage.removeItem) || localStorage.removeItem.bind(localStorage);
+    origDel(key);
+  } catch (e) {}
 
-    if (error) { notifyStatus('error'); return false; }
-    notifyStatus('idle');
-    return true;
-  } catch (e) {
-    notifyStatus('error');
-    return false;
-  }
+  // ⚠️ 手动同步模式：不再自动删除云端。
+  // forceSync(true) 时会清理云端有但本地没有的 key。
+  return true;
 }
 
 /**

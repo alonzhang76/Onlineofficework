@@ -130,51 +130,40 @@ var CloudbaseStore = {
     _cache[key] = value;
     _cacheTimestamps[key] = new Date().toISOString();
     _recentWrites[key] = Date.now();
-    notifyStatus('pending');
     // 同步写 localStorage 作为缓存
     try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
-
-    // 防抖：同一 key 400ms 内多次写入只上传最后一次
-    if (_debounceTimers[key]) clearTimeout(_debounceTimers[key]);
-    _debounceTimers[key] = setTimeout(function () {
-      delete _debounceTimers[key];
-      _doUpload(key, value);
-    }, UPLOAD_DEBOUNCE);
+    // ⚠️ 手动同步模式：不再自动上传云端。
+    // 请点击"上传云端"按钮手动调用 CloudbaseStore.pushAll()。
   },
 
   async remove(key) {
     delete _cache[key];
     delete _cacheTimestamps[key];
     _recentWrites[key] = Date.now();
-    notifyStatus('pending');
     try { localStorage.removeItem(key); } catch (e) {}
-    var sb = getClient();
-    if (!sb) { notifyStatus('error'); return; }
-    try {
-      var { error } = await sb.from('app_data_store').delete().eq('store_key', key);
-      if (error) notifyStatus('error');
-      else notifyStatus('idle');
-    } catch (e) { notifyStatus('error'); }
+    // ⚠️ 手动同步模式：不再自动删除云端。
+    // 上传时若云端有本地已删的 key，需用 CloudbaseStore.pushAll(true) 清理。
   },
 
   isReady() { return _initialized; },
 
   async migrateFromLocalStorage() { return migrateFromLocalStorage(); },
 
-  refreshFromCloud: function () { return refreshFromCloud(); }
+  refreshFromCloud: function () { return refreshFromCloud(); },
+
+  // 手动上传：把本地所有数据推送到云端（覆盖云端）
+  // alsoDelete=true 时，同时删除云端有但本地没有的 key（清理残留）
+  pushAll: async function (alsoDelete) { return pushAll(alsoDelete); }
 };
 
-/** 实际执行上传（由防抖定时器调用） */
+/** 实际执行单次 upsert（供 pushAll 调用） */
 async function _doUpload(key, value) {
   var sb = getClient();
-  if (!sb || !sb.from) { notifyStatus('error'); return; }
+  if (!sb || !sb.from) return false;
 
   try {
     var user = null;
     try { var ud = await sb.auth.getUser(); user = ud.data ? ud.data.user : null; } catch (e) {}
-    if (user && user.is_anonymous) {
-      console.warn('[CloudbaseStore] 当前为匿名会话（只读），写入将被拒绝：', key);
-    }
 
     var { error } = await sb.from('app_data_store')
       .upsert({
@@ -186,14 +175,88 @@ async function _doUpload(key, value) {
 
     if (error) {
       console.warn('[CloudbaseStore] 云端写入失败:', key, error.message || error);
-      notifyStatus('error');
-    } else {
-      notifyStatus('idle');
+      return false;
     }
+    return true;
   } catch (e) {
     console.warn('[CloudbaseStore] 写入云端失败:', key, e);
-    notifyStatus('error');
+    return false;
   }
+}
+
+// 手动上传所有本地数据到云端
+async function pushAll(alsoDelete) {
+  var sb = getClient();
+  if (!sb || !sb.from) return { ok: false, msg: '同步层未就绪' };
+
+  // 收集所有本地非空业务 key（优先用 WAGE_KEYS，兜底遍历 localStorage）
+  var keysToUpload = [];
+  for (var i = 0; i < WAGE_KEYS.length; i++) {
+    var key = WAGE_KEYS[i];
+    var raw = null;
+    try { raw = localStorage.getItem(key); } catch (e) {}
+    if (raw === null || raw === undefined || raw === '') continue;
+    var value;
+    try { value = JSON.parse(raw); } catch (e) { value = raw; }
+    keysToUpload.push({ key: key, value: value });
+  }
+  // 兜底：WAGE_KEYS 没列出但 localStorage 里有数据的 key 也上传
+  if (keysToUpload.length === 0) {
+    for (var j = 0; j < localStorage.length; j++) {
+      var k = localStorage.key(j);
+      if (!k || WAGE_KEYS.indexOf(k) >= 0) continue;
+      if (k.indexOf('wage_') === 0 || k === 'dataVersion') {
+        var r2 = localStorage.getItem(k);
+        if (r2 && r2 !== '') {
+          var v2;
+          try { v2 = JSON.parse(r2); } catch (e) { v2 = r2; }
+          keysToUpload.push({ key: k, value: v2 });
+        }
+      }
+    }
+  }
+
+  if (keysToUpload.length === 0) {
+    return { ok: false, msg: '本地无数据可上传（空库保护，避免清空云端）' };
+  }
+
+  notifyStatus('pending');
+  var okCount = 0, failCount = 0;
+  for (var m = 0; m < keysToUpload.length; m++) {
+    var it = keysToUpload[m];
+    var ok = await _doUpload(it.key, it.value);
+    if (ok) {
+      okCount++;
+      _cache[it.key] = it.value;
+      _cacheTimestamps[it.key] = new Date().toISOString();
+    } else {
+      failCount++;
+    }
+  }
+
+  // 可选清理：删除云端有但本地没有的 key
+  if (alsoDelete) {
+    try {
+      var listRes = await sb.from('app_data_store').select('store_key');
+      var localSet = new Set(keysToUpload.map(function (x) { return x.key; }));
+      if (listRes && !listRes.error && Array.isArray(listRes.data)) {
+        for (var n = 0; n < listRes.data.length; n++) {
+          var sk = listRes.data[n].store_key;
+          // 只清理当前应用的 key（wage_ 前缀）
+          if (sk && sk.indexOf('wage_') === 0 && !localSet.has(sk)) {
+            try { await sb.from('app_data_store').delete().eq('store_key', sk); } catch (e) {}
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  if (failCount === 0) {
+    notifyStatus('idle');
+    return { ok: true, uploaded: okCount, failed: 0 };
+  }
+  notifyStatus('error');
+  return { ok: false, uploaded: okCount, failed: failCount };
 }
 
 // 从云端刷新数据（感知其他端的写入）
@@ -259,43 +322,22 @@ async function refreshFromCloud() {
   }
 }
 
+// 手动同步模式：只把 localStorage 数据加载到缓存，不自动上传。
+// 上传由 CloudbaseStore.pushAll() 手动触发。
 async function migrateFromLocalStorage() {
-  var sb = getClient();
-  if (!sb) return;
-
-  var existingKeys = new Set();
-  try {
-    var { data } = await sb.from('app_data_store').select('store_key');
-    if (data) data.forEach(function (r) { existingKeys.add(r.store_key); });
-  } catch (e) {}
-
-  var user = null;
-  try { var ud = await sb.auth.getUser(); user = ud.data ? ud.data.user : null; } catch (e) {}
-
-  var migrated = 0;
+  var loaded = 0;
   for (var i = 0; i < WAGE_KEYS.length; i++) {
     var key = WAGE_KEYS[i];
-    if (existingKeys.has(key)) continue;
-
+    if (_cache[key] !== undefined) continue; // 云端已有，不覆盖
     var raw = null;
     try { raw = localStorage.getItem(key); } catch (e) {}
     if (!raw) continue;
-
     var payload;
     try { payload = JSON.parse(raw); } catch (e) { payload = raw; }
-
-    try {
-      var { error } = await sb.from('app_data_store')
-        .upsert({
-          store_key: key,
-          payload: payload,
-          updated_at: new Date().toISOString(),
-          user_id: user ? user.id : null
-        }, { onConflict: 'store_key' });
-      if (!error) { migrated++; _cache[key] = payload; }
-    } catch (e) {}
+    _cache[key] = payload;
+    loaded++;
   }
-  if (migrated > 0) console.log('[CloudbaseStore] 迁移了', migrated, '个数据集');
+  if (loaded > 0) console.log('[CloudbaseStore] 从 localStorage 加载了', loaded, '个数据集（未自动上传，需手动"上传云端"）');
 }
 
 window.CloudbaseStore = CloudbaseStore;

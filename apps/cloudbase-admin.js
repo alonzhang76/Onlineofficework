@@ -88,70 +88,121 @@
     overlay.onclick = function (e) { if (e.target === overlay) close(); };
   }
 
-  // ===== 强制同步 =====
-  function syncNow() {
+  // ===== 下载：从云端拉取最新数据到本地（只下载，不上传） =====
+  async function pullFromCloud() {
     var sb = getClient();
     if (!sb) { toast('同步层未就绪，请稍后重试', 'error'); return; }
 
-    toast('🔄 正在同步云端数据...');
+    toast('🔄 正在下载云端数据...');
 
     // 路径 1：cloudbase-sync.js（orderschedule / wicketorders）
-    if (window.CloudbaseSync && typeof window.CloudbaseSync.refresh === 'function') {
-      window.CloudbaseSync.refresh().then(function () {
-        if (typeof window.CloudbaseSync.flush === 'function') {
-          window.CloudbaseSync.flush();
+    if (window.CloudbaseSync && typeof window.CloudbaseSync.pullAll === 'function') {
+      try {
+        var r = await window.CloudbaseSync.pullAll();
+        if (r && r.ok) {
+          toast(r.changed ? '✅ 下载完成，已更新本地数据' : '✅ 已是最新数据');
+        } else {
+          toast('下载失败：' + (r && r.msg ? r.msg : '未知错误'), 'error');
         }
-        toast('✅ 同步完成，已拉取最新云端数据');
-        try {
-          window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { source: 'manual-sync' } }));
-        } catch (e) {}
-      }).catch(function (e) {
-        toast('同步失败：' + (e && e.message ? e.message : e), 'error');
-      });
+      } catch (e) {
+        toast('下载异常：' + (e && e.message ? e.message : e), 'error');
+      }
       return;
     }
 
     // 路径 2：CloudbaseStore（wage / saintysys）
-    if (window.CloudbaseStore && typeof window.CloudbaseStore.init === 'function') {
-      // 重置初始化标记，强制重新拉取
+    if (window.CloudbaseStore) {
+      var pullFn = window.CloudbaseStore.forceRefreshFromCloud || window.CloudbaseStore.refreshFromCloud;
+      if (typeof pullFn === 'function') {
+        try {
+          var changed = await pullFn.call(window.CloudbaseStore);
+          var n = Array.isArray(changed) ? changed.length : (changed ? 1 : 0);
+          toast(n > 0 ? '✅ 下载完成，已更新 ' + n + ' 个数据集' : '✅ 已是最新数据');
+          try { window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { source: 'manual-pull' } })); } catch (e) {}
+          return;
+        } catch (e) {
+          toast('下载异常：' + (e && e.message ? e.message : e), 'error');
+          return;
+        }
+      }
+      // 兜底：重新 init
       try {
         if ('_initialized' in window.CloudbaseStore) window.CloudbaseStore._initialized = false;
         if ('_initPromise' in window.CloudbaseStore) window.CloudbaseStore._initPromise = null;
-      } catch (e) {}
-      window.CloudbaseStore.init().then(function (ok) {
-        if (ok) {
-          toast('✅ 同步完成，已加载云端数据');
-        } else {
-          toast('同步未完成，请检查网络', 'error');
-        }
-        try {
-          window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { source: 'manual-sync' } }));
-        } catch (e) {}
-      }).catch(function (e) {
-        toast('同步失败：' + (e && e.message ? e.message : e), 'error');
-      });
+        await window.CloudbaseStore.init();
+        toast('✅ 已从云端重新加载数据');
+        try { window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { source: 'manual-pull' } })); } catch (e) {}
+      } catch (e) {
+        toast('下载异常：' + (e && e.message ? e.message : e), 'error');
+      }
       return;
     }
 
     // 路径 3：兜底直接查表
     try {
-      sb.from(TABLE).select('store_key, payload, updated_at').then(function (result) {
-        var n = result && result.data ? result.data.length : 0;
-        if (result && result.error) {
-          toast('同步失败：' + result.error.message, 'error');
-        } else {
-          toast('✅ 同步完成，云端共 ' + n + ' 条数据，请刷新页面查看');
-          try {
-            window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { source: 'manual-sync' } }));
-          } catch (e) {}
-        }
-      }).catch(function (e) {
-        toast('同步异常：' + (e && e.message ? e.message : e), 'error');
-      });
+      var result = await sb.from(TABLE).select('store_key, payload, updated_at');
+      var n = result && result.data ? result.data.length : 0;
+      if (result && result.error) {
+        toast('下载失败：' + result.error.message, 'error');
+      } else {
+        toast('✅ 云端共 ' + n + ' 条数据，请刷新页面查看');
+        try { window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { source: 'manual-pull' } })); } catch (e) {}
+      }
     } catch (e) {
-      toast('同步异常：' + (e && e.message ? e.message : e), 'error');
+      toast('下载异常：' + (e && e.message ? e.message : e), 'error');
     }
   }
+
+  // ===== 上传：把本机所有数据推送到云端（覆盖云端） =====
+  async function pushToCloud() {
+    var sb = getClient();
+    if (!sb) { toast('同步层未就绪，请稍后重试', 'error'); return; }
+
+    // 二次确认
+    if (!window.confirm('确定要把本机数据上传到云端吗？\n\n云端对应数据将被本机数据覆盖。\n建议先"下载云端数据"备份。')) return;
+
+    toast('⏫ 正在上传本机数据到云端...');
+
+    // 路径 1：cloudbase-sync.js（orderschedule / wicketorders）
+    if (window.CloudbaseSync && typeof window.CloudbaseSync.pushAll === 'function') {
+      try {
+        var r = await window.CloudbaseSync.pushAll(true); // alsoDelete=true 清理云端残留
+        if (r && r.ok) {
+          toast('✅ 上传完成，共 ' + r.uploaded + ' 个数据集');
+          try { window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { source: 'manual-push' } })); } catch (e) {}
+        } else {
+          toast('上传失败：' + (r && r.msg ? r.msg : ('失败 ' + (r && r.failed ? r.failed : '?') + ' 个')), 'error');
+        }
+      } catch (e) {
+        toast('上传异常：' + (e && e.message ? e.message : e), 'error');
+      }
+      return;
+    }
+
+    // 路径 2：CloudbaseStore（wage / saintysys）
+    if (window.CloudbaseStore) {
+      var pushFn = window.CloudbaseStore.forceSync || window.CloudbaseStore.pushAll;
+      if (typeof pushFn === 'function') {
+        try {
+          var pr = await pushFn.call(window.CloudbaseStore, true);
+          if (pr && pr.success) {
+            toast('✅ 上传完成，共 ' + (pr.synced || pr.uploaded || '?') + ' 个数据集');
+            try { window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { source: 'manual-push' } })); } catch (e) {}
+          } else {
+            toast('上传失败：' + (pr && pr.message ? pr.message : '未知错误'), 'error');
+          }
+        } catch (e) {
+          toast('上传异常：' + (e && e.message ? e.message : e), 'error');
+        }
+        return;
+      }
+    }
+
+    toast('当前应用未实现上传接口', 'error');
+  }
+
+  // 兼容旧调用名（syncNow = 只下载）
+  function syncNow() { return pullFromCloud(); }
 
   // ===== 清空本地业务数据（保留 auth 会话） =====
   function clearLocalBusinessData() {
@@ -274,7 +325,9 @@
 
   // ===== 暴露 API =====
   window.CloudAdmin = {
-    syncNow: syncNow,
+    pullFromCloud: pullFromCloud,
+    pushToCloud: pushToCloud,
+    syncNow: syncNow,           // 兼容旧调用名（= pullFromCloud）
     clearCloudData: clearCloudData
   };
 

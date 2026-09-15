@@ -1,4 +1,4 @@
-﻿/* ===== CloudBase 统一数据存储层 cloudbase-store.js =====
+/* ===== CloudBase 统一数据存储层 cloudbase-store.js =====
  *
  * 替代 App.store 的 localStorage 实现，所有业务数据存到 CloudBase 云数据库
  * 使用方式：与 App.store 完全兼容
@@ -93,6 +93,15 @@ let _initialized = false;
 let _initPromise = null;
 let _lastRefreshDebugTs = 0;
 
+// 上传状态通知：转发到 window.CloudSyncStatus 指示灯
+function notifyStatus(state) {
+  try {
+    if (window.CloudSyncStatus && typeof window.CloudSyncStatus.setState === 'function') {
+      window.CloudSyncStatus.setState(state);
+    }
+  } catch (e) {}
+}
+
 // 需要迁移的 localStorage 键 → 云端 store_key 映射
 const MIGRATION_KEYS = [
   'styles', 'orders', 'fabrics', 'accessories', 'samples',
@@ -176,6 +185,7 @@ async function init() {
               if (_cache[row.store_key] === undefined) {
                 _cache[row.store_key] = normalizePayload(row.payload);
                 _cacheTimestamps[row.store_key] = row.updated_at || new Date().toISOString();
+                _cloudSeen[row.store_key] = 1; // 标记：此 key 曾在云端存在
               }
             });
             queryOk = true;
@@ -223,76 +233,59 @@ async function init() {
  * 将 localStorage 中存在但云端没有的数据迁移过来
  * 共享模式：不按 user_id 区分，所有数据共享一行（doc id = store_key）
  */
+// 手动同步模式：只把 localStorage 数据加载到缓存，不自动上传。
+// 上传由 CloudbaseStore.forceSync() 手动触发。
 async function migrateFromLocalStorage() {
   const origGetItem = (window._origLocalStorage && window._origLocalStorage.getItem) || localStorage.getItem.bind(localStorage);
 
-  // 1. 一次性获取云端所有已存在的 store_key
-  let existingKeys = new Set();
-  try {
-    const { data, error } = await getSupabase().from('app_data_store').select('store_key');
-    if (!error && data) {
-      data.forEach(row => existingKeys.add(row.store_key));
-    }
-  } catch (e) {
-    console.warn('[CloudbaseStore] 迁移：查询已有 keys 失败:', e);
-  }
-
-  // 2. 遍历 localStorage，只迁移云端不存在的 key
-  let migratedCount = 0;
-  const user = await getCurrentUser();
-
+  let loadedCount = 0;
   for (const key of LOCAL_KEYS) {
     if (['isLoggedIn', 'username', 'userRole', 'currentUserId', 'refDPR'].includes(key)) continue;
-    if (existingKeys.has(key)) continue;
+    if (_cache[key] !== undefined) continue; // 云端已有，不覆盖
 
     const raw = origGetItem(key);
     if (!raw) continue;
 
     try {
       let payload;
-      try {
-        payload = JSON.parse(raw);
-      } catch (e) {
-        payload = raw;
-      }
+      try { payload = JSON.parse(raw); } catch (e) { payload = raw; }
       payload = normalizePayload(payload);
-
-      // 共享模式：doc id = store_key，set 即 upsert；云端已有则跳过（已在 existingKeys 中过滤）
-      const { error } = await getSupabase()
-        .from('app_data_store')
-        .upsert({
-          user_id: user ? user.id : null,
-          store_key: key,
-          payload: payload,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'store_key' });
-
-      if (error) {
-        console.warn('[CloudbaseStore] 迁移失败:', key, error);
-      } else {
-        migratedCount++;
-        console.log('[CloudbaseStore] 已迁移:', key);
-      }
+      _cache[key] = payload;
+      loadedCount++;
     } catch (e) {
-      console.warn('[CloudbaseStore] 迁移解析失败:', key, e);
+      console.warn('[CloudbaseStore] 本地加载失败:', key, e);
     }
   }
 
-  if (migratedCount > 0) {
-    console.log('[CloudbaseStore] 共迁移', migratedCount, '个数据集');
+  if (loadedCount > 0) {
+    console.log('[CloudbaseStore] 从 localStorage 加载了', loadedCount, '个数据集（未自动上传，需手动"上传云端"）');
   }
 }
 
 /**
- * 强制重新同步 localStorage → 云端
+ * 强制重新同步 localStorage → 云端（手动上传）
+ * alsoDelete=true 时，同时删除云端有但本地没有的 key（清理残留）
  */
-async function forceSync() {
+async function forceSync(alsoDelete) {
   const user = await getCurrentUser();
   if (!user) return { success: false, message: '未登录' };
 
   const origLS = window._origLocalStorage || window.localStorage;
   let synced = 0;
   let skipped = 0;
+  let hasAny = false;
+  for (const key of LOCAL_KEYS) {
+    if (['isLoggedIn', 'username', 'userRole', 'currentUserId', 'refDPR'].includes(key)) continue;
+    const raw = origLS.getItem(key);
+    if (!raw) { skipped++; continue; }
+    hasAny = true;
+  }
+
+  // 空库保护：本地一个业务数据都没有时禁止上传，避免清空云端
+  if (!hasAny) {
+    return { success: false, message: '本地无数据可上传（空库保护，避免清空云端）' };
+  }
+
   for (const key of LOCAL_KEYS) {
     if (['isLoggedIn', 'username', 'userRole', 'currentUserId', 'refDPR'].includes(key)) continue;
     const raw = origLS.getItem(key);
@@ -363,34 +356,23 @@ async function get(key, defaultVal) {
 async function set(key, value) {
   if (!_initialized) await init();
 
-  const user = await getCurrentUser();
-
   _cache[key] = JSON.parse(JSON.stringify(value));
   _recentWrites[key] = Date.now();
+  _cacheTimestamps[key] = new Date().toISOString();
 
+  // 同步写 localStorage 作为缓存
   try {
-    const { error } = await getSupabase()
-      .from('app_data_store')
-      .upsert({
-        user_id: user ? user.id : null,
-        store_key: key,
-        payload: value,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'store_key' });
+    const origSet = (window._origLocalStorage && window._origLocalStorage.setItem) || localStorage.setItem.bind(localStorage);
+    origSet(key, JSON.stringify(value));
+  } catch (e) {}
 
-    if (error) {
-      console.error('[CloudbaseStore] set 失败:', key, error);
-      return false;
-    }
-    return true;
-  } catch (e) {
-    console.error('[CloudbaseStore] set 异常:', key, e);
-    return false;
-  }
+  // ⚠️ 手动同步模式：不再自动上传云端。
+  // 请点击"上传云端"按钮手动调用 CloudbaseStore.forceSync()。
+  return true;
 }
 
 /**
- * 删除数据（共享模式：按 store_key 删除 → doc id = store_key）
+ * 删除数据（手动同步模式：只删本地，不自动删云端）
  */
 async function remove(key) {
   if (!_initialized) await init();
@@ -400,16 +382,13 @@ async function remove(key) {
   _recentWrites[key] = Date.now();
 
   try {
-    const { error } = await getSupabase()
-      .from('app_data_store')
-      .delete()
-      .eq('store_key', key);
+    const origDel = (window._origLocalStorage && window._origLocalStorage.removeItem) || localStorage.removeItem.bind(localStorage);
+    origDel(key);
+  } catch (e) {}
 
-    if (error) return false;
-    return true;
-  } catch (e) {
-    return false;
-  }
+  // ⚠️ 手动同步模式：不再自动删除云端。
+  // forceSync(true) 时会清理云端有但本地没有的 key。
+  return true;
 }
 
 /**
@@ -459,11 +438,27 @@ function getSync(key, defaultVal) {
 // 最近写入记录（避免自己写入的数据触发刷新）
 var _recentWrites = {};
 
+// 防抖：同一 key 400ms 内多次写入只上传最后一次，避免并发请求堆积
+var _debounceTimers = {};
+// 曾从云端拉取到过的 key 集合：用于区分"云端真删除"（可同步删除本地）
+// 与"本地新写入但上传失败"（绝不能删，否则导入的数据会凭空消失）
+var _cloudSeen = {};
+var UPLOAD_DEBOUNCE = 400;
+
 function setSync(key, value) {
   _cache[key] = JSON.parse(JSON.stringify(value));
   _cacheTimestamps[key] = new Date().toISOString();
   _recentWrites[key] = Date.now();
-  _asyncWrite(key, value, 0);
+  notifyStatus('pending');
+
+  // 清除该 key 之前的定时器（防抖）
+  if (_debounceTimers[key]) {
+    clearTimeout(_debounceTimers[key]);
+  }
+  _debounceTimers[key] = setTimeout(function () {
+    delete _debounceTimers[key];
+    _asyncWrite(key, value, 0);
+  }, UPLOAD_DEBOUNCE);
 }
 
 // 异步写入（支持重试）— 共享模式
@@ -475,6 +470,7 @@ async function _asyncWrite(key, value, retryCount) {
         setTimeout(() => _asyncWrite(key, value, retryCount + 1), 1000 * (retryCount + 1));
       } else {
         _addToPending(key, value);
+        notifyStatus('error');
       }
       return;
     }
@@ -490,15 +486,18 @@ async function _asyncWrite(key, value, retryCount) {
     if (error) {
       console.warn('[CloudbaseStore] setSync 写入失败，加入重试队列:', key, error);
       _addToPending(key, value);
+      notifyStatus('error');
     } else {
       const ts = new Date().toISOString();
       _cacheTimestamps[key] = ts;
       const count = Array.isArray(value) ? value.length + ' 条' : typeof value;
       console.log('[CloudbaseStore] ✅ 已同步到云端:', key, count);
+      notifyStatus('idle');
     }
   } catch (e) {
     console.warn('[CloudbaseStore] setSync 异常，加入重试队列:', key, e);
     _addToPending(key, value);
+    notifyStatus('error');
   }
 }
 
@@ -656,6 +655,7 @@ async function refreshFromCloud() {
       if (isChanged) {
         _cache[key] = normalizePayload(row.payload);
         _cacheTimestamps[key] = remoteTs || new Date().toISOString();
+        _cloudSeen[key] = 1; // 标记：此 key 曾在云端存在
         changedKeys.push(key);
       }
     }
@@ -663,9 +663,13 @@ async function refreshFromCloud() {
     // 检查已删除的 key
     const remoteKeys = new Set(data.map(r => r.store_key));
     for (const localKey of Object.keys(_cache)) {
-      if (!remoteKeys.has(localKey) && !_recentWrites[localKey]) {
+      // 只删除"曾在云端存在、现在云端没有"的 key（真删除同步）。
+      // 本地新写入且从未上过云的 key（上传失败/防抖中）不能删——那是用户刚导入的数据
+      if (!remoteKeys.has(localKey) && !_recentWrites[localKey] &&
+          !_debounceTimers[localKey] && _cloudSeen[localKey]) {
         delete _cache[localKey];
         delete _cacheTimestamps[localKey];
+        delete _cloudSeen[localKey];
         changedKeys.push(localKey);
         detailLogs.push(localKey + ': 已删除');
       }
@@ -744,6 +748,7 @@ async function forceRefreshFromCloud() {
 
       _cache[key] = newVal;
       _cacheTimestamps[key] = row.updated_at || new Date().toISOString();
+      _cloudSeen[key] = 1; // 标记：此 key 曾在云端存在
       updatedCount++;
 
       if (needsEvent) {
@@ -754,9 +759,13 @@ async function forceRefreshFromCloud() {
     // 清理云端已删除的 key
     const remoteKeys = new Set(data.map(r => r.store_key));
     for (const localKey of Object.keys(_cache)) {
-      if (!remoteKeys.has(localKey)) {
+      // 同 refreshFromCloud：只删"曾在云端存在、现在没了"的 key，
+      // 本地新写入未上云的 key（上传失败）绝不能删
+      if (!remoteKeys.has(localKey) && !_recentWrites[localKey] &&
+          !_debounceTimers[localKey] && _cloudSeen[localKey]) {
         delete _cache[localKey];
         delete _cacheTimestamps[localKey];
+        delete _cloudSeen[localKey];
         changedKeys.push(localKey);
       }
     }
@@ -860,7 +869,15 @@ readyPromise.then(function (ok) {
   if (ok) {
     console.log('[CloudbaseStore] ✅ 已连接到云端存储');
     recoverFromLocalStorage();
+    notifyStatus('idle');
+    // 启动定时云端刷新（10 秒一次），感知其他端写入
+    setInterval(refreshFromCloud, 10000);
+    window.addEventListener('online', function () { refreshFromCloud(); });
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) refreshFromCloud();
+    });
   } else {
+    notifyStatus('offline');
     console.log('[CloudbaseStore] ⚠️ 初始连接失败，启动后台重试机制...');
     var retryCount = 0;
     var maxRetries = 12;
@@ -868,6 +885,7 @@ readyPromise.then(function (ok) {
       retryCount++;
       if (_initialized) {
         clearInterval(retryTimer);
+        notifyStatus('idle');
         console.log('[CloudbaseStore] ✅ 重试成功（第', retryCount, '次）');
         recoverFromLocalStorage();
         forceRefreshFromCloud();
@@ -875,6 +893,7 @@ readyPromise.then(function (ok) {
       }
       if (retryCount > maxRetries) {
         clearInterval(retryTimer);
+        notifyStatus('offline');
         console.warn('[CloudbaseStore] ❌ 重试次数耗尽，停止自动重试');
         return;
       }
@@ -889,3 +908,150 @@ readyPromise.then(function (ok) {
     }, 5000);
   }
 });
+
+window.addEventListener('offline', function () { notifyStatus('offline'); });
+
+/* ===== CloudSyncStatus 指示灯模块（在激活的 Tab 按钮内嵌彩色圆点）=====
+ * 状态: idle(绿,已同步) / pending(黄,上传中) / error(红,上传失败) / offline(灰,未连接)
+ */
+(function () {
+  if (window.CloudSyncStatus && window.CloudSyncStatus._initd) return;
+
+  var STATES = {
+    idle:    { color: '#10b981', text: '已同步',  title: '云端同步完成' },
+    pending: { color: '#f59e0b', text: '上传中',  title: '正在上传到云端…' },
+    error:   { color: '#ef4444', text: '上传失败', title: '上传失败，正在重试…' },
+    offline: { color: '#9ca3af', text: '未连接',  title: '云端未连接' }
+  };
+  var currentState = 'idle';
+  var fallbackEl = null;
+
+  function injectCSS() {
+    if (document.getElementById('__cs_style')) return;
+    var css = document.createElement('style');
+    css.id = '__cs_style';
+    css.textContent = [
+      '.__cs_dot { display:inline-block; width:8px; height:8px; border-radius:50%;',
+      '  margin-left:6px; vertical-align:middle; background:#10b981;',
+      '  box-shadow:0 0 4px rgba(16,185,129,.6); transition:background .3s,box-shadow .3s; pointer-events:none; }',
+      '.__cs_dot.__cs_pending { background:#f59e0b; box-shadow:0 0 6px rgba(245,158,11,.7); animation:__cs_pulse 1.2s infinite; }',
+      '.__cs_dot.__cs_error   { background:#ef4444; box-shadow:0 0 6px rgba(239,68,68,.7);  animation:__cs_pulse .8s infinite; }',
+      '.__cs_dot.__cs_offline { background:#9ca3af; box-shadow:none; }',
+      '@keyframes __cs_pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }',
+      '.__cs_fallback_badge { position:fixed; right:8px; bottom:8px; z-index:99998;',
+      '  display:inline-flex; align-items:center; gap:4px; padding:4px 8px; border-radius:12px;',
+      '  font:11px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;',
+      '  color:#fff; background:rgba(16,185,129,.92); box-shadow:0 2px 8px rgba(0,0,0,.25);',
+      '  -webkit-tap-highlight-color:transparent; }',
+      '.__cs_fallback_badge.__cs_pending { background:rgba(245,158,11,.95); }',
+      '.__cs_fallback_badge.__cs_error   { background:rgba(239,68,68,.95); cursor:pointer; pointer-events:auto; }',
+      '.__cs_fallback_badge.__cs_offline { background:rgba(156,163,175,.95); }'
+    ].join('\n');
+    (document.head || document.documentElement).appendChild(css);
+  }
+
+  // 合并为一次 querySelectorAll
+  var TAB_SELECTOR = '.sidebar-menu-item.active, .nav-item.active, .nav-tab.active, .nav-link.active, .company-btn.bg-primary, .ant-tabs-tab-active, [role="tab"][aria-selected="true"]';
+
+  function findActiveTabs() {
+    try {
+      var list = document.querySelectorAll(TAB_SELECTOR);
+      var arr = [];
+      for (var i = 0; i < list.length; i++) arr.push(list[i]);
+      return arr;
+    } catch (e) { return []; }
+  }
+
+  // rAF 节流：合并短时间内多次调用
+  var _rafId = null;
+  function scheduleRefresh() {
+    if (_rafId !== null) return;
+    _rafId = (window.requestAnimationFrame || function (cb) { return setTimeout(cb, 16); })(function () {
+      _rafId = null;
+      try { refreshDots(); } catch (e) {}
+    });
+  }
+
+  function refreshDots() {
+    var tabs = findActiveTabs();
+    var tabSet = new Set(tabs);
+    var stateClass = '__cs_' + currentState;
+    var title = STATES[currentState].title;
+
+    for (var i = 0; i < tabs.length; i++) {
+      var tab = tabs[i];
+      var dot = tab.querySelector('.__cs_dot');
+      if (!dot) {
+        dot = document.createElement('span');
+        dot.className = '__cs_dot ' + stateClass;
+        tab.appendChild(dot);
+      } else {
+        dot.className = '__cs_dot ' + stateClass;
+      }
+      dot.title = title;
+    }
+
+    var allDots = document.querySelectorAll('.__cs_dot');
+    for (var k = 0; k < allDots.length; k++) {
+      var parent = allDots[k].parentElement;
+      if (parent && !tabSet.has(parent)) {
+        parent.removeChild(allDots[k]);
+      }
+    }
+
+    if (tabs.length === 0) {
+      ensureFallback();
+    } else if (fallbackEl) {
+      fallbackEl.style.display = 'none';
+    }
+  }
+
+  function ensureFallback() {
+    if (fallbackEl) {
+      fallbackEl.style.display = 'inline-flex';
+      fallbackEl.className = '__cs_fallback_badge __cs_' + currentState;
+      fallbackEl.innerHTML = '<span class="__cs_dot __cs_' + currentState + '"></span>' + STATES[currentState].text;
+      fallbackEl.title = STATES[currentState].title;
+      return;
+    }
+    if (!document || !document.body) return;
+    fallbackEl = document.createElement('div');
+    fallbackEl.className = '__cs_fallback_badge __cs_' + currentState;
+    fallbackEl.innerHTML = '<span class="__cs_dot __cs_' + currentState + '"></span>' + STATES[currentState].text;
+    fallbackEl.title = STATES[currentState].title;
+    fallbackEl.addEventListener('click', function () {
+      if (currentState === 'error' || currentState === 'offline') {
+        try { location.reload(); } catch (e) {}
+      }
+    });
+    document.body.appendChild(fallbackEl);
+  }
+
+  function setState(state) {
+    if (!STATES[state]) state = 'idle';
+    currentState = state;
+    scheduleRefresh();
+    try { window.dispatchEvent(new CustomEvent('cloud-sync-status', { detail: { state: state } })); } catch (e) {}
+  }
+
+  function startAutoRefresh() {
+    // 每 3 秒刷新一次（不使用 MutationObserver 监听整个 body，避免大表格页面卡顿）
+    setInterval(scheduleRefresh, 3000);
+  }
+
+  function boot() { try { injectCSS(); refreshDots(); startAutoRefresh(); } catch (e) {} }
+
+  if (document && document.body) {
+    boot();
+  } else if (document) {
+    document.addEventListener('DOMContentLoaded', boot);
+    window.addEventListener('load', boot);
+  }
+
+  window.CloudSyncStatus = {
+    _initd: true,
+    setState: setState,
+    getState: function () { return currentState; },
+    refresh: refreshDots
+  };
+})();
