@@ -14,8 +14,7 @@ Page({
     user: null,
     userLabel: '',
     userBadge: '',
-    cloudOn: false,
-    __syncState: 'idle'
+    cloudOn: false
   },
 
   onLoad() {
@@ -35,15 +34,18 @@ Page({
       wx.reLaunch({ url: '/pages/login/login' });
       return;
     }
-    if (typeof cb.getSyncState === 'function') this.setData({ __syncState: cb.getSyncState() });
     this.render();
   },
 
   onPullDownRefresh() {
-    db.syncFromCloud(() => {
+    db.syncFromCloud((changed, applied) => {
       this.render();
       wx.stopPullDownRefresh();
-      wx.showToast({ title: '已同步云端数据', icon: 'none' });
+      if (changed === false && applied === 0) {
+        wx.showToast({ title: '云端同步失败', icon: 'none' });
+      } else {
+        wx.showToast({ title: '已同步云端（' + applied + ' 项）', icon: 'none' });
+      }
     });
   },
 

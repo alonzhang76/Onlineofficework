@@ -1,10 +1,11 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 	<script>window.SUPABASE_APP_ID='purchase';</script>
-	<script src="../cloudbase-sync.js?v=20260915n"></script>
+	<script src="../cloudbase-sync.js?v=20260915p"></script>
+	<script src="../cloudbase-admin.js?v=20260915l"></script>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ProcurePay - 采购付款发票管理系统</title>
     <!-- Tailwind CSS v3 -->
     <script src="tailwindcss.js?v=20260909b"></script>
@@ -842,6 +843,7 @@
             .backdrop-blur { background-color: rgba(255,255,255,0.95) !important; }
         }
     </style>
+    <link rel="stylesheet" href="../tablet-compat.css?v=20260915a">
 </head>
 <body class="bg-gray-50 font-sans">
     <!-- 管理抬头公司模态框 -->
@@ -1404,6 +1406,19 @@
                             </select>
                         </div>
                         
+                        <!-- 云端数据管理：下载/上传/清空 -->
+                        <div class="flex items-center gap-1">
+                            <button class="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700" onclick="CloudAdmin.pullFromCloud()" title="从云端下载全量数据到本地">
+                                <i class="fa fa-cloud-download"></i> 下载
+                            </button>
+                            <button class="flex items-center gap-1 px-3 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700" onclick="CloudAdmin.pushToCloud()" title="把本地数据全量上传到云端">
+                                <i class="fa fa-cloud-upload"></i> 上传
+                            </button>
+                            <button class="flex items-center gap-1 px-3 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700" onclick="CloudAdmin.clearCloudData()" title="清空云端所有结构化数据（不影响文件）">
+                                <i class="fa fa-trash"></i> 清空云端
+                            </button>
+                        </div>
+
                         <!-- 数据备份与恢复下拉菜单 -->
                         <div class="relative">
                             <button id="backup-dropdown-btn" class="flex items-center gap-1 px-4 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">

@@ -89,13 +89,11 @@ function inspectErr(where, err) {
     const msg = String((err && (err.errMsg || err.message)) || '');
     const status = err && err.statusCode;
     console.warn('[cloudbase] ' + where + ' 失败:', msg || status || err, status !== undefined ? status : '', err && err.data || '');
-    // 仅匹配域名白名单相关错误（排除 timeout、网络断开等非域名问题）
-    const isDomainErr = /url not in domain|不在合法域名|request:fail url not|domain list/i.test(msg);
-    if (isDomainErr && !domainWarnShown) {
+    if (!domainWarnShown && /domain|legal|合法|request:fail/i.test(msg)) {
       domainWarnShown = true;
       wx.showModal({
         title: '手机端云同步不可用',
-        content: '错误详情：' + msg + '\n\n请在微信公众平台 → 开发管理 → 开发设置 → 服务器域名 → request 合法域名中添加：\n' + CONFIG.base + '\n\n注意：\n1. 必须精确匹配（不要带路径，如 /auth/v1/token）\n2. 添加后须删除小程序重新进入（清缓存）才生效\n3. 确认是在当前小程序的 AppID 下配置的',
+        content: '请在微信公众平台 → 开发管理 → 开发设置 → 服务器域名 → request 合法域名中添加：\n' + CONFIG.base + '\n（每月可修改 50 次，添加后重新进入小程序生效）',
         showCancel: false,
         confirmText: '知道了'
       });
@@ -289,23 +287,33 @@ function mapRow(r) {
 function pullAll(ns) {
   const keys = (CONFIG.namespaces && CONFIG.namespaces[ns]) || CONFIG.syncKeys;
   const prefix = (CONFIG.cloudPrefix && CONFIG.cloudPrefix[ns]) || '';
-  const keyList = keys.map(k => encodeURIComponent(prefix + k)).join(',');
-  return req('GET', '/v1/rdb/rest/' + CONFIG.table,
-    '?select=id,data&id=in.(' + keyList + ')', null, null, false)
-    .then(rows => {
-      // 拉取成功：若无挂起写入则置 idle（间接证明连接 OK）
-      if (Object.keys(pending).length === 0) setSyncState('idle');
-      if (!Array.isArray(rows)) return rows;
-      // 云端键名去前缀，统一还原为数据层使用的裸键
-      return rows.map(r => {
-        const m = mapRow(r);
-        return {
-          key: prefix && m.key.indexOf(prefix) === 0 ? m.key.slice(prefix.length) : m.key,
-          value: m.value,
-          updatedAt: m.updatedAt
-        };
+  // 逐键拉取（每批 3 个并发），避免单请求响应过大（wage 命名空间可达 2.8MB）
+  const batchSize = 3;
+  const result = [];
+  let idx = 0;
+  return new Promise((resolve, reject) => {
+    function nextBatch() {
+      const batch = keys.slice(idx, idx + batchSize);
+      idx += batchSize;
+      if (batch.length === 0) { resolve(result); return; }
+      Promise.all(batch.map(k => {
+        const cloudKey = prefix + k;
+        return req('GET', '/v1/rdb/rest/' + CONFIG.table,
+          '?select=id,data&id=eq.' + encodeURIComponent(cloudKey), null, null, false)
+          .then(rows => {
+            if (!Array.isArray(rows) || !rows.length) return null;
+            const m = mapRow(rows[0]);
+            return { key: k, value: m.value, updatedAt: m.updatedAt };
+          })
+          .catch(err => { console.warn('[cloudbase] 拉取 ' + k + ' 失败:', err && err.errMsg || err); return null; });
+      })).then(items => {
+        items.forEach(it => { if (it) result.push(it); });
+        if (Object.keys(pending).length === 0) setSyncState('idle');
+        nextBatch();
       });
-    });
+    }
+    nextBatch();
+  });
 }
 
 /** 按裸键拉取单条 → {key, value, updatedAt}（无数据返回 null） */
@@ -317,6 +325,49 @@ function pull(key) {
       const m = mapRow(rows[0]);
       return { key: key, value: m.value, updatedAt: m.updatedAt };
     });
+}
+
+/* ============ 大容量本地存储分片（规避微信单 key 1MB 上限） ============ */
+const SHARD_THRESHOLD = 900 * 1024;
+const SHARD_CHUNK = 800 * 1024;
+const SHARD_META_SUFFIX = '__shard_meta';
+function _shardMetaKey(key) { return key + SHARD_META_SUFFIX; }
+function _shardKey(key, i) { return key + '__s' + i; }
+
+function safeSet(key, value) {
+  try {
+    try {
+      const oldMeta = wx.getStorageSync(_shardMetaKey(key));
+      if (oldMeta && oldMeta.count) {
+        for (let i = 0; i < oldMeta.count; i++) { try { wx.removeStorageSync(_shardKey(key, i)); } catch (e) {} }
+      }
+      wx.removeStorageSync(_shardMetaKey(key));
+    } catch (e) {}
+    const json = JSON.stringify(value);
+    if (json.length <= SHARD_THRESHOLD) { wx.setStorageSync(key, value); return true; }
+    const chunks = [];
+    for (let pos = 0; pos < json.length; pos += SHARD_CHUNK) chunks.push(json.slice(pos, pos + SHARD_CHUNK));
+    for (let i = 0; i < chunks.length; i++) wx.setStorageSync(_shardKey(key, i), chunks[i]);
+    wx.setStorageSync(_shardMetaKey(key), { count: chunks.length, size: json.length });
+    try { wx.removeStorageSync(key); } catch (e) {}
+    return true;
+  } catch (e) { console.warn('[cloudbase] safeSet 失败 key=' + key, e && e.errMsg || e); return false; }
+}
+
+function safeGet(key) {
+  try {
+    const meta = wx.getStorageSync(_shardMetaKey(key));
+    if (meta && meta.count) {
+      const parts = [];
+      for (let i = 0; i < meta.count; i++) {
+        const p = wx.getStorageSync(_shardKey(key, i));
+        if (p === '' || p === undefined || p === null) return null;
+        parts.push(p);
+      }
+      return JSON.parse(parts.join(''));
+    }
+    return wx.getStorageSync(key);
+  } catch (e) { return null; }
 }
 
 /* ============ 可靠推送队列（本地写入绝不丢） ============
@@ -349,22 +400,6 @@ let currentFlush = null;
 let flushTimer = null;
 let backoffUntil = 0;
 
-/* ============ 同步状态指示灯 ============
- * idle(已同步) / pending(上传中) / error(上传失败) / offline(未连接)
- */
-let _syncState = 'idle';
-const _syncCbs = [];
-function setSyncState(state) {
-  if (state === _syncState) return;
-  _syncState = state;
-  _syncCbs.forEach(function (cb) { try { cb(state); } catch (e) {} });
-}
-function getSyncState() { return _syncState; }
-function onSyncStateChange(cb) {
-  if (typeof cb === 'function') _syncCbs.push(cb);
-  try { cb(_syncState); } catch (e) {}
-}
-
 function persistPending() { try { wx.setStorageSync(PENDING_KEY, pending); } catch (e) {} }
 function persistMeta() { try { wx.setStorageSync(META_KEY, localMeta); } catch (e) {} }
 
@@ -390,14 +425,13 @@ function rawPush(cloudKey, value) {
  * 立即返回；实际发送由队列异步完成，失败自动重试，调用方无需 await。
  */
 function push(key, value) {
-  if (!isConfigured()) { setSyncState('offline'); return Promise.resolve(false); }
+  if (!isConfigured()) return Promise.resolve(false);
   const ts = Date.now();
   localMeta[key] = ts;
   persistMeta();
   // 同键后写覆盖先写（payload 为完整数组，旧快照没有发送价值）
   pending[toCloudKey(key)] = { key: key, value: value, ts: ts, tries: 0 };
   persistPending();
-  setSyncState('pending');
   scheduleFlush(50);
   return flushQueue();
 }
@@ -439,7 +473,6 @@ function flushQueue() {
           persistPending();
           backoffUntil = Date.now() + backoffMs(entry.tries);
           console.warn('[cloudbase] 推送 ' + entry.key + ' 未成功，已留在本地队列，' + Math.round((backoffUntil - Date.now()) / 1000) + ' 秒后自动重试');
-          setSyncState('error');
           scheduleFlush(backoffUntil - Date.now() + 50);
           return false;
         }
@@ -447,9 +480,7 @@ function flushQueue() {
         persistPending();
         backoffUntil = 0;
       }
-      const allDone = Object.keys(pending).length === 0;
-      if (allDone) setSyncState('idle');
-      return allDone;
+      return Object.keys(pending).length === 0;
     } finally {
       flushing = false;
       currentFlush = null;
@@ -505,15 +536,7 @@ function takeCloud(key, cloudUpdatedAt, localValue) {
 // 网络恢复时立刻补发（监听器注册一次即可，重复注册无害）
 try {
   if (typeof wx.onNetworkStatusChange === 'function') {
-    wx.onNetworkStatusChange(function (res) {
-      if (res && res.isConnected) {
-        if (Object.keys(pending).length > 0) setSyncState('pending');
-        else setSyncState('idle');
-        flushQueue();
-      } else {
-        setSyncState('offline');
-      }
-    });
+    wx.onNetworkStatusChange(function (res) { if (res && res.isConnected) flushQueue(); });
   }
 } catch (e) {}
 
@@ -567,8 +590,7 @@ module.exports = {
   isConfigured,
   // 数据同步（与原 supabase.js 导出一致）
   pullAll, pull, push, flushQueue, takeCloud, setSuppressPush,
-  // 同步状态指示灯
-  getSyncState, onSyncStateChange,
+  safeGet, safeSet,
   // 门户登录 / 用户会话
   login, getUser, logoutUser, appVisible,
   // 云函数 / 通用鉴权请求（云存储文件中心等上层使用）

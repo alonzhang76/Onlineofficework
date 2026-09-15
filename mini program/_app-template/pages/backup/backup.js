@@ -50,12 +50,16 @@ Page({
   pullCloud() {
     if (this.data.syncing) return;
     this.setData({ syncing: true });
-    db.syncFromCloud((changed) => {
+    db.syncFromCloud((changed, applied) => {
       this.setData({ syncing: false });
       const text = '上次同步：' + fmt.nowTime();
       try { wx.setStorageSync('_last_sync_text', text); } catch (e) {}
       this.render();
-      wx.showToast({ title: changed ? '已同步（有更新）' : '已同步（无变化）', icon: 'none' });
+      if (changed === false && applied === 0) {
+        wx.showToast({ title: '同步失败，请检查网络', icon: 'none' });
+      } else {
+        wx.showToast({ title: changed ? ('已同步（' + applied + ' 项更新）') : '已同步（无变化）', icon: 'none' });
+      }
     });
   },
 

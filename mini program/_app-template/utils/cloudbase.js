@@ -287,21 +287,33 @@ function mapRow(r) {
 function pullAll(ns) {
   const keys = (CONFIG.namespaces && CONFIG.namespaces[ns]) || CONFIG.syncKeys;
   const prefix = (CONFIG.cloudPrefix && CONFIG.cloudPrefix[ns]) || '';
-  const keyList = keys.map(k => encodeURIComponent(prefix + k)).join(',');
-  return req('GET', '/v1/rdb/rest/' + CONFIG.table,
-    '?select=id,data&id=in.(' + keyList + ')', null, null, false)
-    .then(rows => {
-      if (!Array.isArray(rows)) return rows;
-      // 云端键名去前缀，统一还原为数据层使用的裸键
-      return rows.map(r => {
-        const m = mapRow(r);
-        return {
-          key: prefix && m.key.indexOf(prefix) === 0 ? m.key.slice(prefix.length) : m.key,
-          value: m.value,
-          updatedAt: m.updatedAt
-        };
+  // 逐键拉取（每批 3 个并发），避免单请求响应过大（wage 命名空间可达 2.8MB）
+  const batchSize = 3;
+  const result = [];
+  let idx = 0;
+  return new Promise((resolve, reject) => {
+    function nextBatch() {
+      const batch = keys.slice(idx, idx + batchSize);
+      idx += batchSize;
+      if (batch.length === 0) { resolve(result); return; }
+      Promise.all(batch.map(k => {
+        const cloudKey = prefix + k;
+        return req('GET', '/v1/rdb/rest/' + CONFIG.table,
+          '?select=id,data&id=eq.' + encodeURIComponent(cloudKey), null, null, false)
+          .then(rows => {
+            if (!Array.isArray(rows) || !rows.length) return null;
+            const m = mapRow(rows[0]);
+            return { key: k, value: m.value, updatedAt: m.updatedAt };
+          })
+          .catch(err => { console.warn('[cloudbase] 拉取 ' + k + ' 失败:', err && err.errMsg || err); return null; });
+      })).then(items => {
+        items.forEach(it => { if (it) result.push(it); });
+        if (Object.keys(pending).length === 0) setSyncState('idle');
+        nextBatch();
       });
-    });
+    }
+    nextBatch();
+  });
 }
 
 /** 按裸键拉取单条 → {key, value, updatedAt}（无数据返回 null） */
@@ -313,6 +325,49 @@ function pull(key) {
       const m = mapRow(rows[0]);
       return { key: key, value: m.value, updatedAt: m.updatedAt };
     });
+}
+
+/* ============ 大容量本地存储分片（规避微信单 key 1MB 上限） ============ */
+const SHARD_THRESHOLD = 900 * 1024;
+const SHARD_CHUNK = 800 * 1024;
+const SHARD_META_SUFFIX = '__shard_meta';
+function _shardMetaKey(key) { return key + SHARD_META_SUFFIX; }
+function _shardKey(key, i) { return key + '__s' + i; }
+
+function safeSet(key, value) {
+  try {
+    try {
+      const oldMeta = wx.getStorageSync(_shardMetaKey(key));
+      if (oldMeta && oldMeta.count) {
+        for (let i = 0; i < oldMeta.count; i++) { try { wx.removeStorageSync(_shardKey(key, i)); } catch (e) {} }
+      }
+      wx.removeStorageSync(_shardMetaKey(key));
+    } catch (e) {}
+    const json = JSON.stringify(value);
+    if (json.length <= SHARD_THRESHOLD) { wx.setStorageSync(key, value); return true; }
+    const chunks = [];
+    for (let pos = 0; pos < json.length; pos += SHARD_CHUNK) chunks.push(json.slice(pos, pos + SHARD_CHUNK));
+    for (let i = 0; i < chunks.length; i++) wx.setStorageSync(_shardKey(key, i), chunks[i]);
+    wx.setStorageSync(_shardMetaKey(key), { count: chunks.length, size: json.length });
+    try { wx.removeStorageSync(key); } catch (e) {}
+    return true;
+  } catch (e) { console.warn('[cloudbase] safeSet 失败 key=' + key, e && e.errMsg || e); return false; }
+}
+
+function safeGet(key) {
+  try {
+    const meta = wx.getStorageSync(_shardMetaKey(key));
+    if (meta && meta.count) {
+      const parts = [];
+      for (let i = 0; i < meta.count; i++) {
+        const p = wx.getStorageSync(_shardKey(key, i));
+        if (p === '' || p === undefined || p === null) return null;
+        parts.push(p);
+      }
+      return JSON.parse(parts.join(''));
+    }
+    return wx.getStorageSync(key);
+  } catch (e) { return null; }
 }
 
 /* ============ 可靠推送队列（本地写入绝不丢） ============
@@ -535,6 +590,7 @@ module.exports = {
   isConfigured,
   // 数据同步（与原 supabase.js 导出一致）
   pullAll, pull, push, flushQueue, takeCloud, setSuppressPush,
+  safeGet, safeSet,
   // 门户登录 / 用户会话
   login, getUser, logoutUser, appVisible,
   // 云函数 / 通用鉴权请求（云存储文件中心等上层使用）

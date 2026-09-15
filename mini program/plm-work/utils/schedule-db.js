@@ -28,7 +28,7 @@ function r2(v) { return Math.round(num(v) * 100) / 100; }
 function loadAll() {
   KEYS.forEach(k => {
     try {
-      const v = wx.getStorageSync(k);
+      const v = supa.safeGet(k);
       if (v) data[k] = v;
     } catch (e) { /* 忽略读取失败 */ }
   });
@@ -38,13 +38,14 @@ function loadAll() {
 }
 
 function save(key) {
-  try { wx.setStorageSync(key, data[key]); } catch (e) { /* 存储失败静默 */ }
+  try { supa.safeSet(key, data[key]); } catch (e) { /* 存储失败静默 */ }
   supa.push(key, data[key]).catch(() => {});
 }
 
 function syncFromCloud(cb) {
   supa.setSuppressPush(true);
   supa.pullAll('schedule').then(rows => {
+    let applied = 0;
     if (Array.isArray(rows)) {
       rows.forEach(r => {
         if (!r || KEYS.indexOf(r.key) === -1 || r.value === null || r.value === undefined) return;
@@ -55,14 +56,15 @@ function syncFromCloud(cb) {
         // 本机存在未确认的新写入（或本地时间戳更新）时保留本地，防止旧云端数据回灌覆盖
         if (!supa.takeCloud(r.key, r.updatedAt, data[r.key])) return;
         data[r.key] = r.value;
-        try { wx.setStorageSync(r.key, r.value); } catch (e) { /* 存储失败静默 */ }
+        supa.safeSet(r.key, r.value);
+        applied++;
       });
     }
     supa.setSuppressPush(false);
-    if (typeof cb === 'function') cb(true);
+    if (typeof cb === 'function') cb(true, applied);
   }).catch(() => {
     supa.setSuppressPush(false);
-    if (typeof cb === 'function') cb(false);
+    if (typeof cb === 'function') cb(false, 0);
   });
 }
 

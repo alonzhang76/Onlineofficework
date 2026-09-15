@@ -84,9 +84,10 @@ Page({
   pullCloud() {
     if (!supa.isConfigured()) { wx.showToast({ title: '未配置 CloudBase', icon: 'none' }); return; }
     wx.showLoading({ title: '正在拉取…' });
-    db.syncFromCloud(() => {
+    db.syncFromCloud((ok, count) => {
       wx.hideLoading();
-      wx.showToast({ title: '已从云端同步', icon: 'success' });
+      if (ok) wx.showToast({ title: '已从云端同步（' + count + ' 项）', icon: 'success' });
+      else wx.showToast({ title: '同步失败，请检查网络', icon: 'none' });
       this.render();
     });
   },

@@ -1,0 +1,143 @@
+/* ============================================================
+ * tablet-compat.css — iPad / 平板满屏自适应（所有应用共用）
+ * 适用：orderschedule / wicketorders / wage / saintysys /
+ *      purchase / stainlessbusiness / incomeexpense
+ * 目标宽度：768 / 810 / 820 / 834（竖屏）、1024 / 1080 / 1112 /
+ *          1180 / 1366（横屏）的 iPad 全系
+ * ============================================================ */
+
+/* ---------- 基础：满屏、动态视口高度、安全区 ---------- */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+html, body {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  overflow-x: hidden;
+}
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Tailwind 的 .container 会在各断点限宽并居中，iPad 上改为真正满宽
+   （横向内边距仍由 px-* 等工具类保留） */
+.container { max-width: 100% !important; }
+
+/* ---------- 通用元素：不出现横向溢出 / 挤压 ---------- */
+img, svg, video, canvas { max-width: 100%; }
+input, select, textarea { max-width: 100%; }
+pre { white-space: pre-wrap; word-break: break-word; }
+
+/* 表格：已知包裹容器统一横向滑动 */
+.table-wrap,
+.table-container,
+.table-responsive,
+.ant-table-content,
+.card .table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: contain;
+}
+
+/* 弹窗：任何屏宽下都不超出视口 */
+.modal-content,
+.modal .modal-box,
+.ant-modal,
+.ant-modal-content {
+  max-width: calc(100vw - 24px);
+  max-width: calc(100dvw - 24px);
+}
+.ant-modal { top: 20px; padding-bottom: 20px; }
+.ant-modal .ant-modal-body { max-height: 70vh; max-height: 70dvh; overflow-y: auto; }
+
+/* ============================================================
+ * iPad 平板区间（≤1180px，覆盖竖屏 768~1024 与小尺寸横屏）
+ * ============================================================ */
+@media (max-width: 1180px) {
+  /* ---- orderschedule ---- */
+  #app-container .header { padding: 14px 18px; flex-wrap: wrap; gap: 10px; }
+  #app-container .header h1 { font-size: 22px; }
+  #app-container .nav-tabs { flex-wrap: wrap; overflow-x: visible; }
+  #app-container .nav-tab { flex: 1 1 auto; min-width: 130px; justify-content: center; padding: 10px 14px; }
+  #app-container .content-section { padding: 14px; overflow-x: auto; }
+
+  /* ---- wicketorders ---- */
+  .top-nav-content { flex-wrap: wrap; gap: 8px; }
+  .nav-tabs { flex-wrap: wrap; }
+  main { width: 100%; min-width: 0; }
+
+  /* ---- wage（≤1024 已有 60px 窄侧栏，补齐其余布局） ---- */
+  .main { width: calc(100% - 60px); }
+  .topbar { padding: 10px 14px; flex-wrap: wrap; gap: 8px; }
+  .content { padding: 14px; }
+
+  /* ---- saintysys ---- */
+  .app-header { padding: 0 10px; flex-wrap: wrap; height: auto; min-height: var(--header-h); }
+  .header-title { font-size: 13px; }
+  .main-area > * { min-width: 0; }
+  .page-container, .page-content, main { padding-left: 10px; padding-right: 10px; }
+
+  /* ---- purchase（Tailwind：<lg 已是抽屉侧栏，补头部/按钮换行） ---- */
+  header, .app-header-bar { flex-wrap: wrap; }
+  .toolbar, .filter-bar, .action-bar { flex-wrap: wrap; }
+
+  /* ---- stainlessbusiness（React + antd） ---- */
+  .ant-layout { min-height: 100vh; min-height: 100dvh; }
+  .ant-table-content {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x pan-y;
+    overscroll-behavior-x: contain;
+  }
+  .ant-table-content > table { min-width: 100%; width: max-content; }
+  .ant-pro-page-container-children-content,
+  .ant-pro-grid-content { margin: 0 !important; }
+
+  /* ---- incomeexpense ---- */
+  .glass-effect { max-width: calc(100vw - 24px) !important; }
+
+  /* 通用：统计卡片/表单在窄屏降列，避免被压扁 */
+  .stats-grid,
+  .stats-row,
+  .stat-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important; }
+
+  /* 按钮组不溢出、可换行 */
+  .btn-group, .header-actions, .topbar-info, .toolbar, .filter-bar {
+    flex-wrap: wrap;
+  }
+}
+
+/* ============================================================
+ * iPad 竖屏（≤834px）：再收紧内边距，表单/统计降为两列
+ * ============================================================ */
+@media (max-width: 834px) {
+  #app-container { padding: 10px; }
+  #app-container .header h1 { font-size: 20px; }
+  .form-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .content,
+  #app-container .content-section,
+  .page-container, .page-content { padding: 12px !important; }
+}
+
+/* ============================================================
+ * iPad mini 竖屏 / 大手机（≤768px）：各应用已有手机端样式，
+ * 这里只补 dvh、安全区与防遗漏
+ * ============================================================ */
+@media (max-width: 768px) {
+  .layout, .app-layout { min-height: 100vh; min-height: 100dvh; }
+  /* saintysys 抽屉侧栏展开时主内容区满宽（其自身样式已处理，兜底） */
+  .main-area { margin-left: 0 !important; }
+  /* 弹窗在窄屏贴边铺满 */
+  .modal-content { width: calc(100vw - 20px) !important; max-width: calc(100vw - 20px) !important; }
+  .ant-modal { max-width: calc(100vw - 16px); margin: 8px auto !important; }
+}

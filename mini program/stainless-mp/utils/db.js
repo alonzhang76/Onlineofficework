@@ -21,7 +21,7 @@ function loadAll() {
   const keys = cb.CONFIG.namespaces.app;
   keys.forEach(k => {
     let v = null;
-    try { v = wx.getStorageSync(k); } catch (e) {}
+    try { v = cb.safeGet(k); } catch (e) {}
     if (v === '' || v === null || v === undefined) {
       v = DEFAULTS[k] !== undefined ? JSON.parse(JSON.stringify(DEFAULTS[k])) : [];
     }
@@ -33,7 +33,7 @@ function loadAll() {
 function ensureLoaded() { if (!_loaded) loadAll(); }
 
 function persist(key) {
-  try { wx.setStorageSync(key, data[key]); } catch (e) {}
+  try { cb.safeSet(key, data[key]); } catch (e) {}
 }
 
 /** 数据键默认值（新设备首次进入时初始化对象型键） */
@@ -64,25 +64,26 @@ function syncFromCloud(done) {
   cb.setSuppressPush(true);
   cb.pullAll('app').then(rows => {
     let changed = false;
+    let applied = 0;
     (rows || []).forEach(r => {
       if (!r || r.key === undefined) return;
       const k = r.key;
       if (data[k] === undefined) return; // 不属于本应用的键
-      const localMs = 0; // 由 takeCloud 内部维护本地写入时间
       if (cb.takeCloud(k, r.updatedAt, data[k])) {
         if (JSON.stringify(data[k]) !== JSON.stringify(r.value)) {
           data[k] = r.value === null ? defaultValue(k) : r.value;
           persist(k);
           changed = true;
+          applied++;
         }
       }
     });
     cb.setSuppressPush(false);
-    if (typeof done === 'function') done(changed);
+    if (typeof done === 'function') done(changed, applied);
   }).catch(err => {
     cb.setSuppressPush(false);
     console.warn('[db] pull failed', err);
-    if (typeof done === 'function') done(false);
+    if (typeof done === 'function') done(false, 0);
   });
 }
 

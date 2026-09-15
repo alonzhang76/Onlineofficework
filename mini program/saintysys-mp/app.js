@@ -45,41 +45,14 @@ App({
     });
     cb.flushQueue();
     this._lastTick = Date.now();
-    // 同步状态指示灯：监听 cloudbase 状态变化，下发给当前页面 + 关键状态弹 toast
-    this._lastToastState = null;
-    cb.onSyncStateChange(state => this.propagateSyncState(state));
   },
 
   onShow() {
     cb.flushQueue();
-    this.propagateSyncState(cb.getSyncState());
   },
 
   onHide() {
     cb.flushQueue();
-  },
-
-  /** 把同步状态下发给当前页面（用于驱动指示灯 UI）+ 关键状态弹 toast
-   *  必须延迟到下一个 tick，避免在 App.onLaunch 早期阶段调用 setData
-   *  触发框架 "J.updatePage is not a function" 警告。
-   */
-  propagateSyncState(state) {
-    setTimeout(() => {
-      try {
-        const pages = getCurrentPages();
-        const page = pages[pages.length - 1];
-        if (page && typeof page.setData === 'function') {
-          page.setData({ __syncState: state });
-        }
-      } catch (e) {}
-      if (state === this._lastToastState) return;
-      this._lastToastState = state;
-      if (state === 'error') {
-        wx.showToast({ title: '上传失败，重试中', icon: 'none', duration: 1500 });
-      } else if (state === 'offline') {
-        wx.showToast({ title: '云端未连接', icon: 'none', duration: 1500 });
-      }
-    }, 0);
   },
 
   /** 节流的云端拉取（页面 onShow 触发；8 秒内不重复） */

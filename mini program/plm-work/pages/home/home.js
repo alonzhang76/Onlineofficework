@@ -54,13 +54,21 @@ Page({
       new Promise(r => scheduleDb.syncFromCloud(r)),
       new Promise(r => purchaseDb.syncFromCloud(r)),
       new Promise(r => incomeDb.syncFromCloud(r))
-    ]).then(() => {
+    ]).then(results => {
       this.render();
       wx.stopPullDownRefresh();
-      wx.showToast({ title: '已同步云端数据', icon: 'none' });
+      // results: [[ok,count], ...]；统计成功应用的总条数
+      const totalApplied = results.reduce((s, r) => s + ((r && r[1]) || 0), 0);
+      const anyOk = results.some(r => r && r[0]);
+      if (anyOk) {
+        wx.showToast({ title: '已同步云端（' + totalApplied + ' 项）', icon: 'none' });
+      } else {
+        wx.showToast({ title: '云端同步失败，请检查网络', icon: 'none' });
+      }
     }).catch(() => {
       this.render();
       wx.stopPullDownRefresh();
+      wx.showToast({ title: '云端同步失败', icon: 'none' });
     });
   },
 

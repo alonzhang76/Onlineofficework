@@ -105,7 +105,7 @@ function normalizeUnits() {
 function loadAll() {
   KEYS.forEach(k => {
     try {
-      const v = wx.getStorageSync(k);
+      const v = supa.safeGet(k);
       if (v !== '' && v !== undefined && v !== null) data[k] = v;
     } catch (e) { /* 忽略 */ }
   });
@@ -119,7 +119,7 @@ function loadAll() {
 }
 
 function save(key) {
-  try { wx.setStorageSync(key, data[key]); } catch (e) { /* 静默 */ }
+  try { supa.safeSet(key, data[key]); } catch (e) { /* 静默 */ }
   supa.push(key, data[key]).catch(() => {});
 }
 
@@ -129,6 +129,7 @@ function syncFromCloud(cb) {
   if (!supa.isConfigured()) { cb(false); return; }
   supa.setSuppressPush(true);
   supa.pullAll('incomeexpense').then(rows => {
+    let applied = 0;
     if (Array.isArray(rows)) {
       rows.forEach(r => {
         // 只接受本数据层已知键，且忽略空值
@@ -142,7 +143,8 @@ function syncFromCloud(cb) {
         } else {
           data[r.key] = r.value;
         }
-        try { wx.setStorageSync(r.key, r.value); } catch (e) {}
+        supa.safeSet(r.key, r.value);
+        applied++;
       });
       // 类型兜底
       KEYS.forEach(k => {
@@ -153,8 +155,8 @@ function syncFromCloud(cb) {
       normalizeUnits();
     }
     supa.setSuppressPush(false);
-    cb(true);
-  }).catch(err => { supa.setSuppressPush(false); console.warn('[cloudbase] income pull failed', err); cb(false); });
+    cb(true, applied);
+  }).catch(err => { supa.setSuppressPush(false); console.warn('[cloudbase] pull failed', err); cb(false, 0); });
 }
 
 // ==================== 流水 ====================

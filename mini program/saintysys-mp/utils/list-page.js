@@ -45,10 +45,14 @@ function makePage(schema) {
     },
 
     onPullDownRefresh() {
-      db.syncFromCloud(() => {
+      db.syncFromCloud((changed, applied) => {
         this.render();
         wx.stopPullDownRefresh();
-        wx.showToast({ title: '已同步云端数据', icon: 'none' });
+        if (changed === false && applied === 0) {
+          wx.showToast({ title: '云端同步失败', icon: 'none' });
+        } else {
+          wx.showToast({ title: '已同步云端（' + applied + ' 项）', icon: 'none' });
+        }
       });
     },
 

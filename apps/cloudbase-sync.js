@@ -279,27 +279,22 @@
       Object.keys(newest).forEach(function (sk) {
         var row = newest[sk];
         var origKey = unprefixKey(sk);
-        if (!origKey || cache[origKey] !== undefined) return;
+        if (!origKey) return;
+        // LWW：只有云端 updated_at 严格新于本地已知同步时间才覆盖。
+        // cacheTs 未设置（首次加载）时直接采用云端，避免本地旧数据（如 60 条）
+        // 抢先入缓存后把云端新数据（740 条）挡在外面。
+        var localTs = cacheTs[origKey];
+        if (localTs) {
+          try {
+            if (new Date(row.updated_at).getTime() <= new Date(localTs).getTime()) return;
+          } catch (e) {}
+        }
         var val = row.payload;
         // 云端值为空而本机非空时，用本机值兜底（防止云端空行清空本机数据）
         if (isEmptyValue(val)) {
           var nv = nativeGet(toLocalKey(origKey));
           if (nv !== null && nv !== undefined && nv !== '') {
             try { val = JSON.parse(nv); } catch (e) { val = nv; }
-          }
-        }
-        // 手动同步模式：本地可能存在尚未上传的修改（setItem 不自动同步），
-        // 刷新页面后若直接用云端值覆盖缓存，本地修改会"消失"。
-        // 因此本地与云端内容不一致时，优先采用本地值（手动同步场景下本地为最新）。
-        var localRaw2 = nativeGet(toLocalKey(origKey));
-        if (localRaw2 !== null && localRaw2 !== undefined && localRaw2 !== '') {
-          var localVal2;
-          try { localVal2 = JSON.parse(localRaw2); } catch (e) { localVal2 = localRaw2; }
-          var cloudStr2, localStr2;
-          try { cloudStr2 = JSON.stringify(val); } catch (e) { cloudStr2 = String(val); }
-          try { localStr2 = JSON.stringify(localVal2); } catch (e) { localStr2 = String(localVal2); }
-          if (localStr2 !== cloudStr2) {
-            val = localVal2;
           }
         }
         cache[origKey] = val;
@@ -508,6 +503,9 @@
       _isUploading = false;
       _consecutiveFails = 0;
       delete pendingWrites[key]; // 成功则清除挂起
+      // 上传成功后更新 cacheTs 为当前时间，代表本地与云端已同步，
+      // 后续 refreshFromCloud 不会用同一时刻的云端数据重复覆盖。
+      cacheTs[key] = new Date().toISOString();
       if (hasNewer) {
         // 同 key 有更新值在队列里，跳过当前这次（用最新值）
         processUploadQueue();
@@ -712,9 +710,12 @@
       try { _origSetItem.call(this, toLocalKey(key), value); } catch (e) {}
 
       try { cache[key] = JSON.parse(value); } catch (e) { cache[key] = value; }
-      // 本地写入必须同步更新时间戳，否则 refreshFromCloud 的 LWW 比较
-      // 用的还是初始化时从云端加载的旧值，云端旧数据会覆盖刚写入的本地数据
-      cacheTs[key] = new Date().toISOString();
+      // 注意：不在此设置 cacheTs[key] = now。
+      // 若把本地写入时间当作"数据更新时间"，会导致 refreshFromCloud 的 LWW 比较
+      // 中 localTime 永远 >= cloudTime，云端新数据永远无法覆盖本地旧数据
+      // （典型：A 机上传 740 条，B 机本地有 60 条旧数据，下载后仍显示 60 条）。
+      // 本地写入的防覆盖保护由 recentWrites（10s 窗口）+ pendingWrites 承担。
+      // cacheTs 只在「从云端加载」或「上传成功」后更新，代表真实云端同步时间。
       recentWrites[key] = Date.now();
 
       // 自动同步到云端（防抖 + 串行上传，避免并发堆积）。

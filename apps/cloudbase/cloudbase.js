@@ -774,7 +774,7 @@ class TcbQueryBuilder {
       if (errG) throw errG;
       stored = (g && g.data) || [];
     } else {
-      var PAGE = 1000, MAX_ROWS = 5000, skip = 0;
+      var PAGE = 100, MAX_ROWS = 5000, skip = 0;
       while (true) {
         var page = await db.from(this._table).select("*").range(skip, skip + PAGE - 1);
         var errP = rdbErr(page);

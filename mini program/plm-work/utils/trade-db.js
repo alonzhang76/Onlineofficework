@@ -89,13 +89,13 @@ function r2(v) { return Math.round(num(v) * 100) / 100; }
 
 function loadAll() {
   Object.keys(KEYS).forEach(k => {
-    const v = wx.getStorageSync(KEYS[k]);
+    const v = supa.safeGet(KEYS[k]);
     if (Array.isArray(v)) data[k] = v;
   });
 }
 
 function save(key) {
-  try { wx.setStorageSync(KEYS[key], data[key]); } catch (e) { console.warn('storage full', e); }
+  try { supa.safeSet(KEYS[key], data[key]); } catch (e) { console.warn('storage full', e); }
   supa.push(KEYS[key], data[key]).catch(err => console.warn('[cloudbase] push failed', KEYS[key], err));
 }
 
@@ -105,6 +105,7 @@ function syncFromCloud(cb) {
   if (!supa.isConfigured()) { cb(false); return; }
   supa.setSuppressPush(true);
   supa.pullAll('trade').then(rows => {
+    let applied = 0;
     if (Array.isArray(rows)) {
       rows.forEach(r => {
         const k = Object.keys(KEYS).find(x => KEYS[x] === r.key);
@@ -112,12 +113,13 @@ function syncFromCloud(cb) {
         // 本机存在未确认的新写入（或本地时间戳更新）时保留本地，防止旧云端数据回灌覆盖
         if (!supa.takeCloud(r.key, r.updatedAt, data[k])) return;
         data[k] = r.value;
-        try { wx.setStorageSync(r.key, r.value); } catch (e) {}
+        supa.safeSet(r.key, r.value);
+        applied++;
       });
     }
     supa.setSuppressPush(false);
-    cb(true);
-  }).catch(err => { supa.setSuppressPush(false); console.warn('[cloudbase] pull failed', err); cb(false); });
+    cb(true, applied);
+  }).catch(err => { supa.setSuppressPush(false); console.warn('[cloudbase] pull failed', err); cb(false, 0); });
 }
 
 /* ============ 订单管理 ============ */

@@ -1,9 +1,4 @@
 <view class="page">
-  <!-- 云同步状态指示灯（右上角悬浮） -->
-  <view class="sync-float sync-badge sync-badge-{{__syncState}}">
-    <view class="sync-dot"></view>
-    <text class="sync-text">{{__syncState === 'idle' ? '已同步' : __syncState === 'pending' ? '上传中' : __syncState === 'error' ? '上传失败' : '未连接'}}</text>
-  </view>
   <!-- 品牌栏 -->
   <view class="brand">
     <view class="brand-logo"><text class="brand-logo-text">普</text></view>

@@ -50,7 +50,7 @@ function sanitizeOrders() {
 
 function loadAll() {
   Object.keys(KEYS).forEach(k => {
-    const v = wx.getStorageSync(KEYS[k]);
+    const v = supa.safeGet(KEYS[k]);
     if (k === 'dropdownOptions') { if (v && typeof v === 'object') Object.assign(data.dropdownOptions, v); }
     else if (k === 'calendarEventTypes') { if (Array.isArray(v) && v.length) data.calendarEventTypes = v; }
     else if (Array.isArray(v)) data[k] = v;
@@ -59,7 +59,7 @@ function loadAll() {
 }
 
 function save(key) {
-  try { wx.setStorageSync(KEYS[key], data[key]); } catch (e) { console.warn('storage full', e); }
+  try { supa.safeSet(KEYS[key], data[key]); } catch (e) { console.warn('storage full', e); }
   // 异步推送云端（未配置 CloudBase 时静默跳过）
   supa.push(KEYS[key], data[key]).catch(err => console.warn('[cloudbase] push failed', KEYS[key], err));
 }
@@ -70,6 +70,7 @@ function syncFromCloud(cb) {
   if (!supa.isConfigured()) { cb(false); return; }
   supa.setSuppressPush(true);
   supa.pullAll('wage').then(rows => {
+    let applied = 0;
     if (Array.isArray(rows)) {
       rows.forEach(r => {
         const k = Object.keys(KEYS).find(x => KEYS[x] === r.key);
@@ -79,13 +80,14 @@ function syncFromCloud(cb) {
         if (k === 'dropdownOptions') { if (typeof r.value === 'object') Object.assign(data.dropdownOptions, r.value); }
         else if (k === 'calendarEventTypes') { if (Array.isArray(r.value) && r.value.length) data.calendarEventTypes = r.value; }
         else if (Array.isArray(r.value)) data[k] = r.value;
-        try { wx.setStorageSync(r.key, r.value); } catch (e) {}
+        supa.safeSet(r.key, r.value);
+        applied++;
       });
       sanitizeOrders();
     }
     supa.setSuppressPush(false);
-    cb(true);
-  }).catch(err => { supa.setSuppressPush(false); console.warn('[cloudbase] pull failed', err); cb(false); });
+    cb(true, applied);
+  }).catch(err => { supa.setSuppressPush(false); console.warn('[cloudbase] pull failed', err); cb(false, 0); });
 }
 
 /* ============ 通用 CRUD ============ */

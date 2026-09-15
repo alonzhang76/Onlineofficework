@@ -2,9 +2,10 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>首页 - AA服装外贸系统</title>
 <link rel="stylesheet" href="css/common.css?v=20260812">
+<link rel="stylesheet" href="../tablet-compat.css?v=20260915a">
 </head>
 <body>
 <div class="app-layout">
@@ -14,9 +15,9 @@
       <button class="header-toggle">☰</button>
       <span class="header-title">首页仪表盘</span>
       <div class="header-actions">
-        <button class="btn btn-sm" onclick="CloudAdmin.pullFromCloud()" title="下载云端数据">⬇️</button>
-        <button class="btn btn-sm" onclick="CloudAdmin.pushToCloud()" title="上传本地到云端">⬆️</button>
-        <button class="btn btn-sm" onclick="CloudAdmin.clearCloudData()" title="清空云端数据" style="color:#dc2626;">🗑️</button>
+        <button class="btn btn-sm" onclick="CloudAdmin.pullFromCloud()" title="下载云端数据">⬇️ 下载</button>
+        <button class="btn btn-sm" onclick="CloudAdmin.pushToCloud()" title="上传本地到云端" style="background:#16a34a;color:#fff;">⬆️ 上传</button>
+        <button class="btn btn-sm" onclick="CloudAdmin.clearCloudData()" title="清空云端数据" style="color:#dc2626;">🗑️ 清空云端</button>
         <button class="btn btn-sm" onclick="App.backupData()">📦</button>
         <div class="header-user">
           <span>👤</span>
