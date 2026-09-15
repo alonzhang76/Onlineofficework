@@ -175,8 +175,11 @@
   }
 
   // ===== 保存原始 localStorage 方法（补丁打在 Storage.prototype 上）=====
-  var _lsInstance = window.localStorage;
-  var _StorageProto = Object.getPrototypeOf(_lsInstance);
+  // 不透明源文档（sandboxed iframe / srcdoc 等）访问 window.localStorage 会抛
+  // SecurityError，需 try-catch 兜底，缓存降级为纯内存模式。
+  var _lsInstance = null;
+  try { _lsInstance = window.localStorage; } catch (e) { _lsInstance = null; }
+  var _StorageProto = _lsInstance ? Object.getPrototypeOf(_lsInstance) : Storage.prototype;
   var _origGetItem = _StorageProto.getItem;
   var _origSetItem = _StorageProto.setItem;
   var _origRemoveItem = _StorageProto.removeItem;
@@ -186,8 +189,14 @@
     return RESERVED_KEYS.indexOf(key) >= 0;
   }
 
-  function nativeGet(k) { return _origGetItem.call(_lsInstance, k); }
-  function nativeSet(k, v) { return _origSetItem.call(_lsInstance, k, v); }
+  function nativeGet(k) {
+    try { return _origGetItem.call(_lsInstance, k); }
+    catch (e) { return null; }
+  }
+  function nativeSet(k, v) {
+    try { return _origSetItem.call(_lsInstance, k, v); }
+    catch (e) {}
+  }
 
   // ===== 动态加载共享 CloudBase 兼容层 =====
   // 兼容层相对路径固定为 apps/cloudbase/cloudbase.js，
@@ -682,20 +691,25 @@
   }
 
   // ===== 拦截 localStorage（Storage.prototype 补丁；sessionStorage 透传）=====
+  // 注意：部分浏览上下文（如 sandboxed iframe、srcdoc、不透明源文档）访问 Storage
+  // 会抛出 SecurityError "Access is denied for this document"，必须 try-catch 兜底，
+  // 否则保存/读取操作直接抛异常导致功能不可用。
   _StorageProto.getItem = function (key) {
     if (this === _lsInstance) {
       if (cache[key] !== undefined) {
         var val = cache[key];
         return typeof val === 'string' ? val : JSON.stringify(val);
       }
-      return _origGetItem.call(this, toLocalKey(key));
+      try { return _origGetItem.call(this, toLocalKey(key)); }
+      catch (e) { return null; }
     }
-    return _origGetItem.call(this, key);
+    try { return _origGetItem.call(this, key); }
+    catch (e) { return null; }
   };
 
   _StorageProto.setItem = function (key, value) {
     if (this === _lsInstance) {
-      _origSetItem.call(this, toLocalKey(key), value);
+      try { _origSetItem.call(this, toLocalKey(key), value); } catch (e) {}
 
       try { cache[key] = JSON.parse(value); } catch (e) { cache[key] = value; }
       // 本地写入必须同步更新时间戳，否则 refreshFromCloud 的 LWW 比较
@@ -709,12 +723,12 @@
       syncToCloud(key, cache[key]);
       return;
     }
-    return _origSetItem.call(this, key, value);
+    try { return _origSetItem.call(this, key, value); } catch (e) {}
   };
 
   _StorageProto.removeItem = function (key) {
     if (this === _lsInstance) {
-      _origRemoveItem.call(this, toLocalKey(key));
+      try { _origRemoveItem.call(this, toLocalKey(key)); } catch (e) {}
       delete cache[key];
       delete cacheTs[key];
       recentWrites[key] = Date.now();
@@ -725,7 +739,7 @@
       }
       return;
     }
-    return _origRemoveItem.call(this, key);
+    try { return _origRemoveItem.call(this, key); } catch (e) {}
   };
 
   // ===== 手动上传：把本地所有数据推送到云端（覆盖云端） =====
@@ -737,24 +751,28 @@
     // 空库保护：本地一个非 skip key 都没有时禁止上传
     var keysToUpload = [];
     var APP_PREFIX = APP_ID + '__';
-    for (var i = 0; i < localStorage.length; i++) {
-      var nativeKey = localStorage.key(i);
-      if (!nativeKey || isReservedKey(nativeKey)) continue;
-      var key;
-      if (REMAP_REVERSE[nativeKey] !== undefined) {
-        key = REMAP_REVERSE[nativeKey];
-      } else if (REMAP_ORIGINALS[nativeKey]) {
-        continue;
-      } else {
-        key = nativeKey;
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var nativeKey = localStorage.key(i);
+        if (!nativeKey || isReservedKey(nativeKey)) continue;
+        var key;
+        if (REMAP_REVERSE[nativeKey] !== undefined) {
+          key = REMAP_REVERSE[nativeKey];
+        } else if (REMAP_ORIGINALS[nativeKey]) {
+          continue;
+        } else {
+          key = nativeKey;
+        }
+        // 跳过带其他应用前缀的 key
+        var underScoreIdx = key.indexOf('__');
+        if (underScoreIdx > 0 && key.slice(0, underScoreIdx + 2) !== APP_PREFIX) continue;
+        if (shouldSkip(key)) continue;
+        var raw = nativeGet(nativeKey);
+        if (raw === null || raw === undefined || raw === '') continue;
+        keysToUpload.push({ key: key, raw: raw });
       }
-      // 跳过带其他应用前缀的 key
-      var underScoreIdx = key.indexOf('__');
-      if (underScoreIdx > 0 && key.slice(0, underScoreIdx + 2) !== APP_PREFIX) continue;
-      if (shouldSkip(key)) continue;
-      var raw = nativeGet(nativeKey);
-      if (raw === null || raw === undefined || raw === '') continue;
-      keysToUpload.push({ key: key, raw: raw });
+    } catch (e) {
+      // localStorage 不可用（不透明源文档），跳过本地遍历
     }
 
     if (keysToUpload.length === 0) {
