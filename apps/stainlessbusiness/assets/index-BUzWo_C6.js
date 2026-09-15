@@ -4612,16 +4612,30 @@ use chrome, FireFox or Internet Explorer 11`)}var l=t("safe-buffer"),c=t("random
         for (var i = 0; i < recordIds.length; i++) {
           idSet[recordIds[i]] = true;
         }
+        // 收集每行备注2的值
+        var remarks2Cells = document.querySelectorAll('.remarks2-cell');
+        var remarks2Map = {};
+        for (var r = 0; r < remarks2Cells.length; r++) {
+          var rid = remarks2Cells[r].getAttribute('data-record-id');
+          remarks2Map[rid] = remarks2Cells[r].value;
+        }
         var updated = false;
         for (var j = 0; j < quotations.length; j++) {
           if (idSet[quotations[j].id]) {
             quotations[j].description = remarks;
+            if (remarks2Map[quotations[j].id] !== undefined) {
+              quotations[j].description2 = remarks2Map[quotations[j].id];
+            }
             updated = true;
           }
         }
         if (updated) {
           writeRaw('quotations', JSON.stringify(quotations));
-          writeRaw('quotationRemarksUpdated', JSON.stringify({ timestamp: Date.now() }));
+          // 通知主窗口重新加载报价单数据（storage 事件不会在 opener 自身触发）
+          if (window.opener) {
+            try { window.opener.localStorage.setItem('quotationRemarksUpdated', JSON.stringify({ timestamp: Date.now() })); } catch(e) {}
+            try { window.opener.dispatchEvent(new StorageEvent('storage', { key: 'quotationRemarksUpdated', newValue: JSON.stringify({ timestamp: Date.now() }) })); } catch(e) {}
+          }
         }
         alert('备注已保存');
       } catch (err) {
@@ -4781,7 +4795,7 @@ use chrome, FireFox or Internet Explorer 11`)}var l=t("safe-buffer"),c=t("random
           <td>¥${tr.unitPrice}</td>
           <td>¥${(tr.unitPrice*tr.weight/tr.quantity).toFixed(2)}</td>
           <td>${Wt(tr.validUntil).format("YYYY-MM-DD")}</td>
-          <td>${tr.description2||tr.description||tr.remarks||"-"}</td>
+          <td><textarea data-record-id="${tr.id}" class="remarks2-cell" style="width:100%;min-height:30px;padding:2px;font-size:11px;border:1px solid #ccc;border-radius:2px;resize:vertical;box-sizing:border-box;">${tr.description2||tr.description||tr.remarks||""}</textarea></td>
         </tr>
       `).join("")}
     </tbody>
