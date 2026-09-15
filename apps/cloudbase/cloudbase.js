@@ -821,6 +821,7 @@ class TcbQueryBuilder {
 
       /* ---- UPSERT（onConflict 字段 → 用该字段值作为主键 id） ---- */
       if (this._upsertVal !== undefined) {
+        var outU = [];
         var rowsU = Array.isArray(this._upsertVal) ? this._upsertVal : [this._upsertVal];
         for (var j = 0; j < rowsU.length; j++) {
           var rowU = JSON.parse(JSON.stringify(rowsU[j] || {}));
