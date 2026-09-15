@@ -255,17 +255,36 @@
         return false;
       }
       var rows = result.data || [];
-      var n = 0;
-      rows.forEach(function (row) {
-        var origKey = unprefixKey(row.store_key);
-        if (origKey && cache[origKey] === undefined) {
-          cache[origKey] = row.payload;
-          cacheTs[origKey] = row.updated_at;
-          n++;
+      // 同一 store_key 可能存在多条重复行（历史 upsert 缺陷遗留），
+      // 只认 updated_at 最新的那条，避免旧/空数据抢先入缓存
+      var newest = {};
+      for (var i = 0; i < rows.length; i++) {
+        var rw = rows[i];
+        if (!rw.store_key) continue;
+        var prev = newest[rw.store_key];
+        if (!prev || new Date(rw.updated_at).getTime() > new Date(prev.updated_at).getTime()) {
+          newest[rw.store_key] = rw;
         }
+      }
+      var n = 0;
+      Object.keys(newest).forEach(function (sk) {
+        var row = newest[sk];
+        var origKey = unprefixKey(sk);
+        if (!origKey || cache[origKey] !== undefined) return;
+        var val = row.payload;
+        // 云端值为空而本机非空时，用本机值兜底（防止云端空行清空本机数据）
+        if (isEmptyValue(val)) {
+          var nv = nativeGet(toLocalKey(origKey));
+          if (nv !== null && nv !== undefined && nv !== '') {
+            try { val = JSON.parse(nv); } catch (e) { val = nv; }
+          }
+        }
+        cache[origKey] = val;
+        cacheTs[origKey] = row.updated_at;
+        n++;
       });
       cloudLoadDenied = false;
-      console.log('[CloudbaseSync] 加载', rows.length, '行，新增入缓存', n, '个（缓存共', Object.keys(cache).length, '个）');
+      console.log('[CloudbaseSync] 加载', rows.length, '行（去重后', Object.keys(newest).length, '个键），新增入缓存', n, '个（缓存共', Object.keys(cache).length, '个）');
       return true;
     } catch (e) {
       console.warn('[CloudbaseSync] 云端加载异常:', e && e.message ? e.message : e);
@@ -578,7 +597,20 @@
       var now = Date.now();
       var changedKeys = [];
 
-      result.data.forEach(function (row) {
+      // 去重：同一 store_key 只保留 updated_at 最新的一行（历史重复行防御），
+      // 否则扫描顺序不稳定时旧/空重复行可能在同一轮刷新里来回覆盖
+      var newestRows = {};
+      for (var ri = 0; ri < result.data.length; ri++) {
+        var rowRaw = result.data[ri];
+        if (!rowRaw.store_key) continue;
+        var prevRaw = newestRows[rowRaw.store_key];
+        if (!prevRaw || new Date(rowRaw.updated_at).getTime() > new Date(prevRaw.updated_at).getTime()) {
+          newestRows[rowRaw.store_key] = rowRaw;
+        }
+      }
+
+      Object.keys(newestRows).forEach(function (sk) {
+        var row = newestRows[sk];
         var origKey = unprefixKey(row.store_key);
         if (!origKey) return;
         if (recentWrites[origKey] && now - recentWrites[origKey] < SKIP_WRITE_WINDOW) return;
@@ -754,6 +786,9 @@
     }
 
     // 可选：删除云端有、本地没有的 key（清理残留）
+    // ⚠️ 安全规则：仅当本机该键"存在且为空"（用户在本机已清空）才删云端；
+    // 本机根本没有该键（新设备/新浏览器/尚未拉取）时绝不删除，
+    // 否则空库设备点一次"上传云端"就会清空云端全部业务数据
     if (alsoDelete) {
       try {
         emit({ phase: 'cleanup', current: 0, total: 0 });
@@ -763,7 +798,10 @@
           var stale = [];
           for (var k = 0; k < listRes.data.length; k++) {
             var sk = listRes.data[k].store_key;
-            if (sk && sk.indexOf(APP_PREFIX) === 0 && !localSet.has(sk)) stale.push(sk);
+            if (!sk || sk.indexOf(APP_PREFIX) !== 0 || localSet.has(sk)) continue;
+            var origK = unprefixKey(sk);
+            var rawLocal = origK ? nativeGet(toLocalKey(origK)) : null;
+            if (rawLocal !== null && rawLocal !== undefined && isEmptyValue(rawLocal)) stale.push(sk);
           }
           for (var d = 0; d < stale.length; d++) {
             try { await sb.from(TABLE).delete().eq('store_key', stale[d]); } catch (e) {}

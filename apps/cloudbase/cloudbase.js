@@ -713,6 +713,8 @@ class TcbQueryBuilder {
   upsert(data, opts) {
     this._upsertVal = data;
     var oc = (opts && opts.onConflict) || null;
+    // 记录调用方原始冲突字段（store_key 存于 data 内部，物理主键是 id）
+    this._conflictRaw = oc || null;
     // on_conflict 只支持真实列（主键 id），store_key 是 data 内字段
     if (oc === "store_key") oc = "id";
     this._onConflict = oc;
@@ -820,10 +822,14 @@ class TcbQueryBuilder {
       /* ---- UPSERT（onConflict 字段 → 用该字段值作为主键 id） ---- */
       if (this._upsertVal !== undefined) {
         var rowsU = Array.isArray(this._upsertVal) ? this._upsertVal : [this._upsertVal];
-        var outU = [];
         for (var j = 0; j < rowsU.length; j++) {
           var rowU = JSON.parse(JSON.stringify(rowsU[j] || {}));
-          var conflictVal = this._onConflict ? rowU[this._onConflict] : null;
+          // 冲突值优先取调用方原始冲突字段（如 store_key，存于 data 内部）；
+          // 若只查物理主键 id（row 上通常没有），conflictVal 会是 undefined，
+          // 导致每次 upsert 都生成新 UUID 行 → 同一 store_key 重复行大量堆积
+          var conflictVal = null;
+          if (this._conflictRaw && rowU[this._conflictRaw] !== undefined) conflictVal = rowU[this._conflictRaw];
+          else if (this._onConflict) conflictVal = rowU[this._onConflict];
           var docId = (conflictVal !== null && conflictVal !== undefined && conflictVal !== "")
             ? String(conflictVal)
             : ((rowU.id !== undefined && rowU.id !== null && rowU.id !== "") ? String(rowU.id) : genRowId());
