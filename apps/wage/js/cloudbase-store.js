@@ -54,6 +54,27 @@ var _initPromise = null;
 var _debounceTimers = {};
 var UPLOAD_DEBOUNCE = 400;
 
+// 连续失败自动恢复：≥3 次失败（refresh/上传）后调用共享层强制重登（60s 冷却），
+// 应对 token 中途过期导致所有请求 FetchError、指示灯常红的情况
+var _failCount = 0;
+var _lastReauthAt = 0;
+function noteSuccess() { _failCount = 0; }
+function noteFailure(context) {
+  _failCount++;
+  if (_failCount < 3) return;
+  if (Date.now() - _lastReauthAt < 60000) return;
+  _lastReauthAt = Date.now();
+  _failCount = 0;
+  console.warn('[CloudbaseStore] 连续请求失败，尝试强制重新登录 (' + context + ')...');
+  notifyStatus('error');
+  if (typeof window.CloudbaseForceReauth === 'function') {
+    Promise.resolve(window.CloudbaseForceReauth()).then(function () {
+      // 重登后稍等 token 就绪，立即刷新一次恢复缓存与指示灯
+      setTimeout(function () { refreshFromCloud(); }, 1500);
+    });
+  }
+}
+
 var WAGE_KEYS = [
   'wage_records', 'wage_employees', 'wage_processes', 'wage_orders',
   'wage_adjustments', 'wage_dropdown_options', 'wage_calendar_events', 'wage_calendar_event_types'
@@ -175,11 +196,14 @@ async function _doUpload(key, value) {
 
     if (error) {
       console.warn('[CloudbaseStore] 云端写入失败:', key, error.message || error);
+      noteFailure('上传 ' + key);
       return false;
     }
+    noteSuccess();
     return true;
   } catch (e) {
     console.warn('[CloudbaseStore] 写入云端失败:', key, e);
+    noteFailure('上传异常 ' + key);
     return false;
   }
 }
@@ -267,7 +291,8 @@ async function refreshFromCloud() {
 
   try {
     var { data, error } = await sb.from('app_data_store').select('store_key, payload, updated_at');
-    if (error) { console.warn('[CloudbaseStore] refresh 查询错误:', error); return []; }
+    if (error) { console.warn('[CloudbaseStore] refresh 查询错误:', error); noteFailure('refresh'); return []; }
+    noteSuccess();
     if (!data) return [];
 
     var now = Date.now();

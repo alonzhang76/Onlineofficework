@@ -185,11 +185,13 @@
       if (typeof pushFn === 'function') {
         try {
           var pr = await pushFn.call(window.CloudbaseStore, true);
-          if (pr && pr.success) {
+          // 兼容两种返回契约：cloudbase-sync.js 用 {success, synced, message}，
+          // cloudbase-store.js pushAll 用 {ok, uploaded, failed, msg}
+          if (pr && (pr.success || pr.ok)) {
             toast('✅ 上传完成，共 ' + (pr.synced || pr.uploaded || '?') + ' 个数据集');
             try { window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { source: 'manual-push' } })); } catch (e) {}
           } else {
-            toast('上传失败：' + (pr && pr.message ? pr.message : '未知错误'), 'error');
+            toast('上传失败：' + (pr && (pr.message || pr.msg) ? (pr.message || pr.msg) : '未知错误'), 'error');
           }
         } catch (e) {
           toast('上传异常：' + (e && e.message ? e.message : e), 'error');
