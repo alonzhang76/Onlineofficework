@@ -4303,6 +4303,8 @@ use chrome, FireFox or Internet Explorer 11`)}var l=t("safe-buffer"),c=t("random
   </style>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"><\/script>
   <script>
+    function readRaw(key) { return localStorage.getItem(key); }
+    function writeRaw(key, value) { localStorage.setItem(key, value); }
     function exportToExcel() {
       // 获取所有需要的数据
       const companyName = document.querySelector('.company-name').textContent;
