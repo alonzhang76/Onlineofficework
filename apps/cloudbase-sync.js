@@ -279,6 +279,20 @@
             try { val = JSON.parse(nv); } catch (e) { val = nv; }
           }
         }
+        // 手动同步模式：本地可能存在尚未上传的修改（setItem 不自动同步），
+        // 刷新页面后若直接用云端值覆盖缓存，本地修改会"消失"。
+        // 因此本地与云端内容不一致时，优先采用本地值（手动同步场景下本地为最新）。
+        var localRaw2 = nativeGet(toLocalKey(origKey));
+        if (localRaw2 !== null && localRaw2 !== undefined && localRaw2 !== '') {
+          var localVal2;
+          try { localVal2 = JSON.parse(localRaw2); } catch (e) { localVal2 = localRaw2; }
+          var cloudStr2, localStr2;
+          try { cloudStr2 = JSON.stringify(val); } catch (e) { cloudStr2 = String(val); }
+          try { localStr2 = JSON.stringify(localVal2); } catch (e) { localStr2 = String(localVal2); }
+          if (localStr2 !== cloudStr2) {
+            val = localVal2;
+          }
+        }
         cache[origKey] = val;
         cacheTs[origKey] = row.updated_at;
         n++;
@@ -689,9 +703,10 @@
       cacheTs[key] = new Date().toISOString();
       recentWrites[key] = Date.now();
 
-      // ⚠️ 手动同步模式：不再自动上传云端。
-      // 用户需点击"上传云端"按钮手动调用 CloudbaseSync.pushAll()。
-      // 这样避免自动上传覆盖云端最新数据，也避免多端冲突。
+      // 自动同步到云端（防抖 + 串行上传，避免并发堆积）。
+      // LWW 时序比较 + upsert(store_key) 保证不会用旧数据覆盖云端新数据，
+      // 也不会产生重复行。
+      syncToCloud(key, cache[key]);
       return;
     }
     return _origSetItem.call(this, key, value);
@@ -704,8 +719,10 @@
       delete cacheTs[key];
       recentWrites[key] = Date.now();
 
-      // ⚠️ 手动同步模式：不再自动删除云端对应行。
-      // 上传时云端旧 key 仍存在，需手动用 CloudbaseSync.pushAll(true) 清理（删云端有、本地无的 key）。
+      // 自动删除云端对应行（异步，不阻塞）
+      if (sb && initialized) {
+        sb.from(TABLE).delete().eq('store_key', prefixKey(key)).then(function () {}, function () {});
+      }
       return;
     }
     return _origRemoveItem.call(this, key);
