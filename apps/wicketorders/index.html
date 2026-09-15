@@ -2,8 +2,8 @@
 <html lang="zh-CN">
 <head>
 	<script>window.SUPABASE_APP_ID='wicketorders';</script>
-        <script src="../cloudbase-sync.js?v=20260915i"></script>
-        <script src="../cloudbase-admin.js?v=20260915j"></script>
+        <script src="../cloudbase-sync.js?v=20260915k"></script>
+        <script src="../cloudbase-admin.js?v=20260915k"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>外贸出口管理系统</title>
@@ -2878,7 +2878,7 @@
             // 输出订单记录用于调试
             console.log('=== 订单记录详情 ===');
             orderRecords.forEach((order, i) => {
-                console.log(`订单${i}: 订单号="${order.orderNo}", 金额=${order.amount}, 总金额=${order.totalAmount}, 货币=${order.currency}`);
+                console.log(`订单${i}: 订单号="${order.orderNo}", 金额=${order.amount}, 货币=${order.currency}`);
             });
             
             // 计算每个订单的已收汇金额
@@ -4909,7 +4909,7 @@
 
     <!-- JavaScript文件 -->
     <script src="login.js"></script>
-    <script src="app.js"></script>
+    <script src="app.js?v=20260915j"></script>
     <!-- Enhanced Payment Functionality -->
     <script src="./enhanced-payment.js"></script>
     <!-- 云存储文件中心（共享模块，三应用通用）：全局搜索 + 跨应用同步 -->

@@ -209,9 +209,11 @@ async function _doUpload(key, value) {
 }
 
 // 手动上传所有本地数据到云端
-async function pushAll(alsoDelete) {
+// onProgress 可选：onProgress({phase:'start'|'progress'|'cleanup'|'reauth', current, total, key, ok})
+async function pushAll(alsoDelete, onProgress) {
   var sb = getClient();
   if (!sb || !sb.from) return { ok: false, msg: '同步层未就绪' };
+  function emit(p) { if (typeof onProgress === 'function') { try { onProgress(p); } catch (e) {} } }
 
   // 收集所有本地非空业务 key（优先用 WAGE_KEYS，兜底遍历 localStorage）
   var keysToUpload = [];
@@ -243,6 +245,7 @@ async function pushAll(alsoDelete) {
   if (keysToUpload.length === 0) {
     return { ok: false, msg: '本地无数据可上传（空库保护，避免清空云端）' };
   }
+  emit({ phase: 'start', total: keysToUpload.length });
 
   notifyStatus('pending');
   var okCount = 0, failCount = 0;
@@ -256,6 +259,7 @@ async function pushAll(alsoDelete) {
     } else {
       failCount++;
     }
+    emit({ phase: 'progress', current: m + 1, total: keysToUpload.length, key: it.key, ok: ok });
   }
 
   // 可选清理：删除云端有但本地没有的 key

@@ -10924,6 +10924,11 @@ if (document.readyState === 'loading') {
         receiptRecords: function () {
             reloadPagination('receipt', 'getReceiptRecords');
             if (pageController && typeof pageController.renderReceiptTable === 'function') pageController.renderReceiptTable();
+            // 欠款统计依赖订单+收汇两张表，云端数据到达后必须重算，
+            // 否则页面重载后统计先于数据渲染，会一直显示空/旧数据
+            if (typeof generateDebtStatistics === 'function') {
+                try { generateDebtStatistics(); } catch (err) {}
+            }
         },
         invoiceRecords: function () {
             reloadPagination('invoice', 'getInvoiceRecords');
@@ -10973,8 +10978,17 @@ if (document.readyState === 'loading') {
         });
 
         // 报表统计受多张表影响，任何业务键变化时若在报表页则刷新
-        if (activeTab === 'report' && typeof updateReportStatistics === 'function') {
-            try { updateReportStatistics(); } catch (err) {}
+        if (activeTab === 'report') {
+            if (typeof updateReportStatistics === 'function') {
+                try { updateReportStatistics(); } catch (err) {}
+            }
+            // 报表页同时嵌有欠款统计与订单提醒，需一并重算
+            if (typeof generateDebtStatistics === 'function') {
+                try { generateDebtStatistics(); } catch (err) {}
+            }
+            if (typeof generateOrderReminders === 'function') {
+                try { generateOrderReminders(); } catch (err) {}
+            }
         }
     });
 })();

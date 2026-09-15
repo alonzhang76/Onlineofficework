@@ -680,8 +680,10 @@
   };
 
   // ===== 手动上传：把本地所有数据推送到云端（覆盖云端） =====
-  async function pushAll(alsoDelete) {
+  // onProgress 可选：onProgress({phase:'start'|'progress'|'reauth'|'cleanup', current, total, key, ok})
+  async function pushAll(alsoDelete, onProgress) {
     if (!sb) return { ok: false, msg: '同步层未就绪' };
+    function emit(p) { if (typeof onProgress === 'function') { try { onProgress(p); } catch (e) {} } }
 
     // 空库保护：本地一个非 skip key 都没有时禁止上传
     var keysToUpload = [];
@@ -709,39 +711,63 @@
     if (keysToUpload.length === 0) {
       return { ok: false, msg: '本地无数据可上传（空库保护，避免清空云端）' };
     }
+    emit({ phase: 'start', total: keysToUpload.length });
 
     notifyStatus('pending');
     var okCount = 0, failCount = 0;
+    var pushReauthed = false; // 本次 pushAll 最多强制重登一次（60s 冷却，与队列路径共享 _lastReauthAt）
     for (var j = 0; j < keysToUpload.length; j++) {
       var item = keysToUpload[j];
       var value;
       try { value = JSON.parse(item.raw); } catch (e) { value = item.raw; }
-      try {
-        var res = await doUpload(item.key, value);
-        if (res) {
+      var uploaded = false;
+      // 最多尝试 2 次：第 1 次失败且疑似登录态失效（token 过期 FetchError）→
+      // 强制重登后重试一次。队列路径(processUploadQueue)有自动重登，
+      // 手动上传路径原来没有，导致 token 过期时点一次按钮就是几百个必败请求。
+      for (var attempt = 0; attempt < 2 && !uploaded; attempt++) {
+        try {
+          var res = await doUpload(item.key, value);
+          uploaded = true;
           okCount++;
           cache[item.key] = value;
           cacheTs[item.key] = new Date().toISOString();
-        } else {
-          failCount++;
+        } catch (e) {
+          if (attempt === 0 && !pushReauthed &&
+              (Date.now() - _lastReauthAt) > 60000 &&
+              typeof window.CloudbaseForceReauth === 'function') {
+            pushReauthed = true;
+            _lastReauthAt = Date.now();
+            console.warn('[CloudbaseSync] 上传失败(' + item.key + ')，强制重登后重试...');
+            emit({ phase: 'reauth', key: item.key });
+            try { await window.CloudbaseForceReauth(); } catch (e2) {}
+            continue;
+          }
+          console.warn('[CloudbaseSync] 上传失败', item.key, ':', e && e.message ? e.message : e);
         }
-      } catch (e) {
-        console.warn('[CloudbaseSync] 上传失败', item.key, ':', e && e.message ? e.message : e);
-        failCount++;
       }
+      if (!uploaded) {
+        failCount++;
+        // 进入待重试队列，让 flushPending/processUploadQueue（含自动重登）稍后自动恢复
+        pendingWrites[item.key] = { value: value, ts: Date.now() };
+      }
+      emit({ phase: 'progress', current: j + 1, total: keysToUpload.length, key: item.key, ok: uploaded });
     }
 
     // 可选：删除云端有、本地没有的 key（清理残留）
     if (alsoDelete) {
       try {
+        emit({ phase: 'cleanup', current: 0, total: 0 });
         var listRes = await sb.from(TABLE).select('store_key');
         var localSet = new Set(keysToUpload.map(function (x) { return prefixKey(x.key); }));
         if (listRes && !listRes.error && Array.isArray(listRes.data)) {
+          var stale = [];
           for (var k = 0; k < listRes.data.length; k++) {
             var sk = listRes.data[k].store_key;
-            if (sk && sk.indexOf(APP_PREFIX) === 0 && !localSet.has(sk)) {
-              try { await sb.from(TABLE).delete().eq('store_key', sk); } catch (e) {}
-            }
+            if (sk && sk.indexOf(APP_PREFIX) === 0 && !localSet.has(sk)) stale.push(sk);
+          }
+          for (var d = 0; d < stale.length; d++) {
+            try { await sb.from(TABLE).delete().eq('store_key', stale[d]); } catch (e) {}
+            emit({ phase: 'cleanup', current: d + 1, total: stale.length });
           }
         }
       } catch (e) {}
