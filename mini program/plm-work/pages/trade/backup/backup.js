@@ -57,6 +57,14 @@ Page({
             let data;
             try { data = JSON.parse(r.data); } catch (e) { wx.showToast({ title: '文件解析失败', icon: 'none' }); return; }
             if (!data || typeof data !== 'object') { wx.showToast({ title: '备份文件格式不正确', icon: 'none' }); return; }
+            // 兼容网页版备份格式：{backupTime, version, data:{...}} → 解包，并映射 paymentRecords 键名
+            if (data.data && typeof data.data === 'object' && !Array.isArray(data.data)) {
+              const inner = data.data;
+              data = Object.assign({}, inner);
+              if (!Array.isArray(data.indexPaymentRecords) && Array.isArray(inner.paymentRecords)) {
+                data.indexPaymentRecords = inner.paymentRecords;
+              }
+            }
             const hasAny = Object.keys(db.KEYS).some(k => Array.isArray(data[k]));
             if (!hasAny) { wx.showToast({ title: '备份文件不含外贸数据', icon: 'none' }); return; }
             const lines = Object.keys(db.KEYS).map(k => {

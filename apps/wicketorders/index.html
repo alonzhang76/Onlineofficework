@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 	<script>window.SUPABASE_APP_ID='wicketorders';</script>
-        <script src="../cloudbase-sync.js?v=20260915p"></script>
+        <script src="../cloudbase-sync.js?v=20260916a"></script>
         <script src="../cloudbase-admin.js?v=20260915l"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -3285,38 +3285,50 @@
                 reader.onload = function(e) {
                     try {
                         const data = JSON.parse(e.target.result);
-                        
+
                         if (!data.data || !data.backupTime) {
                             throw new Error('无效的备份文件格式');
                         }
+
+                        // 只恢复备份中实际存在的数据集（条件写入），
+                        // 避免导入不含某些数据的备份（如小程序备份）时把网页端独有数据清空
+                        const dd = data.data;
+                        const restorePairs = {
+                            orderRecords: dd.orderRecords,
+                            customerRecords: dd.customerRecords,
+                            exportRecords: dd.exportRecords,
+                            invoiceRecords: dd.invoiceRecords,
+                            receiptRecords: dd.receiptRecords,
+                            indexPaymentRecords: dd.paymentRecords !== undefined ? dd.paymentRecords : dd.indexPaymentRecords,
+                            memoRecords: dd.memoRecords,
+                            orderLabelsData: dd.orderLabelsData,
+                            businessRecords: dd.businessRecords,
+                            // 报价系统数据
+                            quotationRecords: dd.quotationRecords,
+                            productDetails: dd.productDetails,
+                            libraryProducts: dd.libraryProducts,
+                            quotationSystemUnits: dd.quotationSystemUnits,
+                            quotationSystemPaymentRatios: dd.quotationSystemPaymentRatios,
+                            quotationSystemPaymentMethods: dd.quotationSystemPaymentMethods,
+                            quotationSystemTerms: dd.quotationSystemTerms,
+                            // 报关文件系统数据 (customs-doc-generator.html)
+                            cdg_companies: dd.cdg_companies,
+                            cdg_records: dd.cdg_records,
+                            cdg_details: dd.cdg_details,
+                            cdg_shipments: dd.cdg_shipments,
+                            cdg_products: dd.cdg_products,
+                            shipmentDetailData: dd.shipmentDetailData
+                        };
+                        const restored = [];
+                        Object.keys(restorePairs).forEach(key => {
+                            const val = restorePairs[key];
+                            if (Array.isArray(val)) {
+                                localStorage.setItem(key, JSON.stringify(val));
+                                restored.push(key);
+                            }
+                        });
                         
-                        // 恢复所有数据
-                        localStorage.setItem('orderRecords', JSON.stringify(data.data.orderRecords || []));
-                        localStorage.setItem('customerRecords', JSON.stringify(data.data.customerRecords || []));
-                        localStorage.setItem('exportRecords', JSON.stringify(data.data.exportRecords || []));
-                        localStorage.setItem('invoiceRecords', JSON.stringify(data.data.invoiceRecords || []));
-                        localStorage.setItem('receiptRecords', JSON.stringify(data.data.receiptRecords || []));
-                        localStorage.setItem('indexPaymentRecords', JSON.stringify(data.data.paymentRecords || []));
-                        localStorage.setItem('memoRecords', JSON.stringify(data.data.memoRecords || []));
-                        localStorage.setItem('orderLabelsData', JSON.stringify(data.data.orderLabelsData || []));
-                        localStorage.setItem('businessRecords', JSON.stringify(data.data.businessRecords || []));
-                        // 恢复报价系统数据
-                        localStorage.setItem('quotationRecords', JSON.stringify(data.data.quotationRecords || []));
-                        localStorage.setItem('productDetails', JSON.stringify(data.data.productDetails || []));
-                        localStorage.setItem('libraryProducts', JSON.stringify(data.data.libraryProducts || []));
-                        localStorage.setItem('quotationSystemUnits', JSON.stringify(data.data.quotationSystemUnits || []));
-                        localStorage.setItem('quotationSystemPaymentRatios', JSON.stringify(data.data.quotationSystemPaymentRatios || []));
-                        localStorage.setItem('quotationSystemPaymentMethods', JSON.stringify(data.data.quotationSystemPaymentMethods || []));
-                        localStorage.setItem('quotationSystemTerms', JSON.stringify(data.data.quotationSystemTerms || []));
-                        // 恢复报关文件系统数据 (customs-doc-generator.html)
-                        localStorage.setItem('cdg_companies', JSON.stringify(data.data.cdg_companies || []));
-                        localStorage.setItem('cdg_records', JSON.stringify(data.data.cdg_records || []));
-                        localStorage.setItem('cdg_details', JSON.stringify(data.data.cdg_details || []));
-                        localStorage.setItem('cdg_shipments', JSON.stringify(data.data.cdg_shipments || []));
-                        localStorage.setItem('cdg_products', JSON.stringify(data.data.cdg_products || []));
-                        localStorage.setItem('shipmentDetailData', JSON.stringify(data.data.shipmentDetailData || []));
-                        
-                        alert(`数据恢复成功！\n备份时间：${new Date(data.backupTime).toLocaleString()}\n\n请刷新页面查看恢复的数据。`);
+                        alert(`数据恢复成功！\n已恢复 ${restored.length} 类数据\n备份时间：${new Date(data.backupTime).toLocaleString()}\n\n请刷新页面查看恢复的数据。`);
                         location.reload();
                     } catch (err) {
                         alert('恢复数据失败：' + err.message);

@@ -21,6 +21,7 @@ Page({
       { key: 'summary', icon: '📈', name: '汇总统计', color: '#5856D6', url: '/pages/schedule/summary/summary' },
       { key: 'calendar', icon: '📅', name: '日历记事', color: '#00C7BE', url: '/pages/schedule/calendar/calendar' },
       { key: 'memo', icon: '📝', name: '备忘录', color: '#AF52DE', url: '/pages/schedule/memo/memo' },
+      { key: 'backup', icon: '💾', name: '数据备份', color: '#FF3B30', url: '/pages/schedule/backup/backup' },
       { key: 'cloudfiles', icon: '☁️', name: '云存储', color: '#0A84FF', url: '/pages/cloudfiles/cloudfiles?app=schedule' }
     ],
     dash: { total: 0, delivered: 0, pending: 0, totalAmount: 0, totalAmountText: '0.00', recent: [] },

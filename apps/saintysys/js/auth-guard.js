@@ -194,7 +194,7 @@
         if (window.supabase && window.supabase.auth && typeof window.supabase.auth.signOut === "function") {
           window.supabase.auth.signOut().catch(function(){});
         } else {
-          import("./cloudbase.js?v=20260914d")
+          import("./cloudbase.js?v=20260915a")
             .then(function(mod) { if (mod.supabase) mod.supabase.auth.signOut().catch(function(){}); })
             .catch(function(){});
         }
@@ -231,24 +231,85 @@
 
   /* ---------- 异步守卫：getUser() 权威校验 ----------
    * 动态加载 supabase 模块后向服务器校验会话有效性
+   * 关键容错（修复"点击标签页频繁被强制登出"）：
+   *   1. getUser 失败先重试（最多 3 次，间隔 1.2s）——瞬时网络抖动/令牌刷新慢不算失效
+   *   2. 重试仍失败时用 getSession + JWT 探活：令牌实际有效则优雅降级留在页面，
+   *      只有令牌确实缺失/过期/匿名才清会话跳登录
    */
   (async function () {
     if (window.__authGuardRedirected) return;
+
+    // 解码 JWT payload（探活用）
+    function decodeJwtPayload(token) {
+      try {
+        var part = String(token).split(".")[1];
+        part = part.replace(/-/g, "+").replace(/_/g, "/");
+        while (part.length % 4) part += "=";
+        return JSON.parse(decodeURIComponent(escape(atob(part))));
+      } catch (e) { return null; }
+    }
+
+    // 会话探活：'alive'=令牌有效 | 'anon'=匿名 | 'dead'=无令牌/已过期 | 'unknown'=无法判定
+    async function probeSession(supabase) {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const sess = data && data.session;
+        if (!sess || !sess.access_token) return "dead";
+        const p = decodeJwtPayload(sess.access_token);
+        if (!p) return "unknown";
+        if (p.role === "anon") return "anon";
+        if (p.exp && p.exp * 1000 < Date.now() - 30000) return "dead";
+        return "alive";
+      } catch (e) {
+        return "unknown";
+      }
+    }
+
+    // 优雅降级提示（不踢登录）
+    function softWarn(msg) {
+      console.warn("[auth-guard] " + msg);
+      try {
+        if (window.App && typeof App.toast === "function") {
+          App.toast(msg + "，可继续操作", "warning");
+        }
+      } catch (e) {}
+    }
+
+    const goLogin = function () {
+      try { window.location.replace("login.html"); }
+      catch (e) { window.location.href = "login.html"; }
+    };
+
     try {
-      const mod = await import("./cloudbase.js?v=20260914d");
+      const mod = await import("./cloudbase.js?v=20260915a");
       const supabase = mod.supabase;
       // 暴露到全局，方便调试与其他脚本使用
       window.supabase = supabase;
 
-      const { data, error } = await supabase.auth.getUser();
+      // getUser 校验，失败自动重试（瞬时失败不再直接踢登录）
+      let result = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        result = await supabase.auth.getUser();
+        if (!result.error && result.data && result.data.user) break;
+        if (attempt < 3) await new Promise((r) => setTimeout(r, 1200));
+      }
 
-      if (error || !data || !data.user) {
-        console.error("[auth-guard] 未登录或会话失效:", error);
+      if (!result || result.error || !result.data || !result.data.user) {
+        console.error("[auth-guard] getUser 校验失败(已重试):", result && result.error);
+        const verdict = await probeSession(supabase);
+        if (verdict === "alive" || verdict === "unknown") {
+          // 令牌探活仍有效（或无法判定）→ 优雅降级：留在页面，不请登出
+          softWarn("云端连接不稳定，本次跳过登录校验");
+          // 用本地缓存补 currentSupabaseUser，保证用户名/角色逻辑可用
+          if (!window.currentSupabaseUser) {
+            const cached = readSupabaseSession();
+            if (cached && cached.user) window.currentSupabaseUser = cached.user;
+          }
+          if (window.App) { try { App.loadUserInfo(); } catch (e) {} }
+          return;
+        }
+        // 令牌确实缺失/过期/匿名 → 清理并跳登录
         clearAllAuthState();
-        const goLogin = function() {
-          try { window.location.replace("login.html"); }
-          catch (e) { window.location.href = "login.html"; }
-        };
         goLogin();
         setTimeout(goLogin, 20);
         setTimeout(goLogin, 200);
@@ -256,7 +317,7 @@
         return;
       }
 
-      const user = data.user;
+      const user = result.data.user;
       window.currentSupabaseUser = user;
 
       // PG 模式关键校验：匿名用户（JWT role=anon）对数据库只有只读权限，

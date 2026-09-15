@@ -41,6 +41,8 @@ Page({
           success: r => {
             let data;
             try { data = JSON.parse(r.data); } catch (e) { wx.showToast({ title: '文件解析失败', icon: 'none' }); return; }
+            // 兼容网页版导出格式：{version, data:{transactions...}} → 解包
+            if (data && data.data && typeof data.data === 'object' && !data.transactions) data = data.data;
             if (!data || !data.transactions) { wx.showToast({ title: '备份文件不含收支数据', icon: 'none' }); return; }
             const c1 = (data.transactions.company1 || []).length;
             const c2 = (data.transactions.company2 || []).length;

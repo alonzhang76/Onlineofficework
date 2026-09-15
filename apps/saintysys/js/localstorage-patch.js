@@ -1,4 +1,4 @@
-﻿/* ===== localStorage Global Patch =====
+/* ===== localStorage Global Patch =====
  *
  * 全局替换 localStorage.getItem / setItem / removeItem
  * 使现有代码无需修改即可走 Supabase
@@ -117,6 +117,14 @@ localStorage.setItem = function(key, value) {
 
   // 先写入 localStorage 备份（绝对不能丢）
   _origSetItem(key, value);
+
+  // 关键保护：记录持久化的本地保存时间戳。
+  // 上传云端成功前（独立写入通道成功后会移除该时间戳），
+  // 15 秒云端轮询/首次基线刷新不得用云端旧数据覆盖本地新值，
+  // 否则刚导入的数据会在上传完成前被回滚消失。
+  try {
+    _origSetItem('_lastLocalSave_' + key, String(Date.now()));
+  } catch (e) {}
 
   // 走 SupabaseStore
   if (window.SupabaseStore && typeof window.SupabaseStore.setSync === 'function') {

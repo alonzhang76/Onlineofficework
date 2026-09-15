@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 页面初始化助手
  * 
  * 用法：
@@ -830,6 +830,29 @@
     console.log('[init-page] ✨ 独立删除入队:', key);
     setTimeout(flushWriteQueue, 100);
   });
+
+  // ===== 写入队列状态接口（供导入等场景等待云端落库完成后再刷新页面） =====
+  global.IndependentWriteQueue = {
+    // 当前未完成的写入数（队列中 + 正在上传的）
+    pendingCount: function() {
+      return _writeQueue.length + (_writeRunning ? 1 : 0);
+    },
+    // 等待队列排空；timeoutMs 兜底超时（默认 8000ms），排空或超时后 resolve
+    whenDrained: function(timeoutMs) {
+      var limit = (typeof timeoutMs === 'number') ? timeoutMs : 8000;
+      var start = Date.now();
+      return new Promise(function(resolve) {
+        function check() {
+          if (pendingCount0() === 0 || Date.now() - start >= limit) return resolve();
+          setTimeout(check, 250);
+        }
+        function pendingCount0() {
+          try { return global.IndependentWriteQueue.pendingCount(); } catch (e) { return 0; }
+        }
+        check();
+      });
+    },
+  };
 
   // 启动后：把当前所有 SUPERSET_KEYS 的本地数据一次性"检查并上传"
   // 用于在 Supabase 表为空（前一版 Bug 清空）时把 localStorage 中的已有数据补到云端

@@ -749,18 +749,31 @@ function getTotalDebtCNY(debts) {
 /* ============ 备份 / 恢复 ============ */
 
 function exportBackup() {
-  const d = {};
-  Object.keys(KEYS).forEach(k => { d[k] = data[k]; });
-  d.version = '1.0';
-  d.exportDate = new Date().toISOString();
+  // 与网页版（apps/wicketorders/index.html 数据备份）一致的包格式：
+  // {backupTime, version:'1.1', data:{orderRecords..., paymentRecords(=indexPaymentRecords)}}
+  // 网页端可直接导入本文件；本端导入同时兼容网页版与小程序旧版（平铺）两种格式
+  const d = { backupTime: new Date().toISOString(), version: '1.1', data: {} };
+  Object.keys(KEYS).forEach(k => {
+    d.data[k] = data[k];
+    if (k === 'indexPaymentRecords') d.data.paymentRecords = data[k]; // 网页版键名
+  });
   return d;
 }
 
 function importBackup(obj) {
-  if (!obj) return false;
+  if (!obj || typeof obj !== 'object') return false;
+  let src = obj;
+  // 网页版/新版包格式：{backupTime, version, data:{...}} → 解包
+  if (obj.data && typeof obj.data === 'object' && !Array.isArray(obj.data)) {
+    src = Object.assign({}, obj.data);
+    // 网页版把 indexPaymentRecords 存为 paymentRecords
+    if (!Array.isArray(src.indexPaymentRecords) && Array.isArray(src.paymentRecords)) {
+      src.indexPaymentRecords = src.paymentRecords;
+    }
+  }
   let count = 0;
   Object.keys(KEYS).forEach(k => {
-    if (Array.isArray(obj[k])) { data[k] = obj[k]; save(k); count++; }
+    if (Array.isArray(src[k])) { data[k] = src[k]; save(k); count++; }
   });
   return count > 0;
 }

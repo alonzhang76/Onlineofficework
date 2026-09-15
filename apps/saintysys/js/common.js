@@ -913,7 +913,7 @@ const App = {
       if (window.supabase && window.supabase.auth && typeof window.supabase.auth.signOut === 'function') {
         window.supabase.auth.signOut().catch(function(){});
       } else {
-        import('./cloudbase.js?v=20260914d').then(function(mod){
+        import('./cloudbase.js?v=20260915a').then(function(mod){
           if (mod && mod.supabase) mod.supabase.auth.signOut().catch(function(){});
         }).catch(function(){});
       }

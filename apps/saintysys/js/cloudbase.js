@@ -1246,10 +1246,21 @@ export const supabase = {
         var app = await getApp();
         if (!app) return { data: { user: null }, error: mapError("CloudBase SDK 未初始化") };
         var user = await fetchUser(app);
+        // 关键容错：access token 过期但 refresh token 有效时，
+        // fetchUser 的三个方法可能全部失败；先通过 getAccessToken 触发 SDK
+        // 自动刷新令牌，再重试一次 fetchUser，避免"明明有会话却被判失效"
+        if (!user) {
+          try { await fetchAccessToken(app); } catch (_e) {}
+          user = await fetchUser(app);
+        }
         if (!user) {
           return { data: { user: null }, error: mapError("未登录或会话已失效") };
         }
-        saveSessionCache(user);
+        // 关键修复：匿名用户绝不写入会话缓存（tcb_auth_session）。
+        // 否则会覆盖邮箱登录缓存，下一个页面同步预检看到 is_anonymous 直接踢登录。
+        if (user && !user.is_anonymous && user.email) {
+          saveSessionCache(user);
+        }
         return { data: { user: user }, error: null };
       } catch (e) {
         return { data: { user: null }, error: mapError(e) };
@@ -1266,9 +1277,12 @@ export const supabase = {
         // 有 SDK 能力时后台刷新用户（失败不阻塞）
         if (app && typeof app.auth !== "undefined") {
           var fresh = await fetchUser(app);
-          if (fresh) {
+          // 仅非匿名用户才回写缓存，防止匿名会话覆盖邮箱登录缓存
+          if (fresh && !fresh.is_anonymous && fresh.email) {
             user = fresh;
             saveSessionCache(fresh);
+          } else if (fresh && !user) {
+            user = fresh;
           }
         }
         if (!user) return { data: { session: null }, error: null };
@@ -1298,7 +1312,13 @@ export const supabase = {
     async refreshUser() {
       var app = await getApp();
       var user = app ? await fetchUser(app) : null;
-      if (user) saveSessionCache(user);
+      // 首次拿不到时触发令牌刷新再试一次；二次失败保留首次结果
+      if (!user && app) {
+        try { await fetchAccessToken(app); } catch (_e) {}
+        user = await fetchUser(app);
+      }
+      // 仅非匿名用户才回写缓存
+      if (user && !user.is_anonymous && user.email) saveSessionCache(user);
       return { data: { user: user }, error: user ? null : mapError("未登录") };
     },
 

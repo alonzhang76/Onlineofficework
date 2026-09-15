@@ -333,31 +333,43 @@ function deleteTodo(id) {
 // ==================== 备份 ====================
 
 function exportBackup() {
+  // 与网页版（apps/incomeexpense/index.html 导出JSON）一致的包格式：
+  // {version:'2.0', data:{todos, transactions:{c1,c2}, lastUpdated:{...}, currentCompany}}
+  // 网页端可直接导入本文件；本端导入同时兼容网页版与小程序旧版（平铺）两种格式
   return {
+    version: '2.0',
     app: 'incomeexpense-miniprogram',
-    exportedAt: new Date().toISOString(),
-    currentCompany: data.currentCompany,
-    currentCompany_statement: data.currentCompany_statement,
-    transactions: {
-      company1: data.transactions_company1,
-      company2: data.transactions_company2
-    },
-    lastUpdated: {
-      company1: data.lastUpdated_company1,
-      company2: data.lastUpdated_company2
-    },
-    todos: data.todos
+    exportDate: new Date().toISOString(),
+    data: {
+      currentCompany: data.currentCompany,
+      currentCompany_statement: data.currentCompany_statement,
+      transactions: {
+        company1: data.transactions_company1,
+        company2: data.transactions_company2
+      },
+      lastUpdated: {
+        company1: data.lastUpdated_company1,
+        company2: data.lastUpdated_company2
+      },
+      todos: data.todos
+    }
   };
 }
 
 function importBackup(obj) {
-  if (!obj || typeof obj !== 'object' || !obj.transactions) return false;
+  if (!obj || typeof obj !== 'object') return false;
+  // 网页版/新版包格式：{version, data:{...}} → 解包；旧版平铺格式直接用
+  if (obj.data && typeof obj.data === 'object' && !obj.transactions) {
+    obj = obj.data;
+  }
+  if (!obj || !obj.transactions) return false;
   ['company1', 'company2'].forEach(c => {
-    if (Array.isArray(obj.transactions[c])) data['transactions_' + c] = obj.transactions[c];
+    if (obj.transactions && Array.isArray(obj.transactions[c])) data['transactions_' + c] = obj.transactions[c];
     if (obj.lastUpdated && obj.lastUpdated[c]) data['lastUpdated_' + c] = obj.lastUpdated[c];
   });
   if (Array.isArray(obj.todos)) data.todos = obj.todos;
   if (obj.currentCompany) data.currentCompany = obj.currentCompany;
+  if (obj.currentCompany_statement) data.currentCompany_statement = obj.currentCompany_statement;
   normalizeUnits();
   KEYS.forEach(save);
   return true;

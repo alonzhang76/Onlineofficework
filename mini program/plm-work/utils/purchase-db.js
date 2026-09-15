@@ -373,23 +373,71 @@ function getStats(company) {
 // ==================== 备份 ====================
 
 function exportBackup(company) {
-  const c = co(company);
-  return {
+  // 与网页版（apps/purchase/index.html 导出数据）一致的整包格式：
+  // {version:'2.1', data:{suppliers, purchaseOrders:{co}, invoices:{co}, ...}}
+  // 网页端可直接导入本文件（两个公司全量导出，防止网页端把另一公司清空）；
+  // 本端导入同时兼容网页版整包与小程序旧版（单公司平铺）两种格式
+  const d = {
+    version: '2.1',
     app: 'purchase-miniprogram',
-    exportedAt: new Date().toISOString(),
-    company: c,
-    purchaseOrders: data['purchaseOrders_' + c],
-    invoices: data[c + '-invoices'],
-    payments: data[c + '-payments'],
-    contracts: data['contracts_' + c],
-    receipts: data['receipts_' + c],
-    returns: data['returns_' + c],
-    suppliers: data.suppliers
+    exportDate: new Date().toISOString(),
+    currentCompany: co(company),
+    companies: ['companyA', 'companyB'],
+    data: {
+      suppliers: data.suppliers,
+      purchaseOrders: {},
+      invoices: {},
+      payments: {},
+      contractInventory: {},
+      contractInventoryReceipts: {},
+      contractInventoryReturns: {}
+    }
   };
+  COMPANIES.forEach(x => {
+    const c = x.id;
+    d.data.purchaseOrders[c] = data['purchaseOrders_' + c];
+    d.data.invoices[c] = data[c + '-invoices'];
+    d.data.payments[c] = data[c + '-payments'];
+    d.data.contractInventory[c] = data['contracts_' + c];
+    d.data.contractInventoryReceipts[c] = data['receipts_' + c];
+    d.data.contractInventoryReturns[c] = data['returns_' + c];
+  });
+  return d;
 }
 
 function importBackup(obj) {
-  if (!obj || typeof obj !== 'object' || !Array.isArray(obj.purchaseOrders)) return false;
+  if (!obj || typeof obj !== 'object') return false;
+
+  // 网页版/新版整包格式：{version, data:{purchaseOrders:{companyA,companyB}, ...}}
+  if (obj.data && typeof obj.data === 'object' && !Array.isArray(obj.purchaseOrders)) {
+    const d = obj.data;
+    if (!d.purchaseOrders || typeof d.purchaseOrders !== 'object') return false;
+    const touched = ['suppliers'];
+    let ok = false;
+    COMPANIES.forEach(x => {
+      const c = x.id;
+      if (!Array.isArray(d.purchaseOrders[c])) return;
+      ok = true;
+      data['purchaseOrders_' + c] = d.purchaseOrders[c];
+      touched.push('purchaseOrders_' + c);
+      if (Array.isArray(d.invoices && d.invoices[c])) { data[c + '-invoices'] = d.invoices[c]; touched.push(c + '-invoices'); }
+      if (Array.isArray(d.payments && d.payments[c])) { data[c + '-payments'] = d.payments[c]; touched.push(c + '-payments'); }
+      // 网页版 contractInventory 即 contracts_<co>（合同台账原始键）；contract.contracts 为旧键，仅作回退
+      const inv = d.contractInventory && d.contractInventory[c];
+      const con = d.contracts && d.contracts[c];
+      const best = Array.isArray(inv) ? inv : (Array.isArray(con) ? con : null);
+      if (best) { data['contracts_' + c] = best; touched.push('contracts_' + c); }
+      if (Array.isArray(d.contractInventoryReceipts && d.contractInventoryReceipts[c])) { data['receipts_' + c] = d.contractInventoryReceipts[c]; touched.push('receipts_' + c); }
+      if (Array.isArray(d.contractInventoryReturns && d.contractInventoryReturns[c])) { data['returns_' + c] = d.contractInventoryReturns[c]; touched.push('returns_' + c); }
+    });
+    if (!ok) return false;
+    if (Array.isArray(d.suppliers)) data.suppliers = d.suppliers;
+    touched.forEach(save);
+    return true;
+  }
+
+  // 小程序旧版单公司平铺格式：{purchaseOrders:[...], invoices:[...], ..., company}
+  if (!Array.isArray(obj.purchaseOrders)) return false;
   const c = co(obj.company);
   data['purchaseOrders_' + c] = obj.purchaseOrders;
   data[c + '-invoices'] = Array.isArray(obj.invoices) ? obj.invoices : [];

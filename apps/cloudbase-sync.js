@@ -115,8 +115,8 @@
     }
   }
 
-  // 跳过同步的内部 key
-  var SKIP_KEYS = ['_lastLocalSave_', 'isLoggedIn', 'username', 'userPhone', 'sb-', 'tcb_', 'supabase', 'reconciliation_', '__purchaseContract'];
+  // 跳过同步的内部 key（后三个为兼容层写入的设备本地状态：语言 / 用户信息 / 登录凭据）
+  var SKIP_KEYS = ['_lastLocalSave_', 'isLoggedIn', 'username', 'userPhone', 'sb-', 'tcb_', 'supabase', 'reconciliation_', '__purchaseContract', 'lang_', 'user_info_', 'credentials_'];
 
   // ===== 应用专属 localStorage 键名重映射（与旧版保持一致）=====
   var LOCAL_KEY_REMAP = (function () {
@@ -338,8 +338,57 @@
     if (Object.keys(cache).length > beforeCount) changedKeys = Object.keys(cache);
     showSyncStatus('ok');
     try { await migrateLocalStorage(); } catch (e) {}
+    // 断线恢复后同样补传云端缺失的本地键
+    try { await autoUploadLocalOnlyKeys(); } catch (e) {}
     if (changedKeys.length > 0) {
       window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { keys: changedKeys, initial: true } }));
+    }
+  }
+
+  // ===== 自动补传：云端缺失但本地存在的键 =====
+  // 背景：同步层只在 localStorage 写入（编辑）时自动上传，历史数据的迁移是手动的；
+  // 若云端行不存在（如 CloudBase 环境重建、清空云端后未重推），
+  // 本机完整的历史数据永远不会回到云端，手机端小程序也就拉不到最新数据。
+  // 这里在初始化（及断线恢复）后扫描一次：本地有值且云端无此键 → 走既有上传队列补传。
+  // 安全性：云端已有该键（含空值）绝不覆盖，交给正常 LWW 流程；
+  //         空库设备（新浏览器）没有本地键，不会误传任何东西。
+  async function autoUploadLocalOnlyKeys() {
+    if (!sb || !initialized || cloudLoadDenied) return;
+    var APP_PREFIX = APP_ID + '__';
+    var queued = 0;
+    try {
+      var total = localStorage.length;
+      for (var i = 0; i < total; i++) {
+        var nativeKey = localStorage.key(i);
+        if (!nativeKey || isReservedKey(nativeKey)) continue;
+        var key;
+        if (REMAP_REVERSE[nativeKey] !== undefined) {
+          key = REMAP_REVERSE[nativeKey];
+        } else if (REMAP_ORIGINALS[nativeKey]) {
+          continue;
+        } else {
+          key = nativeKey;
+        }
+        if (shouldSkip(key)) continue;
+        // 跳过带其他应用前缀的 key（与 pushAll 规则一致，防止串应用上传）
+        var underScoreIdx = key.indexOf('__');
+        if (underScoreIdx > 0 && key.slice(0, underScoreIdx + 2) !== APP_PREFIX) continue;
+        // 云端已有该键（哪怕值为空）→ 不动
+        if (cache[key] !== undefined) continue;
+        var raw = nativeGet(nativeKey);
+        if (raw === null || raw === undefined || raw === '') continue;
+        var value;
+        try { value = JSON.parse(raw); } catch (e) { value = raw; }
+        if (isEmptyValue(value)) continue;
+        syncToCloud(key, value);
+        queued++;
+      }
+    } catch (e) {
+      console.warn('[CloudbaseSync] 自动补传扫描异常:', e && e.message ? e.message : e);
+      return;
+    }
+    if (queued > 0) {
+      console.log('[CloudbaseSync] 自动补传云端缺失的本地键:', queued, '个');
     }
   }
 
@@ -392,6 +441,9 @@
 
       initialized = true;
       console.log('[CloudbaseSync] 就绪。应用:', APP_ID, '用户:', user ? (user.email || user.id || 'authed') : 'none');
+
+      // 云端缺失但本地存在的键自动补传（环境重建 / 清空云端后历史数据一次性回灌）
+      try { await autoUploadLocalOnlyKeys(); } catch (e) {}
 
       try {
         var allKeys = Object.keys(cache);
@@ -721,7 +773,10 @@
       // 自动同步到云端（防抖 + 串行上传，避免并发堆积）。
       // LWW 时序比较 + upsert(store_key) 保证不会用旧数据覆盖云端新数据，
       // 也不会产生重复行。
-      syncToCloud(key, cache[key]);
+      // 内部键（auth 会话 / 语言 / 凭据等设备本地状态）不上云，避免污染云端表。
+      if (!shouldSkip(key)) {
+        syncToCloud(key, cache[key]);
+      }
       return;
     }
     try { return _origSetItem.call(this, key, value); } catch (e) {}
