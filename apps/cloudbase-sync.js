@@ -311,8 +311,12 @@
   async function fetchAppRows(columns) {
     var env = window.CLOUDBASE_ENV;
     var token = null;
+    // 短重试取 token（最多 5 次 × 500ms = 2.5s），等 SDK 登录完成
     if (typeof window.CloudbaseGetAccessToken === 'function') {
-      try { token = await window.CloudbaseGetAccessToken(); } catch (e) {}
+      for (var t = 0; t < 5 && !token; t++) {
+        try { token = await window.CloudbaseGetAccessToken(); } catch (e) {}
+        if (!token) await new Promise(function (r) { setTimeout(r, 500); });
+      }
     }
     if (!env || !token) return null; // 信号：REST 不可用，调用方回退兼容层
 
@@ -326,10 +330,19 @@
       var url = base + '?select=' + encodeURIComponent(cols) +
         '&store_key=like.' + prefix + '*' +
         '&offset=' + offset + '&limit=' + PAGE;
-      var res = await fetch(url, {
-        method: 'GET',
-        headers: { 'Authorization': 'Bearer ' + token }
-      });
+      // 每页请求 10 秒超时，避免网关慢时整条 init 链永久阻塞
+      var ctrl = new AbortController();
+      var timer = setTimeout(function () { ctrl.abort(); }, 10000);
+      var res;
+      try {
+        res = await fetch(url, {
+          method: 'GET',
+          headers: { 'Authorization': 'Bearer ' + token },
+          signal: ctrl.signal
+        });
+      } finally {
+        clearTimeout(timer);
+      }
       if (!res.ok) {
         var txt = '';
         try { txt = await res.text(); } catch (e) {}
@@ -403,8 +416,11 @@
       if (rows) {
         return processCloudRows(rows);
       }
-      // 回退：兼容层全表 select
-      var result = await sb.from(TABLE).select('store_key, payload, updated_at');
+      // 回退：兼容层全表 select（加 30s 超时防止卡死）
+      var result = await withTimeout(
+        sb.from(TABLE).select('store_key, payload, updated_at'),
+        30000
+      );
       if (result.error) {
         console.error('[CloudbaseSync] 云端加载失败:', result.error.message || result.error);
         cloudLoadDenied = true;
@@ -517,71 +533,87 @@
       console.log('[CloudbaseSync] 初始化，应用前缀:', APP_ID);
 
       await loadClient();
-      // 等兼容层登录引导结束（无 token 时拉取/写入只会 FetchError）
-      if (window.CloudbaseWhenReady) {
-        try { await window.CloudbaseWhenReady(); } catch (e) {}
-      }
-      var user = null;
-      if (sb) {
-        user = await waitAuth();
-        await loadAllFromCloud();
-      } else {
-        cloudLoadDenied = true;
-      }
 
-      if (cloudLoadDenied) {
-        notifyStatus('offline');
-        // 指数退避重试：30s → 60s → 120s → 120s（上限），避免频繁全表拉取加重网络负担
-        var retryDelay = 30000;
-        var retryMaxDelay = 120000;
-        function scheduleRetry() {
-          setTimeout(function () {
-            retryAuthAndReload().then(function (ok) {
-              if (ok && !cloudLoadDenied) return; // 恢复成功，不再重试
-              retryDelay = Math.min(retryDelay * 2, retryMaxDelay);
-              scheduleRetry();
-            }).catch(function () {
-              retryDelay = Math.min(retryDelay * 2, retryMaxDelay);
-              scheduleRetry();
-            });
-          }, retryDelay);
-        }
-        scheduleRetry();
-      } else {
-        notifyStatus('idle');
-      }
-      bindBadgeWhenReady();
+      // 先做本地键名迁移（纯本地操作，不阻塞）
+      try { await migrateLocalStorage(); } catch (e) {}
 
-      await migrateLocalStorage();
+      // 立即标记 initialized，让页面 getItem 可以用本地数据渲染，
+      // 不必等云端加载完成。云端数据后台到达后再触发更新事件。
+      initialized = true;
+      console.log('[CloudbaseSync] 本地就绪（initialized=true），后台加载云端数据...');
 
+      // 注册定时器和事件监听
       setInterval(refreshFromCloud, REFRESH_INTERVAL);
       setInterval(flushPending, 10000);
-
-      window.addEventListener('online', function () {
-        flushPending();
-        refreshFromCloud();
-      });
-      document.addEventListener('visibilitychange', function () {
-        if (!document.hidden) {
-          flushPending();
-          refreshFromCloud();
-        }
-      });
+      window.addEventListener('online', function () { flushPending(); refreshFromCloud(); });
+      document.addEventListener('visibilitychange', function () { if (!document.hidden) { flushPending(); refreshFromCloud(); } });
       window.addEventListener('beforeunload', flushPending);
       window.addEventListener('offline', function () { notifyStatus('offline'); });
+      bindBadgeWhenReady();
 
-      initialized = true;
-      console.log('[CloudbaseSync] 就绪。应用:', APP_ID, '用户:', user ? (user.email || user.id || 'authed') : 'none');
-
-      // 云端缺失但本地存在的键自动补传（环境重建 / 清空云端后历史数据一次性回灌）
-      try { await autoUploadLocalOnlyKeys(); } catch (e) {}
-
-      try {
-        var allKeys = Object.keys(cache);
-        if (allKeys.length > 0) {
-          window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { keys: allKeys, initial: true } }));
+      // 后台异步：等认证 → 拉取云端数据 → 更新缓存 → 触发页面刷新
+      (async function () {
+        // 直接尝试拉取云端数据——fetchAppRows 内部通过 CloudbaseGetAccessToken
+        // 自取 Bearer token，不需要等 waitAuth / CloudbaseWhenReady。
+        // 跳过 waitAuth（30 次轮询 × 网络延迟）可从 10 分钟降到秒级。
+        if (sb) {
+          await loadAllFromCloud();
+        } else {
+          cloudLoadDenied = true;
         }
-      } catch (e) {}
+
+        if (cloudLoadDenied) {
+          notifyStatus('offline');
+          // 指数退避重试：30s → 60s → 120s → 120s（上限）
+          var retryDelay = 30000;
+          var retryMaxDelay = 120000;
+          function scheduleRetry() {
+            setTimeout(function () {
+              retryAuthAndReload().then(function (ok) {
+                if (ok && !cloudLoadDenied) return;
+                retryDelay = Math.min(retryDelay * 2, retryMaxDelay);
+                scheduleRetry();
+              }).catch(function () {
+                retryDelay = Math.min(retryDelay * 2, retryMaxDelay);
+                scheduleRetry();
+              });
+            }, retryDelay);
+          }
+          scheduleRetry();
+        } else {
+          notifyStatus('idle');
+          console.log('[CloudbaseSync] 云端数据加载完成。应用:', APP_ID);
+        }
+
+        // 后台异步获取用户信息（不阻塞数据加载）
+        if (sb) {
+          try {
+            var result = await Promise.race([
+              sb.auth.getUser(),
+              new Promise(function (_, rej) { setTimeout(function () { rej(new Error('getUser 超时')); }, 5000); })
+            ]);
+            if (result && result.data && result.data.user) {
+              authedUser = result.data.user;
+              authFailReason = '';
+              console.log('[CloudbaseSync] 用户:', authedUser.email || authedUser.id || 'authed');
+            }
+          } catch (e) {}
+        }
+
+        // 云端缺失但本地存在的键自动补传
+        try { await autoUploadLocalOnlyKeys(); } catch (e) {}
+
+        try {
+          var allKeys = Object.keys(cache);
+          if (allKeys.length > 0) {
+            window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { keys: allKeys, initial: true } }));
+          }
+        } catch (e) {}
+      })().catch(function (e) {
+        console.warn('[CloudbaseSync] 后台云端加载异常:', e && e.message ? e.message : e);
+        cloudLoadDenied = true;
+        notifyStatus('offline');
+      });
 
       return true;
     })();
@@ -797,7 +829,7 @@
         console.warn('[CloudbaseSync] 刷新 REST 拉取失败:', e && e.message ? e.message : e);
       }
       if (!rows) {
-        var fbResult = await sb.from(TABLE).select('store_key, payload, updated_at');
+        var fbResult = await withTimeout(sb.from(TABLE).select('store_key, payload, updated_at'), 30000);
         if (!fbResult.data || fbResult.error) {
           if (Object.keys(pendingWrites).length === 0) notifyStatus('offline');
           return;
@@ -973,6 +1005,14 @@
     }
     emit({ phase: 'start', total: keysToUpload.length });
 
+    // 等认证就绪后再开始上传（避免无 token 时所有 upsert 挂起或必败）
+    if (window.CloudbaseWhenReady) {
+      try { await Promise.race([
+        window.CloudbaseWhenReady(),
+        new Promise(function (_, rej) { setTimeout(function () { rej(new Error('认证等待超时(15s)')); }, 15000); })
+      ]); } catch (e) { console.warn('[CloudbaseSync] 上传前认证未就绪:', e && e.message ? e.message : e); }
+    }
+
     notifyStatus('pending');
     var okCount = 0, failCount = 0;
     var pushReauthed = false; // 本次 pushAll 最多强制重登一次（60s 冷却，与队列路径共享 _lastReauthAt）
@@ -986,7 +1026,7 @@
       // 手动上传路径原来没有，导致 token 过期时点一次按钮就是几百个必败请求。
       for (var attempt = 0; attempt < 2 && !uploaded; attempt++) {
         try {
-          var res = await doUpload(item.key, value);
+          var res = await withTimeout(doUpload(item.key, value), _uploadTimeoutMs);
           uploaded = true;
           okCount++;
           cache[item.key] = value;
@@ -1021,10 +1061,10 @@
       try {
         emit({ phase: 'cleanup', current: 0, total: 0 });
         var APP_PREFIX = APP_ID + '__';
-        // 只拉当前应用的 store_key（REST 直连），不再全表扫描
+        // 只拉当前应用的 store_key（REST 直连），不再全表扫描；加超时防卡住
         var cloudKeys = null;
         try {
-          cloudKeys = await fetchAppRows('store_key');
+          cloudKeys = await withTimeout(fetchAppRows('store_key'), 30000);
         } catch (e) {
           console.warn('[CloudbaseSync] cleanup REST 拉取失败:', e && e.message ? e.message : e);
         }
@@ -1049,7 +1089,7 @@
             if (rawLocal !== null && rawLocal !== undefined && isEmptyValue(rawLocal)) stale.push(sk);
           }
           for (var d = 0; d < stale.length; d++) {
-            try { await sb.from(TABLE).delete().eq('store_key', stale[d]); } catch (e) {}
+            try { await withTimeout(sb.from(TABLE).delete().eq('store_key', stale[d]), _uploadTimeoutMs); } catch (e) {}
             emit({ phase: 'cleanup', current: d + 1, total: stale.length });
           }
         }
