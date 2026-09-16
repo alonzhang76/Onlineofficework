@@ -29,7 +29,7 @@
  *   - 普通用户页面始终限制 user_id = 当前用户 id
  */
 
-import { supabase, STORAGE_BUCKET, MAX_FILE_SIZE, ALLOWED_IMAGE_MIME } from "./cloudbase.js?v=20260915a";
+import { supabase, STORAGE_BUCKET, MAX_FILE_SIZE, ALLOWED_IMAGE_MIME } from "./cloudbase.js?v=20260916a";
 import { ADMIN_EMAILS, isAdmin } from "./admin-config.js";
 
 /* ---------- form_type 映射 ---------- */

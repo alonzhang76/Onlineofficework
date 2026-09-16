@@ -48,6 +48,259 @@ export const AUTH_SESSION_KEY = "tcb_auth_session";
 // 列目录使用云函数（CloudBase SDK 无前端列目录 API，需部署 tcb-file-list 云函数）
 export const FILE_LIST_FUNCTION = "tcb-file-list";
 
+/* ======================================================================
+ * 多标签页会话保护（修复：Windows 下切换/新开标签页即被登出）
+ *
+ * 根因（分析 @cloudbase/js-sdk 3.9.3 源码确认）：
+ *   1. SDK 把登录凭证（access_token/refresh_token/expires_at）存在
+ *      localStorage 的 `credentials_<envId>`，所有标签页共享同一份；
+ *   2. SDK 刷新令牌用的锁（_acquireLock）只在单标签页进程内生效，
+ *      多个标签页同时初始化/从休眠唤醒、且访问令牌过期时，会用同一个
+ *      refresh_token 并发刷新；
+ *   3. 服务端对竞争失败方返回 INVALID_GRANT 时，SDK 会执行
+ *      setCredentials(null) —— 直接 removeItem 删除【共享】凭证，
+ *      并广播 SIGNED_OUT。一个标签页刷新失败 = 同浏览器所有标签页/之后
+ *      打开的页面全部失去会话，auth-guard 探活为 dead → 跳登录页。
+ *   macOS 通常单标签使用故不触发；Windows（Edge/Chrome 休眠标签页、
+ *   启动时恢复一批标签页、业务页 target=_blank 多开）必现。
+ *
+ * 三层防护：
+ *   A. 凭证键守卫：拦截对 credentials_<env> 的"非主动登出"清除，
+ *      用当前/镜像中最新且仍有效的凭证（很可能就是竞争胜出标签页刚刷新
+ *      写入的新凭证）就地恢复；
+ *   B. 凭证镜像：本地写入 + 跨标签 storage 事件双通道维护镜像键，
+ *      键被清空/内存态丢失时可自恢复（recoverSdkCredentials）；
+ *   C. 刷新串行化：初始化 / 切前台 / getUser / getSession 前，
+ *      用 navigator.locks 跨标签页串行令牌检查，持锁后先重读存储，
+ *      令牌健康则不刷新，从源头消灭并发刷新竞争。
+ * ====================================================================== */
+var SDK_CRED_KEY = "credentials_" + CLOUDBASE_ENV;
+var CRED_MIRROR_KEY = "tcb_cred_mirror__" + CLOUDBASE_ENV;
+var SIGNOUT_MARKER_KEY = "tcb_auth_signout__" + CLOUDBASE_ENV;
+var CRED_SKEW_GRACE_MS = 5 * 60 * 1000;    // 过期宽限（容忍本机时钟偏差）
+var CRED_HEALTHY_MS = 5 * 60 * 1000;       // 剩余有效期大于此值视为健康，不刷新
+var SIGNOUT_MARKER_TTL_MS = 2 * 60 * 1000; // 主动登出标记有效期
+
+function _credNativeLS() {
+  try {
+    if (window._origLocalStorage && window._origLocalStorage.getItem) return window._origLocalStorage;
+  } catch (e) {}
+  return window.localStorage;
+}
+function _credParse(raw) {
+  if (!raw || typeof raw !== "string") return null;
+  try {
+    var c = JSON.parse(raw);
+    return c && typeof c === "object" && c.access_token ? c : null;
+  } catch (e) { return null; }
+}
+function _credIsEmail(c) { return !!c && c.scope !== "anonymous"; }
+function _credExpireMs(c) {
+  if (!c || !c.expires_at) return 0;
+  var t = new Date(c.expires_at).getTime();
+  return isNaN(t) ? 0 : t;
+}
+// 访问令牌仍可用（未过期，含时钟宽限；匿名凭证不算）
+function _credUsable(c) {
+  if (!c || !c.access_token || !_credIsEmail(c)) return false;
+  var exp = _credExpireMs(c);
+  return !!exp && exp > Date.now() - CRED_SKEW_GRACE_MS;
+}
+function _credBetter(a, b) {
+  if (!a) return b || null;
+  if (!b) return a;
+  if (!b.access_token) return a;
+  if (!a.access_token) return b;
+  if (a.scope === "anonymous" && b.scope !== "anonymous") return b;
+  if (b.scope === "anonymous" && a.scope !== "anonymous") return a;
+  return _credExpireMs(b) >= _credExpireMs(a) ? b : a;
+}
+function _credReadKey() {
+  try { return _credParse(_credNativeLS().getItem(SDK_CRED_KEY)); } catch (e) { return null; }
+}
+function _credReadMirror() {
+  try { return _credParse(_credNativeLS().getItem(CRED_MIRROR_KEY)); } catch (e) { return null; }
+}
+function _credWriteMirror(c) {
+  try {
+    if (c && c.access_token && c.scope !== "anonymous") {
+      _credNativeLS().setItem(CRED_MIRROR_KEY, JSON.stringify(c));
+    }
+  } catch (e) {}
+}
+function _credClearMirror() {
+  try { _credNativeLS().removeItem(CRED_MIRROR_KEY); } catch (e) {}
+}
+// 主动登出/登录换号前置标记：守卫对此期间的凭证清除放行
+function markAuthSignout() {
+  try { _credNativeLS().setItem(SIGNOUT_MARKER_KEY, String(Date.now())); } catch (e) {}
+}
+function clearAuthSignout() {
+  try { _credNativeLS().removeItem(SIGNOUT_MARKER_KEY); } catch (e) {}
+}
+function _isAuthSignout() {
+  try {
+    var ts = parseInt(_credNativeLS().getItem(SIGNOUT_MARKER_KEY) || "0", 10);
+    if (!ts) return false;
+    if (Date.now() - ts > SIGNOUT_MARKER_TTL_MS) {
+      _credNativeLS().removeItem(SIGNOUT_MARKER_KEY);
+      return false;
+    }
+    return true;
+  } catch (e) { return false; }
+}
+
+// 自恢复：凭证键缺失/变旧时用镜像补回，返回最佳凭证（可能为 null）
+function recoverSdkCredentials() {
+  try {
+    var cur = _credReadKey();
+    var mir = _credReadMirror();
+    var best = _credBetter(cur, mir);
+    if (best && _credIsEmail(best) && best.access_token) {
+      if (!cur || _credExpireMs(best) > _credExpireMs(cur)) {
+        _credNativeLS().setItem(SDK_CRED_KEY, JSON.stringify(best));
+        console.warn("[cloudbase.js] 🛡️ 已从凭证镜像恢复 SDK 登录凭证");
+      }
+      return best;
+    }
+  } catch (e) {}
+  return null;
+}
+window.__cbRecoverCredentials = recoverSdkCredentials;
+
+/* A. 凭证键守卫：必须在 SDK 初始化前安装 */
+(function installCredentialGuard() {
+  if (window.__cbCredGuardInstalled) return;
+  window.__cbCredGuardInstalled = true;
+  var ls;
+  try { ls = window.localStorage; } catch (e) { return; }
+  // 此时 localstorage-patch 可能已包装过 localStorage（对非业务键是透传原生）
+  var prevGet = ls.getItem.bind(ls);
+  var prevSet = ls.setItem.bind(ls);
+  var prevRemove = ls.removeItem.bind(ls);
+
+  function remember(rawVal) {
+    var c = _credParse(rawVal);
+    if (c && _credIsEmail(c)) _credWriteMirror(_credBetter(_credReadMirror(), c));
+  }
+  // SDK 试图清空凭证时，用最新有效凭证就地保留
+  function preserve(reason) {
+    try {
+      var best = _credBetter(_credParse(prevGet(SDK_CRED_KEY)), _credReadMirror());
+      if (_credUsable(best)) {
+        prevSet(SDK_CRED_KEY, JSON.stringify(best));
+        _credWriteMirror(best);
+        console.warn("[cloudbase.js] 🛡️ 拦截到对登录凭证的非登出性清除（" + reason +
+          "），已保留有效会话，防止多标签页令牌刷新竞争导致全部标签页被登出");
+        return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+  try { remember(prevGet(SDK_CRED_KEY)); } catch (e) {}
+
+  ls.setItem = function (key, value) {
+    if (key === SDK_CRED_KEY) {
+      if (value === null || value === undefined || value === "" || value === "null") {
+        if (!_isAuthSignout() && preserve("setItem-empty")) return;
+      } else {
+        try { remember(String(value)); } catch (e) {}
+      }
+    }
+    return prevSet(key, value);
+  };
+  ls.removeItem = function (key) {
+    if (key === SDK_CRED_KEY && !_isAuthSignout() && preserve("removeItem")) return;
+    return prevRemove(key);
+  };
+
+  // B. 跨标签页：其他标签写入新凭证（刷新成功）时同步本标签镜像
+  window.addEventListener("storage", function (ev) {
+    try {
+      if (ev && ev.key === SDK_CRED_KEY && ev.newValue) remember(ev.newValue);
+    } catch (e) {}
+  });
+  console.log("[cloudbase.js] 🛡️ 多标签页会话凭证守卫已安装 key=" + SDK_CRED_KEY);
+})();
+
+/* C. 跨标签页刷新串行化 */
+var _authTouchPromise = null;
+function _withAuthLock(task) {
+  var lockName = "cb-auth-touch-" + CLOUDBASE_ENV;
+  if (!navigator.locks || typeof navigator.locks.request !== "function") {
+    return Promise.resolve().then(task);
+  }
+  return new Promise(function (resolve) {
+    var done = false;
+    var timer = setTimeout(function () {
+      if (done) return;
+      done = true;
+      console.warn("[cloudbase.js] 等待跨标签页登录锁超时，直接继续");
+      Promise.resolve().then(task).then(resolve, function () { resolve(); });
+    }, 8000);
+    function finish(fn) {
+      try {
+        Promise.resolve().then(fn).then(function (v) { if (!done) { done = true; resolve(v); } },
+          function () { if (!done) { done = true; resolve(); } });
+      } catch (e) { if (!done) { done = true; resolve(); } }
+    }
+    try {
+      navigator.locks.request(lockName, function () {
+        if (done) return Promise.resolve();
+        clearTimeout(timer);
+        return Promise.resolve().then(task);
+      }).then(function (v) { if (!done) { done = true; resolve(v); } },
+        function () { if (!done) { done = true; clearTimeout(timer); finish(task); } });
+    } catch (e) {
+      clearTimeout(timer);
+      finish(task);
+    }
+  });
+}
+// 令牌健康检查 + 必要时持跨标签锁刷新；app 可由调用方传入
+function authTouch(app, reason) {
+  if (_authTouchPromise) return _authTouchPromise;
+  _authTouchPromise = (async function () {
+    try {
+      await _withAuthLock(async function () {
+        var c = _credReadKey();
+        if (c && _credIsEmail(c)) {
+          var exp = _credExpireMs(c);
+          if (exp && exp > Date.now() + CRED_HEALTHY_MS) return; // 健康：不刷新
+        } else if (!c) {
+          // 无 SDK 凭证：仅本地存在邮箱会话缓存时才尝试恢复/刷新
+          if (!readSessionCache()) return;
+          recoverSdkCredentials();
+          c = _credReadKey();
+          if (!c) return;
+        }
+        var auth = app ? getAuthInstance(app) : null;
+        if (!auth) {
+          try { var a = await getApp(); auth = getAuthInstance(a); } catch (e) { return; }
+        }
+        if (auth && typeof auth.getAccessToken === "function") {
+          try { await auth.getAccessToken(); } catch (e) { /* 失败后果由凭证守卫兜底 */ }
+        }
+      });
+    } finally {
+      setTimeout(function () { _authTouchPromise = null; }, 0);
+    }
+  })();
+  return _authTouchPromise;
+}
+
+// 标签页切回前台：先于业务数据轮询完成令牌健康检查/串行刷新
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) return;
+    try {
+      getApp().then(function (app) {
+        if (app) return authTouch(app, "visible");
+      }).catch(function () {});
+    } catch (e) {}
+  });
+}
+
 // 配置占位符检查
 if (!CLOUDBASE_ENV || CLOUDBASE_ENV === "your-env-id") {
   console.warn(
@@ -394,6 +647,9 @@ async function ensureLogin(app) {
     return;
   }
   try {
+    // 多标签页保护：任何登录态判断/匿名登录之前，先做跨标签串行的令牌健康检查，
+    // 避免多个标签页同时用同一 refresh_token 刷新触发 INVALID_GRANT
+    try { await authTouch(app, "ensureLogin"); } catch (e) {}
     var auth = getAuthInstance(app);
     if (!auth) return;
     var hasLogin = false;
@@ -1202,6 +1458,8 @@ export const supabase = {
 
         // 先清掉任何已有会话（尤其是 ensureLogin 留下的匿名会话），
         // 否则 SDK 可能复用旧会话，导致邮箱登录后 JWT 仍是 role=anon
+        // 标记"主动登出/换号"：守卫对此期间的凭证清除放行（可能是换账号登录）
+        try { markAuthSignout(); } catch (_e) {}
         try {
           if (typeof auth.signOut === "function") {
             await auth.signOut();
@@ -1221,8 +1479,13 @@ export const supabase = {
         }
         if (!res || res.error) {
           var errObj = (res && res.error) || mapError("登录失败");
+          // 登录失败（可能是换号输入错误）：清镜像，避免旧账号会话被守卫"复活"
+          try { _credClearMirror(); } catch (_e) {}
           return { data: { user: null, session: null }, error: mapError(errObj) };
         }
+        // 成功：data.user / data.session —— 解除主动登出标记，
+        // 新凭证已在 SDK 写入时被守卫同步进镜像
+        try { clearAuthSignout(); } catch (_e) {}
         // 成功：data.user / data.session
         var rawUser = (res.data && res.data.user) || null;
         console.log("[cloudbase.js] signInWithPassword 原始返回 user:",
@@ -1245,12 +1508,20 @@ export const supabase = {
       try {
         var app = await getApp();
         if (!app) return { data: { user: null }, error: mapError("CloudBase SDK 未初始化") };
+        // 多标签页保护：先跨标签串行做令牌健康检查（健康则零开销）
+        try { await authTouch(app, "getUser"); } catch (_e) {}
         var user = await fetchUser(app);
         // 关键容错：access token 过期但 refresh token 有效时，
-        // fetchUser 的三个方法可能全部失败；先通过 getAccessToken 触发 SDK
-        // 自动刷新令牌，再重试一次 fetchUser，避免"明明有会话却被判失效"
+        // fetchUser 的三个方法可能全部失败；先通过持锁 getAccessToken 触发
+        // SDK 自动刷新令牌，再重试一次 fetchUser，避免"明明有会话却被判失效"
         if (!user) {
-          try { await fetchAccessToken(app); } catch (_e) {}
+          try { await authTouch(app, "getUser-retry"); } catch (_e) {}
+          user = await fetchUser(app);
+        }
+        if (!user) {
+          // 凭证可能刚被其他标签页的刷新竞争清掉：存储键通常已被守卫拦截保留，
+          // 此处再用镜像显式恢复一次，让 SDK 下一次读存储即恢复会话
+          try { recoverSdkCredentials(); } catch (_e) {}
           user = await fetchUser(app);
         }
         if (!user) {
@@ -1272,6 +1543,8 @@ export const supabase = {
       try {
         var cached = readSessionCache();
         var app = await getApp();
+        // 多标签页保护：持锁确保拿到的是有效令牌（不并发刷新）
+        if (app) { try { await authTouch(app, "getSession"); } catch (_e) {} }
         var token = app ? await fetchAccessToken(app) : null;
         var user = cached ? cached.user : null;
         // 有 SDK 能力时后台刷新用户（失败不阻塞）
@@ -1294,6 +1567,10 @@ export const supabase = {
 
     // 退出登录
     async signOut() {
+      // 通知凭证守卫：接下来的凭证清除是主动登出，必须放行；
+      // 同时删除镜像，避免其他标签页/下次加载把会话"复活"
+      try { markAuthSignout(); } catch (_e) {}
+      try { _credClearMirror(); } catch (_e) {}
       try {
         var app = await getApp();
         var auth = getAuthInstance(app);

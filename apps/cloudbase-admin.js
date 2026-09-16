@@ -1,7 +1,8 @@
 /* ===== CloudBase 云端数据管理工具 cloudbase-admin.js =====
  *
  * 提供两个手动干预入口（登录后主页面按钮调用）：
- *   CloudAdmin.syncNow()         → 强制从云端拉取全量数据 + flush 待推队列
+ *   CloudAdmin.syncNow()         → 强制从云端拉取全量数据 + flush 待推队列；
+ *                                  若本地数据有更新，提示后自动刷新整页显示最新数据
  *   CloudAdmin.clearCloudData()  → 弹密码输入框 → 删除 app_data_store 全表 →
  *                                   清本地业务数据 + LWW 时间戳（保留 auth 会话）→ 重载
  *
@@ -85,6 +86,22 @@
     }, 2500);
   }
 
+  /**
+   * 下载成功且本地数据确有更新：完成提示后自动刷新整页，
+   * 让那些没有监听 cloud-data-updated 事件、或缓存了旧数据的页面
+   * 在重新加载时直接渲染最新数据（与"清空云端后自动刷新"的交互一致）。
+   * 仅在手动"下载云端数据"且数据发生变化时调用；"已是最新数据"不刷新，
+   * 下载是手动触发的，刷新不会形成循环。
+   */
+  function finishProgressAndReload(msg) {
+    finishProgress(true, msg);
+    toast(msg);
+    setTimeout(function () {
+      try { window.location.reload(); }
+      catch (e) { window.location.href = window.location.href; }
+    }, 1300);
+  }
+
   // ===== 获取 supabase 兼容客户端 =====
   function getClient() {
     return window.supabase || null;
@@ -158,9 +175,14 @@
       try {
         var r = await window.CloudbaseSync.pullAll();
         if (r && r.ok) {
-          var okMsg = r.changed ? '✅ 下载完成，已更新本地数据' : '✅ 已是最新数据';
-          finishProgress(true, okMsg);
-          toast(okMsg);
+          if (r.changed) {
+            // 有新数据落本地：自动刷新一次，确保页面渲染最新数据
+            finishProgressAndReload('✅ 下载完成，页面即将自动刷新…');
+          } else {
+            var freshMsg = '✅ 已是最新数据';
+            finishProgress(true, freshMsg);
+            toast(freshMsg);
+          }
         } else {
           var errMsg = '下载失败：' + (r && r.msg ? r.msg : '未知错误');
           finishProgress(false, errMsg);
@@ -182,9 +204,13 @@
         try {
           var changed = await pullFn.call(window.CloudbaseStore);
           var n = Array.isArray(changed) ? changed.length : (changed ? 1 : 0);
-          var okMsg2 = n > 0 ? '✅ 下载完成，已更新 ' + n + ' 个数据集' : '✅ 已是最新数据';
-          finishProgress(true, okMsg2);
-          toast(okMsg2);
+          if (n > 0) {
+            finishProgressAndReload('✅ 下载完成，已更新 ' + n + ' 个数据集，页面即将刷新…');
+          } else {
+            var freshMsg2 = '✅ 已是最新数据';
+            finishProgress(true, freshMsg2);
+            toast(freshMsg2);
+          }
           try { window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { source: 'manual-pull' } })); } catch (e) {}
         } catch (e) {
           var exMsg2 = '下载异常：' + (e && e.message ? e.message : e);
@@ -199,9 +225,7 @@
         if ('_initialized' in window.CloudbaseStore) window.CloudbaseStore._initialized = false;
         if ('_initPromise' in window.CloudbaseStore) window.CloudbaseStore._initPromise = null;
         await window.CloudbaseStore.init();
-        var okMsg3 = '✅ 已从云端重新加载数据';
-        finishProgress(true, okMsg3);
-        toast(okMsg3);
+        finishProgressAndReload('✅ 已从云端重新加载数据，页面即将刷新…');
         try { window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { source: 'manual-pull' } })); } catch (e) {}
       } catch (e) {
         var exMsg3 = '下载异常：' + (e && e.message ? e.message : e);
@@ -221,9 +245,7 @@
         finishProgress(false, errMsg3);
         toast(errMsg3, 'error');
       } else {
-        var okMsg4 = '✅ 云端共 ' + n3 + ' 条数据，请刷新页面查看';
-        finishProgress(true, okMsg4);
-        toast(okMsg4);
+        finishProgressAndReload('✅ 云端共 ' + n3 + ' 条数据，页面即将刷新…');
         try { window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { source: 'manual-pull' } })); } catch (e) {}
       }
     } catch (e) {

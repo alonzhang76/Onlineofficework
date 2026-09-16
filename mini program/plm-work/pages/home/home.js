@@ -48,20 +48,27 @@ Page({
   },
 
   onPullDownRefresh() {
-    Promise.all([
-      new Promise(r => wageDb.syncFromCloud(r)),
-      new Promise(r => tradeDb.syncFromCloud(r)),
-      new Promise(r => scheduleDb.syncFromCloud(r)),
-      new Promise(r => purchaseDb.syncFromCloud(r)),
-      new Promise(r => incomeDb.syncFromCloud(r))
-    ]).then(results => {
+    // 先补发本机待上传写入（编辑后立刻下拉时，确保云端先收到最新值）
+    try { if (typeof supa.flushQueue === 'function') supa.flushQueue(); } catch (e) {}
+    const dbs = [wageDb, tradeDb, scheduleDb, purchaseDb, incomeDb];
+    // 注意：syncFromCloud 的回调是 (ok, count) 两个参数，不能直接作为
+    // Promise 的 resolve（resolve 只取第一个参数，会导致 count 丢失、
+    // ok 布尔值被误当数组判断，曾经因此"同步成功却恒提示失败"）。
+    // 同时每个模块独立容错：单个模块异常不拖垮整次下拉结果。
+    Promise.all(dbs.map(d => new Promise(resolve => {
+      try {
+        d.syncFromCloud((ok, count) => resolve({ ok: !!ok, count: count || 0 }));
+      } catch (e) {
+        resolve({ ok: false, count: 0 });
+      }
+    }))).then(results => {
       this.render();
       wx.stopPullDownRefresh();
-      // results: [[ok,count], ...]；统计成功应用的总条数
-      const totalApplied = results.reduce((s, r) => s + ((r && r[1]) || 0), 0);
-      const anyOk = results.some(r => r && r[0]);
-      if (anyOk) {
-        wx.showToast({ title: '已同步云端（' + totalApplied + ' 项）', icon: 'none' });
+      const totalApplied = results.reduce((s, r) => s + r.count, 0);
+      const okCount = results.filter(r => r.ok).length;
+      if (okCount > 0) {
+        const suffix = okCount < results.length ? '，部分模块未响应' : '';
+        wx.showToast({ title: '已同步云端（' + totalApplied + ' 项）' + suffix, icon: 'none' });
       } else {
         wx.showToast({ title: '云端同步失败，请检查网络', icon: 'none' });
       }

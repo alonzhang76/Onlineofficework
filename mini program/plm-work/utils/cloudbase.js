@@ -302,9 +302,37 @@ function callFunction(name, data) {
 
 /* ============ 数据读写（app_data_store，PG 形态 {id, data}） ============ */
 
+/** 兼容 data 字段被网关双重编码成 JSON 字符串的情况 */
+function _rowData(r) {
+  let d = r && r.data;
+  if (typeof d === 'string') {
+    try { d = JSON.parse(d); } catch (e) { d = {}; }
+  }
+  return (d && typeof d === 'object') ? d : {};
+}
+
+/**
+ * 同一 store_key 的重复行里取 updated_at 最新的一条。
+ * 背景：app_data_store 存在历史 upsert 缺陷遗留的重复行（网页端 cloudbase-sync.js
+ * 读时也做同样的去重）。Postgres 默认按物理顺序返回，rows[0] 往往是最旧的行，
+ * 不去重会导致小程序"提示拉取成功却一直显示旧数据"。
+ * 无 updated_at 的行排在有时间戳的行之后；全部没有时退化为第一行。
+ */
+function pickNewestRow(rows) {
+  if (!Array.isArray(rows) || !rows.length) return null;
+  let best = rows[0];
+  let bestMs = -Infinity;
+  for (let i = 0; i < rows.length; i++) {
+    const ms = Date.parse(_rowData(rows[i]).updated_at || '');
+    const score = isNaN(ms) ? -1 : ms;
+    if (score > bestMs) { bestMs = score; best = rows[i]; }
+  }
+  return best;
+}
+
 /** 云端行 → 同步层行 */
 function mapRow(r) {
-  const d = r && r.data || {};
+  const d = _rowData(r);
   const ck = d.store_key || r.id || '';
   return { key: ck, value: d.payload, updatedAt: d.updated_at };
 }
@@ -337,8 +365,9 @@ function pullAll(ns) {
         return req('GET', '/v1/rdb/rest/' + CONFIG.table,
           '?select=id,data&id=eq.' + encodeURIComponent(cloudKey), null, null, false)
           .then(rows => {
-            if (!Array.isArray(rows) || !rows.length) return null;
-            const m = mapRow(rows[0]);
+            const row = pickNewestRow(rows);
+            if (!row) return null;
+            const m = mapRow(row);
             return {
               key: k,
               value: m.value,
@@ -365,8 +394,9 @@ function pull(key) {
   return req('GET', '/v1/rdb/rest/' + CONFIG.table,
     '?select=id,data&id=eq.' + encodeURIComponent(toCloudKey(key)), null, null, false)
     .then(rows => {
-      if (!Array.isArray(rows) || !rows.length) return null;
-      const m = mapRow(rows[0]);
+      const row = pickNewestRow(rows);
+      if (!row) return null;
+      const m = mapRow(row);
       return { key: key, value: m.value, updatedAt: m.updatedAt };
     });
 }

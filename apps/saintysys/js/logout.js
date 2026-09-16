@@ -17,7 +17,7 @@
  * 便于以后新增的独立退出按钮使用。
  */
 
-import { supabase } from "./cloudbase.js?v=20260915a";
+import { supabase } from "./cloudbase.js?v=20260916a";
 
 async function performLogout() {
   try {

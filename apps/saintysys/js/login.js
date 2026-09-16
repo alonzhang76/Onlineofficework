@@ -6,7 +6,7 @@
  * 登录成功后跳转到 ./index.html
  */
 
-import { supabase, CLOUDBASE_ENV } from "./cloudbase.js?v=20260915a";
+import { supabase, CLOUDBASE_ENV } from "./cloudbase.js?v=20260916a";
 
 // 中文提示文案
 const MSG = {

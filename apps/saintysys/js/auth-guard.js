@@ -194,7 +194,7 @@
         if (window.supabase && window.supabase.auth && typeof window.supabase.auth.signOut === "function") {
           window.supabase.auth.signOut().catch(function(){});
         } else {
-          import("./cloudbase.js?v=20260915a")
+          import("./cloudbase.js?v=20260916a")
             .then(function(mod) { if (mod.supabase) mod.supabase.auth.signOut().catch(function(){}); })
             .catch(function(){});
         }
@@ -281,7 +281,7 @@
     };
 
     try {
-      const mod = await import("./cloudbase.js?v=20260915a");
+      const mod = await import("./cloudbase.js?v=20260916a");
       const supabase = mod.supabase;
       // 暴露到全局，方便调试与其他脚本使用
       window.supabase = supabase;
@@ -296,6 +296,26 @@
 
       if (!result || result.error || !result.data || !result.data.user) {
         console.error("[auth-guard] getUser 校验失败(已重试):", result && result.error);
+
+        // 多标签页保护：Windows 多标签/休眠标签恢复时，SDK 凭证可能刚被
+        // 其他标签页的刷新竞争（INVALID_GRANT）清掉（cloudbase.js 守卫通常已
+        // 拦截存储删除）。这里显式从凭证镜像恢复一次，再给 getUser 一次机会，
+        // 避免共享会话被一个标签页的瞬时刷新失败连带踢掉。
+        try {
+          if (typeof window.__cbRecoverCredentials === "function") {
+            window.__cbRecoverCredentials();
+          }
+          const retryResult = await supabase.auth.getUser();
+          if (retryResult && !retryResult.error && retryResult.data && retryResult.data.user) {
+            result = retryResult;
+            console.log("[auth-guard] 凭证恢复后 getUser 成功，保留登录态");
+          }
+        } catch (recoverErr) {
+          console.warn("[auth-guard] 凭证恢复重试异常:", recoverErr);
+        }
+      }
+
+      if (!result || result.error || !result.data || !result.data.user) {
         const verdict = await probeSession(supabase);
         if (verdict === "alive" || verdict === "unknown") {
           // 令牌探活仍有效（或无法判定）→ 优雅降级：留在页面，不请登出
@@ -309,6 +329,7 @@
           return;
         }
         // 令牌确实缺失/过期/匿名 → 清理并跳登录
+        console.warn("[auth-guard] 会话探活结论: " + verdict + "，跳转登录页");
         clearAllAuthState();
         goLogin();
         setTimeout(goLogin, 20);
