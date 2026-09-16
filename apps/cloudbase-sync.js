@@ -305,10 +305,10 @@
   var reauthTried = false; // 每轮会话失效只强制重登一次，避免频繁登录触发风控
 
   // ===== 只拉当前应用行的 REST 直连（绕过兼容层全表扫描）=====
-  // 兼容层 sb.from(TABLE).select() 会分页拉取全表所有 7 个应用的数据再客户端过滤，
-  // 数据量大时极易超时/ERR_NETWORK_IO_SUSPENDED。这里直接用 PostgREST like 过滤，
-  // 只拉 store_key 以 APP_ID + '__' 开头的行，传输量降一个数量级。
-  async function fetchAppRows(columns) {
+  // 物理表 app_data_store 只有 id(text) 和 data(jsonb) 两列，
+  // store_key/payload/updated_at 都是 data 内字段。
+  // 用 PostgREST jsonb 路径过滤 data->>store_key=like.<APP>__* 只拉当前应用行。
+  async function fetchAppRows() {
     var env = window.CLOUDBASE_ENV;
     var token = null;
     // 短重试取 token（最多 5 次 × 500ms = 2.5s），等 SDK 登录完成
@@ -322,15 +322,15 @@
 
     var base = 'https://' + env + '.api.tcloudbasegateway.com/v1/rdb/rest/' + TABLE;
     var prefix = APP_ID + '__';
-    var cols = columns || 'store_key,payload,updated_at';
     var allRows = [];
     var offset = 0;
     var PAGE = 100;
     while (true) {
-      var url = base + '?select=' + encodeURIComponent(cols) +
-        '&store_key=like.' + prefix + '*' +
+      // select=id,data（物理列），jsonb 过滤 data->>store_key
+      var url = base + '?select=id,data' +
+        '&data-%3E%3Estore_key=like.' + encodeURIComponent(prefix + '*') +
         '&offset=' + offset + '&limit=' + PAGE;
-      // 每页请求 10 秒超时，避免网关慢时整条 init 链永久阻塞
+      // 每页请求 10 秒超时
       var ctrl = new AbortController();
       var timer = setTimeout(function () { ctrl.abort(); }, 10000);
       var res;
@@ -350,10 +350,15 @@
       }
       var rows = await res.json();
       if (!Array.isArray(rows)) break;
-      allRows = allRows.concat(rows);
+      // 展平 data jsonb → 扁平行（与兼容层 _expand 一致）
+      for (var i = 0; i < rows.length; i++) {
+        var r = rows[i];
+        var d = (r && typeof r.data === 'object' && r.data !== null) ? r.data : {};
+        allRows.push(Object.assign({}, d, { id: r.id, _id: r.id }));
+      }
       if (rows.length < PAGE) break;
       offset += PAGE;
-      if (offset > 5000) break; // 安全上限
+      if (offset > 5000) break;
     }
     return allRows;
   }
@@ -409,7 +414,7 @@
       // 优先用 REST 直连（只拉当前应用行），失败回退兼容层全表
       var rows = null;
       try {
-        rows = await fetchAppRows('store_key,payload,updated_at');
+        rows = await fetchAppRows();
       } catch (e) {
         console.warn('[CloudbaseSync] REST 按应用过滤拉取失败，回退兼容层:', e && e.message ? e.message : e);
       }
@@ -818,13 +823,13 @@
 
   // ===== 从云端刷新（只下载，不写云端） =====
   async function refreshFromCloud() {
-    if (!sb || !initialized) return false;
+    if (!sb || !initialized || cloudLoadDenied) return false;
 
     try {
       // 优先 REST 直连（只拉当前应用行），失败回退兼容层全表
       var rows = null;
       try {
-        rows = await fetchAppRows('store_key,payload,updated_at');
+        rows = await fetchAppRows();
       } catch (e) {
         console.warn('[CloudbaseSync] 刷新 REST 拉取失败:', e && e.message ? e.message : e);
       }
@@ -1064,7 +1069,7 @@
         // 只拉当前应用的 store_key（REST 直连），不再全表扫描；加超时防卡住
         var cloudKeys = null;
         try {
-          cloudKeys = await withTimeout(fetchAppRows('store_key'), 30000);
+          cloudKeys = await withTimeout(fetchAppRows(), 30000);
         } catch (e) {
           console.warn('[CloudbaseSync] cleanup REST 拉取失败:', e && e.message ? e.message : e);
         }
