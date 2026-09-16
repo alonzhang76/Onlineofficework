@@ -401,6 +401,11 @@
       }
       cache[origKey] = val;
       cacheTs[origKey] = row.updated_at;
+      // 同步写入 localStorage，确保页面通过 native getItem 也能读到
+      try {
+        var raw = typeof val === 'string' ? val : JSON.stringify(val);
+        nativeSet(toLocalKey(origKey), raw);
+      } catch (e) {}
       n++;
     });
     cloudLoadDenied = false;
@@ -442,6 +447,7 @@
   async function retryAuthAndReload() {
     if (!cloudLoadDenied) return false;
     console.log('[CloudbaseSync] 重试：重新拉取云端数据...');
+    refreshFailCount = 0; // 重置失败计数
     // 首次重试前强制重登一次（会话失效场景下单纯重拉不会成功）
     if (!reauthTried && window.CloudbaseForceReauth) {
       reauthTried = true;
@@ -690,12 +696,15 @@
   function withTimeout(promise, ms) {
     return new Promise(function (resolve, reject) {
       var timer = setTimeout(function () {
-        reject(new Error('upload timeout (' + ms + 'ms)'));
+        reject(new Error('operation timeout (' + ms + 'ms)'));
       }, ms);
       promise.then(function (v) { clearTimeout(timer); resolve(v); },
                    function (e) { clearTimeout(timer); reject(e); });
     });
   }
+
+  var refreshFailCount = 0;
+  var REFRESH_FAIL_THRESHOLD = 3;
 
   /** 串行处理上传队列：同一时间只发一个请求，避免并发抢带宽 */
   var _consecutiveFails = 0;   // 连续失败计数（用于触发自动重登）
@@ -834,13 +843,27 @@
         console.warn('[CloudbaseSync] 刷新 REST 拉取失败:', e && e.message ? e.message : e);
       }
       if (!rows) {
-        var fbResult = await withTimeout(sb.from(TABLE).select('store_key, payload, updated_at'), 30000);
-        if (!fbResult.data || fbResult.error) {
-          if (Object.keys(pendingWrites).length === 0) notifyStatus('offline');
-          return;
-        }
-        rows = fbResult.data;
+        // REST 失败时回退兼容层——但如果 REST 是 abort（token/网络问题），
+        // 兼容层也会因同一个 token 失败，跳过避免 30s 超时浪费
+        try {
+          var fbResult = await withTimeout(sb.from(TABLE).select('store_key, payload, updated_at'), 30000);
+          if (fbResult && fbResult.data && !fbResult.error) {
+            rows = fbResult.data;
+          }
+        } catch (e2) {}
       }
+      if (!rows) {
+        // 连续失败计数，超过阈值后暂停刷新（避免 token 失效时无限 30s 超时循环）
+        refreshFailCount++;
+        if (refreshFailCount >= REFRESH_FAIL_THRESHOLD) {
+          cloudLoadDenied = true;
+          console.warn('[CloudbaseSync] 连续 ' + refreshFailCount + ' 次刷新失败，暂停定时刷新（等重试机制恢复）');
+          notifyStatus('offline');
+        }
+        return false;
+      }
+      // 成功时重置失败计数
+      refreshFailCount = 0;
       if (Object.keys(pendingWrites).length === 0) notifyStatus('idle');
 
       var now = Date.now();
