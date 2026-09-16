@@ -95,23 +95,33 @@
     } catch (e) {}
   }
   var badgeBound = false;
+  var _lastLegacyBadge = ''; // 去重：状态文本没变就不重渲染（绿色"已连接"需在 4s 后自动隐藏）
+  // 旧版黄条状态依据实时数据面结果判定（不只看 authedUser）：
+  // REST 拉取成功即证明令牌有效；初始加载未完成时显示"正在连接"而非"无登录会话"
+  function refreshLegacyBadge() {
+    var state, msg;
+    if (!initialLoadDone) {
+      state = 'warn'; msg = '正在连接云端…';
+    } else if (authedUser && cloudLoadDenied) {
+      state = 'error'; msg = '';
+    } else if (!cloudLoadDenied) {
+      state = 'ok'; msg = '';
+    } else {
+      state = 'warn'; msg = authFailReason || '登录未完成，点击刷新重试';
+    }
+    var sig = state + '|' + msg;
+    if (sig === _lastLegacyBadge) return;
+    _lastLegacyBadge = sig;
+    showSyncStatus(state, msg);
+  }
   function bindBadgeWhenReady() {
     if (badgeBound) return;
     badgeBound = true;
-    function showByState() {
-      if (authedUser && !cloudLoadDenied) {
-        showSyncStatus('ok');
-      } else if (authedUser && cloudLoadDenied) {
-        showSyncStatus('error');
-      } else {
-        showSyncStatus('warn', authFailReason || '无登录会话');
-      }
-    }
     if (document && document.body) {
-      showByState();
+      refreshLegacyBadge();
     } else if (document && document.addEventListener) {
-      document.addEventListener('DOMContentLoaded', showByState);
-      window.addEventListener('load', showByState);
+      document.addEventListener('DOMContentLoaded', refreshLegacyBadge);
+      window.addEventListener('load', refreshLegacyBadge);
     }
   }
 
@@ -302,6 +312,7 @@
   }
 
   var cloudLoadDenied = false;
+  var initialLoadDone = false; // 首次云端加载是否已落定（成功或失败），供旧版黄条区分"连接中"与"未连接"
   var reauthTried = false; // 每轮会话失效只强制重登一次，避免频繁登录触发风控
 
   // 判断是否为网络类失败（请求被超时中止 / 网关无响应），
@@ -572,6 +583,7 @@
       // 注册定时器和事件监听
       setInterval(refreshFromCloud, REFRESH_INTERVAL);
       setInterval(flushPending, 10000);
+      setInterval(refreshLegacyBadge, 3000); // 旧版黄条自愈：认证完成/断线恢复后自动变色，不靠一次性渲染
       window.addEventListener('online', function () { flushPending(); refreshFromCloud(); });
       document.addEventListener('visibilitychange', function () { if (!document.hidden) { flushPending(); refreshFromCloud(); } });
       window.addEventListener('beforeunload', flushPending);
@@ -588,6 +600,8 @@
         } else {
           cloudLoadDenied = true;
         }
+        initialLoadDone = true;
+        refreshLegacyBadge();
 
         if (cloudLoadDenied) {
           notifyStatus('offline');
@@ -624,6 +638,7 @@
               authFailReason = '';
               console.log('[CloudbaseSync] 用户:', authedUser.email || authedUser.id || 'authed');
             }
+            refreshLegacyBadge();
           } catch (e) {}
         }
 
@@ -639,7 +654,9 @@
       })().catch(function (e) {
         console.warn('[CloudbaseSync] 后台云端加载异常:', e && e.message ? e.message : e);
         cloudLoadDenied = true;
+        initialLoadDone = true;
         notifyStatus('offline');
+        refreshLegacyBadge();
       });
 
       return true;
