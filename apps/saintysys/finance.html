@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -99,7 +99,7 @@
 <script src="js/common.js?v=20260916a"></script>
 <!-- Supabase 登录守卫 -->
 <script src="js/localstorage-patch.js?v=20260916a"></script>
-<script src="js/cloudbase-store.js?v=20260916a"></script>
+<script src="js/cloudbase-store.js?v=20260916b"></script>
 <script src="js/init-page.js?v=20260916a"></script>
 
 <script src="js/auth-guard.js?v=20260916a"></script>
@@ -390,7 +390,7 @@ const Finance = {
     if (!list || list.length === 0) { App.toast('暂无发票可清空', 'info'); return; }
     App.confirm(`确定要清空全部 ${list.length} 条发票记录吗？此操作将永久删除，不可恢复！`, () => {
       App.store.set('invoices', []);
-      App.toast('发票列表已清空', 'success');
+      App.toast('发票列表已清空（如需云端同步清空，请点"上传云端"）', 'success');
       this.renderStats();
       this.renderInvoice();
     });

@@ -364,6 +364,10 @@ async function set(key, value) {
   try {
     const origSet = (window._origLocalStorage && window._origLocalStorage.setItem) || localStorage.setItem.bind(localStorage);
     origSet(key, JSON.stringify(value));
+    // 持久化本地保存时间戳：refreshFromCloud / forceRefreshFromCloud 据此跳过
+    // 云端 updated_at 更早的旧数据（LWW）。不写它，本地清空/编辑会在 10 秒
+    // _recentWrites 窗口过后被云端旧数据回灌（"清空后几秒数据又恢复"的根因）
+    origSet('_lastLocalSave_' + key, String(Date.now()));
   } catch (e) {}
 
   // ⚠️ 手动同步模式：不再自动上传云端。
@@ -384,6 +388,9 @@ async function remove(key) {
   try {
     const origDel = (window._origLocalStorage && window._origLocalStorage.removeItem) || localStorage.removeItem.bind(localStorage);
     origDel(key);
+    // 同 set()：持久化删除时间戳，防止云端旧数据在刷新时回灌
+    const origSetDel = (window._origLocalStorage && window._origLocalStorage.setItem) || localStorage.setItem.bind(localStorage);
+    origSetDel('_lastLocalSave_' + key, String(Date.now()));
   } catch (e) {}
 
   // ⚠️ 手动同步模式：不再自动删除云端。
