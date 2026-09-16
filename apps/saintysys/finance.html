@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -46,6 +46,7 @@
           <div class="table-toolbar-left"><span class="card-title">发票列表</span></div>
           <div class="table-toolbar-right">
             <button class="btn btn-primary" onclick="Finance.openAddInvoice()" title="新增">➕</button>
+            <button class="btn btn-danger" onclick="Finance.clearInvoices()" title="清空全部发票">🗑</button>
           </div>
         </div>
         <div id="invoiceTable"></div>
@@ -141,6 +142,9 @@ App.enforcePagePermission('finance');
 // ===== 财务管理模块 =====
 const Finance = {
   currentTab: 'invoice',
+  // 表格脏标记：只有数据/筛选变化后才需要重建表格，
+  // 纯切换标签只显隐 DOM，避免每次点击都全量 innerHTML 重建（大数据量下卡顿）
+  _dirty: { invoice: true, payment: true, collection: true },
 
   // 财务专用状态标签映射
   invoiceStatusMap: { '已开票': 'tag-blue', '已作废': 'tag-red' },
@@ -195,6 +199,7 @@ const Finance = {
 
   // 切换标签页
   switchTab(tab) {
+    if (tab === this.currentTab && !this._dirty[tab]) return;
     this.currentTab = tab;
     document.querySelectorAll('#tabs .tab-item').forEach(el => {
       el.classList.toggle('active', el.dataset.tab === tab);
@@ -203,7 +208,8 @@ const Finance = {
     document.getElementById('tab-invoice').classList.toggle('hidden', tab !== 'invoice');
     document.getElementById('tab-payment').classList.toggle('hidden', tab !== 'payment');
     document.getElementById('tab-collection').classList.toggle('hidden', tab !== 'collection');
-    // 重新渲染对应表格
+    // 仅在数据/筛选有变化时重建表格，纯切换只做显隐
+    if (!this._dirty[tab]) return;
     if (tab === 'invoice') this.renderInvoice();
     else if (tab === 'payment') this.renderPayment();
     else if (tab === 'collection') this.renderCollection();
@@ -245,6 +251,7 @@ const Finance = {
         return html;
       }
     });
+    this._dirty.invoice = false;
   },
 
   // 发票表单
@@ -377,6 +384,18 @@ const Finance = {
     });
   },
 
+  // 清空全部发票（永久删除，不可恢复）
+  clearInvoices() {
+    const list = this.getInvoices();
+    if (!list || list.length === 0) { App.toast('暂无发票可清空', 'info'); return; }
+    App.confirm(`确定要清空全部 ${list.length} 条发票记录吗？此操作将永久删除，不可恢复！`, () => {
+      App.store.set('invoices', []);
+      App.toast('发票列表已清空', 'success');
+      this.renderStats();
+      this.renderInvoice();
+    });
+  },
+
   // ===== 付款管理 =====
   renderPayment() {
     let list = this.getPayments();
@@ -414,6 +433,7 @@ const Finance = {
         return html;
       }
     });
+    this._dirty.payment = false;
   },
 
   // 付款表单
@@ -581,6 +601,7 @@ const Finance = {
         return html;
       }
     });
+    this._dirty.collection = false;
   },
 
   // 收汇表单
@@ -735,6 +756,15 @@ const Finance = {
       this.renderCollection();
     });
   }
+};
+
+// 云端数据更新后：置脏所有表格，刷新统计卡片与当前标签页
+window.renderAll = function() {
+  Finance._dirty = { invoice: true, payment: true, collection: true };
+  Finance.renderStats();
+  if (Finance.currentTab === 'invoice') Finance.renderInvoice();
+  else if (Finance.currentTab === 'payment') Finance.renderPayment();
+  else if (Finance.currentTab === 'collection') Finance.renderCollection();
 };
 
 // 初始化渲染
