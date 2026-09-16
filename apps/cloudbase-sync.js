@@ -119,6 +119,57 @@
   var SKIP_KEYS = ['_lastLocalSave_', 'isLoggedIn', 'username', 'userPhone', 'sb-', 'tcb_', 'supabase', 'reconciliation_', '__purchaseContract', 'lang_', 'user_info_', 'credentials_'];
 
   // ===== 应用专属 localStorage 键名重映射（与旧版保持一致）=====
+  // 每个应用只同步自己名下的 localStorage 键，避免上传时把别的应用数据串传。
+  // APP_KEYS：精确匹配的键名；APP_KEY_PREFIXES：前缀匹配（处理公司级动态键）。
+  // 页面可通过 window.CLOUDBASE_APP_KEYS / window.CLOUDBASE_APP_KEY_PREFIXES 覆盖。
+  var _DEFAULT_APP_KEYS = {
+    orderschedule: ['production_orders_data', 'calendarNotes', 'memos'],
+    wicketorders: ['orderRecords', 'exportRecords', 'receiptRecords', 'invoiceRecords',
+      'indexPaymentRecords', 'customerRecords', 'memoRecords', 'businessRecords',
+      'highlightedFollowupNos', 'deliveryNoticeRecords', 'orderLabelsData',
+      'deliveryNoticePhotos', 'cdg_companies', 'cdg_records', 'cdg_details',
+      'cdg_shipments', 'cdg_shipment_page_size', 'cdg_products', 'cdg_records_page_size',
+      'shipmentDetailData', 'shipmentDetailConsignee'],
+    wage: ['wage_records', 'wage_employees', 'wage_processes', 'wage_orders',
+      'wage_adjustments', 'wage_calendarEvents', 'wage_calendarEventTypes',
+      'wage_dropdownOptions'],
+    purchase: ['currentCompany', 'companyNames', 'todos',
+      'reconciliation_transactions', 'reconciliation_params',
+      'invoice_management_invoices', 'invoiceData', 'invoiceExportData',
+      'woodenBoxCalculatorResults'],
+    incomeexpense: ['currentCompany', 'todos',
+      'reconciliation_transactions', 'reconciliation_params'],
+    stainlessbusiness: ['certificateData', 'calculationParams', 'gradeComparisons',
+      'plateCalculatorSavedResults', 'plateCalcData', 'plateCalcResult',
+      'quotationRemarksUpdated', 'hs_label_load', 'hs_label_prefill_batch',
+      'hs_label_prefill'],
+    saintysys: ['sht_sample_data_v2', 'sampleReviewRecords', 'consumptions',
+      'clothing_cost_styles_v3', 'clothing_cost_categories_v3',
+      'nas_folder_perms', 'styleImages', 'orders', 'draft',
+      'permissions', 'dataVersion', 'nas_config']
+  };
+  var _DEFAULT_APP_KEY_PREFIXES = {
+    purchase: ['transactions_', 'lastUpdated_', 'contracts_', 'receipts_', 'returns_', 'purchaseOrders_'],
+    incomeexpense: ['transactions_', 'lastUpdated_'],
+    wicketorders: ['quotation_products_', 'invoice_products_', 'contract_products_'],
+    saintysys: ['currentCompany']
+  };
+  var APP_KEYS = window.CLOUDBASE_APP_KEYS || _DEFAULT_APP_KEYS[APP_ID] || [];
+  var APP_KEY_PREFIXES = window.CLOUDBASE_APP_KEY_PREFIXES || _DEFAULT_APP_KEY_PREFIXES[APP_ID] || [];
+
+  // 判断一个未带其他应用前缀的 localStorage 键是否属于当前应用
+  function isAppKey(key) {
+    // 已有当前应用前缀的键直接通过
+    if (key.indexOf(APP_ID + '__') === 0) return true;
+    // 精确匹配
+    if (APP_KEYS.indexOf(key) >= 0) return true;
+    // 前缀匹配（动态键如 transactions_company1）
+    for (var i = 0; i < APP_KEY_PREFIXES.length; i++) {
+      if (key.indexOf(APP_KEY_PREFIXES[i]) === 0) return true;
+    }
+    return false;
+  }
+
   var LOCAL_KEY_REMAP = (function () {
     if (APP_ID === 'stainlessbusiness') {
       // 不锈钢业务的通讯录/收藏联系人和服装系统同名，改用 sb_ 前缀存储
@@ -421,7 +472,6 @@
         return;
       }
     } catch (e) {}
-    var APP_PREFIX = APP_ID + '__';
     var queued = 0;
     try {
       var total = localStorage.length;
@@ -437,9 +487,8 @@
           key = nativeKey;
         }
         if (shouldSkip(key)) continue;
-        // 跳过带其他应用前缀的 key（与 pushAll 规则一致，防止串应用上传）
-        var underScoreIdx = key.indexOf('__');
-        if (underScoreIdx > 0 && key.slice(0, underScoreIdx + 2) !== APP_PREFIX) continue;
+        // 只补传属于当前应用的键（与 pushAll 规则一致）
+        if (!isAppKey(key)) continue;
         // 云端已有该键（哪怕值为空）→ 不动
         if (cache[key] !== undefined) continue;
         var raw = nativeGet(nativeKey);
@@ -896,7 +945,6 @@
 
     // 空库保护：本地一个非 skip key 都没有时禁止上传
     var keysToUpload = [];
-    var APP_PREFIX = APP_ID + '__';
     try {
       for (var i = 0; i < localStorage.length; i++) {
         var nativeKey = localStorage.key(i);
@@ -909,9 +957,8 @@
         } else {
           key = nativeKey;
         }
-        // 跳过带其他应用前缀的 key
-        var underScoreIdx = key.indexOf('__');
-        if (underScoreIdx > 0 && key.slice(0, underScoreIdx + 2) !== APP_PREFIX) continue;
+        // 只上传属于当前应用的键（按已知键名/前缀匹配），避免串应用上传
+        if (!isAppKey(key)) continue;
         if (shouldSkip(key)) continue;
         var raw = nativeGet(nativeKey);
         if (raw === null || raw === undefined || raw === '') continue;
@@ -973,6 +1020,7 @@
     if (alsoDelete) {
       try {
         emit({ phase: 'cleanup', current: 0, total: 0 });
+        var APP_PREFIX = APP_ID + '__';
         // 只拉当前应用的 store_key（REST 直连），不再全表扫描
         var cloudKeys = null;
         try {
