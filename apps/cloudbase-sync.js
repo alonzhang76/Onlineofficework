@@ -304,6 +304,15 @@
   var cloudLoadDenied = false;
   var reauthTried = false; // 每轮会话失效只强制重登一次，避免频繁登录触发风控
 
+  // 判断是否为网络类失败（请求被超时中止 / 网关无响应），
+  // 与认证/权限类错误（401/403/permission）区分开，后者才需要强制重登
+  function isNetAbort(e) {
+    if (!e) return false;
+    if (e.name === 'AbortError' || e.name === 'TimeoutError') return true;
+    var msg = String(e.message || '');
+    return /aborted|timeout/i.test(msg);
+  }
+
   // ===== 只拉当前应用行的 REST 直连（绕过兼容层全表扫描）=====
   // 物理表 app_data_store 只有 id(text) 和 data(jsonb) 两列，
   // store_key/payload/updated_at 都是 data 内字段。
@@ -330,18 +339,25 @@
       var url = base + '?select=id,data' +
         '&data-%3E%3Estore_key=like.' + encodeURIComponent(prefix + '*') +
         '&offset=' + offset + '&limit=' + PAGE;
-      // 每页请求 10 秒超时
-      var ctrl = new AbortController();
-      var timer = setTimeout(function () { ctrl.abort(); }, 10000);
+      // 每页请求 30 秒超时（慢网络下 10s 太紧，大 jsonb 分页必被 abort）；
+      // 超时中止自动重试 1 次再判失败
       var res;
-      try {
-        res = await fetch(url, {
-          method: 'GET',
-          headers: { 'Authorization': 'Bearer ' + token },
-          signal: ctrl.signal
-        });
-      } finally {
-        clearTimeout(timer);
+      for (var attempt = 0; attempt < 2; attempt++) {
+        var ctrl = new AbortController();
+        var timer = setTimeout(function () { ctrl.abort(); }, 30000);
+        try {
+          res = await fetch(url, {
+            method: 'GET',
+            headers: { 'Authorization': 'Bearer ' + token },
+            signal: ctrl.signal
+          });
+          break;
+        } catch (e) {
+          if (attempt === 0 && isNetAbort(e)) continue; // 网络中止 → 重试一次
+          throw e;
+        } finally {
+          clearTimeout(timer);
+        }
       }
       if (!res.ok) {
         var txt = '';
@@ -660,7 +676,7 @@
   var _debounceTimers = {};   // key → timerId
   var _uploadQueue = [];      // 待上传队列 [{key, value}]
   var _isUploading = false;   // 是否正在上传（串行控制）
-  var _uploadTimeoutMs = 15000; // 单次上传超时（避免 Promise 永不 settle 导致队列卡死）
+  var _uploadTimeoutMs = 30000; // 单次上传超时（避免 Promise 永不 settle 导致队列卡死；慢网络下 15s 会误杀大 payload）
 
   /** 防抖入口：同一 key 在 UPLOAD_DEBOUNCE ms 内多次写入只保留最后一次 */
   function syncToCloud(key, value) {
@@ -705,6 +721,9 @@
 
   var refreshFailCount = 0;
   var REFRESH_FAIL_THRESHOLD = 3;
+  var refreshNetFailCount = 0;      // 网络类失败（超时/中止）单独计数
+  var REFRESH_NET_FAIL_THRESHOLD = 3;
+  var _netPauseUntil = 0;           // 网络慢冷却期：此时间戳前跳过定时刷新（2 分钟后自动恢复）
 
   /** 串行处理上传队列：同一时间只发一个请求，避免并发抢带宽 */
   var _consecutiveFails = 0;   // 连续失败计数（用于触发自动重登）
@@ -750,8 +769,9 @@
       notifyStatus('error');
 
       // 连续失败 ≥3 次 → 登录态可能已失效（token 过期 /auth/v1/token 400），
-      // 自动调用强制重登（60 秒冷却，避免无限循环），重登完成后继续消化队列
-      if (_consecutiveFails >= 3 && (Date.now() - _lastReauthAt) > 60000 &&
+      // 自动调用强制重登（60 秒冷却，避免无限循环），重登完成后继续消化队列。
+      // 网络超时类失败不触发重登（JWT 仍有效），交给待重试队列自然恢复
+      if (_consecutiveFails >= 3 && !isNetAbort(err) && (Date.now() - _lastReauthAt) > 60000 &&
           typeof window !== 'undefined' && typeof window.CloudbaseForceReauth === 'function') {
         _reauthing = true;
         _lastReauthAt = Date.now();
@@ -833,18 +853,22 @@
   // ===== 从云端刷新（只下载，不写云端） =====
   async function refreshFromCloud() {
     if (!sb || !initialized || cloudLoadDenied) return false;
+    // 网络慢冷却期：暂停定时刷新，冷却结束后由下一个定时周期自动恢复（无需人工干预）
+    if (_netPauseUntil && Date.now() < _netPauseUntil) return false;
 
     try {
       // 优先 REST 直连（只拉当前应用行），失败回退兼容层全表
       var rows = null;
+      var restErr = null;
       try {
         rows = await fetchAppRows();
       } catch (e) {
+        restErr = e;
         console.warn('[CloudbaseSync] 刷新 REST 拉取失败:', e && e.message ? e.message : e);
       }
-      if (!rows) {
-        // REST 失败时回退兼容层——但如果 REST 是 abort（token/网络问题），
-        // 兼容层也会因同一个 token 失败，跳过避免 30s 超时浪费
+      if (!rows && !(restErr && isNetAbort(restErr))) {
+        // 回退兼容层全表。REST 因网络中止失败时跳过：
+        // 全表扫描比按应用过滤更重，同一网络下必然同样超时，白等 30 秒
         try {
           var fbResult = await withTimeout(sb.from(TABLE).select('store_key, payload, updated_at'), 30000);
           if (fbResult && fbResult.data && !fbResult.error) {
@@ -853,7 +877,19 @@
         } catch (e2) {}
       }
       if (!rows) {
-        // 连续失败计数，超过阈值后暂停刷新（避免 token 失效时无限 30s 超时循环）
+        // 网络类失败（超时/中止）：不算会话失效，连续多次后只冷却 2 分钟再自动恢复，
+        // 绝不置 cloudLoadDenied（那会把"网速慢"当成"登录失效"判死，底部栏误报"云端未连接"）
+        if (restErr && isNetAbort(restErr)) {
+          refreshNetFailCount++;
+          if (refreshNetFailCount >= REFRESH_NET_FAIL_THRESHOLD) {
+            _netPauseUntil = Date.now() + 120000;
+            refreshNetFailCount = 0;
+            console.warn('[CloudbaseSync] 网络连续超时，暂停定时刷新 2 分钟后自动恢复');
+            notifyStatus('error');
+          }
+          return false;
+        }
+        // 认证/权限类失败：连续失败计数，超过阈值后暂停刷新（避免 token 失效时无限 30s 超时循环）
         refreshFailCount++;
         if (refreshFailCount >= REFRESH_FAIL_THRESHOLD) {
           cloudLoadDenied = true;
@@ -864,6 +900,7 @@
       }
       // 成功时重置失败计数
       refreshFailCount = 0;
+      refreshNetFailCount = 0;
       if (Object.keys(pendingWrites).length === 0) notifyStatus('idle');
 
       var now = Date.now();
@@ -1060,7 +1097,8 @@
           cache[item.key] = value;
           cacheTs[item.key] = new Date().toISOString();
         } catch (e) {
-          if (attempt === 0 && !pushReauthed &&
+          // 超时/网络中止类失败重登无济于事（JWT 仍有效），直接重试或入待重试队列
+          if (attempt === 0 && !pushReauthed && !isNetAbort(e) &&
               (Date.now() - _lastReauthAt) > 60000 &&
               typeof window.CloudbaseForceReauth === 'function') {
             pushReauthed = true;
