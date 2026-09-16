@@ -1508,6 +1508,13 @@ window.CloudbaseWhenReady = function () {
   return Promise.all([_appPromise, whenAuthReady()]).then(function () {});
 };
 window.CloudbaseForceReauth = function () { return forceReauth(); };
+// 供 cloudbase-admin 直接走 rdb REST（如整表 DELETE），绕过 SDK delete 在部分网关下静默失败的问题
+window.CloudbaseGetAccessToken = async function () {
+  try {
+    var app = await getApp();
+    return (await fetchAccessToken(app)) || null;
+  } catch (e) { return null; }
+};
 window.CLOUDBASE_ENV = CLOUDBASE_ENV;
 window.CLOUDBASE_REGION = CLOUDBASE_REGION;
 window.STORAGE_BUCKET = STORAGE_BUCKET;

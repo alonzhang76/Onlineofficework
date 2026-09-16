@@ -253,57 +253,113 @@
   var cloudLoadDenied = false;
   var reauthTried = false; // 每轮会话失效只强制重登一次，避免频繁登录触发风控
 
+  // ===== 只拉当前应用行的 REST 直连（绕过兼容层全表扫描）=====
+  // 兼容层 sb.from(TABLE).select() 会分页拉取全表所有 7 个应用的数据再客户端过滤，
+  // 数据量大时极易超时/ERR_NETWORK_IO_SUSPENDED。这里直接用 PostgREST like 过滤，
+  // 只拉 store_key 以 APP_ID + '__' 开头的行，传输量降一个数量级。
+  async function fetchAppRows(columns) {
+    var env = window.CLOUDBASE_ENV;
+    var token = null;
+    if (typeof window.CloudbaseGetAccessToken === 'function') {
+      try { token = await window.CloudbaseGetAccessToken(); } catch (e) {}
+    }
+    if (!env || !token) return null; // 信号：REST 不可用，调用方回退兼容层
+
+    var base = 'https://' + env + '.api.tcloudbasegateway.com/v1/rdb/rest/' + TABLE;
+    var prefix = APP_ID + '__';
+    var cols = columns || 'store_key,payload,updated_at';
+    var allRows = [];
+    var offset = 0;
+    var PAGE = 100;
+    while (true) {
+      var url = base + '?select=' + encodeURIComponent(cols) +
+        '&store_key=like.' + prefix + '*' +
+        '&offset=' + offset + '&limit=' + PAGE;
+      var res = await fetch(url, {
+        method: 'GET',
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (!res.ok) {
+        var txt = '';
+        try { txt = await res.text(); } catch (e) {}
+        throw new Error('REST ' + res.status + ': ' + txt.slice(0, 200));
+      }
+      var rows = await res.json();
+      if (!Array.isArray(rows)) break;
+      allRows = allRows.concat(rows);
+      if (rows.length < PAGE) break;
+      offset += PAGE;
+      if (offset > 5000) break; // 安全上限
+    }
+    return allRows;
+  }
+
   // ===== 拉取全量数据到缓存 =====
+  // 处理云端行数据：去重 → LWW → 写入缓存。供 loadAllFromCloud 和 refreshFromCloud 共用。
+  function processCloudRows(rows) {
+    // 同一 store_key 可能存在多条重复行（历史 upsert 缺陷遗留），
+    // 只认 updated_at 最新的那条，避免旧/空数据抢先入缓存
+    var newest = {};
+    for (var i = 0; i < rows.length; i++) {
+      var rw = rows[i];
+      if (!rw.store_key) continue;
+      var prev = newest[rw.store_key];
+      if (!prev || new Date(rw.updated_at).getTime() > new Date(prev.updated_at).getTime()) {
+        newest[rw.store_key] = rw;
+      }
+    }
+    var n = 0;
+    Object.keys(newest).forEach(function (sk) {
+      var row = newest[sk];
+      var origKey = unprefixKey(sk);
+      if (!origKey) return;
+      // LWW：只有云端 updated_at 严格新于本地已知同步时间才覆盖。
+      // cacheTs 未设置（首次加载）时直接采用云端，避免本地旧数据（如 60 条）
+      // 抢先入缓存后把云端新数据（740 条）挡在外面。
+      var localTs = cacheTs[origKey];
+      if (localTs) {
+        try {
+          if (new Date(row.updated_at).getTime() <= new Date(localTs).getTime()) return;
+        } catch (e) {}
+      }
+      var val = row.payload;
+      // 云端值为空而本机非空时，用本机值兜底（防止云端空行清空本机数据）
+      if (isEmptyValue(val)) {
+        var nv = nativeGet(toLocalKey(origKey));
+        if (nv !== null && nv !== undefined && nv !== '') {
+          try { val = JSON.parse(nv); } catch (e) { val = nv; }
+        }
+      }
+      cache[origKey] = val;
+      cacheTs[origKey] = row.updated_at;
+      n++;
+    });
+    cloudLoadDenied = false;
+    console.log('[CloudbaseSync] 加载', rows.length, '行（去重后', Object.keys(newest).length, '个键），新增入缓存', n, '个（缓存共', Object.keys(cache).length, '个）');
+    return true;
+  }
+
   async function loadAllFromCloud() {
     if (!sb) return false;
     try {
+      // 优先用 REST 直连（只拉当前应用行），失败回退兼容层全表
+      var rows = null;
+      try {
+        rows = await fetchAppRows('store_key,payload,updated_at');
+      } catch (e) {
+        console.warn('[CloudbaseSync] REST 按应用过滤拉取失败，回退兼容层:', e && e.message ? e.message : e);
+      }
+      if (rows) {
+        return processCloudRows(rows);
+      }
+      // 回退：兼容层全表 select
       var result = await sb.from(TABLE).select('store_key, payload, updated_at');
       if (result.error) {
         console.error('[CloudbaseSync] 云端加载失败:', result.error.message || result.error);
         cloudLoadDenied = true;
         return false;
       }
-      var rows = result.data || [];
-      // 同一 store_key 可能存在多条重复行（历史 upsert 缺陷遗留），
-      // 只认 updated_at 最新的那条，避免旧/空数据抢先入缓存
-      var newest = {};
-      for (var i = 0; i < rows.length; i++) {
-        var rw = rows[i];
-        if (!rw.store_key) continue;
-        var prev = newest[rw.store_key];
-        if (!prev || new Date(rw.updated_at).getTime() > new Date(prev.updated_at).getTime()) {
-          newest[rw.store_key] = rw;
-        }
-      }
-      var n = 0;
-      Object.keys(newest).forEach(function (sk) {
-        var row = newest[sk];
-        var origKey = unprefixKey(sk);
-        if (!origKey) return;
-        // LWW：只有云端 updated_at 严格新于本地已知同步时间才覆盖。
-        // cacheTs 未设置（首次加载）时直接采用云端，避免本地旧数据（如 60 条）
-        // 抢先入缓存后把云端新数据（740 条）挡在外面。
-        var localTs = cacheTs[origKey];
-        if (localTs) {
-          try {
-            if (new Date(row.updated_at).getTime() <= new Date(localTs).getTime()) return;
-          } catch (e) {}
-        }
-        var val = row.payload;
-        // 云端值为空而本机非空时，用本机值兜底（防止云端空行清空本机数据）
-        if (isEmptyValue(val)) {
-          var nv = nativeGet(toLocalKey(origKey));
-          if (nv !== null && nv !== undefined && nv !== '') {
-            try { val = JSON.parse(nv); } catch (e) { val = nv; }
-          }
-        }
-        cache[origKey] = val;
-        cacheTs[origKey] = row.updated_at;
-        n++;
-      });
-      cloudLoadDenied = false;
-      console.log('[CloudbaseSync] 加载', rows.length, '行（去重后', Object.keys(newest).length, '个键），新增入缓存', n, '个（缓存共', Object.keys(cache).length, '个）');
-      return true;
+      return processCloudRows(result.data || []);
     } catch (e) {
       console.warn('[CloudbaseSync] 云端加载异常:', e && e.message ? e.message : e);
       cloudLoadDenied = true;
@@ -312,7 +368,7 @@
   }
 
   async function retryAuthAndReload() {
-    if (!cloudLoadDenied) return;
+    if (!cloudLoadDenied) return false;
     console.log('[CloudbaseSync] 重试：重新拉取云端数据...');
     // 首次重试前强制重登一次（会话失效场景下单纯重拉不会成功）
     if (!reauthTried && window.CloudbaseForceReauth) {
@@ -321,7 +377,7 @@
     }
     var beforeCount = Object.keys(cache).length;
     var ok = await loadAllFromCloud();
-    if (!ok) return;
+    if (!ok) return false;
     reauthTried = false;
     var changedKeys = [];
     Object.keys(cache).forEach(function (origKey) {
@@ -343,6 +399,7 @@
     if (changedKeys.length > 0) {
       window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { keys: changedKeys, initial: true } }));
     }
+    return true;
   }
 
   // ===== 自动补传：云端缺失但本地存在的键 =====
@@ -354,6 +411,16 @@
   //         空库设备（新浏览器）没有本地键，不会误传任何东西。
   async function autoUploadLocalOnlyKeys() {
     if (!sb || !initialized || cloudLoadDenied) return;
+    // 刚执行过"清空云端"：本次会话首轮自动补传必须跳过，否则会把刚被清掉的本地数据
+    // 又回灌到空云端，表现为"清空没作用"。标记只消费一次（随后正常同步恢复）。
+    try {
+      var clearedAt = sessionStorage.getItem('__cb_cloud_cleared_at__');
+      if (clearedAt) {
+        sessionStorage.removeItem('__cb_cloud_cleared_at__');
+        console.log('[CloudbaseSync] 检测到刚清空云端，跳过本轮自动补传');
+        return;
+      }
+    } catch (e) {}
     var APP_PREFIX = APP_ID + '__';
     var queued = 0;
     try {
@@ -415,7 +482,22 @@
 
       if (cloudLoadDenied) {
         notifyStatus('offline');
-        setInterval(retryAuthAndReload, 30000);
+        // 指数退避重试：30s → 60s → 120s → 120s（上限），避免频繁全表拉取加重网络负担
+        var retryDelay = 30000;
+        var retryMaxDelay = 120000;
+        function scheduleRetry() {
+          setTimeout(function () {
+            retryAuthAndReload().then(function (ok) {
+              if (ok && !cloudLoadDenied) return; // 恢复成功，不再重试
+              retryDelay = Math.min(retryDelay * 2, retryMaxDelay);
+              scheduleRetry();
+            }).catch(function () {
+              retryDelay = Math.min(retryDelay * 2, retryMaxDelay);
+              scheduleRetry();
+            });
+          }, retryDelay);
+        }
+        scheduleRetry();
       } else {
         notifyStatus('idle');
       }
@@ -658,13 +740,21 @@
     if (!sb || !initialized) return false;
 
     try {
-      var result = await sb.from(TABLE).select('store_key, payload, updated_at');
-      if (!result.data || result.error) {
-        // 网络或权限错误：若没有挂起写入，标记 offline
-        if (Object.keys(pendingWrites).length === 0) notifyStatus('offline');
-        return;
+      // 优先 REST 直连（只拉当前应用行），失败回退兼容层全表
+      var rows = null;
+      try {
+        rows = await fetchAppRows('store_key,payload,updated_at');
+      } catch (e) {
+        console.warn('[CloudbaseSync] 刷新 REST 拉取失败:', e && e.message ? e.message : e);
       }
-      // 刷新成功：若没有挂起写入则标记 idle
+      if (!rows) {
+        var fbResult = await sb.from(TABLE).select('store_key, payload, updated_at');
+        if (!fbResult.data || fbResult.error) {
+          if (Object.keys(pendingWrites).length === 0) notifyStatus('offline');
+          return;
+        }
+        rows = fbResult.data;
+      }
       if (Object.keys(pendingWrites).length === 0) notifyStatus('idle');
 
       var now = Date.now();
@@ -673,8 +763,8 @@
       // 去重：同一 store_key 只保留 updated_at 最新的一行（历史重复行防御），
       // 否则扫描顺序不稳定时旧/空重复行可能在同一轮刷新里来回覆盖
       var newestRows = {};
-      for (var ri = 0; ri < result.data.length; ri++) {
-        var rowRaw = result.data[ri];
+      for (var ri = 0; ri < rows.length; ri++) {
+        var rowRaw = rows[ri];
         if (!rowRaw.store_key) continue;
         var prevRaw = newestRows[rowRaw.store_key];
         if (!prevRaw || new Date(rowRaw.updated_at).getTime() > new Date(prevRaw.updated_at).getTime()) {
@@ -883,12 +973,28 @@
     if (alsoDelete) {
       try {
         emit({ phase: 'cleanup', current: 0, total: 0 });
-        var listRes = await sb.from(TABLE).select('store_key');
+        // 只拉当前应用的 store_key（REST 直连），不再全表扫描
+        var cloudKeys = null;
+        try {
+          cloudKeys = await fetchAppRows('store_key');
+        } catch (e) {
+          console.warn('[CloudbaseSync] cleanup REST 拉取失败:', e && e.message ? e.message : e);
+        }
+        if (!cloudKeys) {
+          var listRes = await sb.from(TABLE).select('store_key');
+          if (listRes && !listRes.error && Array.isArray(listRes.data)) {
+            cloudKeys = listRes.data.filter(function (r) {
+              return r.store_key && r.store_key.indexOf(APP_PREFIX) === 0;
+            });
+          } else {
+            cloudKeys = [];
+          }
+        }
         var localSet = new Set(keysToUpload.map(function (x) { return prefixKey(x.key); }));
-        if (listRes && !listRes.error && Array.isArray(listRes.data)) {
+        if (Array.isArray(cloudKeys)) {
           var stale = [];
-          for (var k = 0; k < listRes.data.length; k++) {
-            var sk = listRes.data[k].store_key;
+          for (var k = 0; k < cloudKeys.length; k++) {
+            var sk = cloudKeys[k].store_key;
             if (!sk || sk.indexOf(APP_PREFIX) !== 0 || localSet.has(sk)) continue;
             var origK = unprefixKey(sk);
             var rawLocal = origK ? nativeGet(toLocalKey(origK)) : null;
@@ -920,6 +1026,20 @@
     return { ok: true, changed: changed };
   }
 
+  // "清空云端"前调用：立即清空在途/待发上传队列，避免删除间隙把数据重新 upsert 回去
+  function prepareForCloudClear() {
+    try {
+      Object.keys(pendingWrites).forEach(function (k) { delete pendingWrites[k]; });
+      Object.keys(_debounceTimers).forEach(function (k) {
+        clearTimeout(_debounceTimers[k]);
+        delete _debounceTimers[k];
+      });
+      _uploadQueue.length = 0;
+      _consecutiveFails = 0;
+      console.log('[CloudbaseSync] 已暂停在途上传，配合清空云端');
+    } catch (e) {}
+  }
+
   // 暴露状态供调试 / 手动同步按钮调用
   window.CloudbaseSync = {
     appId: APP_ID,
@@ -927,7 +1047,8 @@
     cache: cache,
     reload: retryAuthAndReload,
     pullAll: pullAll,
-    pushAll: pushAll
+    pushAll: pushAll,
+    prepareForCloudClear: prepareForCloudClear
   };
 
   // ===== 启动 =====

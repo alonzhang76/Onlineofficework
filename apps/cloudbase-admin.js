@@ -390,6 +390,16 @@
     });
 
     async function doClear() {
+      // 0. 立刻停掉本页同步层的在途自动上传，避免删除间隙把数据又 upsert 回去。
+      //    purchase 数据键多、编辑频繁，在途上传是"清空后数据复活"的主要原因之一。
+      try {
+        if (window.CloudbaseSync && typeof window.CloudbaseSync.prepareForCloudClear === 'function') {
+          window.CloudbaseSync.prepareForCloudClear();
+        }
+      } catch (e) {}
+      // 跨本次 reload 抑制自动回灌：reload 后的新页面首轮 autoUpload 看到该标记会跳过。
+      try { sessionStorage.setItem('__cb_cloud_cleared_at__', String(Date.now())); } catch (e) {}
+
       // 1. 等认证就绪（避免无 token 导致请求挂起）
       if (typeof window.CloudbaseWhenReady === 'function') {
         try {
@@ -404,62 +414,141 @@
         }
       }
 
-      // 2. 查所有行 id（兼容层会把 data jsonb 展开，row.id 即主键）
-      console.log('[CloudAdmin] 查询 app_data_store 全表 id...');
-      var rows;
+      // 2. 优先用 rdb REST 整表删除（最可靠）；失败再回退兼容层逐行删除。
+      var total = 0, verifiedEmpty = false, cloudErr = '';
       try {
-        var r = await sb.from(TABLE).select('id');
-        console.log('[CloudAdmin] select 返回:', r);
-        if (r && r.error) {
-          toast('查询失败：' + (r.error.message || r.error), 'error');
-          return;
-        }
-        rows = (r && r.data) || [];
+        var dr = await deleteAllViaRest();
+        total = dr.total || 0;
+        verifiedEmpty = !!dr.empty;
+        cloudErr = dr.error || '';
+        console.log('[CloudAdmin] REST 删除完成，删除前约', total, '行，校验云端为空 =', verifiedEmpty, cloudErr || '');
       } catch (e) {
-        console.error('[CloudAdmin] select 异常:', e);
-        toast('查询异常：' + (e && e.message ? e.message : e), 'error');
+        cloudErr = e && e.message ? e.message : String(e);
+        console.warn('[CloudAdmin] REST 删除异常，回退 SDK 逐行删除:', cloudErr);
+      }
+
+      // 3. REST 不可用时的回退：兼容层逐行删除
+      if (!verifiedEmpty) {
+        try {
+          var fb = await deleteAllViaCompat(cloudErr);
+          total = total || fb.total || 0;
+          verifiedEmpty = !!fb.empty;
+          cloudErr = fb.error || '';
+        } catch (e) {
+          cloudErr = (cloudErr ? cloudErr + '；' : '') + (e && e.message ? e.message : String(e));
+        }
+      }
+
+      // 4. 删除后必须校验云端确为空，否则绝不清本地（避免本机唯一数据副本被误删）
+      if (!verifiedEmpty) {
+        var msg = '⚠️ 云端数据未能清空：' + (cloudErr || '删除后仍能查到数据（可能是账号无 DELETE 权限或网络失败）。本地数据已保留，请重试。');
+        try { sessionStorage.removeItem('__cb_cloud_cleared_at__'); } catch (e) {}
+        finishProgress(false, msg);
+        toast(msg, 'error');
         return;
       }
 
-      console.log('[CloudAdmin] 共 ' + rows.length + ' 行待删除');
-      if (rows.length === 0) {
-        var removed0 = clearLocalBusinessData();
-        toast('✅ 云端已无数据（本地清理 ' + removed0 + ' 项），页面即将刷新...');
-        setTimeout(function () { location.reload(); }, 1500);
-        return;
+      var removed = clearLocalBusinessData();
+      toast('✅ 云端已清空（本地清理 ' + removed + ' 项），页面即将刷新...');
+      setTimeout(function () { location.reload(); }, 1500);
+    }
+
+    // 直接走 CloudBase rdb REST：先 count 行数 → 整表 DELETE → 重新查询校验为空。
+    // 绕过 SDK delete().eq() 在部分网关下"返回成功但未真正删除"的问题。
+    async function deleteAllViaRest() {
+      var env = window.CLOUDBASE_ENV;
+      var token = null;
+      if (typeof window.CloudbaseGetAccessToken === 'function') {
+        token = await window.CloudbaseGetAccessToken();
+      }
+      if (!env || !token) throw new Error('无法获取访问令牌（登录态未就绪）');
+      var base = 'https://' + env + '.api.tcloudbasegateway.com/v1/rdb/rest/' + TABLE;
+      var authHeaders = function () {
+        return { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };
+      };
+
+      // 4.1 删除前计数
+      var total = 0;
+      try {
+        var cr = await fetch(base + '?select=id', { method: 'GET', headers: authHeaders() });
+        if (!cr.ok) throw new Error('查询被拒 HTTP ' + cr.status + ' ' + (await cr.text()).slice(0, 200));
+        var cj = await cr.json();
+        total = Array.isArray(cj) ? cj.length : (cj && Array.isArray(cj.data) ? cj.data.length : 0);
+      } catch (e) {
+        throw new Error('删除前查询失败：' + (e && e.message ? e.message : e));
       }
 
-      // 3. 逐个按 id 删除（兼容层 DELETE 走 _fetchRows → 原生 db.delete().eq('id')）
-      var okCount = 0, failCount = 0;
+      // 4.2 整表删除：id 为非空 text 主键，id != '' 命中全部业务行
+      if (total > 0) {
+        var dr = await fetch(base + '?id=neq.', {
+          method: 'DELETE',
+          headers: Object.assign({ 'Prefer': 'return=minimal' }, authHeaders())
+        });
+        if (!dr.ok) {
+          throw new Error('整表 DELETE 被拒 HTTP ' + dr.status + ' ' + (await dr.text()).slice(0, 200));
+        }
+      }
+
+      // 4.3 删除后校验
+      var empty = await verifyTableEmpty(base, authHeaders);
+      if (!empty) {
+        // 兜底：逐个 id 删除一次
+        var rr = await fetch(base + '?select=id', { method: 'GET', headers: authHeaders() });
+        var rj = await rr.json();
+        var remain = Array.isArray(rj) ? rj : (rj && Array.isArray(rj.data) ? rj.data : []);
+        for (var i = 0; i < remain.length; i++) {
+          var rid = remain[i] && (remain[i].id || remain[i]._id);
+          if (!rid) continue;
+          var one = await fetch(base + '?id=eq.' + encodeURIComponent(String(rid)), {
+            method: 'DELETE',
+            headers: Object.assign({ 'Prefer': 'return=minimal' }, authHeaders())
+          });
+          if (!one.ok) console.warn('[CloudAdmin] 逐个删除失败', rid, one.status);
+        }
+        empty = await verifyTableEmpty(base, authHeaders);
+      }
+      return { total: total, empty: empty, error: empty ? '' : '删除后仍有残留行' };
+    }
+
+    async function verifyTableEmpty(base, authHeaders) {
+      try {
+        // 最多复查 3 次（网关可能有短暂延迟）
+        for (var t = 0; t < 3; t++) {
+          var r = await fetch(base + '?select=id', { method: 'GET', headers: authHeaders() });
+          if (!r.ok) { await new Promise(function (res) { setTimeout(res, 600); }); continue; }
+          var j = await r.json();
+          var rows = Array.isArray(j) ? j : (j && Array.isArray(j.data) ? j.data : []);
+          if (rows.length === 0) return true;
+          await new Promise(function (res) { setTimeout(res, 600); });
+        }
+        return false;
+      } catch (e) {
+        console.warn('[CloudAdmin] 删除后校验异常:', e && e.message ? e.message : e);
+        return false;
+      }
+    }
+
+    // 回退方案：兼容层逐行 select id → delete，删除后再查一次确认
+    async function deleteAllViaCompat(prevErr) {
+      var r = await sb.from(TABLE).select('id');
+      if (r && r.error) throw new Error((prevErr ? prevErr + '；' : '') + '查询失败：' + (r.error.message || r.error));
+      var rows = (r && r.data) || [];
+      var failCount = 0;
       for (var i = 0; i < rows.length; i++) {
         var rowId = rows[i] && (rows[i].id || rows[i]._id);
-        if (!rowId) { console.warn('[CloudAdmin] 跳过无 id 行:', rows[i]); continue; }
+        if (!rowId) continue;
         try {
           var dRes = await sb.from(TABLE).delete().eq('id', String(rowId));
-          if (dRes && dRes.error) {
-            console.warn('[CloudAdmin] 删除失败', rowId, ':', dRes.error.message || dRes.error);
-            failCount++;
-          } else {
-            okCount++;
-          }
-        } catch (e) {
-          console.warn('[CloudAdmin] 删除异常', rowId, ':', e && e.message ? e.message : e);
-          failCount++;
-        }
-        // 每 10 行报告一次进度
-        if ((i + 1) % 10 === 0 || i === rows.length - 1) {
-          console.log('[CloudAdmin] 进度: ' + (i + 1) + '/' + rows.length + ' (成功 ' + okCount + ', 失败 ' + failCount + ')');
-        }
+          if (dRes && dRes.error) failCount++;
+        } catch (e) { failCount++; }
       }
-
-      console.log('[CloudAdmin] 完成: 成功 ' + okCount + ', 失败 ' + failCount);
-      var removed = clearLocalBusinessData();
-      if (failCount === 0) {
-        toast('✅ 云端已清空 ' + okCount + ' 行（本地清理 ' + removed + ' 项），页面即将刷新...');
-      } else {
-        toast('⚠️ 清空部分完成：成功 ' + okCount + ', 失败 ' + failCount + '（本地清理 ' + removed + ' 项），页面即将刷新...', 'error');
-      }
-      setTimeout(function () { location.reload(); }, 1500);
+      var v = await sb.from(TABLE).select('id');
+      var remain = (v && v.data) || [];
+      return {
+        total: rows.length,
+        empty: remain.length === 0,
+        error: remain.length === 0 ? '' : ((prevErr ? prevErr + '；' : '') + '逐行删除后仍剩 ' + remain.length + ' 行（失败 ' + failCount + '）')
+      };
     }
   }
 
