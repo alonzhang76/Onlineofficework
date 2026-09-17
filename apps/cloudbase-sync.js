@@ -21,7 +21,7 @@
 (function () {
   'use strict';
 
-  console.log('[CloudbaseSync] === cloudbase-sync.js v20260918a 加载 ===');
+  console.log('[CloudbaseSync] === cloudbase-sync.js v20260918b 加载 ===');
 
   // ===== 配置 =====
   var APP_ID = window.CLOUDBASE_APP_ID || window.SUPABASE_APP_ID || 'default';
@@ -427,12 +427,18 @@
   function isImportProtected() {
     try {
       var ts = sessionStorage.getItem(IMPORT_PROTECT_KEY);
+      // Fallback: check cookie (sessionStorage might not persist in some contexts)
+      if (!ts) {
+        var match = document.cookie.match(/__cb_import_protect_until__=(\d+)/);
+        if (match) ts = match[1];
+      }
       if (!ts) return false;
       return Date.now() < parseInt(ts, 10);
     } catch (e) { return false; }
   }
   function clearImportProtection() {
     try { sessionStorage.removeItem(IMPORT_PROTECT_KEY); } catch (e) {}
+    try { document.cookie = '__cb_import_protect_until__=;path=/;max-age=0'; } catch (e) {}
   }
 
   // ===== 拉取全量数据到缓存 =====
@@ -1396,6 +1402,8 @@
       try {
         var until = Date.now() + (ms || 600000); // 默认 10 分钟
         sessionStorage.setItem('__cb_import_protect_until__', String(until));
+        // Cookie backup (sessionStorage might not persist in some contexts)
+        document.cookie = '__cb_import_protect_until__=' + until + ';path=/;max-age=' + Math.floor((ms || 600000) / 1000);
         pauseCloudWrites(ms || 600000); // 同时设置全局暂停
         console.log('[CloudbaseSync] 导入保护期已设置，持续至', new Date(until).toLocaleTimeString());
       } catch (e) {}

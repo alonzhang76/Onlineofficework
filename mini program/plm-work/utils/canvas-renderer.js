@@ -4,23 +4,28 @@
  * 所有函数在微信小程序 Canvas 2D API 下工作。
  */
 
-// A4 像素尺寸（2x for higher quality, effective ~192 DPI）
+// A4 基础像素尺寸（96 DPI），实际渲染时乘以 RENDER_SCALE
+var RENDER_SCALE = 2; // 2x = ~192 DPI，文字清晰
 var A4 = {
   landscape: { w: 1190, h: 842 },
   portrait: { w: 842, h: 1190 }
 };
 
 /**
- * 创建离屏画布
+ * 创建离屏画布（高分辨率）
  */
 function createPage(orientation) {
   var size = A4[orientation] || A4.portrait;
-  var canvas = wx.createOffscreenCanvas({ type: '2d', width: size.w, height: size.h });
+  var actualW = size.w * RENDER_SCALE;
+  var actualH = size.h * RENDER_SCALE;
+  var canvas = wx.createOffscreenCanvas({ type: '2d', width: actualW, height: actualH });
   var ctx = canvas.getContext('2d');
+  // 缩放绘图坐标系，使上层代码仍用基础尺寸坐标
+  ctx.scale(RENDER_SCALE, RENDER_SCALE);
   // 白色背景
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, size.w, size.h);
-  return { canvas: canvas, ctx: ctx, width: size.w, height: size.h };
+  return { canvas: canvas, ctx: ctx, width: actualW, height: actualH };
 }
 
 /**

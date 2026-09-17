@@ -3,7 +3,7 @@
 <head>
     <script src="../auto-scale.js?v=20260917a"></script>
 	<script>window.SUPABASE_APP_ID='purchase';</script>
-	<script src="../cloudbase-sync.js?v=20260918a"></script>
+	<script src="../cloudbase-sync.js?v=20260918b"></script>
 	<script src="../cloudbase-admin.js?v=20260916d"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -10905,9 +10905,30 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
                             }
 
                             alert('数据导入成功！系统数据已恢复。\n\n⚠️ 请点击页面上方的"上传云端"按钮，将导入的数据推送到云端。\n（10 分钟内云端旧数据不会覆盖本地新数据）');
-                            
-                            // 刷新页面以显示导入的数据
-                            location.reload();
+
+                            // 直接重新渲染页面，不使用 location.reload()
+                            // 这样可以保留内存中的 pauseCloudWrites 状态，避免云端数据覆盖
+                            try {
+                                // 如果公司改变了，更新公司选择器
+                                if (targetCompany !== currentCompany) {
+                                    var companySelect = document.getElementById('company-select');
+                                    if (companySelect) companySelect.value = targetCompany;
+                                    currentCompany = targetCompany;
+                                }
+                                // 重新渲染所有列表
+                                if (typeof renderPurchaseOrderList === 'function') renderPurchaseOrderList();
+                                if (typeof renderInvoiceList === 'function') renderInvoiceList();
+                                if (typeof renderPaymentList === 'function') renderPaymentList('');
+                                if (typeof updateDetailedPurchaseReport === 'function') updateDetailedPurchaseReport();
+                                if (typeof refreshSuppliersFromStorage === 'function') refreshSuppliersFromStorage();
+                                if (typeof renderSuppliers === 'function') renderSuppliers();
+                                if (typeof loadTodos === 'function') loadTodos();
+                                if (typeof renderTodos === 'function') renderTodos();
+                                console.log('[Import] 页面已重新渲染，无需 reload');
+                            } catch (e) {
+                                console.warn('[Import] 重新渲染失败，回退到 reload:', e);
+                                location.reload();
+                            }
                         } catch (error) {
                             console.error('导入数据时出错:', error);
                             alert('数据导入失败！请检查文件是否为有效的备份文件。');

@@ -129,10 +129,10 @@ function renderBoxMark(form, pageNo, totalPages) {
   var page = cv.createPage('portrait');
   var ctx = page.ctx;
   var W = page.width;
-  var margin = 56; // ~15mm
+  var margin = 56;
 
   // --- 顶部标题 ---
-  cv.drawText({ ctx: ctx, text: 'SHIPPING MARKS / 箱唛', x: W / 2, y: margin, size: 18, weight: 'bold', align: 'center' });
+  cv.drawText({ ctx: ctx, text: 'SHIPPING MARKS', x: W / 2, y: margin, size: 18, weight: 'bold', align: 'center' });
   cv.drawText({ ctx: ctx, text: form.company || '', x: W / 2, y: margin + 28, size: 12, color: '#555555', align: 'center' });
   cv.drawHLine(ctx, margin, margin + 52, W - margin * 2, '#333333', 2);
 
@@ -148,20 +148,19 @@ function renderBoxMark(form, pageNo, totalPages) {
     { label: 'Maschinennr.', value: form.maschinenNr || '', col: 0, row: 1 },
     { label: 'Projekt Nr.', value: form.projektNr || '', col: 1, row: 1 },
     { label: 'Package No.', value: pageNo + ' / ' + totalPages, col: 0, row: 2 },
-    { label: '单位', value: form.unit || '', col: 1, row: 2 },
-    { label: '总数量', value: form.totalQty || '', col: 0, row: 3 },
-    { label: '每箱数量', value: form.perBoxQty || '', col: 1, row: 3 },
-    { label: '总箱数', value: form.totalBoxes || '', col: 0, row: 4 }
+    { label: 'Unit', value: form.unit || '', col: 1, row: 2 },
+    { label: 'Total Qty', value: form.totalQty || '', col: 0, row: 3 },
+    { label: 'Qty Per Box', value: form.perBoxQty || form.qtyPerBox || '', col: 1, row: 3 },
+    { label: 'Total Boxes', value: form.totalBoxes || '', col: 0, row: 4 }
   ];
 
   for (var i = 0; i < fields.length; i++) {
     var f = fields[i];
     var fx = f.col === 0 ? leftColX : rightColX;
     var fy = fieldY + f.row * rowH;
-    // 留空字段不显示
     if (!f.value && f.value !== 0 && f.label !== 'Package No.') continue;
     cv.drawText({ ctx: ctx, text: f.label + ':', x: fx, y: fy, size: 10, color: '#888888' });
-    cv.drawText({ ctx: ctx, text: f.value, x: fx + 100, y: fy, size: 12, color: '#333333', weight: 'bold' });
+    cv.drawText({ ctx: ctx, text: String(f.value), x: fx + 100, y: fy, size: 12, color: '#333333', weight: 'bold' });
   }
 
   // --- 二维码（扫描后显示所有字段内容）---
@@ -176,7 +175,7 @@ function renderBoxMark(form, pageNo, totalPages) {
     'Projekt Nr: ' + (form.projektNr || ''),
     'Unit: ' + (form.unit || ''),
     'Total Qty: ' + (form.totalQty || ''),
-    'Per Box: ' + (form.perBoxQty || ''),
+    'Qty Per Box: ' + (form.perBoxQty || form.qtyPerBox || ''),
     'Total Boxes: ' + (form.totalBoxes || ''),
     'Package No: ' + pageNo + '/' + totalPages
   ];
@@ -191,12 +190,12 @@ function renderBoxMark(form, pageNo, totalPages) {
     cv.drawText({ ctx: ctx, text: 'QR Code', x: qrX + qrSize / 2, y: qrY + qrSize / 2 - 6, size: 12, color: '#999999', align: 'center' });
   }
 
-  // --- 备注（仅最后一箱显示）---
+  // --- Remarks（仅最后一箱显示）---
   if (pageNo === totalPages && form.remark) {
     var remarkY = qrY + qrSize + 24;
     cv.drawHLine(ctx, margin, remarkY, W - margin * 2, '#d1d5db', 1);
-    cv.drawText({ ctx: ctx, text: '备注：', x: margin, y: remarkY + 6, size: 11, weight: 'bold', color: '#555555' });
-    cv.drawTextLines(ctx, form.remark, margin + 44, remarkY + 6, W - margin * 2 - 44, 16, 11, '#333333');
+    cv.drawText({ ctx: ctx, text: 'Remarks:', x: margin, y: remarkY + 6, size: 11, weight: 'bold', color: '#555555' });
+    cv.drawTextLines(ctx, form.remark, margin + 60, remarkY + 6, W - margin * 2 - 60, 16, 11, '#333333');
   }
 
   return page;

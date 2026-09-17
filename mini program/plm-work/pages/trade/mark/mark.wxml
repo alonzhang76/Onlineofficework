@@ -13,7 +13,7 @@
     <view class="sec-title">唛头信息 <text class="sec-sub">Label Information</text></view>
 
     <view class="form-item">
-      <text class="f-label">公司</text>
+      <text class="f-label">Company</text>
       <input value="{{form.company}}" data-k="company" bindinput="onField" placeholder="Company Name" />
     </view>
     <view class="form-row2">
@@ -21,29 +21,29 @@
       <view class="form-item"><text class="f-label">Art No</text><input value="{{form.artNo}}" data-k="artNo" bindinput="onField" /></view>
     </view>
     <view class="form-row2">
-      <view class="form-item"><text class="f-label">机器号</text><input value="{{form.maschinenNr}}" data-k="maschinenNr" bindinput="onField" placeholder="Maschinennr." /></view>
-      <view class="form-item"><text class="f-label">项目号</text><input value="{{form.projektNr}}" data-k="projektNr" bindinput="onField" placeholder="Projekt Nr." /></view>
+      <view class="form-item"><text class="f-label">Maschinennr.</text><input value="{{form.maschinenNr}}" data-k="maschinenNr" bindinput="onField" placeholder="Machine No." /></view>
+      <view class="form-item"><text class="f-label">Projekt Nr.</text><input value="{{form.projektNr}}" data-k="projektNr" bindinput="onField" placeholder="Project No." /></view>
     </view>
     <view class="form-row2">
-      <view class="form-item"><text class="f-label">总数量</text><input type="number" value="{{form.totalQty}}" data-k="totalQty" bindinput="onQtyInput" /></view>
-      <view class="form-item"><text class="f-label">每箱数量</text><input type="number" value="{{form.qtyPerBox}}" data-k="qtyPerBox" bindinput="onQtyInput" /></view>
+      <view class="form-item"><text class="f-label">Total Qty</text><input type="number" value="{{form.totalQty}}" data-k="totalQty" bindinput="onQtyInput" /></view>
+      <view class="form-item"><text class="f-label">Qty Per Box</text><input type="number" value="{{form.qtyPerBox}}" data-k="qtyPerBox" bindinput="onQtyInput" /></view>
     </view>
     <view class="form-item">
-      <text class="f-label">单位</text>
-      <input value="{{form.unit}}" data-k="unit" bindinput="onField" placeholder="PCS / 只…" />
+      <text class="f-label">Unit</text>
+      <input value="{{form.unit}}" data-k="unit" bindinput="onField" placeholder="PCS / SET..." />
     </view>
     <view class="form-item">
-      <text class="f-label">总箱数</text>
-      <input type="number" value="{{form.totalBoxes}}" data-k="totalBoxes" bindinput="onField" placeholder="按总数量÷每箱数量自动计算，可修改" />
+      <text class="f-label">Total Boxes</text>
+      <input type="number" value="{{form.totalBoxes}}" data-k="totalBoxes" bindinput="onField" placeholder="Auto = ceil(Total Qty / Qty Per Box)" />
     </view>
     <view class="form-item ta">
-      <text class="f-label">备注</text>
-      <textarea value="{{form.remarks}}" data-k="remarks" bindinput="onField" placeholder="Remarks（仅最后一箱显示）" auto-height></textarea>
+      <text class="f-label">Remarks</text>
+      <textarea value="{{form.remarks}}" data-k="remarks" bindinput="onField" placeholder="Remarks (last box only)" auto-height></textarea>
     </view>
 
     <view class="btn-row">
-      <view class="btn btn-primary" bindtap="generate">生成箱唛</view>
-      <view class="btn btn-plain" bindtap="clearAll">清空</view>
+      <view class="btn btn-primary" bindtap="generate">Generate Labels</view>
+      <view class="btn btn-plain" bindtap="clearAll">Clear</view>
     </view>
     <view class="tip">总箱数 = ceil(总数量 ÷ 每箱数量)，可手动修改；最后一箱数量自动取余数。&#10;字段留空则不在箱唛上显示（与网页版一致）。</view>
   </view>

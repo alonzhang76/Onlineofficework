@@ -11,12 +11,10 @@ var fmt = require('./format');
  * 从离屏 Canvas 导出 JPEG Uint8Array
  */
 function canvasToJPEG(canvas, quality) {
-  // 微信小程序 Canvas 2D API: canvas.toDataURL 不可用
-  // 使用 wx.canvasToTempFilePath 但需要真实的 canvas node
-  // 离屏 canvas 可以用 canvas.toDataURL
+  // 微信小程序 Canvas 2D API: 离屏 canvas 可用 canvas.toDataURL
   var dataURL = '';
   try {
-    dataURL = canvas.toDataURL('image/jpeg', quality || 0.92);
+    dataURL = canvas.toDataURL('image/jpeg', quality || 1.0);
   } catch (e) {
     // 某些小程序版本不支持离屏 canvas.toDataURL
     return null;
@@ -37,9 +35,13 @@ function base64ToUint8Array(b64) {
     var c = lookup[b64[i + 2]] || 0;
     var d = lookup[b64[i + 3]] || 0;
     var n = (a << 18) | (b << 12) | (c << 6) | d;
-    if (b64[i + 2] !== '=') bytes.push((n >> 16) & 0xFF);
-    if (b64[i + 3] !== '=') bytes.push((n >> 8) & 0xFF);
-    bytes.push(n & 0xFF);
+    if (b64[i + 2] !== '=') {
+      bytes.push((n >> 16) & 0xFF);
+      if (b64[i + 3] !== '=') {
+        bytes.push((n >> 8) & 0xFF);
+        bytes.push(n & 0xFF);
+      }
+    }
   }
   return new Uint8Array(bytes);
 }
@@ -139,7 +141,7 @@ function generateAndShare(renderFn, data, fileName, orientation, done) {
 function saveFirstPageToAlbum(page, done) {
   if (!page || !page.canvas) { done && done(false); return; }
   try {
-    var dataURL = page.canvas.toDataURL('image/jpeg', 0.92);
+    var dataURL = page.canvas.toDataURL('image/jpeg', 1.0);
     var base64 = dataURL.split(',')[1];
     var fs = wx.getFileSystemManager();
     var path = wx.env.USER_DATA_PATH + '/doc_page.jpg';

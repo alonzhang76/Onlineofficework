@@ -2,7 +2,15 @@
  * qrcode-matrix.js — 纯 JS 二维码矩阵生成（无 DOM 依赖）
  * 基于 QR Code Model 2 标准，适配微信小程序环境。
  * 输出 boolean[][] 矩阵供 Canvas 绘制。
+ * 不使用 Array.prototype.fill（部分小程序引擎不支持）
  */
+
+// --- 辅助：创建并填充数组（替代 Array.prototype.fill）---
+function filledArray(len, val) {
+  var arr = new Array(len);
+  for (var i = 0; i < len; i++) arr[i] = val;
+  return arr;
+}
 
 // --- Galois Field 256 操作（Reed-Solomon 纠错用）---
 var EXP_TABLE = new Array(256);
@@ -28,33 +36,20 @@ function gfMul(a, b) {
 function rsGenPoly(ecLen) {
   var poly = [1];
   for (var i = 0; i < ecLen; i++) {
-    var newPoly = new Array(poly.length + 1).fill(0);
+    var newPoly = new Array(poly.length + 1);
+    for (var j = 0; j < newPoly.length; j++) newPoly[j] = 0;
     for (var j = 0; j < poly.length; j++) {
       newPoly[j] ^= poly[j];
-      var coef = gfMul(poly[j], EXP_TABLE[i]);
-      newPoly[j + 1] = (newPoly[j + 1] || 0) ^ coef;
+      newPoly[j + 1] ^= gfMul(poly[j], EXP_TABLE[i]);
     }
-    // 正确算法：每一轮乘以 x + α^i
-    poly = new Array(ecLen + 1).fill(0);
-    // 重新实现
-    break;
-  }
-  // 重新实现 rsGenPoly
-  poly = [1];
-  for (var i = 0; i < ecLen; i++) {
-    var p = new Array(poly.length + 1).fill(0);
-    for (var j = 0; j < poly.length; j++) {
-      p[j] ^= poly[j];
-      p[j + 1] ^= gfMul(poly[j], EXP_TABLE[i]);
-    }
-    poly = p;
+    poly = newPoly;
   }
   return poly;
 }
 
 function rsEncode(data, ecLen) {
   var gen = rsGenPoly(ecLen);
-  var result = data.concat(new Array(ecLen).fill(0));
+  var result = data.concat(filledArray(ecLen, 0));
   for (var i = 0; i < data.length; i++) {
     var coef = result[i];
     if (coef === 0) continue;
@@ -66,10 +61,8 @@ function rsEncode(data, ecLen) {
 }
 
 // --- QR 码版本与容量表 ---
-// [版本, 数据容量(字节-L级), 纠错码字数(L级), 总模块数]
-// 简化：只支持 byte 模式，L 级纠错
+// [版本, 数据容量(字节-L级), 纠错码字数(L级), 总数据码字数(含纠错)]
 var VERSION_TABLE = [
-  // v, dataCap(L), ecWords(L), totalDataModules
   [1, 19, 7, 26], [2, 34, 10, 44], [3, 55, 15, 70], [4, 84, 20, 100],
   [5, 119, 26, 134], [6, 154, 36, 172], [7, 202, 40, 196], [8, 235, 48, 242],
   [9, 275, 60, 292], [10, 332, 72, 346]
@@ -79,12 +72,11 @@ function chooseVersion(byteLen) {
   for (var i = 0; i < VERSION_TABLE.length; i++) {
     if (VERSION_TABLE[i][1] >= byteLen) return VERSION_TABLE[i];
   }
-  return VERSION_TABLE[VERSION_TABLE.length - 1]; // 最大 v10
+  return VERSION_TABLE[VERSION_TABLE.length - 1];
 }
 
 // --- 位流编码 ---
 function encodeData(text) {
-  // UTF-8 编码
   var bytes = [];
   for (var i = 0; i < text.length; i++) {
     var c = text.charCodeAt(i);
@@ -108,15 +100,16 @@ function buildBitStream(bytes, version) {
   // 数据
   for (var i = 0; i < bytes.length; i++) pushBits(bytes[i], 8);
   // 终止符
-  var remaining = version[3] - bits.length;
+  var totalBits = version[1] * 8; // 数据容量（字节）× 8 = 总数据位数
+  var remaining = totalBits - bits.length;
   if (remaining >= 4) pushBits(0, 4);
   else { for (var i = 0; i < remaining; i++) bits.push(0); }
-  // 填充0字节到对齐
+  // 对齐到字节边界
   while (bits.length % 8 !== 0) bits.push(0);
   // 填充字节
   var padBytes = [0xEC, 0x11];
   var pi = 0;
-  while (bits.length < version[3]) {
+  while (bits.length < totalBits) {
     pushBits(padBytes[pi % 2], 8);
     pi++;
   }
@@ -133,15 +126,40 @@ function bitsToBytes(bits) {
   return bytes;
 }
 
+// --- 对齐图案位置（QR Code Model 2 标准中心坐标）---
+function getAlignmentPositions(v) {
+  if (v === 1) return [];
+  if (v === 2) return [6, 18];
+  if (v === 3) return [6, 22];
+  if (v === 4) return [6, 26];
+  if (v === 5) return [6, 30];
+  if (v === 6) return [6, 34];
+  if (v === 7) return [6, 22, 38];
+  if (v === 8) return [6, 24, 42];
+  if (v === 9) return [6, 26, 46];
+  if (v === 10) return [6, 28, 50];
+  return [6, 28, 50];
+}
+
+// --- BCH 编码（格式信息）---
+function bchEncode(data) {
+  var g = 0x537;
+  var d = data << 10;
+  for (var i = 4; i >= 0; i--) {
+    if ((d >> (i + 10)) & 1) d ^= g << i;
+  }
+  return d & 0x3FF;
+}
+
 // --- 矩阵构建 ---
 function buildMatrix(version, dataBytes) {
   var v = version[0];
-  var size = 17 + v * 4; // QR码尺寸
+  var size = 17 + v * 4;
   var matrix = [];
-  var reserved = []; // true = 已占用
+  var reserved = [];
   for (var i = 0; i < size; i++) {
-    matrix.push(new Array(size).fill(null));
-    reserved.push(new Array(size).fill(false));
+    matrix.push(filledArray(size, null));
+    reserved.push(filledArray(size, false));
   }
 
   // 1. 放置定位图案 (Finder Pattern)
@@ -156,7 +174,7 @@ function buildMatrix(version, dataBytes) {
           else if (dr >= 2 && dr <= 4 && dc >= 2 && dc <= 4) val = true;
           else val = false;
         } else if ((dr === 7 && dc >= 0 && dc <= 6) || (dc === 7 && dr >= 0 && dr <= 6)) {
-          val = false; // 分隔符
+          val = false;
         }
         if (val !== null) {
           matrix[rr][cc] = val;
@@ -174,12 +192,12 @@ function buildMatrix(version, dataBytes) {
   for (var i = 0; i < alignPos.length; i++) {
     for (var j = 0; j < alignPos.length; j++) {
       if ((i === 0 && j === 0) || (i === 0 && j === alignPos.length - 1) || (i === alignPos.length - 1 && j === 0)) continue;
-      var r = alignPos[i], c = alignPos[j];
+      var ar = alignPos[i], ac = alignPos[j];
       for (var dr = -2; dr <= 2; dr++) {
         for (var dc = -2; dc <= 2; dc++) {
           var val = (Math.abs(dr) === 2 || Math.abs(dc) === 2 || (dr === 0 && dc === 0));
-          matrix[r + dr][c + dc] = val;
-          reserved[r + dr][c + dc] = true;
+          matrix[ar + dr][ac + dc] = val;
+          reserved[ar + dr][ac + dc] = true;
         }
       }
     }
@@ -210,7 +228,7 @@ function buildMatrix(version, dataBytes) {
   var bitIdx = 0;
   var upward = true;
   for (var col = size - 1; col > 0; col -= 2) {
-    if (col === 6) col--; // 跳过时序列
+    if (col === 6) col--;
     for (var i = 0; i < size; i++) {
       var row = upward ? size - 1 - i : i;
       for (var dc = 0; dc < 2; dc++) {
@@ -228,7 +246,7 @@ function buildMatrix(version, dataBytes) {
     upward = !upward;
   }
 
-  // 7. 应用掩码（简化：用掩码0 = (row+col)%2==0）
+  // 7. 应用掩码（掩码0 = (row+col)%2==0）
   for (var r = 0; r < size; r++) {
     for (var c = 0; c < size; c++) {
       if (reserved[r][c]) continue;
@@ -237,15 +255,12 @@ function buildMatrix(version, dataBytes) {
   }
 
   // 8. 格式信息（L级，掩码0）
-  // 格式信息编码：5位数据(eclevel=01, mask=000) + 10位BCH纠错
   var formatBits = 0x01 << 3 | 0x00; // L=01, mask=000
   var formatCode = bchEncode(formatBits);
   var fullFormat = (formatBits << 10) | formatCode;
-  // 15位格式信息
   var formatBits15 = [];
   for (var i = 14; i >= 0; i--) formatBits15.push((fullFormat >> i) & 1);
 
-  // 放置格式信息（两部分）
   for (var i = 0; i < 6; i++) matrix[8][i] = formatBits15[i] === 1;
   matrix[8][7] = formatBits15[6] === 1;
   matrix[8][8] = formatBits15[7] === 1;
@@ -258,26 +273,6 @@ function buildMatrix(version, dataBytes) {
   return matrix;
 }
 
-function getAlignmentPositions(v) {
-  if (v === 1) return [];
-  if (v === 2) return [6, 16];
-  if (v === 3) return [6, 22];
-  if (v === 4) return [6, 28];
-  if (v === 5) return [6, 34];
-  if (v === 6) return [6, 44];
-  if (v === 7) return [6, 26, 48];
-  return [6, 26, 48]; // 简化
-}
-
-function bchEncode(data) {
-  var g = 0x537; // BCH(15,5) 生成多项式
-  var d = data << 10;
-  for (var i = 4; i >= 0; i--) {
-    if ((d >> (i + 10)) & 1) d ^= g << i;
-  }
-  return d & 0x3FF;
-}
-
 /**
  * 生成二维码矩阵
  * @param {string} text - 编码文本
@@ -288,7 +283,6 @@ function generateQRMatrix(text) {
   var version = chooseVersion(bytes.length);
   var bits = buildBitStream(bytes, version);
   var dataBytes = bitsToBytes(bits);
-  // 添加纠错码
   var ecWords = version[2];
   var dataWithEC = dataBytes.concat(rsEncode(dataBytes, ecWords));
   return buildMatrix(version, dataWithEC);
