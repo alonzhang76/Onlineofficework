@@ -433,14 +433,56 @@
       var origKey = unprefixKey(sk);
       if (!origKey) return;
       // 导入保护期内：本地已有数据时完全跳过（不覆盖 cache 也不覆盖 localStorage）
-      // 关键：getItem 优先从 cache 读取，若 cache 被云端旧数据覆盖，页面将看到旧数据而非导入的数据
       if (importProtected) {
         var localRaw0 = nativeGet(toLocalKey(origKey));
         if (localRaw0 !== null && localRaw0 !== undefined && localRaw0 !== '') {
-          // 本地有数据 → 用本地值填充 cache，保证 getItem 读到本地数据
           try { cache[origKey] = JSON.parse(localRaw0); } catch (e) { cache[origKey] = localRaw0; }
           return;
         }
+      }
+      // 本地刚写入保护：与 refreshFromCloud 相同的完整保护链
+      var nowMs = Date.now();
+      if (recentWrites[origKey] && nowMs - recentWrites[origKey] < SKIP_WRITE_WINDOW) {
+        // 本地刚写入 → 用本地值填充 cache，不覆盖
+        var lr = nativeGet(toLocalKey(origKey));
+        if (lr !== null && lr !== undefined && lr !== '') {
+          try { cache[origKey] = JSON.parse(lr); } catch (e) { cache[origKey] = lr; }
+        }
+        return;
+      }
+      if (pendingWrites[origKey]) {
+        // 上传失败的挂起写入 → 本地一定比云端新
+        var pr = nativeGet(toLocalKey(origKey));
+        if (pr !== null && pr !== undefined && pr !== '') {
+          try { cache[origKey] = JSON.parse(pr); } catch (e) { cache[origKey] = pr; }
+        }
+        return;
+      }
+      if (_debounceTimers[origKey]) {
+        // 防抖窗口内 → 本地即最新
+        var dr = nativeGet(toLocalKey(origKey));
+        if (dr !== null && dr !== undefined && dr !== '') {
+          try { cache[origKey] = JSON.parse(dr); } catch (e) { cache[origKey] = dr; }
+        }
+        return;
+      }
+      // 上传队列中的 key → 跳过
+      for (var qi2 = 0; qi2 < _uploadQueue.length; qi2++) {
+        if (_uploadQueue[qi2].key === origKey) {
+          var qr = nativeGet(toLocalKey(origKey));
+          if (qr !== null && qr !== undefined && qr !== '') {
+            try { cache[origKey] = JSON.parse(qr); } catch (e) { cache[origKey] = qr; }
+          }
+          return;
+        }
+      }
+      // 正在上传中的 key → 跳过
+      if (_isUploading && _currentUploadKey === origKey) {
+        var ur = nativeGet(toLocalKey(origKey));
+        if (ur !== null && ur !== undefined && ur !== '') {
+          try { cache[origKey] = JSON.parse(ur); } catch (e) { cache[origKey] = ur; }
+        }
+        return;
       }
       // LWW：只有云端 updated_at 严格新于本地已知同步时间才覆盖。
       // cacheTs 未设置（首次加载）时直接采用云端，避免本地旧数据（如 60 条）
