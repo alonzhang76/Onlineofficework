@@ -22,7 +22,7 @@
   'use strict';
 
   // ===== 版本守卫：防止旧版 cloudbase-sync.js 在新版之后重新初始化 =====
-  var SYNC_VERSION = '20260918e';
+  var SYNC_VERSION = '20260918f';
   if (window.__CLOUDBASE_SYNC_VERSION__) {
     console.warn('[CloudbaseSync] 检测到已加载版本 ' + window.__CLOUDBASE_SYNC_VERSION__ +
       '，当前版本 ' + SYNC_VERSION + ' 跳过初始化');
@@ -464,24 +464,9 @@
     console.warn('[CloudbaseSync] 🔍 processCloudRows 被调用, rows=' + (rows ? rows.length : 0) +
       ' paused=' + isCloudWritePaused() + ' importProtected=' + isImportProtected() +
       ' version=' + (window.__CLOUDBASE_SYNC_VERSION__ || 'unknown'));
-    // 全局写入暂停：任何本地写入后 30 秒内 / 导入后 10 分钟内，
-    // 完全拒绝云端→本地覆盖（包括 cache 和 localStorage）
-    if (isCloudWritePaused()) {
-      // 暂停期间：只更新本地 cache 的时间戳，不覆盖数据
-      // 用本地 localStorage 值填充 cache（确保 getItem 读到本地数据）
-      try {
-        for (var pk in _lsInstance) {
-          var origK = unprefixKey(pk);
-          if (origK && cache[origK] === undefined) {
-            var pv = _origGetItem.call(_lsInstance, pk);
-            if (pv !== null && pv !== '') {
-              try { cache[origK] = JSON.parse(pv); } catch (e) { cache[origK] = pv; }
-            }
-          }
-        }
-      } catch (e) {}
-      return 0;
-    }
+    // 不再使用全局暂停跳过所有云端数据——这会阻止正确的云端数据进入缓存。
+    // 改为依赖下方的 per-key 保护（importProtected、recentWrites、pendingWrites 等），
+    // 只跳过被编辑/导入的 key，其他 key 正常从云端更新。
     // 同一 store_key 可能存在多条重复行（历史 upsert 缺陷遗留），
     // 只认 updated_at 最新的那条，避免旧/空数据抢先入缓存
     var newest = {};
@@ -1073,8 +1058,8 @@
     if (!sb || !initialized || cloudLoadDenied) return false;
     // ⚠️ 页面设置了 __NO_AUTO_CLOUD_LOAD__ 时，定时刷新也跳过
     if (window.__NO_AUTO_CLOUD_LOAD__) return false;
-    // 全局写入暂停：本地写入/导入后不拉取云端数据
-    if (isCloudWritePaused()) return false;
+    // 导入保护期内不拉取云端数据（防止旧数据覆盖刚导入的新数据）
+    if (isImportProtected()) return false;
     // 网络慢冷却期：暂停定时刷新，冷却结束后由下一个定时周期自动恢复（无需人工干预）
     if (_netPauseUntil && Date.now() < _netPauseUntil) return false;
 
@@ -1250,8 +1235,8 @@
       // 本地写入的防覆盖保护由 recentWrites（10s 窗口）+ pendingWrites 承担。
       // cacheTs 只在「从云端加载」或「上传成功」后更新，代表真实云端同步时间。
       recentWrites[key] = Date.now();
-      // 全局自动暂停：任何本地写入后暂停云端→本地覆盖 30 秒
-      pauseCloudWrites(AUTO_PAUSE_MS);
+      // 不再设置全局暂停 pauseCloudWrites——这会阻止 processCloudRows 加载正确的云端数据。
+      // per-key 保护由 recentWrites（10s）+ pendingWrites + _debounceTimers + _uploadQueue 承担。
 
       // 自动同步到云端（防抖 + 串行上传，避免并发堆积）。
       // LWW 时序比较 + upsert(store_key) 保证不会用旧数据覆盖云端新数据，
