@@ -1,0 +1,324 @@
+<view class="page">
+  <!-- 页首品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <!-- ============ 列表视图 ============ -->
+  <block wx:if="{{mode === 'list'}}">
+    <view class="card">
+      <view class="form-item">
+        <text class="f-label">🔍</text>
+        <input value="{{kw}}" placeholder="运编号/收货人/订单号/港口" bindinput="onSearch" />
+      </view>
+      <view class="stat-line">共 <text class="stat-num">{{list.length}}</text> 票出货 ｜ 金额 <text class="stat-num">{{sumAmount}}</text> ｜ 总箱 <text class="stat-num">{{sumCrates}}</text></view>
+    </view>
+
+    <view wx:if="{{list.length === 0}}" class="card">
+      <view class="empty"><view class="empty-icon">🚢</view>暂无出货与报关记录</view>
+    </view>
+
+    <view class="card" wx:for="{{list}}" wx:key="id">
+      <view class="sh-head">
+        <view>
+          <view class="sh-no">{{item.shipmentNo}}</view>
+          <view class="sh-date">{{item.departureDate || '未填日期'}} ｜ {{item.shippingMode || '-'}} ｜ {{item.terms || '-'}}</view>
+        </view>
+        <text class="badge badge-blue">{{item.currency}}</text>
+      </view>
+      <view class="sh-route">{{item.pol || '?'}} → {{item.pod || '?'}}<text wx:if="{{item.destination}}">（{{item.destination}}）</text></view>
+      <view class="sh-row"><text class="sh-label">收货人</text><text class="sh-val">{{item.consignee || '-'}}</text></view>
+      <view class="sh-row"><text class="sh-label">订单号</text><text class="sh-val">{{item.orderNos || '-'}}</text></view>
+      <view class="sh-row"><text class="sh-label">船名航次</text><text class="sh-val">{{item.vessel || '-'}}</text></view>
+      <view class="sh-total">
+        金额 {{item.totalAmount}} ｜ 数量 {{item.totalQty}} ｜ {{item.totalCrates}}箱 ｜ 毛重 {{item.totalGw}}kg ｜ 体积 {{item.totalVolume}}m³
+      </view>
+      <view class="ord-actions">
+        <view class="btn btn-outline btn-sm" data-id="{{item.id}}" bindtap="viewDoc">单据</view>
+        <view class="btn btn-outline btn-sm" data-id="{{item.id}}" bindtap="editItem">编辑</view>
+        <view class="btn btn-danger-ghost btn-sm" data-id="{{item.id}}" bindtap="delItem">删除</view>
+      </view>
+    </view>
+
+    <view class="fab" bindtap="openAdd">＋</view>
+  </block>
+
+  <!-- ============ 单据预览视图 ============ -->
+  <block wx:if="{{mode === 'doc'}}">
+    <view class="btn btn-plain btn-sm back-btn" bindtap="backList">‹ 返回列表</view>
+
+    <view class="segment">
+      <view class="segment-item {{docTab === 0 ? 'active' : ''}}" data-i="0" bindtap="onDocTab">商业发票</view>
+      <view class="segment-item {{docTab === 1 ? 'active' : ''}}" data-i="1" bindtap="onDocTab">装箱单</view>
+      <view class="segment-item {{docTab === 2 ? 'active' : ''}}" data-i="2" bindtap="onDocTab">报关明细</view>
+    </view>
+
+    <!-- 商业发票 Commercial Invoice -->
+    <view class="doc" wx:if="{{docTab === 0}}">
+      <view class="doc-center">
+        <view class="doc-big-title">COMMERCIAL INVOICE</view>
+        <view class="doc-big-sub">商业发票</view>
+      </view>
+      <view class="ci-grid">
+        <view class="ci-block">
+          <view class="ci-k">Shipper 发货人</view>
+          <view class="ci-v">{{doc.shipper || '-'}}</view>
+          <view class="ci-v">{{doc.seller}}</view>
+        </view>
+        <view class="ci-block">
+          <view class="ci-k">Consignee 收货人</view>
+          <view class="ci-v">{{doc.consignee || '-'}}</view>
+        </view>
+      </view>
+      <view class="ci-info">
+        <text>Invoice No.: {{doc.shipmentNo}}</text>
+        <text>Date: {{doc.departureDate}}</text>
+        <text>Terms: {{doc.terms}}</text>
+        <text>Vessel: {{doc.vessel}}</text>
+        <text>From: {{doc.pol}}</text>
+        <text>To: {{doc.pod}}</text>
+        <text>Payment: {{doc.paymentMode}}</text>
+        <text>Contract No.: {{doc.contractNo}}</text>
+      </view>
+      <view class="ptable">
+        <view class="pt-row pt-head">
+          <text class="pt-i">No.</text><text class="pt-desc">Description 品名</text>
+          <text class="pt-q">Qty</text><text class="pt-u">Unit</text>
+          <text class="pt-p">Price</text><text class="pt-a">Amount</text>
+        </view>
+        <view class="pt-row" wx:for="{{doc.items}}" wx:key="rid">
+          <text class="pt-i">{{index + 1}}</text>
+          <text class="pt-desc">{{item.desc}}</text>
+          <text class="pt-q">{{item.quantity}}</text>
+          <text class="pt-u">{{item.unit}}</text>
+          <text class="pt-p">{{item.unitPrice}}</text>
+          <text class="pt-a">{{item.amount}}</text>
+        </view>
+        <view class="pt-row pt-foot">
+          <text class="pt-i"></text><text class="pt-desc">TOTAL</text>
+          <text class="pt-q">{{doc.totalQty}}</text><text class="pt-u"></text>
+          <text class="pt-p"></text><text class="pt-a">{{doc.totalAmount}} {{doc.currency}}</text>
+        </view>
+      </view>
+      <view class="doc-marks" wx:if="{{doc.marks}}">Marks: {{doc.marks}}</view>
+      <view class="doc-marks" wx:if="{{doc.remarks}}">Remarks: {{doc.remarks}}</view>
+    </view>
+
+    <!-- 装箱单 Packing List -->
+    <view class="doc" wx:if="{{docTab === 1}}">
+      <view class="doc-center">
+        <view class="doc-big-title">PACKING LIST</view>
+        <view class="doc-big-sub">装箱单</view>
+      </view>
+      <view class="ci-info">
+        <text>No.: {{doc.shipmentNo}}</text>
+        <text>Date: {{doc.departureDate}}</text>
+        <text>Vessel: {{doc.vessel}}</text>
+        <text>From: {{doc.pol}}</text>
+        <text>To: {{doc.pod}}</text>
+        <text>Packing: {{doc.packing}}</text>
+      </view>
+      <view class="ptable">
+        <view class="pt-row pt-head">
+          <text class="pt-i">No.</text><text class="pt-desc">Description 品名</text>
+          <text class="pt-c">Crates箱</text><text class="pt-q">Qty数量</text>
+          <text class="pt-w">N.W.kg</text><text class="pt-w">G.W.kg</text><text class="pt-v">M³</text>
+        </view>
+        <view class="pt-row" wx:for="{{doc.items}}" wx:key="rid">
+          <text class="pt-i">{{index + 1}}</text>
+          <text class="pt-desc">{{item.description || '-'}}</text>
+          <text class="pt-c">{{item.qtyCrate}}</text>
+          <text class="pt-q">{{item.quantity}}</text>
+          <text class="pt-w">{{item.nw}}</text><text class="pt-w">{{item.gw}}</text><text class="pt-v">{{item.volume}}</text>
+        </view>
+        <view class="pt-row pt-foot">
+          <text class="pt-i"></text><text class="pt-desc">TOTAL</text>
+          <text class="pt-c">{{doc.totalCrates}}</text><text class="pt-q">{{doc.totalQty}}</text>
+          <text class="pt-w">{{doc.totalNw}}</text><text class="pt-w">{{doc.totalGw}}</text><text class="pt-v">{{doc.totalVolume}}</text>
+        </view>
+      </view>
+      <view class="doc-marks" wx:if="{{doc.marks}}">Marks: {{doc.marks}}</view>
+    </view>
+
+    <!-- 报关明细 -->
+    <view class="doc" wx:if="{{docTab === 2}}">
+      <view class="doc-center">
+        <view class="doc-big-title">报关明细</view>
+        <view class="doc-big-sub">CUSTOMS DECLARATION</view>
+      </view>
+      <view class="kv-list">
+        <view class="kv"><text class="kv-k">运编号</text><text class="kv-v">{{doc.shipmentNo}}</text></view>
+        <view class="kv"><text class="kv-k">出口日期</text><text class="kv-v">{{doc.departureDate}}</text></view>
+        <view class="kv"><text class="kv-k">发货人</text><text class="kv-v">{{doc.shipper}}</text></view>
+        <view class="kv"><text class="kv-k">生产销售单位</text><text class="kv-v">{{doc.seller}}</text></view>
+        <view class="kv"><text class="kv-k">收货人</text><text class="kv-v">{{doc.consignee}}</text></view>
+        <view class="kv"><text class="kv-k">监管方式</text><text class="kv-v">{{doc.tradeType}}</text></view>
+        <view class="kv"><text class="kv-k">结汇方式</text><text class="kv-v">{{doc.paymentMode}}</text></view>
+        <view class="kv"><text class="kv-k">成交条款</text><text class="kv-v">{{doc.terms}}</text></view>
+        <view class="kv"><text class="kv-k">运输方式</text><text class="kv-v">{{doc.shippingMode}}</text></view>
+        <view class="kv"><text class="kv-k">船名/航次</text><text class="kv-v">{{doc.vessel}}</text></view>
+        <view class="kv"><text class="kv-k">启运港</text><text class="kv-v">{{doc.pol}}</text></view>
+        <view class="kv"><text class="kv-k">目的港</text><text class="kv-v">{{doc.pod}}</text></view>
+        <view class="kv"><text class="kv-k">目的国</text><text class="kv-v">{{doc.destination}}</text></view>
+        <view class="kv"><text class="kv-k">出境关别</text><text class="kv-v">{{doc.boundaryPort}}</text></view>
+        <view class="kv"><text class="kv-k">提运单号</text><text class="kv-v">{{doc.billNo}}</text></view>
+        <view class="kv"><text class="kv-k">合同协议号</text><text class="kv-v">{{doc.contractNo}}</text></view>
+        <view class="kv"><text class="kv-k">包装方式</text><text class="kv-v">{{doc.packing}}</text></view>
+        <view class="kv"><text class="kv-k">币制</text><text class="kv-v">{{doc.currency}}</text></view>
+        <view class="kv"><text class="kv-k">总金额</text><text class="kv-v strong">{{doc.totalAmount}} {{doc.currency}}</text></view>
+      </view>
+      <view class="ptable">
+        <view class="pt-row pt-head">
+          <text class="pt-hs">HS编码</text><text class="pt-desc">品名/规格</text>
+          <text class="pt-q">数量</text><text class="pt-a">金额</text>
+          <text class="pt-w">净重</text><text class="pt-w">毛重</text>
+        </view>
+        <view class="pt-row" wx:for="{{doc.items}}" wx:key="rid">
+          <text class="pt-hs">{{item.hsCode || '-'}}</text>
+          <text class="pt-desc">{{item.desc2}}</text>
+          <text class="pt-q">{{item.quantity}}{{item.unit}}</text>
+          <text class="pt-a">{{item.amount}}</text>
+          <text class="pt-w">{{item.nw}}</text><text class="pt-w">{{item.gw}}</text>
+        </view>
+      </view>
+      <view class="doc-marks" wx:if="{{doc.marks}}">唛头 Marks: {{doc.marks}}</view>
+    </view>
+
+    <view class="btn-row">
+      <view class="btn btn-outline" data-id="{{doc.id}}" bindtap="editItem">编辑</view>
+      <view class="btn btn-primary" bindtap="copyDoc">复制单据内容</view>
+    </view>
+  </block>
+
+  <!-- ============ 新增/编辑弹层 ============ -->
+  <view catchtouchmove="noop" class="mask" wx:if="{{modal}}" bindtap="closeModal">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">{{editId ? '编辑出货与报关' : '新增出货与报关'}}<text class="sheet-close" bindtap="closeModal">×</text></view>
+      <scroll-view scroll-y class="sheet-body">
+
+        <view class="sec-title-sm">出运信息</view>
+        <view class="form-item">
+          <text class="f-label">运编号 <text class="req">*</text></text>
+          <input value="{{form.shipmentNo}}" data-k="shipmentNo" bindinput="onField" placeholder="自动生成，可修改" />
+        </view>
+        <view class="form-row2">
+          <picker mode="date" value="{{form.departureDate}}" data-k="departureDate" bindchange="onDate">
+            <view class="form-item"><text class="f-label">出口日期</text><text class="f-value {{form.departureDate ? '' : 'placeholder'}}">{{form.departureDate || '选择'}}</text></view>
+          </picker>
+          <picker range="{{terms}}" value="{{form.termsIdx}}" data-k="terms" bindchange="onPick">
+            <view class="form-item"><text class="f-label">成交条款</text><text class="f-value">{{form.terms}}</text></view>
+          </picker>
+        </view>
+        <view class="form-row2">
+          <picker range="{{shippingModes}}" value="{{form.modeIdx}}" data-k="shippingMode" bindchange="onPick">
+            <view class="form-item"><text class="f-label">运输方式</text><text class="f-value">{{form.shippingMode}}</text></view>
+          </picker>
+          <picker range="{{currencies}}" value="{{form.curIdx}}" data-k="currency" bindchange="onPick">
+            <view class="form-item"><text class="f-label">币制</text><text class="f-value">{{form.currency}}</text></view>
+          </picker>
+        </view>
+        <view class="form-row2">
+          <view class="form-item"><text class="f-label">船名航次</text><input value="{{form.vessel}}" data-k="vessel" bindinput="onField" /></view>
+          <picker range="{{paymentModes}}" value="{{form.pmIdx}}" data-k="paymentMode" bindchange="onPick">
+            <view class="form-item"><text class="f-label">结汇方式</text><text class="f-value">{{form.paymentMode || '选择'}}</text></view>
+          </picker>
+        </view>
+        <view class="form-row2">
+          <view class="form-item"><text class="f-label">启运港</text><input value="{{form.pol}}" data-k="pol" bindinput="onField" /></view>
+          <view class="form-item"><text class="f-label">目的港</text><input value="{{form.pod}}" data-k="pod" bindinput="onField" /></view>
+        </view>
+        <view class="form-row2">
+          <view class="form-item"><text class="f-label">目的国</text><input value="{{form.destination}}" data-k="destination" bindinput="onField" /></view>
+          <view class="form-item"><text class="f-label">提运单号</text><input value="{{form.billNo}}" data-k="billNo" bindinput="onField" /></view>
+        </view>
+
+        <view class="sec-title-sm">报关信息</view>
+        <view class="form-row2">
+          <view class="form-item"><text class="f-label">发货人</text><input value="{{form.shipper}}" data-k="shipper" bindinput="onField" /></view>
+          <view class="form-item"><text class="f-label">销售单位</text><input value="{{form.seller}}" data-k="seller" bindinput="onField" /></view>
+        </view>
+        <view class="form-item">
+          <text class="f-label">收货人 <text class="req">*</text></text>
+          <input value="{{form.consignee}}" data-k="consignee" bindinput="onField" placeholder="Consignee" />
+        </view>
+        <view class="form-row2">
+          <view class="form-item"><text class="f-label">合同号</text><input value="{{form.contractNo}}" data-k="contractNo" bindinput="onField" /></view>
+          <view class="form-item"><text class="f-label">出境关别</text><input value="{{form.boundaryPort}}" data-k="boundaryPort" bindinput="onField" /></view>
+        </view>
+        <view class="form-row2">
+          <view class="form-item"><text class="f-label">监管方式</text><input value="{{form.tradeType}}" data-k="tradeType" bindinput="onField" /></view>
+          <view class="form-item"><text class="f-label">包装方式</text><input value="{{form.packing}}" data-k="packing" bindinput="onField" /></view>
+        </view>
+        <view class="form-item ta">
+          <text class="f-label">唛头</text>
+          <textarea value="{{form.marks}}" data-k="marks" bindinput="onField" placeholder="Marks" auto-height></textarea>
+        </view>
+        <view class="form-item ta">
+          <text class="f-label">备注</text>
+          <textarea value="{{form.remarks}}" data-k="remarks" bindinput="onField" placeholder="Remarks" auto-height></textarea>
+        </view>
+
+        <view class="sec-title-sm">装箱明细
+          <text class="sec-sub">金额=单价×数量</text>
+        </view>
+
+        <picker range="{{orderOptions}}" range-key="label" value="{{orderIdx}}" bindchange="onPickOrder">
+          <view class="btn btn-outline btn-block btn-sm">＋ 从订单带入产品</view>
+        </picker>
+
+        <view class="cust-item" wx:for="{{items}}" wx:key="rid" wx:for-index="pi">
+          <view class="ci-head">
+            <text class="ci-no">货物 {{pi + 1}}</text>
+            <text class="ci-del" wx:if="{{items.length > 1}}" data-idx="{{pi}}" bindtap="removeItem">删除</text>
+          </view>
+          <view class="form-row2">
+            <view class="form-item"><text class="f-label">订单号</text><input value="{{item.orderNo}}" data-idx="{{pi}}" data-k="orderNo" bindinput="onItemField" /></view>
+            <view class="form-item"><text class="f-label">HS编码</text><input value="{{item.hsCode}}" data-idx="{{pi}}" data-k="hsCode" bindinput="onItemField" /></view>
+          </view>
+          <view class="form-item">
+            <text class="f-label">品名</text><input value="{{item.description}}" data-idx="{{pi}}" data-k="description" bindinput="onItemField" placeholder="中英文品名" />
+          </view>
+          <view class="form-row2">
+            <view class="form-item"><text class="f-label">图号</text><input value="{{item.drawingNo}}" data-idx="{{pi}}" data-k="drawingNo" bindinput="onItemField" /></view>
+            <view class="form-item"><text class="f-label">规格</text><input value="{{item.spec}}" data-idx="{{pi}}" data-k="spec" bindinput="onItemField" /></view>
+          </view>
+          <view class="form-row2">
+            <view class="form-item"><text class="f-label">项目号</text><input value="{{item.projectNo}}" data-idx="{{pi}}" data-k="projectNo" bindinput="onItemField" /></view>
+            <view class="form-item"><text class="f-label">单位</text><input value="{{item.unit}}" data-idx="{{pi}}" data-k="unit" bindinput="onItemField" /></view>
+          </view>
+          <view class="form-row2">
+            <view class="form-item"><text class="f-label">箱数</text><input type="digit" value="{{item.qtyCrate}}" data-idx="{{pi}}" data-k="qtyCrate" bindinput="onItemNum" /></view>
+            <view class="form-item"><text class="f-label">数量</text><input type="digit" value="{{item.quantity}}" data-idx="{{pi}}" data-k="quantity" bindinput="onItemNum" /></view>
+          </view>
+          <view class="form-row2">
+            <view class="form-item"><text class="f-label">单价</text><input type="digit" value="{{item.unitPrice}}" data-idx="{{pi}}" data-k="unitPrice" bindinput="onItemNum" /></view>
+            <view class="form-item"><text class="f-label">金额</text><text class="f-value strong">{{item.amountText}}</text></view>
+          </view>
+          <view class="form-row2">
+            <view class="form-item"><text class="f-label">净重kg</text><input type="digit" value="{{item.nw}}" data-idx="{{pi}}" data-k="nw" bindinput="onItemField" /></view>
+            <view class="form-item"><text class="f-label">毛重kg</text><input type="digit" value="{{item.gw}}" data-idx="{{pi}}" data-k="gw" bindinput="onItemField" /></view>
+          </view>
+          <view class="form-item">
+            <text class="f-label">体积m³</text><input type="digit" value="{{item.volume}}" data-idx="{{pi}}" data-k="volume" bindinput="onItemField" />
+          </view>
+        </view>
+
+        <view class="btn btn-outline btn-block" bindtap="addItem">＋ 添加货物行</view>
+        <view class="total-line">
+          合计：<text class="total-val">{{totals.amount}}</text> {{form.currency}} ｜ {{totals.qty}} ｜ {{totals.crates}}箱 ｜ N.W.{{totals.nw}} ｜ G.W.{{totals.gw}} ｜ {{totals.volume}}m³
+        </view>
+
+        <view class="btn-row">
+          <view class="btn btn-plain" bindtap="closeModal">取消</view>
+          <view class="btn btn-primary" bindtap="save">保存</view>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+
+  <view class="page-foot"></view>
+</view>

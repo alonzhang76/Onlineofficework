@@ -1,0 +1,51 @@
+.cs-item {
+  border-bottom: 1rpx solid #F0F0F4;
+  padding: 20rpx 0;
+}
+.cs-item:last-child { border-bottom: none; }
+
+.cs-head { display: flex; align-items: center; }
+
+.cs-rank {
+  width: 44rpx; height: 44rpx; border-radius: 50%;
+  background: #E9E9EB; color: #8E8E93;
+  font-size: 24rpx; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-right: 18rpx;
+}
+.rank-1 { background: #FFD60A; color: #8A5A00; }
+.rank-2 { background: #D9DDE3; color: #4A4F57; }
+.rank-3 { background: #FFD0A8; color: #9A4B00; }
+
+.cs-mid { flex: 1; min-width: 0; }
+.cs-line1 { display: flex; justify-content: space-between; align-items: baseline; }
+.cs-name {
+  font-size: 28rpx; font-weight: 600; color: #1C1C1E;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 420rpx;
+}
+.cs-amt { font-size: 28rpx; font-weight: 700; color: #34C759; }
+.cs-bar { margin: 10rpx 0 6rpx; }
+.bar-soft { background: #5AC8FA; }
+.cs-line2 { font-size: 22rpx; color: #8E8E93; }
+.cs-arrow { color: #C7C7CC; font-size: 26rpx; padding-left: 12rpx; }
+
+.cs-detail {
+  margin: 14rpx 0 4rpx 62rpx;
+  border: 1rpx solid #ECECF0;
+  border-radius: 12rpx;
+  overflow: hidden;
+}
+.cs-th, .cs-td {
+  display: flex; align-items: center;
+  padding: 12rpx 16rpx;
+  font-size: 24rpx;
+}
+.cs-th { background: #F7F7F9; color: #8E8E93; font-weight: 600; }
+.cs-td { border-top: 1rpx solid #F0F0F4; color: #1C1C1E; }
+.cd-cur { width: 130rpx; flex-shrink: 0; }
+.cd-amt { flex: 1; text-align: right; }
+.cd-rate { width: 110rpx; text-align: right; color: #8E8E93; }
+.cd-cny { width: 150rpx; text-align: right; font-weight: 600; }
+
+.desc { font-size: 24rpx; color: #8E8E93; line-height: 1.8; white-space: pre-wrap; }

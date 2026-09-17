@@ -1,0 +1,130 @@
+/* ===== 列表卡片 ===== */
+.stat-line { font-size: 24rpx; color: #8E8E93; margin-top: 12rpx; }
+.stat-num { color: #007AFF; font-weight: 700; }
+
+.sh-head { display: flex; justify-content: space-between; align-items: flex-start; }
+.sh-no { font-size: 32rpx; font-weight: 700; color: #1C1C1E; }
+.sh-date { font-size: 22rpx; color: #8E8E93; margin-top: 6rpx; }
+.sh-route {
+  font-size: 26rpx; font-weight: 600; color: #007AFF;
+  margin: 14rpx 0 8rpx;
+}
+.sh-row { display: flex; font-size: 24rpx; line-height: 1.8; }
+.sh-label { color: #8E8E93; width: 120rpx; flex-shrink: 0; }
+.sh-val { color: #1C1C1E; flex: 1; word-break: break-all; }
+.sh-total {
+  font-size: 22rpx; color: #6B6B70;
+  background: #F7F7F9; border-radius: 8rpx;
+  padding: 10rpx 14rpx; margin-top: 10rpx;
+}
+.ord-actions { display: flex; gap: 16rpx; margin-top: 16rpx; }
+.ord-actions .btn { flex: 1; text-align: center; }
+
+.back-btn { margin-bottom: 16rpx; }
+
+.sec-title-sm {
+  font-size: 28rpx; font-weight: 700; color: #1C1C1E;
+  margin: 20rpx 0 12rpx;
+}
+.total-line {
+  font-size: 24rpx; color: #3A3A3C;
+  padding: 16rpx; background: #F7F7F9; border-radius: 8rpx;
+  margin: 16rpx 0; line-height: 1.8;
+}
+.total-val { color: #FF3B30; font-size: 30rpx; font-weight: 700; }
+
+/* ===== 货物行卡片 ===== */
+.cust-item {
+  border: 1rpx solid #E5E5EA;
+  border-radius: 12rpx;
+  padding: 8rpx 16rpx 16rpx;
+  margin-bottom: 16rpx;
+  background: #FAFAFC;
+}
+.ci-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12rpx 0 4rpx;
+}
+.ci-no { font-size: 26rpx; font-weight: 700; color: #007AFF; }
+.ci-del { font-size: 24rpx; color: #FF3B30; }
+
+/* ===== 单据纸张 ===== */
+.doc {
+  background: #fff;
+  border-radius: 12rpx;
+  padding: 32rpx 28rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+}
+.doc-center { text-align: center; margin-bottom: 24rpx; }
+.doc-big-title { font-size: 38rpx; font-weight: 700; letter-spacing: 3rpx; color: #1C1C1E; }
+.doc-big-sub { font-size: 24rpx; color: #8E8E93; margin-top: 6rpx; }
+
+.ci-grid { display: flex; gap: 20rpx; margin-bottom: 20rpx; }
+.ci-block {
+  flex: 1; min-width: 0;
+  border: 1rpx solid #D1D1D6; border-radius: 8rpx;
+  padding: 14rpx;
+}
+.ci-k { font-size: 22rpx; color: #8E8E93; margin-bottom: 8rpx; font-weight: 600; }
+.ci-v { font-size: 22rpx; color: #1C1C1E; line-height: 1.6; word-break: break-all; }
+
+.ci-info {
+  display: flex; flex-wrap: wrap;
+  font-size: 22rpx; color: #1C1C1E;
+  border-top: 1rpx solid #E5E5EA;
+  padding-top: 12rpx; margin-bottom: 16rpx;
+}
+.ci-info text { width: 50%; line-height: 1.9; }
+
+/* ===== 单据表格 ===== */
+.ptable {
+  border: 1rpx solid #1C1C1E;
+  border-radius: 4rpx;
+  overflow: hidden;
+}
+.pt-row {
+  display: flex; align-items: stretch;
+  border-bottom: 1rpx solid #D1D1D6;
+}
+.pt-row:last-child { border-bottom: none; }
+.pt-row text {
+  display: flex; align-items: center;
+  padding: 10rpx 6rpx;
+  font-size: 20rpx; color: #1C1C1E;
+  border-right: 1rpx solid #D1D1D6;
+  word-break: break-all;
+}
+.pt-row text:last-child { border-right: none; }
+.pt-head { background: #F2F2F7; font-weight: 600; color: #3A3A3C; }
+.pt-foot { background: #F9F9FB; font-weight: 700; }
+
+.pt-i { width: 8%; justify-content: center; }
+.pt-desc { flex: 1; min-width: 0; white-space: pre-wrap; }
+.pt-q { width: 15%; justify-content: flex-end; }
+.pt-u { width: 11%; justify-content: center; }
+.pt-p { width: 14%; justify-content: flex-end; }
+.pt-a { width: 16%; justify-content: flex-end; }
+.pt-c { width: 13%; justify-content: flex-end; }
+.pt-w { width: 14%; justify-content: flex-end; }
+.pt-v { width: 13%; justify-content: flex-end; }
+.pt-hs { width: 24%; }
+
+.doc-marks {
+  margin-top: 16rpx;
+  font-size: 22rpx; color: #1C1C1E;
+  white-space: pre-wrap; word-break: break-all;
+}
+
+/* ===== 报关键值 ===== */
+.kv-list {
+  border: 1rpx solid #D1D1D6; border-radius: 8rpx;
+  overflow: hidden; margin-bottom: 16rpx;
+}
+.kv {
+  display: flex; font-size: 22rpx;
+  border-bottom: 1rpx solid #F0F0F4;
+}
+.kv:last-child { border-bottom: none; }
+.kv-k { width: 180rpx; flex-shrink: 0; background: #F7F7F9; color: #6B6B70; padding: 10rpx 14rpx; }
+.kv-v { flex: 1; padding: 10rpx 14rpx; color: #1C1C1E; word-break: break-all; }
+.kv-v.strong { font-weight: 700; color: #FF3B30; }

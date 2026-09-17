@@ -1,0 +1,78 @@
+<view class="page">
+  <!-- 页首品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <!-- 年份筛选 -->
+  <view class="card">
+    <picker range="{{yearOptions}}" range-key="label" value="{{yearIdx}}" bindchange="onYear">
+      <view class="form-item">
+        <text class="f-label">统计年份</text>
+        <text class="f-value">{{yearOptions[yearIdx].label}}</text>
+      </view>
+    </picker>
+    <view class="kpi-grid">
+      <view class="kpi-card">
+        <view class="kpi-label">客户数</view>
+        <view class="kpi-value">{{customers.length}}</view>
+      </view>
+      <view class="kpi-card">
+        <view class="kpi-label">订单总金额（CNY）</view>
+        <view class="kpi-value green">{{totalCNY}}</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 客户排行 -->
+  <view class="card">
+    <view class="sec-title">客户金额排行 <text class="sec-sub">按人民币降序 ｜ 点开看币种明细</text></view>
+    <view wx:if="{{customers.length === 0}}" class="empty">
+      <view class="empty-icon">📊</view>该年份暂无订单数据
+    </view>
+
+    <view class="cs-item" wx:for="{{customers}}" wx:key="name" data-idx="{{index}}" bindtap="toggle">
+      <view class="cs-head">
+        <view class="cs-rank rank-{{index < 3 ? index + 1 : 'n'}}">{{index + 1}}</view>
+        <view class="cs-mid">
+          <view class="cs-line1">
+            <text class="cs-name">{{item.name}}</text>
+            <text class="cs-amt">¥{{item.cny}}</text>
+          </view>
+          <view class="bar-track cs-bar">
+            <view class="bar-fill {{index === 0 ? '' : 'bar-soft'}}" style="width: {{item.percent}}%;"></view>
+          </view>
+          <view class="cs-line2">{{item.orderCount}} 条订单 ｜ 占比 {{item.percent}}%</view>
+        </view>
+        <text class="cs-arrow">{{item.open ? '▾' : '▸'}}</text>
+      </view>
+
+      <!-- 币种明细（对应网页版统计表格行：币种/金额/汇率/CNY） -->
+      <view class="cs-detail" wx:if="{{item.open}}">
+        <view class="cs-th">
+          <text class="cd-cur">币种</text>
+          <text class="cd-amt">金额</text>
+          <text class="cd-rate">汇率</text>
+          <text class="cd-cny">折CNY</text>
+        </view>
+        <view class="cs-td" wx:for="{{item.rows}}" wx:for-item="r" wx:key="currency">
+          <text class="cd-cur">{{r.currency}}</text>
+          <text class="cd-amt">{{r.amount}}</text>
+          <text class="cd-rate">{{r.rate}}</text>
+          <text class="cd-cny">{{r.cnyAmount}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="sec-title">折算说明</view>
+    <view class="desc">按订单日期所属年份统计订单金额，固定汇率折算人民币：&#10;USD 7.2 ｜ EUR 8.0 ｜ GBP 9.2 ｜ JPY 0.048 ｜ CNY 1&#10;同一客户使用多种币制成交时，分币种列示金额。</view>
+  </view>
+
+  <view class="page-foot"></view>
+</view>

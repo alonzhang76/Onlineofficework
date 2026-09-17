@@ -176,6 +176,8 @@ Page({
   closeModal() { this.setData({ modal: false }); },
   noop() {},
 
+  goShipment() { wx.navigateTo({ url: '/pages/trade/shipment/shipment' }); },
+
   exportCSV() {
     if (!db.data.exportRecords.length) { wx.showToast({ title: '暂无出口数据', icon: 'none' }); return; }
     const headers = ['状态', '出货日期', '到港日期', '客户', '数量', '订单号', '运编号', '船名航次', '集装箱号封号', '提单号', '报关金额', '备注'];

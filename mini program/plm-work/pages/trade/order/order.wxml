@@ -46,6 +46,11 @@
       <view class="btn btn-outline btn-sm" bindtap="exportCSV">导出</view>
       <view class="btn btn-outline btn-sm" bindtap="importCSV">导入</view>
     </view>
+    <view class="btn-row">
+      <view class="btn btn-outline btn-sm" bindtap="goStats">📊 客户统计</view>
+      <view class="btn btn-outline btn-sm" bindtap="goNoticeAll">🏭 生产通知单</view>
+      <view class="btn btn-outline btn-sm" bindtap="goMarkAll">🏷️ 制作箱唛</view>
+    </view>
   </view>
 
   <view wx:if="{{list.length === 0}}" class="card">
@@ -80,6 +85,8 @@
     </view>
     <view class="ord-notes" wx:if="{{o.remark}}">备注：{{o.remark}}</view>
     <view class="ord-actions">
+      <view class="btn btn-outline btn-sm" data-order="{{o.orderNo}}" bindtap="goNotice">通知单</view>
+      <view class="btn btn-outline btn-sm" data-order="{{o.orderNo}}" bindtap="goMark">箱唛</view>
       <view class="btn btn-outline btn-sm" data-id="{{o.id}}" bindtap="editItem">编辑</view>
       <view class="btn btn-danger-ghost btn-sm" data-id="{{o.id}}" bindtap="delItem">删除</view>
     </view>

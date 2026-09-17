@@ -44,7 +44,11 @@ Page({
       { key: 'receipt', icon: '💰', name: '收汇管理', nameEn: 'Receipt', color: '#34C759', url: '/pages/trade/receipt/receipt', count: d.receiptRecords.length },
       { key: 'order', icon: '📋', name: '订单管理', nameEn: 'Order', color: '#FF3B30', url: '/pages/trade/order/order', count: d.orderRecords.length },
       { key: 'customer', icon: '👥', name: '客户信息', nameEn: 'Customer', color: '#8E8E93', url: '/pages/trade/customer/customer', count: d.customerRecords.length },
-      { key: 'report', icon: '📊', name: '报表统计', nameEn: 'Report', color: '#007AFF', url: '/pages/trade/report/report', count: 0 },
+      { key: 'customerStats', icon: '📊', name: '客户统计', nameEn: 'Cust. Stats', color: '#5AC8FA', url: '/pages/trade/customer-stats/customer-stats', count: 0 },
+      { key: 'notice', icon: '🏭', name: '生产通知单', nameEn: 'Prod. Notice', color: '#34C759', url: '/pages/trade/notice/notice', count: 0 },
+      { key: 'mark', icon: '🏷️', name: '制作箱唛', nameEn: 'Box Mark', color: '#FF9500', url: '/pages/trade/mark/mark', count: 0 },
+      { key: 'shipment', icon: '🚢', name: '出货与报关', nameEn: 'Shipping', color: '#007AFF', url: '/pages/trade/shipment/shipment', count: d.customsRecords.length },
+      { key: 'report', icon: '📈', name: '报表统计', nameEn: 'Report', color: '#5856D6', url: '/pages/trade/report/report', count: 0 },
       { key: 'cloudfiles', icon: '☁️', name: '云存储', nameEn: 'Cloud Files', color: '#0A84FF', url: '/pages/cloudfiles/cloudfiles?app=trade', count: 0 }
     ].map(m => Object.assign(m, { colorDark: COLOR_DARK[m.color] || m.color }));
 

@@ -1,0 +1,76 @@
+<view class="page">
+  <!-- 页首品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <!-- 箱唛信息录入 -->
+  <view class="card">
+    <view class="sec-title">唛头信息 <text class="sec-sub">Label Information</text></view>
+
+    <view class="form-item">
+      <text class="f-label">公司</text>
+      <input value="{{form.company}}" data-k="company" bindinput="onField" placeholder="Company Name" />
+    </view>
+    <view class="form-row2">
+      <view class="form-item"><text class="f-label">PO</text><input value="{{form.po}}" data-k="po" bindinput="onField" /></view>
+      <view class="form-item"><text class="f-label">Art No</text><input value="{{form.artNo}}" data-k="artNo" bindinput="onField" /></view>
+    </view>
+    <view class="form-row2">
+      <view class="form-item"><text class="f-label">机器号</text><input value="{{form.maschinenNr}}" data-k="maschinenNr" bindinput="onField" placeholder="Maschinennr." /></view>
+      <view class="form-item"><text class="f-label">订单号</text><input value="{{form.lfdEkNr}}" data-k="lfdEkNr" bindinput="onField" placeholder="lfd EK-Nr." /></view>
+    </view>
+    <view class="form-row2">
+      <view class="form-item"><text class="f-label">项目号</text><input value="{{form.projektNr}}" data-k="projektNr" bindinput="onField" placeholder="Projekt Nr." /></view>
+      <view class="form-item"><text class="f-label">单位</text><input value="{{form.unit}}" data-k="unit" bindinput="onField" placeholder="PCS / 只…" /></view>
+    </view>
+    <view class="form-row2">
+      <view class="form-item"><text class="f-label">总数量</text><input type="number" value="{{form.totalQty}}" data-k="totalQty" bindinput="onQtyInput" /></view>
+      <view class="form-item"><text class="f-label">每箱数量</text><input type="number" value="{{form.qtyPerBox}}" data-k="qtyPerBox" bindinput="onQtyInput" /></view>
+    </view>
+    <view class="form-item">
+      <text class="f-label">总箱数</text>
+      <input type="number" value="{{form.totalBoxes}}" data-k="totalBoxes" bindinput="onField" placeholder="按总数量÷每箱数量自动计算，可修改" />
+    </view>
+    <view class="form-item ta">
+      <text class="f-label">备注</text>
+      <textarea value="{{form.remarks}}" data-k="remarks" bindinput="onField" placeholder="Remarks（仅最后一箱显示）" auto-height></textarea>
+    </view>
+
+    <view class="btn-row">
+      <view class="btn btn-primary" bindtap="generate">生成箱唛</view>
+      <view class="btn btn-plain" bindtap="clearAll">清空</view>
+    </view>
+    <view class="tip">总箱数 = ceil(总数量 ÷ 每箱数量)，可手动修改；最后一箱数量自动取余数。&#10;字段留空则不在箱唛上显示（与网页版一致）。</view>
+  </view>
+
+  <!-- 箱唛预览 -->
+  <block wx:if="{{labels.length > 0}}">
+    <view class="sec-head-pad">
+      <text class="sec-head-title">箱唛预览</text>
+      <text class="sec-head-sub">共 {{labels.length}} 箱</text>
+    </view>
+
+    <view class="label-card" wx:for="{{labels}}" wx:key="no">
+      <view class="lb-company" wx:if="{{form.company}}">{{form.company}}</view>
+      <view class="lb-po" wx:if="{{form.po}}">PO: {{form.po}}</view>
+      <view class="lb-line" wx:if="{{form.artNo}}"><text class="lb-k">Art. No.:</text> {{form.artNo}}</view>
+      <view class="lb-line" wx:if="{{form.maschinenNr}}"><text class="lb-k">Maschinennr.:</text> {{form.maschinenNr}}</view>
+      <view class="lb-line" wx:if="{{form.lfdEkNr}}"><text class="lb-k">lfd EK-Nr.:</text> {{form.lfdEkNr}}</view>
+      <view class="lb-line" wx:if="{{form.projektNr}}"><text class="lb-k">Projekt Nr.:</text> {{form.projektNr}}</view>
+      <view class="lb-line"><text class="lb-k">Qty:</text> {{item.qty}}{{form.unit}} (TTL: {{form.totalQty || 0}}{{form.unit}})</view>
+      <view class="lb-remarks" wx:if="{{item.last && form.remarks}}"><text class="lb-k">Remarks:</text> {{form.remarks}}</view>
+      <view class="lb-package">Package No.: {{item.no}}/{{labels.length}}</view>
+    </view>
+
+    <view class="btn-row">
+      <view class="btn btn-outline" bindtap="copyText">复制唛头内容</view>
+    </view>
+  </block>
+
+  <view class="page-foot"></view>
+</view>

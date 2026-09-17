@@ -254,6 +254,19 @@ Page({
   closeModal() { this.setData({ modal: false }); },
   noop() {},
 
+  /* ===== 跳转：客户统计 / 生产通知单 / 制作箱唛 ===== */
+  goStats() { wx.navigateTo({ url: '/pages/trade/customer-stats/customer-stats' }); },
+  goNoticeAll() { wx.navigateTo({ url: '/pages/trade/notice/notice' }); },
+  goMarkAll() { wx.navigateTo({ url: '/pages/trade/mark/mark' }); },
+  goNotice(e) {
+    const orderNo = e.currentTarget.dataset.order;
+    wx.navigateTo({ url: '/pages/trade/notice/notice?orderNo=' + encodeURIComponent(orderNo) });
+  },
+  goMark(e) {
+    const orderNo = e.currentTarget.dataset.order;
+    wx.navigateTo({ url: '/pages/trade/mark/mark?orderNo=' + encodeURIComponent(orderNo) });
+  },
+
   /* ===== 导入导出 ===== */
   exportCSV() {
     if (!db.data.orderRecords.length) { wx.showToast({ title: '暂无订单数据', icon: 'none' }); return; }

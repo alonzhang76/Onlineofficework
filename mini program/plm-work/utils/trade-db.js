@@ -25,7 +25,8 @@ const KEYS = {
   receiptRecords: 'receiptRecords',
   indexPaymentRecords: 'indexPaymentRecords',
   memoRecords: 'memoRecords',
-  businessRecords: 'businessRecords'
+  businessRecords: 'businessRecords',
+  customsRecords: 'customsRecords'
 };
 
 /** 固定汇率表（与网页版 displayDebtStatistics 保持一致） */
@@ -72,7 +73,8 @@ const data = {
   receiptRecords: [],
   indexPaymentRecords: [],
   memoRecords: [],
-  businessRecords: []
+  businessRecords: [],
+  customsRecords: []
 };
 
 function uid(prefix) {
@@ -746,6 +748,153 @@ function getTotalDebtCNY(debts) {
   return r2(list.reduce((s, d) => s + num(d.debtAmount) * (FIXED_RATES[d.currency] || 1), 0));
 }
 
+/* ============ 客户统计（与网页版 updateCustomerStats 一致） ============ */
+
+/**
+ * 按 客户 + 币种 汇总订单金额，折算 CNY 并计算占比
+ * @param {string} year 'all' 或四位年份（按 orderDate 筛选）
+ * @returns {{rows: Array, totalCNY: number, years: number[]}}
+ */
+function getCustomerStats(year) {
+  const groups = {};
+  const yearSet = {};
+
+  data.orderRecords.forEach(o => {
+    const dStr = fmt.fmtDate(o.orderDate);
+    if (dStr) yearSet[dStr.slice(0, 4)] = true;
+    if (!o.customer) return;
+    if (year && year !== 'all' && dStr.slice(0, 4) !== String(year)) return;
+
+    const currency = o.currency || 'CNY';
+    const amount = num(o.amount);
+    if (!groups[o.customer]) groups[o.customer] = {};
+    if (!groups[o.customer][currency]) groups[o.customer][currency] = 0;
+    groups[o.customer][currency] += amount;
+  });
+
+  const rows = [];
+  let totalCNY = 0;
+  Object.keys(groups).forEach(customer => {
+    Object.keys(groups[customer]).forEach(currency => {
+      const amount = r2(groups[customer][currency]);
+      const rate = FIXED_RATES[currency] || 1;
+      const cnyAmount = r2(amount * rate);
+      totalCNY += cnyAmount;
+      rows.push({ customer, currency, amount, rate, cnyAmount });
+    });
+  });
+
+  rows.sort((a, b) => b.cnyAmount - a.cnyAmount);
+  rows.forEach(r => { r.percent = totalCNY > 0 ? r2(r.cnyAmount / totalCNY * 100) : 0; });
+
+  return {
+    rows,
+    totalCNY: r2(totalCNY),
+    years: Object.keys(yearSet).sort().reverse()
+  };
+}
+
+/* ============ 出货与报关（参考网页版 customs-doc-generator） ============ */
+
+/** 生成下一个运编号：EX-YY-XXXX（按年份内序号递增） */
+function nextShipmentNo() {
+  const yy = String(new Date().getFullYear()).slice(2);
+  const prefix = 'EX-' + yy + '-';
+  let max = 0;
+  data.customsRecords.forEach(r => {
+    const m = String(r.shipmentNo || '').match(/^EX-\d{2}-(\d+)$/);
+    if (m && +m[1] > max) max = +m[1];
+  });
+  return prefix + String(max + 1).padStart(4, '0');
+}
+
+/**
+ * 保存出货与报关记录（含产品明细行）
+ * @param {object} form 单据头字段
+ * @param {Array} items 产品明细
+ * @param {string} id 有 id 为更新
+ */
+function saveCustoms(form, items, id) {
+  const list = (items || []).map(p => ({
+    orderNo: p.orderNo || '',
+    hsCode: p.hsCode || '',
+    description: p.description || '',
+    drawingNo: p.drawingNo || '',
+    spec: p.spec || '',
+    projectNo: p.projectNo || '',
+    qtyCrate: num(p.qtyCrate),
+    unit: p.unit || '',
+    quantity: num(p.quantity),
+    unitPrice: r2(p.unitPrice),
+    amount: r2(num(p.unitPrice) * num(p.quantity)),
+    nw: r2(p.nw),
+    gw: r2(p.gw),
+    volume: r2(p.volume)
+  }));
+  const totalAmount = r2(list.reduce((s, p) => s + p.amount, 0));
+  const totalQty = r2(list.reduce((s, p) => s + p.quantity, 0));
+  const totalNw = r2(list.reduce((s, p) => s + p.nw, 0));
+  const totalGw = r2(list.reduce((s, p) => s + p.gw, 0));
+  const totalVolume = r2(list.reduce((s, p) => s + p.volume, 0));
+  const totalCrates = r2(list.reduce((s, p) => s + p.qtyCrate, 0));
+  const orderNos = Array.from(new Set(list.map(p => p.orderNo).filter(Boolean))).join(', ');
+
+  const rec = {
+    id: id || uid('cus_'),
+    shipmentNo: form.shipmentNo || '',
+    departureDate: form.departureDate || '',
+    shipper: form.shipper || '',
+    seller: form.seller || '',
+    consignee: form.consignee || '',
+    customer: form.consignee || form.customer || '',
+    terms: form.terms || '',
+    shippingMode: form.shippingMode || '',
+    vessel: form.vessel || '',
+    pol: form.pol || '',
+    pod: form.pod || '',
+    destination: form.destination || '',
+    tradeType: form.tradeType || '一般贸易',
+    paymentMode: form.paymentMode || '',
+    boundaryPort: form.boundaryPort || '上海海关',
+    billNo: form.billNo || '',
+    contractNo: form.contractNo || '',
+    packing: form.packing || '',
+    currency: form.currency || 'USD',
+    marks: form.marks || '',
+    remarks: form.remarks || '',
+    orderNos: orderNos,
+    items: list,
+    totalAmount: totalAmount,
+    totalQty: totalQty,
+    totalNw: totalNw,
+    totalGw: totalGw,
+    totalVolume: totalVolume,
+    totalCrates: totalCrates,
+    updatedAt: new Date().toISOString()
+  };
+
+  if (id) {
+    const i = data.customsRecords.findIndex(x => String(x.id) === String(id));
+    if (i > -1) {
+      rec.createdAt = data.customsRecords[i].createdAt || rec.updatedAt;
+      data.customsRecords[i] = rec;
+    } else {
+      rec.createdAt = rec.updatedAt;
+      data.customsRecords.push(rec);
+    }
+  } else {
+    rec.createdAt = rec.updatedAt;
+    data.customsRecords.push(rec);
+  }
+  save('customsRecords');
+  return rec;
+}
+
+function deleteCustoms(id) {
+  data.customsRecords = data.customsRecords.filter(x => String(x.id) !== String(id));
+  save('customsRecords');
+}
+
 /* ============ 备份 / 恢复 ============ */
 
 function exportBackup() {
@@ -818,6 +967,10 @@ module.exports = {
   saveCustomer, deleteCustomer, toggleCustomerPriority,
   // 报表
   getReportStatistics, generateOrderReminders, generateDebtStatistics, getTotalDebtCNY,
+  // 客户统计
+  getCustomerStats,
+  // 出货与报关
+  nextShipmentNo, saveCustoms, deleteCustoms,
   // 备份
   exportBackup, importBackup
 };

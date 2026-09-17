@@ -1,0 +1,91 @@
+<view class="page">
+  <!-- 页首品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
+    <view class="brand-text">
+      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
+      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+    </view>
+  </view>
+
+  <!-- 选择订单 -->
+  <view class="card">
+    <picker range="{{orderOptions}}" range-key="label" value="{{orderIdx}}" bindchange="onOrder">
+      <view class="form-item">
+        <text class="f-label">选择订单</text>
+        <text class="f-value {{orderIdx < 0 ? 'placeholder' : ''}}">{{orderIdx >= 0 ? orderOptions[orderIdx].label : '请选择订单号'}}</text>
+      </view>
+    </picker>
+    <view wx:if="{{orderIdx < 0}}" class="empty"><view class="empty-icon">📋</view>暂无订单记录</view>
+  </view>
+
+  <!-- 单据预览 -->
+  <view class="doc" wx:if="{{doc}}">
+    <view class="doc-top">
+      <view class="doc-company">
+        <view class="doc-brand"><text class="doc-brand-cn">普利美</text><text class="doc-brand-en">PULIMEI</text></view>
+        <view class="doc-addr">普利美（常州）环境工程科技有限公司</view>
+        <view class="doc-addr">地址：常州市武进区雪堰镇周南路8号6-1</view>
+        <view class="doc-addr">电话：139 5158 9291</view>
+      </view>
+      <view class="doc-title-box">
+        <view class="doc-title-cn">生产通知单</view>
+        <view class="doc-title-en">PRODUCTION ORDER</view>
+      </view>
+    </view>
+
+    <view class="doc-info-grid">
+      <view class="di"><text class="di-label">下单日期</text><text class="di-val">{{doc.orderDate || '-'}}</text></view>
+      <view class="di"><text class="di-label">订单号</text><text class="di-val strong">{{doc.orderNo}}</text></view>
+      <view class="di"><text class="di-label">客户</text><text class="di-val">{{doc.customer || '-'}}</text></view>
+      <view class="di"><text class="di-label">交货日期</text><text class="di-val {{doc.deliveryWarn ? 'warn' : ''}}">{{doc.deliveryDate || '-'}}</text></view>
+    </view>
+
+    <view class="doc-alert" wx:if="{{doc.deliveryWarn}}">⚠️ {{doc.deliveryWarn}}</view>
+
+    <view class="doc-table">
+      <view class="dt-row dt-head">
+        <text class="dt-name">产品名称</text>
+        <text class="dt-spec">规格</text>
+        <text class="dt-draw">图号</text>
+        <text class="dt-plat">电镀</text>
+        <text class="dt-logo">LOGO</text>
+        <text class="dt-qty">数量</text>
+      </view>
+      <view class="dt-row" wx:for="{{doc.products}}" wx:key="id">
+        <text class="dt-name">{{item.productName || '-'}}</text>
+        <text class="dt-spec">{{item.spec || '-'}}</text>
+        <text class="dt-draw">{{item.drawingNo || '-'}}</text>
+        <text class="dt-plat">{{item.plating || '-'}}</text>
+        <text class="dt-logo">{{item.logo || '-'}}</text>
+        <text class="dt-qty">{{item.quantity}}</text>
+      </view>
+      <view class="dt-row dt-total">
+        <text class="dt-name">合计</text>
+        <text class="dt-spec"></text>
+        <text class="dt-draw"></text>
+        <text class="dt-plat"></text>
+        <text class="dt-logo"></text>
+        <text class="dt-qty">{{doc.totalQty}}</text>
+      </view>
+    </view>
+
+    <view class="doc-remark" wx:if="{{doc.remark}}">
+      <text class="dr-label">备注：</text>
+      <text class="dr-content">{{doc.remark}}</text>
+    </view>
+
+    <view class="doc-sign">
+      <view class="ds-item"><text class="ds-label">制单</text><view class="ds-line"></view></view>
+      <view class="ds-item"><text class="ds-label">审核</text><view class="ds-line"></view></view>
+      <view class="ds-item"><text class="ds-label">生产</text><view class="ds-line"></view></view>
+      <view class="ds-item"><text class="ds-label">日期</text><view class="ds-line"></view></view>
+    </view>
+  </view>
+
+  <view class="btn-row" wx:if="{{doc}}">
+    <view class="btn btn-outline" bindtap="copyText">复制单据内容</view>
+  </view>
+
+  <view class="page-foot"></view>
+</view>

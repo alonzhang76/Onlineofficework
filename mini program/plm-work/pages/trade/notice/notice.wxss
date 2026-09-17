@@ -1,0 +1,90 @@
+/* ===== 单据纸张 ===== */
+.doc {
+  background: #fff;
+  border-radius: 12rpx;
+  padding: 32rpx 28rpx;
+  margin-top: 20rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+}
+.doc-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 2rpx solid #1C1C1E;
+  padding-bottom: 20rpx;
+  margin-bottom: 20rpx;
+}
+.doc-brand { display: flex; align-items: baseline; }
+.doc-brand-cn { font-size: 36rpx; font-weight: 700; color: #007AFF; margin-right: 12rpx; }
+.doc-brand-en { font-size: 20rpx; color: #007AFF; font-weight: 600; }
+.doc-addr { font-size: 20rpx; color: #6B6B70; line-height: 1.7; }
+.doc-title-box { text-align: right; flex-shrink: 0; }
+.doc-title-cn { font-size: 40rpx; font-weight: 700; color: #1C1C1E; letter-spacing: 4rpx; }
+.doc-title-en { font-size: 18rpx; color: #8E8E93; letter-spacing: 1rpx; margin-top: 4rpx; }
+
+/* ===== 订单信息 2×2 ===== */
+.doc-info-grid {
+  display: flex; flex-wrap: wrap;
+  margin-bottom: 16rpx;
+}
+.di { width: 50%; display: flex; align-items: baseline; padding: 8rpx 0; }
+.di-label { font-size: 24rpx; color: #8E8E93; width: 130rpx; flex-shrink: 0; }
+.di-val { font-size: 26rpx; color: #1C1C1E; flex: 1; word-break: break-all; }
+.di-val.strong { font-weight: 700; }
+.di-val.warn { color: #FF9500; font-weight: 600; }
+
+.doc-alert {
+  background: #FFF8E8; border: 1rpx solid #FFE3A8;
+  color: #B26A00; font-size: 22rpx;
+  border-radius: 8rpx; padding: 12rpx 16rpx;
+  margin-bottom: 16rpx;
+}
+
+/* ===== 产品表格 ===== */
+.doc-table {
+  border: 1rpx solid #1C1C1E;
+  border-radius: 4rpx;
+  overflow: hidden;
+}
+.dt-row {
+  display: flex; align-items: stretch;
+  border-bottom: 1rpx solid #D1D1D6;
+}
+.dt-row:last-child { border-bottom: none; }
+.dt-head {
+  background: #F2F2F7;
+  font-size: 22rpx; font-weight: 600; color: #3A3A3C;
+}
+.dt-row text {
+  display: flex; align-items: center;
+  padding: 12rpx 8rpx;
+  font-size: 22rpx; color: #1C1C1E;
+  word-break: break-all;
+  border-right: 1rpx solid #D1D1D6;
+}
+.dt-row text:last-child { border-right: none; }
+.dt-name { width: 26%; }
+.dt-spec { width: 18%; }
+.dt-draw { width: 14%; }
+.dt-plat { width: 12%; }
+.dt-logo { width: 12%; }
+.dt-qty { width: 18%; justify-content: flex-end; text-align: right; }
+.dt-total { background: #F9F9FB; font-weight: 700; }
+
+.doc-remark {
+  margin-top: 20rpx;
+  border-top: 2rpx solid #E5E5EA;
+  padding-top: 14rpx;
+  display: flex; align-items: flex-start;
+}
+.dr-label { font-size: 24rpx; color: #3A3A3C; font-weight: 600; flex-shrink: 0; }
+.dr-content { font-size: 24rpx; color: #1C1C1E; flex: 1; white-space: pre-wrap; }
+
+/* ===== 签字栏 ===== */
+.doc-sign {
+  display: flex; gap: 24rpx;
+  margin-top: 48rpx;
+}
+.ds-item { flex: 1; text-align: center; }
+.ds-label { font-size: 24rpx; color: #3A3A3C; font-weight: 600; }
+.ds-line { height: 56rpx; border-bottom: 1rpx solid #8E8E93; margin-top: 8rpx; }

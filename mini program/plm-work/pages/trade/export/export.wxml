@@ -43,6 +43,9 @@
       <view class="btn btn-outline btn-sm" bindtap="resetFilter">重置</view>
       <view class="btn btn-outline btn-sm" bindtap="exportCSV">导出</view>
     </view>
+    <view class="btn-row">
+      <view class="btn btn-primary btn-sm" bindtap="goShipment">🚢 出货与报关（商业发票/装箱单）</view>
+    </view>
   </view>
 
   <view wx:if="{{list.length === 0}}" class="card">

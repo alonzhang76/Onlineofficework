@@ -4970,7 +4970,7 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
         // 将函数暴露到全局作用域
         window.deletePurchaseOrder = deletePurchaseOrder;
         
-        // 复制采购订单为新订单（自动生成新合同号）
+        // 复制采购订单为新订单（自动生成新合同号，并立即打开编辑窗口）
         function copyPurchaseOrder(id) {
             try {
                 const currentCompany = getCurrentCompany();
@@ -4985,15 +4985,31 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
                 
                 const newContractNumber = generateContractNumber();
                 
-                if (!confirm(`确定要复制该采购订单吗？\n\n原合同号：${sourceOrder.contractNumber}\n新合同号：${newContractNumber}\n\n复制后将生成一条新的采购订单记录。`)) {
+                if (!confirm(`确定要复制该采购订单吗？\n\n原合同号：${sourceOrder.contractNumber}\n新合同号：${newContractNumber}\n\n复制后将打开新订单的编辑窗口，产品数量需重新填写。`)) {
                     return;
                 }
                 
-                // 深拷贝源订单，生成新 id 与合同号，清空实际到货期等执行类字段
+                // 今日日期（与新建订单默认日期取法一致）
+                const today = new Date().toISOString().split('T')[0];
+                
+                // 深拷贝源订单，生成新 id 与合同号，并重置需要重新填写的字段
                 const newOrder = JSON.parse(JSON.stringify(sourceOrder));
                 newOrder.id = Date.now();
                 newOrder.contractNumber = newContractNumber;
+                // 下单日期更新为今日，交货期、实际到货期清空
+                newOrder.orderDate = today;
+                newOrder.deliveryDate = '';
                 newOrder.actualArrivalDate = null;
+                // 保留产品条目（名称/规格/单价/单位等），但清空数量与金额
+                if (Array.isArray(newOrder.products)) {
+                    newOrder.products.forEach(product => {
+                        if (product) {
+                            product.quantity = null;
+                            product.amount = 0;
+                        }
+                    });
+                }
+                newOrder.totalAmount = 0;
                 
                 purchaseOrders.push(newOrder);
                 localStorage.setItem(storageKey, JSON.stringify(purchaseOrders));
@@ -5007,7 +5023,8 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
                     renderPurchaseOrderList();
                 }
                 
-                alert(`采购订单复制成功！\n新合同号：${newContractNumber}`);
+                // 立即打开新复制记录的“编辑采购合同”窗口
+                editPurchaseOrder(newOrder.id);
             } catch (error) {
                 console.error('Error copying purchase order:', error);
                 alert('复制采购订单时发生错误');
