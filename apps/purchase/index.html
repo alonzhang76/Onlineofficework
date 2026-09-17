@@ -845,7 +845,7 @@
         }
     </style>
     <link rel="stylesheet" href="../tablet-compat.css?v=20260915a">
-    <link rel="stylesheet" href="simple-theme.css?v=20260917a">
+    <link rel="stylesheet" href="simple-theme.css?v=20260917c">
 </head>
 <body class="bg-gray-50 font-sans">
     <!-- 管理抬头公司模态框 -->
@@ -1815,8 +1815,8 @@
 
                     <!-- 采购订单列表 -->
                     <div class="card">
-                        <!-- 工具栏：标题 + 操作按钮 + 日期筛选 + 状态筛选 + 导出，合并为一行 -->
-                        <div class="flex flex-wrap items-center gap-2 mb-3">
+                        <!-- 工具栏：标题 + 操作按钮 + 日期筛选 + 状态筛选 + 导出，合并为一行（横向滚动） -->
+                        <div class="flex flex-nowrap items-center gap-2 mb-3 overflow-x-auto" style="scrollbar-width: thin;">
                             <h3 class="text-sm font-medium whitespace-nowrap mr-2">采购订单列表</h3>
                             <button id="query-orders-btn" class="btn btn-primary btn-sm text-sm whitespace-nowrap">
                                 <i class="fa fa-search mr-1"></i>查询订单
