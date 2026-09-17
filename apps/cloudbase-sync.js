@@ -21,6 +21,8 @@
 (function () {
   'use strict';
 
+  console.log('[CloudbaseSync] === cloudbase-sync.js v20260918a 加载 ===');
+
   // ===== 配置 =====
   var APP_ID = window.CLOUDBASE_APP_ID || window.SUPABASE_APP_ID || 'default';
   var TABLE = 'app_data_store';
@@ -348,6 +350,11 @@
   // store_key/payload/updated_at 都是 data 内字段。
   // 用 PostgREST jsonb 路径过滤 data->>store_key=like.<APP>__* 只拉当前应用行。
   async function fetchAppRows() {
+    // 导入保护期 / 全局暂停期：不发网络请求，直接返回 null
+    if (isImportProtected() || isCloudWritePaused()) {
+      console.log('[CloudbaseSync] fetchAppRows 跳过：导入保护期或写入暂停期内');
+      return null;
+    }
     var env = window.CLOUDBASE_ENV;
     var token = null;
     // 短重试取 token（最多 5 次 × 500ms = 2.5s），等 SDK 登录完成
@@ -553,6 +560,23 @@
 
   async function loadAllFromCloud() {
     if (!sb) return false;
+    // 导入保护期 / 全局暂停期：完全不拉取云端数据，避免网络返回后覆盖本地
+    if (isImportProtected() || isCloudWritePaused()) {
+      console.log('[CloudbaseSync] loadAllFromCloud 跳过：导入保护期或写入暂停期内，不拉取云端');
+      // 用本地 localStorage 值填充 cache（确保 getItem 读到本地数据）
+      try {
+        for (var pk in _lsInstance) {
+          var origK = unprefixKey(pk);
+          if (origK && cache[origK] === undefined) {
+            var pv = _origGetItem.call(_lsInstance, pk);
+            if (pv !== null && pv !== '') {
+              try { cache[origK] = JSON.parse(pv); } catch (e) { cache[origK] = pv; }
+            }
+          }
+        }
+      } catch (e) {}
+      return false;
+    }
     try {
       // 优先用 REST 直连（只拉当前应用行），失败回退兼容层全表
       var rows = null;
@@ -689,7 +713,9 @@
       // 从 sessionStorage 恢复导入保护期（跨 reload 存活）
       if (isImportProtected()) {
         pauseCloudWrites(600000); // 恢复 10 分钟暂停
-        console.log('[CloudbaseSync] 检测到导入保护期，暂停云端覆盖');
+        console.log('[CloudbaseSync] ✅ 检测到导入保护期，已恢复暂停，_cloudWritePausedUntil =', new Date(_cloudWritePausedUntil).toLocaleTimeString());
+      } else {
+        console.log('[CloudbaseSync] 无导入保护期，isImportProtected() =', false);
       }
 
       // 立即标记 initialized，让页面 getItem 可以用本地数据渲染，
