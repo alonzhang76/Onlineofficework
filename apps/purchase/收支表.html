@@ -3,7 +3,7 @@
 <head>
     <script src="../auto-scale.js?v=20260917a"></script>
 	<script>window.SUPABASE_APP_ID='purchase';</script>
-	<script src="../cloudbase-sync.js?v=20260916l"></script>
+	<script src="../cloudbase-sync.js?v=20260917e"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>收支管理系统 - 多公司财务追踪</title>
@@ -2204,7 +2204,11 @@
                                 updateCategoryChart(document.querySelector('.category-type-btn.bg-danger, .category-type-btn.bg-secondary').dataset.type);
                                 
                                 // 显示成功提示
-                                showNotification('导入成功', '数据已成功导入', 'success');
+                                // 设置导入保护期，防止 reload 后云端旧数据覆盖
+                                if (window.CloudbaseSync && typeof window.CloudbaseSync.setImportProtection === 'function') {
+                                    window.CloudbaseSync.setImportProtection(600000);
+                                }
+                                showNotification('导入成功', '数据已成功导入，请尽快点击"上传云端"', 'success');
                             } else {
                                 throw new Error('无效的JSON文件格式');
                             }

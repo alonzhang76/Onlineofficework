@@ -34,11 +34,14 @@ Page({
     let yearIdx = yearOptions.findIndex(o => o.value === this.data.year);
     if (yearIdx < 0) yearIdx = 0;
 
-    // 统计各客户订单条数（同年份口径）
+    // 统计各客户订单条数（同年份口径，只认合法 YYYY-MM-DD 日期）
     const orderCount = {};
     db.data.orderRecords.forEach(o => {
       if (!o.customer) return;
-      if (this.data.year !== 'all' && fmt.fmtDate(o.orderDate).slice(0, 4) !== this.data.year) return;
+      if (this.data.year !== 'all') {
+        const dStr = fmt.fmtDate(o.orderDate);
+        if (!/^\d{4}-\d{2}-\d{2}/.test(dStr) || dStr.slice(0, 4) !== this.data.year) return;
+      }
       orderCount[o.customer] = (orderCount[o.customer] || 0) + 1;
     });
 

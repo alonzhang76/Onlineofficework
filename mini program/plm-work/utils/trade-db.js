@@ -761,9 +761,14 @@ function getCustomerStats(year) {
 
   data.orderRecords.forEach(o => {
     const dStr = fmt.fmtDate(o.orderDate);
-    if (dStr) yearSet[dStr.slice(0, 4)] = true;
+    // 只认 YYYY-MM-DD 格式的合法年份（2000-2099），过滤掉 Excel 序列号/时间戳等垃圾值
+    const y = /^\d{4}-\d{2}-\d{2}/.test(dStr) ? dStr.slice(0, 4) : '';
+    if (y) {
+      const yn = +y;
+      if (yn >= 2000 && yn <= 2099) yearSet[y] = true;
+    }
     if (!o.customer) return;
-    if (year && year !== 'all' && dStr.slice(0, 4) !== String(year)) return;
+    if (year && year !== 'all' && y !== String(year)) return;
 
     const currency = o.currency || 'CNY';
     const amount = num(o.amount);

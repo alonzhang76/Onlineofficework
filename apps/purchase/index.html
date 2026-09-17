@@ -3,7 +3,7 @@
 <head>
     <script src="../auto-scale.js?v=20260917a"></script>
 	<script>window.SUPABASE_APP_ID='purchase';</script>
-	<script src="../cloudbase-sync.js?v=20260916l"></script>
+	<script src="../cloudbase-sync.js?v=20260917e"></script>
 	<script src="../cloudbase-admin.js?v=20260916d"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -10897,8 +10897,14 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
                             backupCompanies.forEach(company => {
                                 syncToContractInventory(company);
                             });
-                            
-                            alert('数据导入成功！系统数据已恢复。');
+
+                            // 设置导入保护期：10 分钟内云端旧数据不会覆盖刚导入的本地数据
+                            // 用户需手动点击"上传云端"按钮推送新数据，上传成功后保护期自动解除
+                            if (window.CloudbaseSync && typeof window.CloudbaseSync.setImportProtection === 'function') {
+                                window.CloudbaseSync.setImportProtection(600000);
+                            }
+
+                            alert('数据导入成功！系统数据已恢复。\n\n⚠️ 请点击页面上方的"上传云端"按钮，将导入的数据推送到云端。\n（10 分钟内云端旧数据不会覆盖本地新数据）');
                             
                             // 刷新页面以显示导入的数据
                             location.reload();

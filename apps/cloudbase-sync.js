@@ -390,6 +390,25 @@
     return allRows;
   }
 
+  // ===== 导入保护期 =====
+  // 用户导入/恢复 JSON 后、尚未手动"上传云端"之前，页面会 location.reload()
+  // 导致 recentWrites / pendingWrites 等内存状态全部丢失。
+  // 重新加载后 loadAllFromCloud → processCloudRows 会直接用云端旧数据覆盖本地新导入的数据。
+  // 用 sessionStorage 持久化一个保护期时间戳（跨 reload 存活），在此期间
+  // processCloudRows 和 refreshFromCloud 都跳过对"本地已有数据"的云端覆盖。
+  // pushAll（手动上传云端）成功后自动清除保护期。
+  var IMPORT_PROTECT_KEY = '__cb_import_protect_until__';
+  function isImportProtected() {
+    try {
+      var ts = sessionStorage.getItem(IMPORT_PROTECT_KEY);
+      if (!ts) return false;
+      return Date.now() < parseInt(ts, 10);
+    } catch (e) { return false; }
+  }
+  function clearImportProtection() {
+    try { sessionStorage.removeItem(IMPORT_PROTECT_KEY); } catch (e) {}
+  }
+
   // ===== 拉取全量数据到缓存 =====
   // 处理云端行数据：去重 → LWW → 写入缓存。供 loadAllFromCloud 和 refreshFromCloud 共用。
   function processCloudRows(rows) {
@@ -405,6 +424,10 @@
       }
     }
     var n = 0;
+    var importProtected = isImportProtected();
+    if (importProtected) {
+      console.log('[CloudbaseSync] 导入保护期内：云端数据仅入缓存，不覆盖本地 localStorage');
+    }
     Object.keys(newest).forEach(function (sk) {
       var row = newest[sk];
       var origKey = unprefixKey(sk);
@@ -426,13 +449,15 @@
           try { val = JSON.parse(nv); } catch (e) { val = nv; }
         }
       }
+      // 更新缓存（内存），但导入保护期内不写 localStorage，保留本地刚导入的数据
       cache[origKey] = val;
       cacheTs[origKey] = row.updated_at;
-      // 同步写入 localStorage，确保页面通过 native getItem 也能读到
-      try {
-        var raw = typeof val === 'string' ? val : JSON.stringify(val);
-        nativeSet(toLocalKey(origKey), raw);
-      } catch (e) {}
+      if (!importProtected) {
+        try {
+          var raw = typeof val === 'string' ? val : JSON.stringify(val);
+          nativeSet(toLocalKey(origKey), raw);
+        } catch (e) {}
+      }
       n++;
     });
     cloudLoadDenied = false;
@@ -939,6 +964,11 @@
         var row = newestRows[sk];
         var origKey = unprefixKey(row.store_key);
         if (!origKey) return;
+        // 导入保护期内：本地已有数据时跳过云端覆盖（保护刚导入的数据）
+        if (isImportProtected()) {
+          var localRaw = nativeGet(toLocalKey(origKey));
+          if (localRaw !== null && localRaw !== undefined && localRaw !== '') return;
+        }
         if (recentWrites[origKey] && now - recentWrites[origKey] < SKIP_WRITE_WINDOW) return;
         // 关键保护：该 key 有上传失败的挂起写入 → 本地一定比云端新（否则上传不会失败遗留），
         // 绝不能让云端旧数据覆盖。典型场景：导入 JSON 后 token 失效上传失败，
@@ -1181,6 +1211,8 @@
 
     if (failCount === 0) {
       notifyStatus('idle');
+      // 手动上传成功 → 清除导入保护期，恢复正常云端同步
+      clearImportProtection();
       return { ok: true, uploaded: okCount, failed: 0 };
     }
     notifyStatus('error');
@@ -1219,7 +1251,17 @@
     reload: retryAuthAndReload,
     pullAll: pullAll,
     pushAll: pushAll,
-    prepareForCloudClear: prepareForCloudClear
+    prepareForCloudClear: prepareForCloudClear,
+    // 导入保护期：导入/恢复 JSON 后调用，防止 reload 后云端旧数据覆盖本地
+    setImportProtection: function (ms) {
+      try {
+        var until = Date.now() + (ms || 600000); // 默认 10 分钟
+        sessionStorage.setItem('__cb_import_protect_until__', String(until));
+        console.log('[CloudbaseSync] 导入保护期已设置，持续至', new Date(until).toLocaleTimeString());
+      } catch (e) {}
+    },
+    clearImportProtection: clearImportProtection,
+    isImportProtected: isImportProtected
   };
 
   // ===== 启动 =====
