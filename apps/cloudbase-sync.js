@@ -21,7 +21,16 @@
 (function () {
   'use strict';
 
-  console.log('[CloudbaseSync] === cloudbase-sync.js v20260918b 加载 ===');
+  // ===== 版本守卫：防止旧版 cloudbase-sync.js 在新版之后重新初始化 =====
+  var SYNC_VERSION = '20260918b';
+  if (window.__CLOUDBASE_SYNC_VERSION__) {
+    console.warn('[CloudbaseSync] 检测到已加载版本 ' + window.__CLOUDBASE_SYNC_VERSION__ +
+      '，当前版本 ' + SYNC_VERSION + ' 跳过初始化');
+    return;
+  }
+  window.__CLOUDBASE_SYNC_VERSION__ = SYNC_VERSION;
+
+  console.log('[CloudbaseSync] === cloudbase-sync.js v' + SYNC_VERSION + ' 加载 ===');
 
   // ===== 配置 =====
   var APP_ID = window.CLOUDBASE_APP_ID || window.SUPABASE_APP_ID || 'default';
