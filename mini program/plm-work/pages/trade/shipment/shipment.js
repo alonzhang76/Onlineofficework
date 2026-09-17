@@ -1,5 +1,7 @@
 const db = require('../../../utils/trade-db');
 const fmt = require('../../../utils/format');
+const pdfShare = require('../../../utils/pdf-share');
+const docRenderers = require('../../../utils/doc-renderers');
 
 const PAYMENT_MODES = ['T/T 电汇', 'L/C 信用证', 'D/P 付款交单', 'D/A 承兑交单', '其他'];
 
@@ -314,45 +316,56 @@ Page({
     this.setData({ doc });
   },
 
-  copyDoc() {
+  generatePDF() {
     const d = this.data.doc;
     if (!d) return;
     const t = this.data.docTab;
-    const L = [];
+    // 将单据数据映射到渲染器所需格式
+    const docData = {
+      invoiceNo: d.shipmentNo,
+      invoiceDate: d.departureDate,
+      seller: d.shipper || d.seller || '',
+      buyer: d.consignee || '',
+      tradeTerms: d.terms || '',
+      loadingPort: d.pol || '',
+      deliveryPort: d.pod || '',
+      originCountry: d.destination || '',
+      vessel: d.vessel || '',
+      shipmentNo: d.shipmentNo || '',
+      bolNo: d.billNo || '',
+      supervisionMode: d.tradeType || '',
+      settlementMode: d.paymentMode || '',
+      exitCustoms: d.boundaryPort || '',
+      shipper: d.shipper || '',
+      consignee: d.consignee || '',
+      marks: d.marks || '',
+      items: (d.items || []).map(p => ({
+        description: p.desc2 ? p.desc2.split(' / ')[0] : '',
+        spec: p.desc2 && p.desc2.indexOf(' / ') > -1 ? p.desc2.split(' / ')[1] : '',
+        hsCode: p.hsCode || '',
+        cartons: p.qtyCrate || '',
+        quantity: p.quantity || '',
+        unit: p.unit || '',
+        unitPrice: p.unitPrice || '',
+        amount: p.amount || '',
+        netWeight: p.nw || '',
+        grossWeight: p.gw || '',
+        volume: p.volume || ''
+      }))
+    };
+
+    var renderFn, fileName;
     if (t === 0) {
-      L.push('COMMERCIAL INVOICE 商业发票');
-      L.push('Invoice No.: ' + d.shipmentNo + '  Date: ' + d.departureDate);
-      L.push('Shipper: ' + [d.shipper, d.seller].filter(Boolean).join(' / '));
-      L.push('Consignee: ' + d.consignee);
-      L.push('Terms: ' + d.terms + '  Vessel: ' + d.vessel);
-      L.push('From: ' + d.pol + '  To: ' + d.pod);
-      L.push('----------------------------------------');
-      d.items.forEach((p, i) => L.push((i + 1) + '. ' + p.desc.replace('\n', ' ') + ' | ' + p.quantity + p.unit + ' | ' + p.unitPrice + ' | ' + p.amount));
-      L.push('TOTAL: ' + d.totalAmount + ' ' + d.currency);
-      if (d.marks) L.push('Marks: ' + d.marks);
+      renderFn = docRenderers.renderInvoice;
+      fileName = '商业发票_' + d.shipmentNo;
     } else if (t === 1) {
-      L.push('PACKING LIST 装箱单');
-      L.push('No.: ' + d.shipmentNo + '  Date: ' + d.departureDate + '  Vessel: ' + d.vessel);
-      L.push('From: ' + d.pol + '  To: ' + d.pod + '  Packing: ' + d.packing);
-      L.push('----------------------------------------');
-      d.items.forEach((p, i) => L.push((i + 1) + '. ' + p.desc.replace('\n', ' ') + ' | ' + p.qtyCrate + '箱 | ' + p.quantity + ' | NW:' + p.nw + ' GW:' + p.gw + ' ' + p.volume + 'm³'));
-      L.push('TOTAL: ' + d.totalCrates + '箱 | ' + d.totalQty + ' | NW:' + d.totalNw + ' GW:' + d.totalGw + ' ' + d.totalVolume + 'm³');
-      if (d.marks) L.push('Marks: ' + d.marks);
+      renderFn = docRenderers.renderPackingList;
+      fileName = '装箱单_' + d.shipmentNo;
     } else {
-      L.push('报关明细 CUSTOMS DECLARATION');
-      L.push('运编号: ' + d.shipmentNo + '  出口日期: ' + d.departureDate);
-      L.push('发货人: ' + d.shipper + '  收货人: ' + d.consignee);
-      L.push('成交条款: ' + d.terms + '  运输方式: ' + d.shippingMode + '  船名: ' + d.vessel);
-      L.push('启运港: ' + d.pol + '  目的港: ' + d.pod + '  目的国: ' + d.destination);
-      L.push('出境关别: ' + d.boundaryPort + '  提运单号: ' + d.billNo + '  合同号: ' + d.contractNo);
-      L.push('包装: ' + d.packing + '  币制: ' + d.currency + '  总金额: ' + d.totalAmount);
-      L.push('----------------------------------------');
-      d.items.forEach((p, i) => L.push((i + 1) + '. HS:' + (p.hsCode || '-') + ' ' + p.desc2 + ' | ' + p.quantity + ' | ' + p.amount + ' | NW:' + p.nw + ' GW:' + p.gw));
-      if (d.marks) L.push('唛头: ' + d.marks);
+      renderFn = docRenderers.renderCustoms;
+      fileName = '报关明细_' + d.shipmentNo;
     }
-    wx.setClipboardData({
-      data: L.join('\n'),
-      success: () => wx.showToast({ title: '单据内容已复制', icon: 'success' })
-    });
+
+    pdfShare.generateAndShare(renderFn, docData, fileName, 'portrait', null);
   }
 });

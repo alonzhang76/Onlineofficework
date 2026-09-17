@@ -1,4 +1,6 @@
 const db = require('../../../utils/trade-db');
+const pdfShare = require('../../../utils/pdf-share');
+const docRenderers = require('../../../utils/doc-renderers');
 
 const DEFAULT_COMPANY = '普利美（常州）环境工程科技有限公司';
 const MAX_BOXES = 500;
@@ -90,23 +92,37 @@ Page({
     });
   },
 
-  copyText() {
+  generatePDF() {
     const f = this.data.form;
-    const n = this.data.labels.length;
-    if (!n) return;
-    const lines = [];
-    if (f.company) lines.push(f.company);
-    if (f.po) lines.push('PO: ' + f.po);
-    if (f.artNo) lines.push('Art. No.: ' + f.artNo);
-    if (f.maschinenNr) lines.push('Maschinennr.: ' + f.maschinenNr);
-    if (f.lfdEkNr) lines.push('lfd EK-Nr.: ' + f.lfdEkNr);
-    if (f.projektNr) lines.push('Projekt Nr.: ' + f.projektNr);
-    lines.push('Qty: ' + f.qtyPerBox + f.unit + ' (TTL: ' + f.totalQty + f.unit + ')');
-    lines.push('Package No.: 1/' + n);
-    if (f.remarks) lines.push('Remarks: ' + f.remarks);
-    wx.setClipboardData({
-      data: lines.join('\n'),
-      success: () => wx.showToast({ title: '唛头内容已复制', icon: 'success' })
+    const labels = this.data.labels;
+    if (!labels.length) {
+      wx.showToast({ title: '请先生成箱唛', icon: 'none' });
+      return;
+    }
+    const total = labels.length;
+    // 为每箱生成一个 canvas 页面
+    const pages = labels.map(label => {
+      return docRenderers.renderBoxMark({
+        company: f.company,
+        po: f.po,
+        artNo: f.artNo,
+        maschinenNr: f.maschinenNr,
+        lfdEkNr: f.lfdEkNr,
+        projektNr: f.projektNr,
+        unit: f.unit,
+        totalQty: f.totalQty,
+        perBoxQty: String(label.qty),
+        totalBoxes: String(total),
+        remark: label.last ? f.remarks : ''
+      }, label.no, total);
     });
+
+    pdfShare.generateAndShare(
+      function () { return pages; },
+      null,
+      '箱唛_' + (f.lfdEkNr || f.po || ''),
+      'portrait',
+      null
+    );
   }
 });

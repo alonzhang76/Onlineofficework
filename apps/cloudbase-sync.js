@@ -432,6 +432,16 @@
       var row = newest[sk];
       var origKey = unprefixKey(sk);
       if (!origKey) return;
+      // 导入保护期内：本地已有数据时完全跳过（不覆盖 cache 也不覆盖 localStorage）
+      // 关键：getItem 优先从 cache 读取，若 cache 被云端旧数据覆盖，页面将看到旧数据而非导入的数据
+      if (importProtected) {
+        var localRaw0 = nativeGet(toLocalKey(origKey));
+        if (localRaw0 !== null && localRaw0 !== undefined && localRaw0 !== '') {
+          // 本地有数据 → 用本地值填充 cache，保证 getItem 读到本地数据
+          try { cache[origKey] = JSON.parse(localRaw0); } catch (e) { cache[origKey] = localRaw0; }
+          return;
+        }
+      }
       // LWW：只有云端 updated_at 严格新于本地已知同步时间才覆盖。
       // cacheTs 未设置（首次加载）时直接采用云端，避免本地旧数据（如 60 条）
       // 抢先入缓存后把云端新数据（740 条）挡在外面。
@@ -449,15 +459,12 @@
           try { val = JSON.parse(nv); } catch (e) { val = nv; }
         }
       }
-      // 更新缓存（内存），但导入保护期内不写 localStorage，保留本地刚导入的数据
       cache[origKey] = val;
       cacheTs[origKey] = row.updated_at;
-      if (!importProtected) {
-        try {
-          var raw = typeof val === 'string' ? val : JSON.stringify(val);
-          nativeSet(toLocalKey(origKey), raw);
-        } catch (e) {}
-      }
+      try {
+        var raw = typeof val === 'string' ? val : JSON.stringify(val);
+        nativeSet(toLocalKey(origKey), raw);
+      } catch (e) {}
       n++;
     });
     cloudLoadDenied = false;
@@ -718,6 +725,7 @@
   var _debounceTimers = {};   // key → timerId
   var _uploadQueue = [];      // 待上传队列 [{key, value}]
   var _isUploading = false;   // 是否正在上传（串行控制）
+  var _currentUploadKey = null; // 当前正在上传的 key（防止 refreshFromCloud 覆盖正在上传的 key）
   var _uploadTimeoutMs = 30000; // 单次上传超时（避免 Promise 永不 settle 导致队列卡死；慢网络下 15s 会误杀大 payload）
 
   /** 防抖入口：同一 key 在 UPLOAD_DEBOUNCE ms 内多次写入只保留最后一次 */
@@ -746,6 +754,8 @@
         }
       }
       _uploadQueue.push({ key: key, value: value });
+      // 刷新 recentWrites，确保在上传完成前不会被 refreshFromCloud 覆盖
+      recentWrites[key] = Date.now();
       processUploadQueue();
     }, UPLOAD_DEBOUNCE);
   }
@@ -785,17 +795,21 @@
     var item = _uploadQueue.shift();
     var key = item.key;
     var value = item.value;
+    _currentUploadKey = key;
 
     // 检查是否有更新的值已入队（跳过旧值）
     var hasNewer = _uploadQueue.some(function (it) { return it.key === key; });
 
     withTimeout(doUpload(key, value), _uploadTimeoutMs).then(function () {
       _isUploading = false;
+      _currentUploadKey = null;
       _consecutiveFails = 0;
       delete pendingWrites[key]; // 成功则清除挂起
       // 上传成功后更新 cacheTs 为当前时间，代表本地与云端已同步，
       // 后续 refreshFromCloud 不会用同一时刻的云端数据重复覆盖。
       cacheTs[key] = new Date().toISOString();
+      // 上传成功后仍刷新 recentWrites，确保下一轮 refreshFromCloud 不会覆盖
+      recentWrites[key] = Date.now();
       if (hasNewer) {
         // 同 key 有更新值在队列里，跳过当前这次（用最新值）
         processUploadQueue();
@@ -804,6 +818,7 @@
       processUploadQueue();
     }, function (err) {
       _isUploading = false;
+      _currentUploadKey = null;
       // 上传失败的加入待重试队列
       pendingWrites[key] = { value: value, ts: Date.now() };
       _consecutiveFails++;
@@ -976,6 +991,14 @@
         if (pendingWrites[origKey]) return;
         // 防抖窗口内的 key 也跳过：上传还没发出，本地即最新
         if (_debounceTimers[origKey]) return;
+        // 上传队列中的 key 也跳过：已入队但尚未完成上传，本地一定比云端旧数据新
+        // 这是编辑记录被覆盖的主要原因：防抖定时器已删除、上传尚未完成、
+        // recentWrites 10s 窗口已过期 → 云端旧数据趁虚而入
+        for (var qi = 0; qi < _uploadQueue.length; qi++) {
+          if (_uploadQueue[qi].key === origKey) return;
+        }
+        // 正在上传中的 key 也跳过（已从队列 shift 出但尚未完成上传）
+        if (_isUploading && _currentUploadKey === origKey) return;
 
         var newVal = row.payload;
         var oldVal = cache[origKey];

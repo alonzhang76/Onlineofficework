@@ -1,5 +1,7 @@
 const db = require('../../../utils/trade-db');
 const fmt = require('../../../utils/format');
+const pdfShare = require('../../../utils/pdf-share');
+const docRenderers = require('../../../utils/doc-renderers');
 
 Page({
   data: {
@@ -87,26 +89,30 @@ Page({
     });
   },
 
-  copyText() {
+  generatePDF() {
     const d = this.data.doc;
     if (!d) return;
-    const lines = [];
-    lines.push('生产通知单 PRODUCTION ORDER');
-    lines.push('普利美（常州）环境工程科技有限公司');
-    lines.push('下单日期：' + (d.orderDate || '-'));
-    lines.push('订单号：' + d.orderNo);
-    lines.push('客户：' + (d.customer || '-'));
-    lines.push('交货日期：' + (d.deliveryDate || '-'));
-    lines.push('----------------------------------------');
-    lines.push('产品名称 | 规格 | 图号 | 电镀 | LOGO | 数量');
-    d.products.forEach(p => {
-      lines.push([p.productName, p.spec, p.drawingNo, p.plating, p.logo, p.quantity].join(' | '));
-    });
-    lines.push('合计：' + d.totalQty);
-    if (d.remark) lines.push('备注：' + d.remark);
-    wx.setClipboardData({
-      data: lines.join('\n'),
-      success: () => wx.showToast({ title: '单据内容已复制', icon: 'success' })
-    });
+    const pdfData = {
+      orderDate: d.orderDate,
+      orderNumber: d.orderNo,
+      customer: d.customer,
+      deliveryDate: d.deliveryDate,
+      products: d.products.map(p => ({
+        productName: p.productName,
+        specification: p.spec,
+        drawingNumber: p.drawingNo,
+        plating: p.plating,
+        bowLogo: p.logo,
+        quantity: p.quantity
+      })),
+      remark: d.remark
+    };
+    pdfShare.generateAndShare(
+      docRenderers.renderProductionNotice,
+      pdfData,
+      '生产通知单_' + d.orderNo,
+      'landscape',
+      null
+    );
   }
 });
