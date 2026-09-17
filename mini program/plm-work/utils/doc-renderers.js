@@ -133,11 +133,13 @@ function renderBoxMark(form, pageNo, totalPages) {
 
   // --- 顶部标题 ---
   cv.drawText({ ctx: ctx, text: 'SHIPPING MARKS', x: W / 2, y: margin, size: 18, weight: 'bold', align: 'center' });
-  cv.drawText({ ctx: ctx, text: form.company || '', x: W / 2, y: margin + 28, size: 12, color: '#000000', align: 'center' });
   cv.drawHLine(ctx, margin, margin + 52, W - margin * 2, '#000000', 2);
 
+  // --- 客户名称（分隔线下方、靠左、大号粗体）---
+  cv.drawText({ ctx: ctx, text: form.company || '', x: margin, y: margin + 66, size: 16, weight: 'bold', color: '#000000', align: 'left', maxWidth: W - margin * 2 });
+
   // --- 信息字段（两列）---
-  var fieldY = margin + 72;
+  var fieldY = margin + 104;
   var leftColX = margin;
   var rightColX = W / 2 + 10;
   var rowH = 36;
