@@ -3,7 +3,12 @@
 <head>
     <script src="../auto-scale.js?v=20260917a"></script>
 	<script>window.SUPABASE_APP_ID='purchase';</script>
-	<script src="../cloudbase-sync.js?v=20260918c"></script>
+	<script>
+		// ⚠️ 彻底禁用自动云端下载：防止导入/编辑的本地数据被云端旧数据覆盖
+		// 用户只能通过手动点击"同步云端"按钮拉取云端数据
+		window.__NO_AUTO_CLOUD_LOAD__ = true;
+	</script>
+	<script src="../cloudbase-sync.js?v=20260918d"></script>
 	<script src="../cloudbase-admin.js?v=20260916d"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">

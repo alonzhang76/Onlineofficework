@@ -22,7 +22,7 @@
   'use strict';
 
   // ===== 版本守卫：防止旧版 cloudbase-sync.js 在新版之后重新初始化 =====
-  var SYNC_VERSION = '20260918c';
+  var SYNC_VERSION = '20260918d';
   if (window.__CLOUDBASE_SYNC_VERSION__) {
     console.warn('[CloudbaseSync] 检测到已加载版本 ' + window.__CLOUDBASE_SYNC_VERSION__ +
       '，当前版本 ' + SYNC_VERSION + ' 跳过初始化');
@@ -581,6 +581,23 @@
 
   async function loadAllFromCloud() {
     if (!sb) return false;
+    // ⚠️ 页面设置了 __NO_AUTO_CLOUD_LOAD__ 时，完全不自动拉取云端数据
+    // 防止导入/编辑的本地数据被云端旧数据覆盖
+    if (window.__NO_AUTO_CLOUD_LOAD__) {
+      console.log('[CloudbaseSync] 🚫 loadAllFromCloud 被禁用（__NO_AUTO_CLOUD_LOAD__=true），用本地数据填充缓存');
+      try {
+        for (var pk in _lsInstance) {
+          var origK = unprefixKey(pk);
+          if (origK && cache[origK] === undefined) {
+            var pv = _origGetItem.call(_lsInstance, pk);
+            if (pv !== null && pv !== '') {
+              try { cache[origK] = JSON.parse(pv); } catch (e) { cache[origK] = pv; }
+            }
+          }
+        }
+      } catch (e) {}
+      return false;
+    }
     console.warn('[CloudbaseSync] 🔍 loadAllFromCloud 被调用' +
       ' paused=' + isCloudWritePaused() + ' importProtected=' + isImportProtected());
     // 导入保护期 / 全局暂停期：完全不拉取云端数据，避免网络返回后覆盖本地
@@ -750,8 +767,8 @@
       setInterval(refreshFromCloud, REFRESH_INTERVAL);
       setInterval(flushPending, 10000);
       setInterval(refreshLegacyBadge, 3000); // 旧版黄条自愈：认证完成/断线恢复后自动变色，不靠一次性渲染
-      window.addEventListener('online', function () { flushPending(); refreshFromCloud(); });
-      document.addEventListener('visibilitychange', function () { if (!document.hidden) { flushPending(); refreshFromCloud(); } });
+      window.addEventListener('online', function () { flushPending(); if (!window.__NO_AUTO_CLOUD_LOAD__) refreshFromCloud(); });
+      document.addEventListener('visibilitychange', function () { if (!document.hidden) { flushPending(); if (!window.__NO_AUTO_CLOUD_LOAD__) refreshFromCloud(); } });
       window.addEventListener('beforeunload', flushPending);
       window.addEventListener('offline', function () { notifyStatus('offline'); });
       bindBadgeWhenReady();
@@ -1044,6 +1061,8 @@
   // ===== 从云端刷新（只下载，不写云端） =====
   async function refreshFromCloud() {
     if (!sb || !initialized || cloudLoadDenied) return false;
+    // ⚠️ 页面设置了 __NO_AUTO_CLOUD_LOAD__ 时，定时刷新也跳过
+    if (window.__NO_AUTO_CLOUD_LOAD__) return false;
     // 全局写入暂停：本地写入/导入后不拉取云端数据
     if (isCloudWritePaused()) return false;
     // 网络慢冷却期：暂停定时刷新，冷却结束后由下一个定时周期自动恢复（无需人工干预）
@@ -1394,10 +1413,18 @@
   // ===== 手动下载：强制从云端拉取全量数据并更新本地 =====
   async function pullAll() {
     if (!sb) return { ok: false, msg: '同步层未就绪' };
+    // 手动拉取：临时解除 __NO_AUTO_CLOUD_LOAD__ 和写入暂停
+    var savedNoLoad = window.__NO_AUTO_CLOUD_LOAD__;
+    var savedPause = _cloudWritePausedUntil;
+    window.__NO_AUTO_CLOUD_LOAD__ = false;
+    _cloudWritePausedUntil = 0;
     var before = JSON.stringify(cache);
     var ok = await refreshFromCloud();
     var after = JSON.stringify(cache);
     var changed = before !== after;
+    // 恢复
+    window.__NO_AUTO_CLOUD_LOAD__ = savedNoLoad;
+    _cloudWritePausedUntil = savedPause;
     return { ok: true, changed: changed };
   }
 
