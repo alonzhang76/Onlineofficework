@@ -2257,12 +2257,6 @@
                                     <input type="text" id="supplier-search" placeholder="搜索供应商..." class="form-input pl-10">
                                     <i class="fa fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
                                 </div>
-                                <select id="priority-filter" class="form-input px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                    <option value="all">全部优先级</option>
-                                    <option value="normal">普通</option>
-                                    <option value="medium">中优先</option>
-                                    <option value="high">高优先</option>
-                                </select>
                             </div>
                             <button class="btn btn-primary" data-action="new-supplier">
                                 <i class="fa fa-plus mr-2"></i>添加供应商
@@ -2277,35 +2271,6 @@
                         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
                             <div class="flex items-center gap-4 mb-2 sm:mb-0">
                                 <h3 class="text-lg font-medium">供应商列表</h3>
-                                <div class="flex flex-wrap gap-1" id="alphabet-filter">
-                                    <button class="alphabet-btn active" data-letter="all">全部</button>
-                                    <button class="alphabet-btn" data-letter="A">A</button>
-                                    <button class="alphabet-btn" data-letter="B">B</button>
-                                    <button class="alphabet-btn" data-letter="C">C</button>
-                                    <button class="alphabet-btn" data-letter="D">D</button>
-                                    <button class="alphabet-btn" data-letter="E">E</button>
-                                    <button class="alphabet-btn" data-letter="F">F</button>
-                                    <button class="alphabet-btn" data-letter="G">G</button>
-                                    <button class="alphabet-btn" data-letter="H">H</button>
-                                    <button class="alphabet-btn" data-letter="I">I</button>
-                                    <button class="alphabet-btn" data-letter="J">J</button>
-                                    <button class="alphabet-btn" data-letter="K">K</button>
-                                    <button class="alphabet-btn" data-letter="L">L</button>
-                                    <button class="alphabet-btn" data-letter="M">M</button>
-                                    <button class="alphabet-btn" data-letter="N">N</button>
-                                    <button class="alphabet-btn" data-letter="O">O</button>
-                                    <button class="alphabet-btn" data-letter="P">P</button>
-                                    <button class="alphabet-btn" data-letter="Q">Q</button>
-                                    <button class="alphabet-btn" data-letter="R">R</button>
-                                    <button class="alphabet-btn" data-letter="S">S</button>
-                                    <button class="alphabet-btn" data-letter="T">T</button>
-                                    <button class="alphabet-btn" data-letter="U">U</button>
-                                    <button class="alphabet-btn" data-letter="V">V</button>
-                                    <button class="alphabet-btn" data-letter="W">W</button>
-                                    <button class="alphabet-btn" data-letter="X">X</button>
-                                    <button class="alphabet-btn" data-letter="Y">Y</button>
-                                    <button class="alphabet-btn" data-letter="Z">Z</button>
-                                </div>
                             </div>
                             <div class="flex gap-2">
                                 <button class="btn btn-success" id="exportExcel">
@@ -6072,19 +6037,16 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
             return char.toUpperCase();
         }
 
-        // 搜索供应商和优先级筛选
+        // 搜索供应商
         function setupSearchFunctionality() {
             const searchInput = document.getElementById('supplier-search');
-            const priorityFilter = document.getElementById('priority-filter');
-            const alphabetFilter = document.getElementById('alphabet-filter');
-            let selectedLetter = 'all';
-            
+
             function applyFilters() {
                 // 每次筛选前重新加载数据
                 const freshSuppliers = JSON.parse(localStorage.getItem('suppliers')) || suppliers;
-                
+
                 const searchTerm = searchInput.value.toLowerCase();
-                
+
                 let filteredSuppliers = freshSuppliers.filter(supplier => {
                     // 检查搜索词
                     let matchesSearch = true;
@@ -6099,58 +6061,15 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
                             }
                         }
                     }
-                    
-                    // 检查优先级
-                    let matchesPriority = true;
-                    if (priorityFilter.value !== 'all') {
-                        // 如果供应商没有设置优先级，默认为normal
-                        const supplierPriority = supplier.priority || 'normal';
-                        matchesPriority = supplierPriority === priorityFilter.value;
-                    }
-                    
-                    // 检查字母
-                    let matchesLetter = true;
-                    if (selectedLetter !== 'all') {
-                        const supplierName = supplier.supplierName || '';
-                        console.log('供应商名称:', supplierName);
-                        if (supplierName) {
-                            const firstChar = supplierName.charAt(0);
-                            const charCode = firstChar.charCodeAt(0);
-                            const firstLetter = getPinyinFirstLetter(firstChar);
-                            console.log('首字符:', firstChar, 'Unicode:', charCode.toString(16).toUpperCase(), '首字母:', firstLetter, '选中字母:', selectedLetter);
-                            matchesLetter = firstLetter === selectedLetter;
-                        } else {
-                            matchesLetter = false;
-                        }
-                    }
-                    
-                    return matchesSearch && matchesPriority && matchesLetter;
+
+                    return matchesSearch;
                 });
-                
+
                 renderSuppliers(filteredSuppliers);
             }
-            
+
             if (searchInput) {
                 searchInput.addEventListener('input', applyFilters);
-            }
-            
-            if (priorityFilter) {
-                priorityFilter.addEventListener('change', applyFilters);
-            }
-            
-            if (alphabetFilter) {
-                alphabetFilter.addEventListener('click', function(e) {
-                    if (e.target.classList.contains('alphabet-btn')) {
-                        // 移除所有按钮的active类
-                        document.querySelectorAll('.alphabet-btn').forEach(btn => btn.classList.remove('active'));
-                        // 添加当前按钮的active类
-                        e.target.classList.add('active');
-                        // 更新选中的字母
-                        selectedLetter = e.target.dataset.letter;
-                        // 应用筛选
-                        applyFilters();
-                    }
-                });
             }
         }
 
@@ -6168,18 +6087,7 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
                 supplierCard.className = 'supplier-card relative overflow-hidden rounded-xl border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-white to-gray-50';
                 supplierCard.dataset.supplierNumber = supplier.supplierNumber;
                 supplierCard.innerHTML = `
-                    <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-purple-500"></div>
                     <div class="p-5">
-                        <div class="flex justify-between items-center mb-4">
-                            <div class="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                                <span class="text-white font-bold text-lg">${supplier.supplierName ? supplier.supplierName.charAt(0) : '?'}</span>
-                            </div>
-                            <button class="priority-btn px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 cursor-pointer" 
-                                    data-priority="${supplier.priority || 'normal'}"
-                                    style="background-color: ${supplier.priority === 'high' ? '#ef4444' : supplier.priority === 'medium' ? '#f59e0b' : '#10b981'}; color: white;">
-                                ${supplier.priority === 'high' ? '高优先' : supplier.priority === 'medium' ? '中优先' : '普通'}
-                            </button>
-                        </div>
                         <div class="space-y-3">
                             <div>
                                 <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">公司名称</p>
@@ -6242,41 +6150,6 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
 
                 deleteBtn.addEventListener('click', () => {
                     handleDeleteSupplier(supplier.supplierNumber);
-                });
-
-                // 为优先级按钮添加点击事件
-                const priorityBtn = supplierCard.querySelector('.priority-btn');
-                const currentSupplierNumber = supplier.supplierNumber;
-                
-                priorityBtn.addEventListener('click', () => {
-                    const currentPriority = priorityBtn.dataset.priority;
-                    const priorities = ['normal', 'medium', 'high'];
-                    const currentIndex = priorities.indexOf(currentPriority);
-                    const nextIndex = (currentIndex + 1) % priorities.length;
-                    const newPriority = priorities[nextIndex];
-
-                    // 更新按钮状态
-                    priorityBtn.dataset.priority = newPriority;
-                    if (newPriority === 'high') {
-                        priorityBtn.textContent = '高优先';
-                        priorityBtn.style.backgroundColor = '#ef4444';
-                    } else if (newPriority === 'medium') {
-                        priorityBtn.textContent = '中优先';
-                        priorityBtn.style.backgroundColor = '#f59e0b';
-                    } else {
-                        priorityBtn.textContent = '普通';
-                        priorityBtn.style.backgroundColor = '#10b981';
-                    }
-
-                    // 保存到localStorage
-                    let storedSuppliers = JSON.parse(localStorage.getItem('suppliers')) || [];
-                    const supplierIndex = storedSuppliers.findIndex(s => s.supplierNumber === currentSupplierNumber);
-                    if (supplierIndex !== -1) {
-                        storedSuppliers[supplierIndex].priority = newPriority;
-                        localStorage.setItem('suppliers', JSON.stringify(storedSuppliers));
-                        // 更新全局suppliers变量
-                        suppliers = storedSuppliers;
-                    }
                 });
             });
         }
@@ -6345,7 +6218,7 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
                 bankName: supplierCard.querySelector('.bank-name').value || '',
                 bankCode: supplierCard.querySelector('.bank-code').value || '',
                 bankAccount: supplierCard.querySelector('.bank-account').value || '',
-                remarks: supplierCard.querySelector('.remarks').value || ''
+                remarks: (supplierCard.querySelector('.remarks') || {}).value || ''
             };
             
             // 更新供应商数据
