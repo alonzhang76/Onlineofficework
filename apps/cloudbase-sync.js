@@ -22,7 +22,7 @@
   'use strict';
 
   // ===== 版本守卫：防止旧版 cloudbase-sync.js 在新版之后重新初始化 =====
-  var SYNC_VERSION = '20260918d';
+  var SYNC_VERSION = '20260918e';
   if (window.__CLOUDBASE_SYNC_VERSION__) {
     console.warn('[CloudbaseSync] 检测到已加载版本 ' + window.__CLOUDBASE_SYNC_VERSION__ +
       '，当前版本 ' + SYNC_VERSION + ' 跳过初始化');
@@ -443,6 +443,10 @@
         var match = document.cookie.match(/__cb_import_protect_until__=(\d+)/);
         if (match) ts = match[1];
       }
+      // Fallback: check localStorage (bypasses interceptor, survives refresh)
+      if (!ts) {
+        try { ts = _origGetItem.call(_lsInstance, toLocalKey('__cb_import_protect_until__')); } catch (e2) {}
+      }
       if (!ts) return false;
       return Date.now() < parseInt(ts, 10);
     } catch (e) { return false; }
@@ -450,6 +454,7 @@
   function clearImportProtection() {
     try { sessionStorage.removeItem(IMPORT_PROTECT_KEY); } catch (e) {}
     try { document.cookie = '__cb_import_protect_until__=;path=/;max-age=0'; } catch (e) {}
+    try { _origSetItem.call(_lsInstance, toLocalKey('__cb_import_protect_until__'), ''); } catch (e) {}
   }
 
   // ===== 拉取全量数据到缓存 =====
@@ -750,12 +755,17 @@
       // 先做本地键名迁移（纯本地操作，不阻塞）
       try { await migrateLocalStorage(); } catch (e) {}
 
-      // 从 sessionStorage 恢复导入保护期（跨 reload 存活）
+      // 从 sessionStorage/cookie/localStorage 恢复导入保护期（跨 reload 存活）
       if (isImportProtected()) {
         pauseCloudWrites(600000); // 恢复 10 分钟暂停
-        console.log('[CloudbaseSync] ✅ 检测到导入保护期，已恢复暂停，_cloudWritePausedUntil =', new Date(_cloudWritePausedUntil).toLocaleTimeString());
+        console.log('[CloudbaseSync] ✅ 检测到导入保护期（sessionStorage/cookie/localStorage），已恢复暂停，_cloudWritePausedUntil =', new Date(_cloudWritePausedUntil).toLocaleTimeString());
       } else {
-        console.log('[CloudbaseSync] 无导入保护期，isImportProtected() =', false);
+        // 诊断：显示三个存储中的值
+        var _ssVal = 'null', _ckVal = 'null', _lsVal = 'null';
+        try { _ssVal = sessionStorage.getItem(IMPORT_PROTECT_KEY) || 'null'; } catch (e) {}
+        try { var _m = document.cookie.match(/__cb_import_protect_until__=(\d+)/); _ckVal = _m ? _m[1] : 'null'; } catch (e) {}
+        try { _lsVal = _origGetItem.call(_lsInstance, toLocalKey('__cb_import_protect_until__')) || 'null'; } catch (e) {}
+        console.log('[CloudbaseSync] 无导入保护期。sessionStorage=' + _ssVal + ' cookie=' + _ckVal + ' localStorage=' + _lsVal);
       }
 
       // 立即标记 initialized，让页面 getItem 可以用本地数据渲染，
@@ -1458,8 +1468,10 @@
         sessionStorage.setItem('__cb_import_protect_until__', String(until));
         // Cookie backup (sessionStorage might not persist in some contexts)
         document.cookie = '__cb_import_protect_until__=' + until + ';path=/;max-age=' + Math.floor((ms || 600000) / 1000);
+        // localStorage backup (bypasses sync interceptor, survives refresh on file:// protocol)
+        try { _origSetItem.call(_lsInstance, toLocalKey('__cb_import_protect_until__'), String(until)); } catch (e2) {}
         pauseCloudWrites(ms || 600000); // 同时设置全局暂停
-        console.log('[CloudbaseSync] 导入保护期已设置，持续至', new Date(until).toLocaleTimeString());
+        console.log('[CloudbaseSync] 导入保护期已设置（sessionStorage+cookie+localStorage），持续至', new Date(until).toLocaleTimeString());
       } catch (e) {}
     },
     clearImportProtection: clearImportProtection,
