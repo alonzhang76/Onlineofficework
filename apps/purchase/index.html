@@ -845,6 +845,7 @@
         }
     </style>
     <link rel="stylesheet" href="../tablet-compat.css?v=20260915a">
+    <link rel="stylesheet" href="simple-theme.css?v=20260917a">
 </head>
 <body class="bg-gray-50 font-sans">
     <!-- 管理抬头公司模态框 -->
@@ -1814,62 +1815,49 @@
 
                     <!-- 采购订单列表 -->
                     <div class="card">
-                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
-                            <div class="flex items-center gap-3">
-                                <h3 class="text-lg font-medium mb-2 sm:mb-0">采购订单列表</h3>
-                                <button id="query-orders-btn" class="btn btn-primary btn-sm text-sm">
-                                    <i class="fa fa-search mr-1"></i>查询订单
-                                </button>
-                                <button id="clear-all-orders-btn" class="btn btn-danger btn-sm text-sm">
-                                    <i class="fa fa-trash-o mr-1"></i>清空所有记录
-                                </button>
-                                <button id="migrate-selected-btn" class="btn btn-warning btn-sm text-sm" title="迁移选中的合同" onclick="handleMigrationButtonClick()">
-                                    <i class="fa fa-exchange mr-1"></i>迁移
-                                </button>
-                                <button id="create-invoice-from-order-btn" class="btn btn-success btn-sm text-sm" title="为选中合同开具发票" onclick="openCreateInvoiceFromOrderModal()">
-                                    <i class="fa fa-file-text-o mr-1"></i>发票开具
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <!-- 合同日期筛选 -->
-                        <div class="flex flex-wrap items-center gap-3 mb-4">
-                            <div class="flex items-center gap-2">
-                                <label for="purchase-start-date" class="text-sm font-medium text-gray-700 whitespace-nowrap">合同日期：</label>
-                                <input type="date" id="purchase-start-date" class="form-input px-3 py-2 border border-gray-300 rounded-md">
-                                <span class="text-gray-500 whitespace-nowrap">至</span>
-                                <input type="date" id="purchase-end-date" class="form-input px-3 py-2 border border-gray-300 rounded-md">
-                                <button id="purchase-date-filter-btn" class="btn btn-primary btn-sm text-sm whitespace-nowrap">
-                                    <i class="fa fa-filter mr-1"></i>筛选
-                                </button>
-                                <button id="purchase-date-reset-btn" class="btn btn-secondary btn-sm text-sm whitespace-nowrap">
-                                    <i class="fa fa-refresh mr-1"></i>重置
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <!-- 状态筛选 -->
-                        <div class="flex flex-wrap items-center gap-3 mb-4">
-                            <div class="flex items-center gap-2">
-                                <label for="purchase-status-filter" class="text-sm font-medium text-gray-700 whitespace-nowrap">状态：</label>
-                                <select id="purchase-status-filter" class="form-input px-3 py-2 border border-gray-300 rounded-md">
-                                    <option value="all">全部</option>
-                                    <option value="执行中-未开票-未付款">执行中-未开票-未付款</option>
-                                    <option value="执行中-已开票-未付款">执行中-已开票-未付款</option>
-                                    <option value="执行中-未开票-部分付款">执行中-未开票-部分付款</option>
-                                    <option value="执行中-已开票-部分付款">执行中-已开票-部分付款</option>
-                                    <option value="执行完毕-未开票-未付款">执行完毕-未开票-未付款</option>
-                                    <option value="执行完毕-已开票-未付款">执行完毕-已开票-未付款</option>
-                                    <option value="执行完毕-未开票-部分付款">执行完毕-未开票-部分付款</option>
-                                    <option value="执行完毕-已开票-部分付款">执行完毕-已开票-部分付款</option>
-                                    <option value="执行完毕-已开票-已付清">执行完毕-已开票-已付清</option>
-                                    <option value="未开票-未付款">未开票-未付款</option>
-                                    <option value="已开票-未付款">已开票-未付款</option>
-                                    <option value="已开票-部分付款">已开票-部分付款</option>
-                                    <option value="已开票-已付清">已开票-已付清</option>
-                                </select>
-                            </div>
-                            <button id="exportPurchaseOrdersBtn" class="btn btn-success flex items-center gap-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors">
+                        <!-- 工具栏：标题 + 操作按钮 + 日期筛选 + 状态筛选 + 导出，合并为一行 -->
+                        <div class="flex flex-wrap items-center gap-2 mb-3">
+                            <h3 class="text-sm font-medium whitespace-nowrap mr-2">采购订单列表</h3>
+                            <button id="query-orders-btn" class="btn btn-primary btn-sm text-sm whitespace-nowrap">
+                                <i class="fa fa-search mr-1"></i>查询订单
+                            </button>
+                            <button id="clear-all-orders-btn" class="btn btn-danger btn-sm text-sm whitespace-nowrap">
+                                <i class="fa fa-trash-o mr-1"></i>清空所有记录
+                            </button>
+                            <button id="migrate-selected-btn" class="btn btn-warning btn-sm text-sm whitespace-nowrap" title="迁移选中的合同" onclick="handleMigrationButtonClick()">
+                                <i class="fa fa-exchange mr-1"></i>迁移
+                            </button>
+                            <button id="create-invoice-from-order-btn" class="btn btn-success btn-sm text-sm whitespace-nowrap" title="为选中合同开具发票" onclick="openCreateInvoiceFromOrderModal()">
+                                <i class="fa fa-file-text-o mr-1"></i>发票开具
+                            </button>
+                            <label for="purchase-start-date" class="text-sm font-medium text-gray-700 whitespace-nowrap">合同日期：</label>
+                            <input type="date" id="purchase-start-date" class="form-input px-3 py-2 border border-gray-300 rounded-md">
+                            <span class="text-gray-500 whitespace-nowrap">至</span>
+                            <input type="date" id="purchase-end-date" class="form-input px-3 py-2 border border-gray-300 rounded-md">
+                            <button id="purchase-date-filter-btn" class="btn btn-primary btn-sm text-sm whitespace-nowrap">
+                                <i class="fa fa-filter mr-1"></i>筛选
+                            </button>
+                            <button id="purchase-date-reset-btn" class="btn btn-secondary btn-sm text-sm whitespace-nowrap">
+                                <i class="fa fa-refresh mr-1"></i>重置
+                            </button>
+                            <label for="purchase-status-filter" class="text-sm font-medium text-gray-700 whitespace-nowrap">状态：</label>
+                            <select id="purchase-status-filter" class="form-input px-3 py-2 border border-gray-300 rounded-md">
+                                <option value="all">全部</option>
+                                <option value="执行中-未开票-未付款">执行中-未开票-未付款</option>
+                                <option value="执行中-已开票-未付款">执行中-已开票-未付款</option>
+                                <option value="执行中-未开票-部分付款">执行中-未开票-部分付款</option>
+                                <option value="执行中-已开票-部分付款">执行中-已开票-部分付款</option>
+                                <option value="执行完毕-未开票-未付款">执行完毕-未开票-未付款</option>
+                                <option value="执行完毕-已开票-未付款">执行完毕-已开票-未付款</option>
+                                <option value="执行完毕-未开票-部分付款">执行完毕-未开票-部分付款</option>
+                                <option value="执行完毕-已开票-部分付款">执行完毕-已开票-部分付款</option>
+                                <option value="执行完毕-已开票-已付清">执行完毕-已开票-已付清</option>
+                                <option value="未开票-未付款">未开票-未付款</option>
+                                <option value="已开票-未付款">已开票-未付款</option>
+                                <option value="已开票-部分付款">已开票-部分付款</option>
+                                <option value="已开票-已付清">已开票-已付清</option>
+                            </select>
+                            <button id="exportPurchaseOrdersBtn" class="btn btn-success flex items-center gap-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors whitespace-nowrap">
                                 <i class="fa fa-file-excel-o"></i>
                                 导出EXCEL
                             </button>
@@ -2483,7 +2471,7 @@
                         sidebar.style.width = '';
                         sidebar.style.opacity = '1';
                     } else {
-                        sidebar.style.width = '16rem';
+                        sidebar.style.width = '200px';
                         sidebar.style.opacity = '1';
                     }
                     toggleArrow.style.transform = 'rotate(180deg)';

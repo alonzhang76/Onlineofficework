@@ -1,0 +1,767 @@
+/* ==========================================================================
+   ProcurePay 简洁主题（参照 saintysys 风格）
+   - 保留原有蓝色主色（#1a56db）
+   - 紧凑字号/间距、细边框、小圆角、极轻阴影
+   - 去除渐变、悬浮上浮、脉冲等花哨动效
+   - 仅覆盖样式，不改变任何页面结构与功能
+   ========================================================================== */
+
+:root {
+    --st-primary: #1a56db;
+    --st-primary-hover: #154bb8;
+    --st-primary-light: #e8f0fe;
+    --st-primary-tint: #f4f7fe;
+    --st-success: #16a34a;
+    --st-warning: #d9883a;
+    --st-danger: #d44848;
+    --st-bg: #f7f8fa;
+    --st-ink: #1f2937;
+    --st-ink-secondary: #4b5563;
+    --st-muted: #6b7280;
+    --st-border: #e5e7eb;
+    --st-border-light: #f3f4f6;
+    --st-radius: 4px;
+    --st-radius-lg: 6px;
+    --st-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    --st-shadow-hover: 0 1px 3px rgba(0, 0, 0, 0.07);
+    --st-shadow-pop: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+/* ===== 基础 ===== */
+html, body {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--st-ink);
+}
+
+body.bg-gray-50 {
+    background-color: var(--st-bg) !important;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ===== 主系统侧边栏（index.html #sidebar） ===== */
+/* 不使用 !important 控制宽度：折叠脚本通过内联 width 收放，内联样式优先级更高，折叠功能不受影响 */
+#sidebar {
+    width: 200px;
+}
+#sidebar > div:first-child,
+#sidebar > .p-4:first-child {
+    padding: 10px 14px !important;
+}
+#sidebar h1 {
+    font-size: 14px !important;
+    letter-spacing: 0;
+}
+#sidebar h1 + p {
+    font-size: 11px !important;
+    margin-top: 2px !important;
+}
+#sidebar nav {
+    padding: 8px !important;
+    gap: 2px !important;
+}
+#sidebar .nav-link {
+    padding: 6px 12px !important;
+    gap: 8px !important;
+    border-radius: var(--st-radius) !important;
+    font-size: 12px !important;
+    transition: background-color 0.15s, color 0.15s !important;
+}
+#sidebar .nav-link i {
+    font-size: 13px;
+}
+#sidebar .nav-link.active {
+    background: var(--st-primary-light) !important;
+    color: var(--st-primary) !important;
+    font-weight: 600;
+}
+#sidebar .nav-link:not(.active):hover {
+    background: var(--st-border-light) !important;
+    color: var(--st-primary) !important;
+}
+/* “快速链接”分割线与标题弱化 */
+#sidebar .border-t-2 {
+    border-top-width: 1px !important;
+    border-color: var(--st-border) !important;
+    box-shadow: none !important;
+    margin: 8px 0 4px !important;
+}
+#sidebar > nav > div.text-gray-500 {
+    font-size: 10px !important;
+    color: var(--st-muted) !important;
+    padding: 2px 12px !important;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+#sidebar > div:last-child {
+    padding: 8px 14px !important;
+}
+#sidebar > div:last-child p {
+    font-size: 11px !important;
+}
+/* 侧栏折叠条收窄 */
+#sidebar-toggle {
+    width: 10px !important;
+}
+
+/* ===== 顶栏 ===== */
+main > header,
+body > div > header {
+    box-shadow: none !important;
+}
+header > div:first-child {
+    padding: 8px 14px !important;
+    gap: 8px !important;
+}
+#page-title {
+    font-size: 14px !important;
+    font-weight: 600;
+}
+/* 顶栏彩色云操作按钮收敛尺寸，保留功能色 */
+header .bg-blue-600,
+header .bg-green-600,
+header .bg-red-600 {
+    padding: 4px 10px !important;
+    font-size: 12px !important;
+    border-radius: var(--st-radius) !important;
+    font-weight: 500;
+}
+header .bg-blue-600:hover { background-color: var(--st-primary-hover) !important; }
+header .bg-green-600:hover { background-color: #15803d !important; }
+header .bg-red-600:hover { background-color: #b91c1c !important; }
+
+/* ===== 按钮（.btn 系列，多页共用） ===== */
+.btn {
+    padding: 4px 10px !important;
+    font-size: 12px !important;
+    border-radius: var(--st-radius) !important;
+    font-weight: 500 !important;
+    box-shadow: none !important;
+    transform: none !important;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s !important;
+}
+.btn:hover {
+    transform: none !important;
+    box-shadow: none !important;
+}
+.btn:focus,
+.btn:focus-visible {
+    outline: none !important;
+    box-shadow: 0 0 0 2px rgba(26, 86, 219, 0.15) !important;
+}
+.btn-sm {
+    padding: 2px 8px !important;
+    font-size: 11px !important;
+}
+/* 描边型按钮（备份数据等） */
+.btn.bg-white,
+button.bg-white.border {
+    border-radius: var(--st-radius) !important;
+}
+
+/* ===== 卡片 / 面板 ===== */
+.card {
+    padding: 14px !important;
+    border: 1px solid var(--st-border) !important;
+    border-radius: var(--st-radius-lg) !important;
+    box-shadow: var(--st-shadow) !important;
+}
+.card:hover {
+    box-shadow: var(--st-shadow-hover) !important;
+    transform: none !important;
+}
+.card-shadow {
+    border: 1px solid var(--st-border);
+    border-radius: var(--st-radius-lg) !important;
+    box-shadow: var(--st-shadow) !important;
+}
+.card-shadow:hover {
+    box-shadow: var(--st-shadow-hover) !important;
+    transform: none !important;
+}
+/* 统一收敛 Tailwind 的大圆角与厚重投影 */
+.rounded-lg, .rounded-xl, .rounded-2xl {
+    border-radius: var(--st-radius-lg) !important;
+}
+.shadow, .shadow-sm, .shadow-md, .shadow-card,
+.shadow-lg, .shadow-xl, .shadow-2xl {
+    box-shadow: var(--st-shadow-hover) !important;
+}
+
+/* ===== 模态框（Tailwind 页面） ===== */
+.modal-content {
+    border-radius: var(--st-radius-lg) !important;
+    box-shadow: var(--st-shadow-pop) !important;
+}
+.modal-content:hover {
+    transform: none !important;
+}
+.modal-header { padding: 10px 14px !important; }
+.modal-body { padding: 14px !important; }
+.modal-footer { padding: 10px 14px !important; }
+
+/* ===== 表单 ===== */
+.form-input, .form-select, .form-textarea, .input-field {
+    padding: 5px 8px !important;
+    font-size: 12px !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: var(--st-radius) !important;
+    box-shadow: none !important;
+    background-color: #fff !important;
+    transition: border-color 0.15s, box-shadow 0.15s !important;
+}
+.form-input:hover, .form-select:hover, .form-textarea:hover,
+.input-field:hover {
+    border-color: #b6c0cc !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus,
+.input-field:focus {
+    outline: none !important;
+    border-color: var(--st-primary) !important;
+    box-shadow: 0 0 0 2px rgba(26, 86, 219, 0.12) !important;
+}
+.form-label {
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    margin-bottom: 3px !important;
+}
+.form-group { margin-bottom: 10px !important; }
+
+/* ===== 表格（全局紧凑行高） ===== */
+/* 覆盖 Tailwind 工具类 th/td 的宽松 padding，适用于所有表格 */
+table th, table td {
+    padding: 3px 6px !important;
+    line-height: 1.3 !important;
+}
+/* .table 系列更紧凑 */
+.table th {
+    padding: 3px 6px !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    line-height: 1.3 !important;
+    color: var(--st-ink-secondary) !important;
+    background-color: #f9fafb !important;
+}
+.table td {
+    padding: 2px 6px !important;
+    font-size: 12px !important;
+    line-height: 1.3 !important;
+    color: var(--st-ink) !important;
+}
+.table tr:hover,
+.table tbody tr:hover {
+    background-color: #f0f5ff !important;
+}
+.invoice-table th {
+    background-color: #f9fafb !important;
+}
+/* invoice list 的 A4 打印表保持极紧凑 */
+.table-border th, .table-border td {
+    padding: 2px 3px !important;
+    line-height: 1.2 !important;
+}
+/* 合同表 */
+.contract-table th, .contract-table td {
+    padding: 3px 6px !important;
+    line-height: 1.3 !important;
+}
+
+/* ===== 统计卡片 ===== */
+.stat-card {
+    padding: 10px 12px !important;
+    border: 1px solid var(--st-border) !important;
+    border-radius: var(--st-radius-lg) !important;
+    box-shadow: var(--st-shadow) !important;
+    gap: 10px !important;
+}
+.stat-card:hover {
+    border-color: #c7d8f5 !important;
+    box-shadow: var(--st-shadow-hover) !important;
+}
+.stat-value { font-size: 18px !important; }
+.stat-label { font-size: 11px !important; }
+.stat-icon {
+    padding: 6px !important;
+    border-radius: var(--st-radius) !important;
+    font-size: 14px !important;
+}
+
+/* ===== 徽章 / 标签 / 选项卡 ===== */
+.badge {
+    padding: 1px 7px !important;
+    border-radius: var(--st-radius) !important;
+    font-size: 10px !important;
+    font-weight: 500 !important;
+}
+.status-badge {
+    padding: 2px 8px !important;
+    border-radius: var(--st-radius) !important;
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    box-shadow: none !important;
+}
+.status-badge:hover {
+    transform: none !important;
+    box-shadow: none !important;
+}
+.tab {
+    padding: 5px 12px !important;
+    font-size: 12px !important;
+}
+.income-tag, .expense-tag {
+    border-radius: var(--st-radius) !important;
+    font-size: 10px !important;
+    padding: 1px 7px !important;
+}
+
+/* ===== 顶部水平导航（合同库存/普票等子页） ===== */
+.nav-link {
+    border-radius: var(--st-radius) !important;
+    font-size: 12px !important;
+    padding: 5px 10px !important;
+}
+.nav-link.active {
+    background: var(--st-primary-light) !important;
+    color: var(--st-primary) !important;
+}
+.nav-link:not(.active):hover {
+    background: var(--st-border-light) !important;
+}
+
+/* ===== 合同列表（采购管理页）：去斑马黄、弱化悬停色 ===== */
+.contract-item {
+    padding: 7px 12px !important;
+    border-left-width: 3px !important;
+}
+.contract-item:nth-child(even) {
+    background-color: #fafbfc !important;
+}
+.contract-item:hover {
+    background-color: var(--st-primary-light) !important;
+    border-left-color: var(--st-primary) !important;
+}
+.contract-item.selected {
+    background-color: var(--st-primary-tint) !important;
+    border-left-color: var(--st-primary) !important;
+}
+.contract-item-products {
+    background-color: var(--st-border-light) !important;
+    border-left-color: var(--st-primary) !important;
+    border-radius: var(--st-radius);
+}
+.contract-tooltip {
+    border-radius: var(--st-radius-lg) !important;
+    box-shadow: var(--st-shadow-pop) !important;
+}
+
+/* ===== 供应商卡片：去渐变 ===== */
+.supplier-card {
+    border: 1px solid var(--st-border) !important;
+    border-radius: var(--st-radius-lg) !important;
+    box-shadow: var(--st-shadow) !important;
+    background: #fff !important;
+}
+.supplier-card:hover {
+    box-shadow: var(--st-shadow-hover) !important;
+    transform: none !important;
+}
+/* 卡片顶部彩条与圆形图标：渐变改纯色蓝 */
+.supplier-card .from-blue-500,
+.supplier-card .bg-gradient-to-br {
+    background: var(--st-primary) !important;
+    border-radius: var(--st-radius) !important;
+}
+/* 供应商名称浅底：渐变改浅蓝 */
+.supplier-card .from-blue-50 {
+    background: var(--st-primary-tint) !important;
+    border-radius: var(--st-radius) !important;
+}
+
+/* ===== 下拉浮层统一 ===== */
+.dropdown-menu,
+[id$="-dropdown-menu"] {
+    border: 1px solid var(--st-border) !important;
+    border-radius: var(--st-radius-lg) !important;
+    box-shadow: var(--st-shadow-pop) !important;
+}
+
+/* ===== 收支表页：去除跳动美钞/放大动效 ===== */
+.floating-bill,
+.shine-effect,
+.animate-bounce {
+    animation: none !important;
+}
+nav svg[width="80"] {
+    width: 34px !important;
+    height: 34px !important;
+}
+.glass-effect {
+    background-color: #fff !important;
+    backdrop-filter: none !important;
+}
+.transaction-item {
+    padding: 8px 10px !important;
+}
+.category-icon {
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: var(--st-radius) !important;
+    font-size: 13px !important;
+}
+
+/* ===== 普票登记系统页：深色顶栏收敛高度 ===== */
+header div.h-16 {
+    min-height: 40px !important;
+    height: auto !important;
+    padding: 6px 14px !important;
+}
+header .h-16 h1,
+header div.h-16 h1 {
+    font-size: 14px !important;
+}
+header .h-16 svg.w-8,
+header div.h-16 svg {
+    width: 22px !important;
+    height: 22px !important;
+}
+.dropzone {
+    border-radius: var(--st-radius-lg) !important;
+}
+
+/* ===== 包装材料计算器页 ===== */
+.card-hover:hover {
+    box-shadow: var(--st-shadow-hover) !important;
+    transform: none !important;
+}
+
+/* ==========================================================================
+   invoice.html（独立手写 CSS 的发票管理子系统）
+   通过 body.simple-legacy 作用域隔离，不影响其它页面
+   ========================================================================== */
+.simple-legacy {
+    background-color: var(--st-bg) !important;
+    font-size: 12px !important;
+    color: var(--st-ink) !important;
+}
+
+/* 顶栏 */
+.simple-legacy .header {
+    padding: 7px 16px !important;
+    box-shadow: var(--st-shadow) !important;
+    background: #fff !important;
+}
+.simple-legacy .header .title {
+    font-size: 14px !important;
+    letter-spacing: 0 !important;
+    color: var(--st-ink) !important;
+}
+.simple-legacy .header .company-select {
+    padding: 4px 8px !important;
+    font-size: 12px !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: var(--st-radius) !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    color: var(--st-ink) !important;
+}
+.simple-legacy .header .company-select:focus {
+    border-color: var(--st-primary) !important;
+    box-shadow: 0 0 0 2px rgba(26, 86, 219, 0.12) !important;
+}
+.simple-legacy .header .current-company {
+    padding: 3px 8px !important;
+    border-radius: var(--st-radius) !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    background: var(--st-primary) !important;
+    box-shadow: none !important;
+    animation: none !important;
+}
+
+/* 按钮：扁平、无位移 */
+.simple-legacy button {
+    padding: 4px 10px !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: var(--st-radius) !important;
+    background: #fff !important;
+    color: var(--st-ink-secondary) !important;
+    box-shadow: none !important;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s !important;
+}
+.simple-legacy button:hover {
+    background: var(--st-border-light) !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+.simple-legacy .backup-btn,
+.simple-legacy .btn-primary {
+    background: var(--st-primary) !important;
+    border-color: var(--st-primary) !important;
+    color: #fff !important;
+}
+.simple-legacy .backup-btn:hover,
+.simple-legacy .btn-primary:hover {
+    background: var(--st-primary-hover) !important;
+    border-color: var(--st-primary-hover) !important;
+    color: #fff !important;
+}
+.simple-legacy .btn-primary.btn-add {
+    background: var(--st-success) !important;
+    border-color: var(--st-success) !important;
+    color: #fff !important;
+}
+.simple-legacy .btn-primary.btn-add:hover {
+    background: #15803d !important;
+    border-color: #15803d !important;
+}
+.simple-legacy .btn-danger {
+    background: var(--st-danger) !important;
+    border-color: var(--st-danger) !important;
+    color: #fff !important;
+}
+.simple-legacy .btn-danger:hover {
+    background: #b91c1c !important;
+    border-color: #b91c1c !important;
+}
+.simple-legacy .restore-btn {
+    background: var(--st-warning) !important;
+    border-color: var(--st-warning) !important;
+    color: #fff !important;
+}
+.simple-legacy .restore-btn:hover {
+    background: #b96b2b !important;
+    border-color: #b96b2b !important;
+}
+.simple-legacy .dropdown-btn {
+    background: #fff !important;
+    border-color: #d1d5db !important;
+    color: var(--st-ink-secondary) !important;
+}
+.simple-legacy .dropdown-btn:hover {
+    background: var(--st-border-light) !important;
+}
+.simple-legacy .edit-btn {
+    background: transparent !important;
+    border-color: transparent !important;
+    color: var(--st-primary) !important;
+}
+.simple-legacy .edit-btn:hover {
+    background: var(--st-primary-light) !important;
+    transform: none !important;
+}
+.simple-legacy .delete-btn {
+    background: transparent !important;
+    border-color: transparent !important;
+    color: var(--st-danger) !important;
+}
+.simple-legacy .delete-btn:hover {
+    background: #fef2f2 !important;
+    transform: none !important;
+}
+
+/* 数据管理下拉 */
+.simple-legacy .dropdown-content {
+    border: 1px solid var(--st-border) !important;
+    border-radius: var(--st-radius-lg) !important;
+    box-shadow: var(--st-shadow-pop) !important;
+    overflow: hidden;
+}
+.simple-legacy .dropdown-item {
+    padding: 7px 12px !important;
+    font-size: 12px !important;
+    font-weight: 400 !important;
+}
+.simple-legacy .dropdown-item:hover {
+    background: var(--st-border-light) !important;
+}
+
+/* 左侧导航：深色改白底 */
+.simple-legacy .sidebar {
+    width: 170px !important;
+    background: #fff !important;
+    border-right: 1px solid var(--st-border) !important;
+    padding: 10px !important;
+}
+.simple-legacy .sidebar .nav-item {
+    padding: 7px 12px !important;
+    margin-bottom: 2px !important;
+    background: transparent !important;
+    color: var(--st-ink-secondary) !important;
+    border-radius: var(--st-radius) !important;
+    border-left: 3px solid transparent !important;
+    font-size: 12px !important;
+}
+.simple-legacy .sidebar .nav-item:hover {
+    background: var(--st-border-light) !important;
+    color: var(--st-primary) !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+.simple-legacy .sidebar .nav-item.active {
+    background: var(--st-primary-light) !important;
+    color: var(--st-primary) !important;
+    border-left-color: var(--st-primary) !important;
+    font-weight: 600;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* 布局容器 */
+.simple-legacy .container {
+    margin: 0 12px !important;
+    border: 1px solid var(--st-border) !important;
+    border-radius: var(--st-radius-lg) !important;
+    background: #fff !important;
+    box-shadow: var(--st-shadow) !important;
+    animation: none !important;
+}
+.simple-legacy .main-content { padding: 14px !important; }
+.simple-legacy .page { animation: none !important; }
+.simple-legacy .page-title {
+    font-size: 15px !important;
+    margin-bottom: 12px !important;
+}
+.simple-legacy .search-area,
+.simple-legacy .table-container,
+.simple-legacy .notepad-container {
+    padding: 12px !important;
+    border: 1px solid var(--st-border) !important;
+    border-radius: var(--st-radius-lg) !important;
+    box-shadow: var(--st-shadow) !important;
+}
+.simple-legacy .notepad-container:hover {
+    box-shadow: var(--st-shadow-hover) !important;
+}
+
+/* 表格 */
+.simple-legacy table th,
+.simple-legacy table td {
+    padding: 4px 8px !important;
+    font-size: 12px !important;
+    border-bottom: 1px solid var(--st-border-light) !important;
+}
+.simple-legacy table th {
+    background: #f9fafb !important;
+    color: var(--st-ink-secondary) !important;
+    font-weight: 600 !important;
+}
+.simple-legacy table tr:hover {
+    background: #f0f5ff !important;
+}
+
+/* 输入控件：细边框、小圆角 */
+.simple-legacy input,
+.simple-legacy select,
+.simple-legacy textarea,
+.simple-legacy form input,
+.simple-legacy form select,
+.simple-legacy #notepadContent {
+    padding: 5px 8px !important;
+    font-size: 12px !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: var(--st-radius) !important;
+    background: #fff !important;
+    color: var(--st-ink) !important;
+    box-shadow: none !important;
+}
+.simple-legacy input:hover,
+.simple-legacy select:hover,
+.simple-legacy textarea:hover {
+    background: #fff !important;
+    border-color: #b6c0cc !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+.simple-legacy input:focus,
+.simple-legacy select:focus,
+.simple-legacy textarea:focus,
+.simple-legacy #notepadContent:focus {
+    outline: none !important;
+    border-color: var(--st-primary) !important;
+    background: #fff !important;
+    box-shadow: 0 0 0 2px rgba(26, 86, 219, 0.12) !important;
+}
+.simple-legacy form label {
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    margin-bottom: 3px !important;
+}
+
+/* 模态框 */
+.simple-legacy .modal-content {
+    padding: 16px !important;
+    border-radius: var(--st-radius-lg) !important;
+    box-shadow: var(--st-shadow-pop) !important;
+    backdrop-filter: none !important;
+}
+.simple-legacy .modal-content:hover {
+    transform: none !important;
+    box-shadow: var(--st-shadow-pop) !important;
+}
+.simple-legacy .modal-content h3 {
+    font-size: 14px !important;
+    margin-bottom: 12px !important;
+    text-shadow: none !important;
+    letter-spacing: 0 !important;
+    text-align: left !important;
+}
+
+/* 状态/税差徽章 */
+.simple-legacy .status-badge {
+    box-shadow: none !important;
+    font-weight: 500 !important;
+}
+.simple-legacy .status-badge:hover { transform: none !important; }
+.simple-legacy .tax-positive,
+.simple-legacy .tax-negative {
+    padding: 2px 8px !important;
+    border-radius: var(--st-radius) !important;
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    box-shadow: none !important;
+}
+.simple-legacy .statistics {
+    font-size: 12px !important;
+    border-radius: var(--st-radius) !important;
+    background: var(--st-border-light) !important;
+    padding: 5px 10px !important;
+}
+.simple-legacy .pagination button {
+    font-size: 12px !important;
+    padding: 3px 8px !important;
+    border-radius: var(--st-radius) !important;
+}
+.simple-legacy .pagination button.active {
+    background: var(--st-primary) !important;
+}
+.simple-legacy .search-result-item {
+    padding: 7px 10px !important;
+    font-size: 12px !important;
+    border-radius: var(--st-radius);
+}
+.simple-legacy #taxCalcTable th,
+.simple-legacy #taxCalcTable td {
+    padding: 4px 8px !important;
+    line-height: 1.5 !important;
+}
+
+/* ===== 打印场景：主题不干预纸质输出 ===== */
+@media print {
+    .card, .card-shadow, .supplier-card,
+    .simple-legacy .container,
+    .simple-legacy .search-area,
+    .simple-legacy .table-container,
+    .simple-legacy .notepad-container {
+        border: none !important;
+        box-shadow: none !important;
+    }
+}
