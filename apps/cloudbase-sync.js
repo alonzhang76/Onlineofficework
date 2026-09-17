@@ -22,7 +22,7 @@
   'use strict';
 
   // ===== 版本守卫：防止旧版 cloudbase-sync.js 在新版之后重新初始化 =====
-  var SYNC_VERSION = '20260918b';
+  var SYNC_VERSION = '20260918c';
   if (window.__CLOUDBASE_SYNC_VERSION__) {
     console.warn('[CloudbaseSync] 检测到已加载版本 ' + window.__CLOUDBASE_SYNC_VERSION__ +
       '，当前版本 ' + SYNC_VERSION + ' 跳过初始化');
@@ -359,6 +359,8 @@
   // store_key/payload/updated_at 都是 data 内字段。
   // 用 PostgREST jsonb 路径过滤 data->>store_key=like.<APP>__* 只拉当前应用行。
   async function fetchAppRows() {
+    console.warn('[CloudbaseSync] 🔍 fetchAppRows 被调用' +
+      ' paused=' + isCloudWritePaused() + ' importProtected=' + isImportProtected());
     // 导入保护期 / 全局暂停期：不发网络请求，直接返回 null
     if (isImportProtected() || isCloudWritePaused()) {
       console.log('[CloudbaseSync] fetchAppRows 跳过：导入保护期或写入暂停期内');
@@ -453,6 +455,10 @@
   // ===== 拉取全量数据到缓存 =====
   // 处理云端行数据：去重 → LWW → 写入缓存。供 loadAllFromCloud 和 refreshFromCloud 共用。
   function processCloudRows(rows) {
+    // === 诊断日志：processCloudRows 被调用 ===
+    console.warn('[CloudbaseSync] 🔍 processCloudRows 被调用, rows=' + (rows ? rows.length : 0) +
+      ' paused=' + isCloudWritePaused() + ' importProtected=' + isImportProtected() +
+      ' version=' + (window.__CLOUDBASE_SYNC_VERSION__ || 'unknown'));
     // 全局写入暂停：任何本地写入后 30 秒内 / 导入后 10 分钟内，
     // 完全拒绝云端→本地覆盖（包括 cache 和 localStorage）
     if (isCloudWritePaused()) {
@@ -575,6 +581,8 @@
 
   async function loadAllFromCloud() {
     if (!sb) return false;
+    console.warn('[CloudbaseSync] 🔍 loadAllFromCloud 被调用' +
+      ' paused=' + isCloudWritePaused() + ' importProtected=' + isImportProtected());
     // 导入保护期 / 全局暂停期：完全不拉取云端数据，避免网络返回后覆盖本地
     if (isImportProtected() || isCloudWritePaused()) {
       console.log('[CloudbaseSync] loadAllFromCloud 跳过：导入保护期或写入暂停期内，不拉取云端');
@@ -1154,6 +1162,16 @@
         }
 
         if (isChanged) {
+          // === 诊断日志：追踪云端覆盖 ===
+          try {
+            var _valPreview = JSON.stringify(newVal);
+            if (_valPreview && _valPreview.length > 80) _valPreview = _valPreview.substring(0, 80) + '...';
+            console.warn('[CloudbaseSync] ⚠️ 云端覆盖本地 key=' + origKey +
+              ' cloudTs=' + cloudTs + ' localTs=' + localTs +
+              ' paused=' + isCloudWritePaused() + ' importProtected=' + isImportProtected() +
+              ' val=' + _valPreview);
+            console.trace('[CloudbaseSync] 覆盖调用栈');
+          } catch (e) {}
           cache[origKey] = newVal;
           cacheTs[origKey] = row.updated_at;
           var raw = typeof newVal === 'string' ? newVal : JSON.stringify(newVal);
