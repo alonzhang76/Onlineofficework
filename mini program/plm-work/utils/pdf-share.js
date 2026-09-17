@@ -88,7 +88,12 @@ function generateAndShare(renderFn, data, fileName, orientation, done) {
       done && done(false);
       return;
     }
-    images.push({ data: imgData, width: p.width, height: p.height });
+    // PDF 图像对象的宽高必须是 JPEG 的真实物理像素（2x），与排版用逻辑尺寸区分
+    images.push({
+      data: imgData,
+      width: p.pixelWidth || p.width,
+      height: p.pixelHeight || p.height
+    });
   }
 
   // 构造 PDF

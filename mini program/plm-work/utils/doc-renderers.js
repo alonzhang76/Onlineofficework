@@ -23,12 +23,12 @@ function renderProductionNotice(data) {
   var rightW = 420;
 
   // 左侧公司
-  cv.drawText({ ctx: ctx, text: '普利美', x: margin, y: margin, size: 22, weight: 'bold', color: '#1a56db' });
-  cv.drawText({ ctx: ctx, text: '生产通知单', x: margin + 80, y: margin, size: 22, weight: 'bold', color: '#1a56db' });
-  cv.drawText({ ctx: ctx, text: 'PRODUCTION ORDER', x: margin + 80, y: margin + 26, size: 10, color: '#999999' });
-  cv.drawText({ ctx: ctx, text: '公司名称：普利美（常州）环境工程科技有限公司', x: margin, y: margin + 52, size: 10, color: '#666666' });
-  cv.drawText({ ctx: ctx, text: '地址：常州市武进区雪堰镇周南路8号6-1（中南高科常州雪堰智造产业园）', x: margin, y: margin + 68, size: 10, color: '#666666' });
-  cv.drawText({ ctx: ctx, text: '电话：139 5158 9291', x: margin, y: margin + 84, size: 10, color: '#666666' });
+  cv.drawText({ ctx: ctx, text: '普利美', x: margin, y: margin, size: 22, weight: 'bold', color: '#000000' });
+  cv.drawText({ ctx: ctx, text: '生产通知单', x: margin + 80, y: margin, size: 22, weight: 'bold', color: '#000000' });
+  cv.drawText({ ctx: ctx, text: 'PRODUCTION ORDER', x: margin + 80, y: margin + 26, size: 10, color: '#000000' });
+  cv.drawText({ ctx: ctx, text: '公司名称：普利美（常州）环境工程科技有限公司', x: margin, y: margin + 52, size: 10, color: '#000000' });
+  cv.drawText({ ctx: ctx, text: '地址：常州市武进区雪堰镇周南路8号6-1（中南高科常州雪堰智造产业园）', x: margin, y: margin + 68, size: 10, color: '#000000' });
+  cv.drawText({ ctx: ctx, text: '电话：139 5158 9291', x: margin, y: margin + 84, size: 10, color: '#000000' });
 
   // 右侧订单信息（2×2 网格）
   var fieldY = margin;
@@ -44,8 +44,8 @@ function renderProductionNotice(data) {
     var col = i % 2, row = Math.floor(i / 2);
     var fx = rightX + col * (colW + 20);
     var fy = fieldY + row * rowH;
-    cv.drawText({ ctx: ctx, text: fields[i].label, x: fx, y: fy, size: 9, color: '#999999' });
-    cv.drawText({ ctx: ctx, text: fields[i].value, x: fx, y: fy + 14, size: 12, color: '#333333', weight: 'bold' });
+    cv.drawText({ ctx: ctx, text: fields[i].label, x: fx, y: fy, size: 9, color: '#000000' });
+    cv.drawText({ ctx: ctx, text: fields[i].value, x: fx, y: fy + 14, size: 12, color: '#000000', weight: 'bold' });
   }
 
   // --- 交货期提醒 ---
@@ -57,12 +57,12 @@ function renderProductionNotice(data) {
     if (days >= 0 && days <= 7) {
       cv.fillRect(ctx, margin, alertY, W - margin * 2, 36, '#fffbeb');
       cv.drawRect(ctx, margin, alertY, W - margin * 2, 36, '#fde68a', 1);
-      cv.drawText({ ctx: ctx, text: '⚠ 交货期提醒：距离交货期还有' + days + '天，请确保按时完成生产。', x: margin + 8, y: alertY + 10, size: 11, color: '#92400e' });
+      cv.drawText({ ctx: ctx, text: '⚠ 交货期提醒：距离交货期还有' + days + '天，请确保按时完成生产。', x: margin + 8, y: alertY + 10, size: 11, color: '#000000' });
       alertY += 44;
     } else if (days < 0) {
       cv.fillRect(ctx, margin, alertY, W - margin * 2, 36, '#fef2f2');
       cv.drawRect(ctx, margin, alertY, W - margin * 2, 36, '#fecaca', 1);
-      cv.drawText({ ctx: ctx, text: '⚠ 交货期已过' + (-days) + '天，请尽快安排生产。', x: margin + 8, y: alertY + 10, size: 11, color: '#991b1b' });
+      cv.drawText({ ctx: ctx, text: '⚠ 交货期已过' + (-days) + '天，请尽快安排生产。', x: margin + 8, y: alertY + 10, size: 11, color: '#000000' });
       alertY += 44;
     }
   }
@@ -100,9 +100,9 @@ function renderProductionNotice(data) {
   // --- 备注 ---
   var remarkY = tableBottom + 16;
   if (data.remark) {
-    cv.drawHLine(ctx, margin, remarkY, tableW, '#d1d5db', 1);
-    cv.drawText({ ctx: ctx, text: '备注：', x: margin, y: remarkY + 6, size: 11, weight: 'bold', color: '#555555' });
-    cv.drawTextLines(ctx, data.remark, margin + 44, remarkY + 6, tableW - 44, 16, 11, '#333333');
+    cv.drawHLine(ctx, margin, remarkY, tableW, '#999999', 1);
+    cv.drawText({ ctx: ctx, text: '备注：', x: margin, y: remarkY + 6, size: 11, weight: 'bold', color: '#000000' });
+    cv.drawTextLines(ctx, data.remark, margin + 44, remarkY + 6, tableW - 44, 16, 11, '#000000');
     remarkY += 30;
   }
 
@@ -114,8 +114,8 @@ function renderProductionNotice(data) {
   for (var i = 0; i < 4; i++) {
     var sx = margin + i * signColW;
     cv.drawText({ ctx: ctx, text: signLabels[i], x: sx + signColW / 2, y: signY, size: 11, weight: 'bold', align: 'center' });
-    cv.drawHLine(ctx, sx + 20, signY + 40, signColW - 40, '#d1d5db', 1);
-    cv.drawText({ ctx: ctx, text: signValues[i], x: sx + signColW / 2, y: signY + 44, size: 9, color: '#999999', align: 'center' });
+    cv.drawHLine(ctx, sx + 20, signY + 40, signColW - 40, '#999999', 1);
+    cv.drawText({ ctx: ctx, text: signValues[i], x: sx + signColW / 2, y: signY + 44, size: 9, color: '#000000', align: 'center' });
   }
 
   return page;
@@ -133,8 +133,8 @@ function renderBoxMark(form, pageNo, totalPages) {
 
   // --- 顶部标题 ---
   cv.drawText({ ctx: ctx, text: 'SHIPPING MARKS', x: W / 2, y: margin, size: 18, weight: 'bold', align: 'center' });
-  cv.drawText({ ctx: ctx, text: form.company || '', x: W / 2, y: margin + 28, size: 12, color: '#555555', align: 'center' });
-  cv.drawHLine(ctx, margin, margin + 52, W - margin * 2, '#333333', 2);
+  cv.drawText({ ctx: ctx, text: form.company || '', x: W / 2, y: margin + 28, size: 12, color: '#000000', align: 'center' });
+  cv.drawHLine(ctx, margin, margin + 52, W - margin * 2, '#000000', 2);
 
   // --- 信息字段（两列）---
   var fieldY = margin + 72;
@@ -159,8 +159,8 @@ function renderBoxMark(form, pageNo, totalPages) {
     var fx = f.col === 0 ? leftColX : rightColX;
     var fy = fieldY + f.row * rowH;
     if (!f.value && f.value !== 0 && f.label !== 'Package No.') continue;
-    cv.drawText({ ctx: ctx, text: f.label + ':', x: fx, y: fy, size: 10, color: '#888888' });
-    cv.drawText({ ctx: ctx, text: String(f.value), x: fx + 100, y: fy, size: 12, color: '#333333', weight: 'bold' });
+    cv.drawText({ ctx: ctx, text: f.label + ':', x: fx, y: fy, size: 10, color: '#000000' });
+    cv.drawText({ ctx: ctx, text: String(f.value), x: fx + 100, y: fy, size: 12, color: '#000000', weight: 'bold' });
   }
 
   // --- 二维码（扫描后显示所有字段内容）---
@@ -187,15 +187,15 @@ function renderBoxMark(form, pageNo, totalPages) {
   } catch (e) {
     // 二维码生成失败时绘制占位框
     cv.drawRect(ctx, qrX, qrY, qrSize, qrSize, '#cccccc', 1);
-    cv.drawText({ ctx: ctx, text: 'QR Code', x: qrX + qrSize / 2, y: qrY + qrSize / 2 - 6, size: 12, color: '#999999', align: 'center' });
+    cv.drawText({ ctx: ctx, text: 'QR Code', x: qrX + qrSize / 2, y: qrY + qrSize / 2 - 6, size: 12, color: '#000000', align: 'center' });
   }
 
   // --- Remarks（仅最后一箱显示）---
   if (pageNo === totalPages && form.remark) {
     var remarkY = qrY + qrSize + 24;
-    cv.drawHLine(ctx, margin, remarkY, W - margin * 2, '#d1d5db', 1);
-    cv.drawText({ ctx: ctx, text: 'Remarks:', x: margin, y: remarkY + 6, size: 11, weight: 'bold', color: '#555555' });
-    cv.drawTextLines(ctx, form.remark, margin + 60, remarkY + 6, W - margin * 2 - 60, 16, 11, '#333333');
+    cv.drawHLine(ctx, margin, remarkY, W - margin * 2, '#999999', 1);
+    cv.drawText({ ctx: ctx, text: 'Remarks:', x: margin, y: remarkY + 6, size: 11, weight: 'bold', color: '#000000' });
+    cv.drawTextLines(ctx, form.remark, margin + 60, remarkY + 6, W - margin * 2 - 60, 16, 11, '#000000');
   }
 
   return page;
@@ -213,19 +213,19 @@ function renderInvoice(doc) {
 
   // 标题
   cv.drawText({ ctx: ctx, text: 'COMMERCIAL INVOICE', x: W / 2, y: margin, size: 20, weight: 'bold', align: 'center' });
-  cv.drawText({ ctx: ctx, text: '商业发票', x: W / 2, y: margin + 28, size: 14, color: '#555555', align: 'center' });
+  cv.drawText({ ctx: ctx, text: '商业发票', x: W / 2, y: margin + 28, size: 14, color: '#000000', align: 'center' });
 
   // 发票号/日期
   var infoY = margin + 60;
-  cv.drawText({ ctx: ctx, text: 'Invoice No.: ' + (doc.invoiceNo || ''), x: margin, y: infoY, size: 11, color: '#333333' });
-  cv.drawText({ ctx: ctx, text: 'Date: ' + (doc.invoiceDate || fmt.today()), x: W - margin - 200, y: infoY, size: 11, color: '#333333' });
+  cv.drawText({ ctx: ctx, text: 'Invoice No.: ' + (doc.invoiceNo || ''), x: margin, y: infoY, size: 11, color: '#000000' });
+  cv.drawText({ ctx: ctx, text: 'Date: ' + (doc.invoiceDate || fmt.today()), x: W - margin - 200, y: infoY, size: 11, color: '#000000' });
 
   // 卖方/买方
   var partyY = infoY + 30;
   cv.drawText({ ctx: ctx, text: 'Seller:', x: margin, y: partyY, size: 11, weight: 'bold' });
-  cv.drawTextLines(ctx, doc.seller || '', margin + 50, partyY, W / 2 - margin - 50, 14, 10, '#555555');
+  cv.drawTextLines(ctx, doc.seller || '', margin + 50, partyY, W / 2 - margin - 50, 14, 10, '#000000');
   cv.drawText({ ctx: ctx, text: 'Buyer:', x: W / 2, y: partyY, size: 11, weight: 'bold' });
-  cv.drawTextLines(ctx, doc.buyer || '', W / 2 + 50, partyY, W / 2 - margin - 50, 14, 10, '#555555');
+  cv.drawTextLines(ctx, doc.buyer || '', W / 2 + 50, partyY, W / 2 - margin - 50, 14, 10, '#000000');
 
   // 贸易条款
   var termsY = partyY + 70;
@@ -238,7 +238,7 @@ function renderInvoice(doc) {
   for (var i = 0; i < termsFields.length; i++) {
     var tx = margin + (i % 2) * (W / 2 - margin);
     var ty = termsY + Math.floor(i / 2) * 28;
-    cv.drawText({ ctx: ctx, text: termsFields[i].label + ': ' + termsFields[i].value, x: tx, y: ty, size: 10, color: '#555555' });
+    cv.drawText({ ctx: ctx, text: termsFields[i].label + ': ' + termsFields[i].value, x: tx, y: ty, size: 10, color: '#000000' });
   }
 
   // 装箱明细表
@@ -270,7 +270,7 @@ function renderInvoice(doc) {
   // 签字
   var signY = H - margin - 60;
   cv.drawText({ ctx: ctx, text: 'Signature:', x: margin, y: signY, size: 11, weight: 'bold' });
-  cv.drawHLine(ctx, margin + 70, signY + 24, 200, '#999999', 1);
+  cv.drawHLine(ctx, margin + 70, signY + 24, 200, '#000000', 1);
 
   return page;
 }
@@ -285,7 +285,7 @@ function renderPackingList(doc) {
   var margin = 48;
 
   cv.drawText({ ctx: ctx, text: 'PACKING LIST', x: W / 2, y: margin, size: 20, weight: 'bold', align: 'center' });
-  cv.drawText({ ctx: ctx, text: '装箱单', x: W / 2, y: margin + 28, size: 14, color: '#555555', align: 'center' });
+  cv.drawText({ ctx: ctx, text: '装箱单', x: W / 2, y: margin + 28, size: 14, color: '#000000', align: 'center' });
 
   var infoY = margin + 60;
   cv.drawText({ ctx: ctx, text: 'Invoice No.: ' + (doc.invoiceNo || ''), x: margin, y: infoY, size: 11 });
@@ -294,9 +294,9 @@ function renderPackingList(doc) {
   // 买卖方
   var partyY = infoY + 30;
   cv.drawText({ ctx: ctx, text: 'Shipper:', x: margin, y: partyY, size: 11, weight: 'bold' });
-  cv.drawTextLines(ctx, doc.seller || '', margin + 60, partyY, W / 2 - margin - 60, 14, 10, '#555555');
+  cv.drawTextLines(ctx, doc.seller || '', margin + 60, partyY, W / 2 - margin - 60, 14, 10, '#000000');
   cv.drawText({ ctx: ctx, text: 'Consignee:', x: W / 2, y: partyY, size: 11, weight: 'bold' });
-  cv.drawTextLines(ctx, doc.buyer || '', W / 2 + 60, partyY, W / 2 - margin - 60, 14, 10, '#555555');
+  cv.drawTextLines(ctx, doc.buyer || '', W / 2 + 60, partyY, W / 2 - margin - 60, 14, 10, '#000000');
 
   // 明细表
   var tableY = partyY + 70;
@@ -331,7 +331,7 @@ function renderPackingList(doc) {
   // 签字
   var signY = H - margin - 60;
   cv.drawText({ ctx: ctx, text: 'Signature:', x: margin, y: signY, size: 11, weight: 'bold' });
-  cv.drawHLine(ctx, margin + 70, signY + 24, 200, '#999999', 1);
+  cv.drawHLine(ctx, margin + 70, signY + 24, 200, '#000000', 1);
 
   return page;
 }
@@ -346,7 +346,7 @@ function renderCustoms(doc) {
   var margin = 48;
 
   cv.drawText({ ctx: ctx, text: 'CUSTOMS DECLARATION', x: W / 2, y: margin, size: 18, weight: 'bold', align: 'center' });
-  cv.drawText({ ctx: ctx, text: '报关明细', x: W / 2, y: margin + 26, size: 14, color: '#555555', align: 'center' });
+  cv.drawText({ ctx: ctx, text: '报关明细', x: W / 2, y: margin + 26, size: 14, color: '#000000', align: 'center' });
 
   var infoY = margin + 56;
   var infoFields = [
@@ -363,15 +363,15 @@ function renderCustoms(doc) {
     var col = i % 2, row = Math.floor(i / 2);
     var fx = margin + col * (W / 2 - margin);
     var fy = infoY + row * 26;
-    cv.drawText({ ctx: ctx, text: infoFields[i].label + ': ' + infoFields[i].value, x: fx, y: fy, size: 10, color: '#555555' });
+    cv.drawText({ ctx: ctx, text: infoFields[i].label + ': ' + infoFields[i].value, x: fx, y: fy, size: 10, color: '#000000' });
   }
 
   // 发货人/收货人
   var partyY = infoY + 4 * 26 + 10;
   cv.drawText({ ctx: ctx, text: '发货人:', x: margin, y: partyY, size: 10, weight: 'bold' });
-  cv.drawTextLines(ctx, doc.shipper || '', margin + 55, partyY, W / 2 - margin - 55, 14, 10, '#555555');
+  cv.drawTextLines(ctx, doc.shipper || '', margin + 55, partyY, W / 2 - margin - 55, 14, 10, '#000000');
   cv.drawText({ ctx: ctx, text: '收货人:', x: W / 2, y: partyY, size: 10, weight: 'bold' });
-  cv.drawTextLines(ctx, doc.consignee || '', W / 2 + 55, partyY, W / 2 - margin - 55, 14, 10, '#555555');
+  cv.drawTextLines(ctx, doc.consignee || '', W / 2 + 55, partyY, W / 2 - margin - 55, 14, 10, '#000000');
 
   // 明细表
   var tableY = partyY + 70;
@@ -401,7 +401,7 @@ function renderCustoms(doc) {
   // 唛头
   var markY = H - margin - 80;
   cv.drawText({ ctx: ctx, text: 'Marks & Numbers:', x: margin, y: markY, size: 10, weight: 'bold' });
-  cv.drawTextLines(ctx, doc.marks || '', margin, markY + 18, W - margin * 2, 14, 10, '#555555');
+  cv.drawTextLines(ctx, doc.marks || '', margin, markY + 18, W - margin * 2, 14, 10, '#000000');
 
   return page;
 }

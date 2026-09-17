@@ -25,7 +25,15 @@ function createPage(orientation) {
   // 白色背景
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, size.w, size.h);
-  return { canvas: canvas, ctx: ctx, width: actualW, height: actualH };
+  // width/height 为逻辑（绘图坐标）尺寸，pixelWidth/pixelHeight 为画布物理像素尺寸
+  return {
+    canvas: canvas,
+    ctx: ctx,
+    width: size.w,
+    height: size.h,
+    pixelWidth: actualW,
+    pixelHeight: actualH
+  };
 }
 
 /**
@@ -37,7 +45,7 @@ function drawText(opts) {
   var weight = opts.weight || 'normal';
   var size = opts.size || 12;
   ctx.font = weight + ' ' + size + 'px sans-serif';
-  ctx.fillStyle = opts.color || '#333333';
+  ctx.fillStyle = opts.color || '#000000';
   ctx.textAlign = opts.align || 'left';
   ctx.textBaseline = opts.baseline || 'top';
   if (opts.maxWidth) {
@@ -52,7 +60,7 @@ function drawText(opts) {
  */
 function drawTextLines(ctx, text, x, y, maxWidth, lineHeight, size, color) {
   ctx.font = 'normal ' + (size || 12) + 'px sans-serif';
-  ctx.fillStyle = color || '#333333';
+  ctx.fillStyle = color || '#000000';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   var chars = text.split('');
@@ -93,7 +101,7 @@ function drawTable(opts) {
 
   // 表头文字
   ctx.font = 'bold ' + fontSize + 'px sans-serif';
-  ctx.fillStyle = '#333333';
+  ctx.fillStyle = '#000000';
   ctx.textBaseline = 'middle';
   var cx = x;
   for (var i = 0; i < columns.length; i++) {
@@ -116,7 +124,7 @@ function drawTable(opts) {
     }
     cx = x;
     for (var i = 0; i < columns.length; i++) {
-      ctx.fillStyle = '#333333';
+      ctx.fillStyle = '#000000';
       ctx.textAlign = columns[i].align || 'left';
       var tx = cx;
       if (columns[i].align === 'center') tx = cx + columns[i].width / 2;
@@ -129,7 +137,7 @@ function drawTable(opts) {
   }
 
   // 边框
-  ctx.strokeStyle = opts.borderColor || '#cccccc';
+  ctx.strokeStyle = opts.borderColor || '#999999';
   ctx.lineWidth = 0.5;
   // 外框
   ctx.strokeRect(x, y, totalW, headerH + rows.length * rowH);
@@ -181,7 +189,7 @@ function drawQRCode(ctx, matrix, x, y, size) {
  * 绘制矩形边框
  */
 function drawRect(ctx, x, y, w, h, color, lineWidth) {
-  ctx.strokeStyle = color || '#cccccc';
+  ctx.strokeStyle = color || '#999999';
   ctx.lineWidth = lineWidth || 1;
   ctx.strokeRect(x, y, w, h);
 }
@@ -198,7 +206,7 @@ function fillRect(ctx, x, y, w, h, color) {
  * 绘制水平线
  */
 function drawHLine(ctx, x, y, w, color, lineWidth) {
-  ctx.strokeStyle = color || '#cccccc';
+  ctx.strokeStyle = color || '#999999';
   ctx.lineWidth = lineWidth || 1;
   ctx.beginPath();
   ctx.moveTo(x, y);
