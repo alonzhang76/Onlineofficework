@@ -24,9 +24,28 @@
   // ===== 配置 =====
   var APP_ID = window.CLOUDBASE_APP_ID || window.SUPABASE_APP_ID || 'default';
   var TABLE = 'app_data_store';
-  var REFRESH_INTERVAL = 15000; // 15 秒刷新一次（平衡实时性与带宽，避免和上传抢资源）
-  var UPLOAD_DEBOUNCE = 400; // 同一 key 400ms 内多次写入只上传最后一次，避免并发请求堆积
+  var REFRESH_INTERVAL = 15000; // 15 秒刷新一次
+  var UPLOAD_DEBOUNCE = 400; // 同一 key 400ms 内多次写入只上传最后一次
   var SKIP_WRITE_WINDOW = 10000; // 10 秒内自己写入的 key 跳过云端覆盖
+
+  // ===== 全局写入暂停（最可靠的保护机制）=====
+  // 任何本地写入（setItem）后自动暂停云端→本地覆盖 30 秒
+  // 导入 JSON 后暂停 10 分钟
+  // pushAll 成功后自动恢复
+  var _cloudWritePausedUntil = 0;
+
+  function isCloudWritePaused() {
+    return Date.now() < _cloudWritePausedUntil;
+  }
+  function pauseCloudWrites(ms) {
+    var until = Date.now() + ms;
+    if (until > _cloudWritePausedUntil) _cloudWritePausedUntil = until;
+  }
+  function resumeCloudWrites() {
+    _cloudWritePausedUntil = 0;
+  }
+  // 本地写入后自动短时暂停
+  var AUTO_PAUSE_MS = 30000; // 30 秒
 
   // 专用数据同步账号（authenticated 角色）。
   // CloudBase PG 模式中匿名(anon)角色默认只有 SELECT，写操作会被 RLS 拒绝，
@@ -412,6 +431,24 @@
   // ===== 拉取全量数据到缓存 =====
   // 处理云端行数据：去重 → LWW → 写入缓存。供 loadAllFromCloud 和 refreshFromCloud 共用。
   function processCloudRows(rows) {
+    // 全局写入暂停：任何本地写入后 30 秒内 / 导入后 10 分钟内，
+    // 完全拒绝云端→本地覆盖（包括 cache 和 localStorage）
+    if (isCloudWritePaused()) {
+      // 暂停期间：只更新本地 cache 的时间戳，不覆盖数据
+      // 用本地 localStorage 值填充 cache（确保 getItem 读到本地数据）
+      try {
+        for (var pk in _lsInstance) {
+          var origK = unprefixKey(pk);
+          if (origK && cache[origK] === undefined) {
+            var pv = _origGetItem.call(_lsInstance, pk);
+            if (pv !== null && pv !== '') {
+              try { cache[origK] = JSON.parse(pv); } catch (e) { cache[origK] = pv; }
+            }
+          }
+        }
+      } catch (e) {}
+      return 0;
+    }
     // 同一 store_key 可能存在多条重复行（历史 upsert 缺陷遗留），
     // 只认 updated_at 最新的那条，避免旧/空数据抢先入缓存
     var newest = {};
@@ -648,6 +685,12 @@
 
       // 先做本地键名迁移（纯本地操作，不阻塞）
       try { await migrateLocalStorage(); } catch (e) {}
+
+      // 从 sessionStorage 恢复导入保护期（跨 reload 存活）
+      if (isImportProtected()) {
+        pauseCloudWrites(600000); // 恢复 10 分钟暂停
+        console.log('[CloudbaseSync] 检测到导入保护期，暂停云端覆盖');
+      }
 
       // 立即标记 initialized，让页面 getItem 可以用本地数据渲染，
       // 不必等云端加载完成。云端数据后台到达后再触发更新事件。
@@ -952,6 +995,8 @@
   // ===== 从云端刷新（只下载，不写云端） =====
   async function refreshFromCloud() {
     if (!sb || !initialized || cloudLoadDenied) return false;
+    // 全局写入暂停：本地写入/导入后不拉取云端数据
+    if (isCloudWritePaused()) return false;
     // 网络慢冷却期：暂停定时刷新，冷却结束后由下一个定时周期自动恢复（无需人工干预）
     if (_netPauseUntil && Date.now() < _netPauseUntil) return false;
 
@@ -1117,6 +1162,8 @@
       // 本地写入的防覆盖保护由 recentWrites（10s 窗口）+ pendingWrites 承担。
       // cacheTs 只在「从云端加载」或「上传成功」后更新，代表真实云端同步时间。
       recentWrites[key] = Date.now();
+      // 全局自动暂停：任何本地写入后暂停云端→本地覆盖 30 秒
+      pauseCloudWrites(AUTO_PAUSE_MS);
 
       // 自动同步到云端（防抖 + 串行上传，避免并发堆积）。
       // LWW 时序比较 + upsert(store_key) 保证不会用旧数据覆盖云端新数据，
@@ -1278,6 +1325,7 @@
       notifyStatus('idle');
       // 手动上传成功 → 清除导入保护期，恢复正常云端同步
       clearImportProtection();
+      resumeCloudWrites(); // 上传成功后恢复云端同步
       return { ok: true, uploaded: okCount, failed: 0 };
     }
     notifyStatus('error');
@@ -1322,11 +1370,16 @@
       try {
         var until = Date.now() + (ms || 600000); // 默认 10 分钟
         sessionStorage.setItem('__cb_import_protect_until__', String(until));
+        pauseCloudWrites(ms || 600000); // 同时设置全局暂停
         console.log('[CloudbaseSync] 导入保护期已设置，持续至', new Date(until).toLocaleTimeString());
       } catch (e) {}
     },
     clearImportProtection: clearImportProtection,
-    isImportProtected: isImportProtected
+    isImportProtected: isImportProtected,
+    // 全局写入暂停
+    pauseCloudWrites: pauseCloudWrites,
+    resumeCloudWrites: resumeCloudWrites,
+    isCloudWritePaused: isCloudWritePaused
   };
 
   // ===== 启动 =====

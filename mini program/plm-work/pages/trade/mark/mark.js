@@ -8,7 +8,7 @@ const MAX_BOXES = 500;
 function emptyForm() {
   return {
     company: DEFAULT_COMPANY,
-    po: '', artNo: '', maschinenNr: '', lfdEkNr: '', projektNr: '',
+    po: '', artNo: '', maschinenNr: '', projektNr: '',
     qtyPerBox: '', unit: '', totalQty: '', remarks: '', totalBoxes: ''
   };
 }
@@ -20,13 +20,14 @@ Page({
   },
 
   onLoad(query) {
-    // 从订单管理带入：订单号 / 总数量 / 图号（唯一时）
+    // 从订单管理带入：PO=订单号 / 公司=客户名 / 总数量 / 图号（唯一时）
     if (query && query.orderNo) {
       const orderNo = decodeURIComponent(query.orderNo);
       const g = db.groupOrdersByNo()[orderNo];
       if (g) {
         const form = this.data.form;
-        form.lfdEkNr = orderNo;
+        form.po = orderNo;
+        form.company = g.customer || DEFAULT_COMPANY;
         form.totalQty = String(g.rows.reduce((s, r) => s + db.num(r.quantity), 0) || '');
         const drawings = Array.from(new Set(g.rows.map(r => r.drawingNo).filter(Boolean)));
         if (drawings.length === 1) form.artNo = drawings[0];
@@ -107,7 +108,6 @@ Page({
         po: f.po,
         artNo: f.artNo,
         maschinenNr: f.maschinenNr,
-        lfdEkNr: f.lfdEkNr,
         projektNr: f.projektNr,
         unit: f.unit,
         totalQty: f.totalQty,
@@ -120,7 +120,7 @@ Page({
     pdfShare.generateAndShare(
       function () { return pages; },
       null,
-      '箱唛_' + (f.lfdEkNr || f.po || ''),
+      '箱唛_' + (f.po || ''),
       'portrait',
       null
     );

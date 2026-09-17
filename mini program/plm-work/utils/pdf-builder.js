@@ -27,18 +27,16 @@ function buildPDF(images, options) {
   // 2: Pages
   // 3..(2+3n): 每页三组对象 (Page + Image XObject + Content Stream)
   var n = images.length;
-
-  // 帮助：字符串 → Uint8Array
-  var offsets = []; // byte offset of each object
-  var pos = 0; // current position
+  var totalObjs = 2 + 3 * n;
+  var offsets = new Array(totalObjs + 1);
+  var pos = 0;
 
   function strToBytes(s) {
     var arr = [];
-    for (var i = 0; i < s.length; i++) {
-      var c = s.charCodeAt(i);
+    for (var j = 0; j < s.length; j++) {
+      var c = s.charCodeAt(j);
       if (c < 128) arr.push(c);
       else {
-        // UTF-8 编码
         if (c < 0x800) { arr.push(0xC0 | (c >> 6)); arr.push(0x80 | (c & 0x3F)); }
         else { arr.push(0xE0 | (c >> 12)); arr.push(0x80 | ((c >> 6) & 0x3F)); arr.push(0x80 | (c & 0x3F)); }
       }
@@ -47,24 +45,21 @@ function buildPDF(images, options) {
   }
   function concatBytes(arrays) {
     var total = 0;
-    for (var i = 0; i < arrays.length; i++) total += arrays[i].length;
+    for (var j = 0; j < arrays.length; j++) total += arrays[j].length;
     var result = new Uint8Array(total);
     var offset = 0;
-    for (var i = 0; i < arrays.length; i++) {
-      result.set(arrays[i], offset);
-      offset += arrays[i].length;
+    for (var j = 0; j < arrays.length; j++) {
+      result.set(arrays[j], offset);
+      offset += arrays[j].length;
     }
     return result;
   }
 
-  // 收集所有字节片段
   var chunks = [];
 
   // Header
   chunks.push(strToBytes('%PDF-1.4\n'));
-  // 二进制标记（让工具识别为二进制 PDF）
   chunks.push(new Uint8Array([0x25, 0xE2, 0xE3, 0xCF, 0xD3, 0x0A]));
-
   pos = chunks[0].length + chunks[1].length;
 
   // Object 1: Catalog
@@ -76,43 +71,16 @@ function buildPDF(images, options) {
   // Object 2: Pages
   offsets[2] = pos;
   var kids = [];
-  for (var i = 0; i < n; i++) kids.push((3 + i) + ' 0 R');
+  for (var j = 0; j < n; j++) kids.push((3 + j * 3) + ' 0 R');
   var pagesBody = '2 0 obj\n<< /Type /Pages /Kids [' + kids.join(' ') + '] /Count ' + n + ' >>\nendobj\n';
   chunks.push(strToBytes(pagesBody));
   pos += pagesBody.length;
 
-  // Restructured approach
-  chunks = [];
-  pos = 0;
-
-  // Header
-  var headerBytes = concatBytes([strToBytes('%PDF-1.4\n'), new Uint8Array([0x25, 0xE2, 0xE3, 0xCF, 0xD3, 0x0A])]);
-  chunks.push(headerBytes);
-  pos = headerBytes.length;
-
-  totalObjs = 2 + 3 * n; // Catalog + Pages + n*(Page + Image + ContentStream)
-  offsets = new Array(totalObjs + 1);
-
-  // Object 1: Catalog
-  offsets[1] = pos;
-  catBody = '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n';
-  chunks.push(strToBytes(catBody));
-  pos += catBody.length;
-
-  // Object 2: Pages
-  offsets[2] = pos;
-  kids = [];
-  for (var i = 0; i < n; i++) kids.push((3 + i * 3) + ' 0 R');
-  pagesBody = '2 0 obj\n<< /Type /Pages /Kids [' + kids.join(' ') + '] /Count ' + n + ' >>\nendobj\n';
-  chunks.push(strToBytes(pagesBody));
-  pos += pagesBody.length;
-
   for (var i = 0; i < n; i++) {
-    var pageObjNum = 3 + i * 3;       // Page
-    var imgObjNum = 4 + i * 3;       // Image XObject
-    var contentObjNum = 5 + i * 3;   // Content stream
+    var pageObjNum = 3 + i * 3;
+    var imgObjNum = 4 + i * 3;
+    var contentObjNum = 5 + i * 3;
 
-    // Page object
     offsets[pageObjNum] = pos;
     var pageBody = pageObjNum + ' 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' +
       pageSize.w + ' ' + pageSize.h + '] /Resources << /XObject << /Img' + (i + 1) + ' ' +
@@ -120,7 +88,6 @@ function buildPDF(images, options) {
     chunks.push(strToBytes(pageBody));
     pos += pageBody.length;
 
-    // Image XObject (JPEG)
     offsets[imgObjNum] = pos;
     var img = images[i];
     var imgHeader = imgObjNum + ' 0 obj\n<< /Type /XObject /Subtype /Image /Width ' +
@@ -131,7 +98,6 @@ function buildPDF(images, options) {
     chunks.push(concatBytes([strToBytes(imgHeader), img.data, strToBytes(imgFooter)]));
     pos += imgHeader.length + img.data.length + imgFooter.length;
 
-    // Content stream: draw image to fill entire page
     offsets[contentObjNum] = pos;
     var csText = 'q\n' + pageSize.w + ' 0 0 ' + pageSize.h + ' 0 0 cm\n/Img' + (i + 1) + ' Do\nQ\n';
     var csHeader = contentObjNum + ' 0 obj\n<< /Length ' + csText.length + ' >>\nstream\n';
@@ -150,8 +116,7 @@ function buildPDF(images, options) {
     while (offStr.length < 10) offStr = '0' + offStr;
     xrefLines.push(strToBytes(offStr + ' 00000 n \n'));
   }
-  var xrefBytes = concatBytes(xrefLines);
-  chunks.push(xrefBytes);
+  chunks.push(concatBytes(xrefLines));
 
   // Trailer
   var trailer = 'trailer\n<< /Size ' + (totalObjs + 1) + ' /Root 1 0 R >>\nstartxref\n' + xrefStart + '\n%%EOF';

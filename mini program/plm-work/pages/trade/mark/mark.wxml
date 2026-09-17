@@ -22,15 +22,15 @@
     </view>
     <view class="form-row2">
       <view class="form-item"><text class="f-label">机器号</text><input value="{{form.maschinenNr}}" data-k="maschinenNr" bindinput="onField" placeholder="Maschinennr." /></view>
-      <view class="form-item"><text class="f-label">订单号</text><input value="{{form.lfdEkNr}}" data-k="lfdEkNr" bindinput="onField" placeholder="lfd EK-Nr." /></view>
-    </view>
-    <view class="form-row2">
       <view class="form-item"><text class="f-label">项目号</text><input value="{{form.projektNr}}" data-k="projektNr" bindinput="onField" placeholder="Projekt Nr." /></view>
-      <view class="form-item"><text class="f-label">单位</text><input value="{{form.unit}}" data-k="unit" bindinput="onField" placeholder="PCS / 只…" /></view>
     </view>
     <view class="form-row2">
       <view class="form-item"><text class="f-label">总数量</text><input type="number" value="{{form.totalQty}}" data-k="totalQty" bindinput="onQtyInput" /></view>
       <view class="form-item"><text class="f-label">每箱数量</text><input type="number" value="{{form.qtyPerBox}}" data-k="qtyPerBox" bindinput="onQtyInput" /></view>
+    </view>
+    <view class="form-item">
+      <text class="f-label">单位</text>
+      <input value="{{form.unit}}" data-k="unit" bindinput="onField" placeholder="PCS / 只…" />
     </view>
     <view class="form-item">
       <text class="f-label">总箱数</text>
@@ -60,7 +60,6 @@
       <view class="lb-po" wx:if="{{form.po}}">PO: {{form.po}}</view>
       <view class="lb-line" wx:if="{{form.artNo}}"><text class="lb-k">Art. No.:</text> {{form.artNo}}</view>
       <view class="lb-line" wx:if="{{form.maschinenNr}}"><text class="lb-k">Maschinennr.:</text> {{form.maschinenNr}}</view>
-      <view class="lb-line" wx:if="{{form.lfdEkNr}}"><text class="lb-k">lfd EK-Nr.:</text> {{form.lfdEkNr}}</view>
       <view class="lb-line" wx:if="{{form.projektNr}}"><text class="lb-k">Projekt Nr.:</text> {{form.projektNr}}</view>
       <view class="lb-line"><text class="lb-k">Qty:</text> {{item.qty}}{{form.unit}} (TTL: {{form.totalQty || 0}}{{form.unit}})</view>
       <view class="lb-remarks" wx:if="{{item.last && form.remarks}}"><text class="lb-k">Remarks:</text> {{form.remarks}}</view>

@@ -146,13 +146,12 @@ function renderBoxMark(form, pageNo, totalPages) {
     { label: 'PO No.', value: form.po || '', col: 0, row: 0 },
     { label: 'Art No.', value: form.artNo || '', col: 1, row: 0 },
     { label: 'Maschinennr.', value: form.maschinenNr || '', col: 0, row: 1 },
-    { label: 'lfd EK-Nr.', value: form.lfdEkNr || '', col: 1, row: 1 },
-    { label: 'Projekt Nr.', value: form.projektNr || '', col: 0, row: 2 },
-    { label: 'Package No.', value: pageNo + ' / ' + totalPages, col: 1, row: 2 },
-    { label: '单位', value: form.unit || '', col: 0, row: 3 },
-    { label: '总数量', value: form.totalQty || '', col: 1, row: 3 },
-    { label: '每箱数量', value: form.perBoxQty || '', col: 0, row: 4 },
-    { label: '总箱数', value: form.totalBoxes || '', col: 1, row: 4 }
+    { label: 'Projekt Nr.', value: form.projektNr || '', col: 1, row: 1 },
+    { label: 'Package No.', value: pageNo + ' / ' + totalPages, col: 0, row: 2 },
+    { label: '单位', value: form.unit || '', col: 1, row: 2 },
+    { label: '总数量', value: form.totalQty || '', col: 0, row: 3 },
+    { label: '每箱数量', value: form.perBoxQty || '', col: 1, row: 3 },
+    { label: '总箱数', value: form.totalBoxes || '', col: 0, row: 4 }
   ];
 
   for (var i = 0; i < fields.length; i++) {
@@ -165,16 +164,24 @@ function renderBoxMark(form, pageNo, totalPages) {
     cv.drawText({ ctx: ctx, text: f.value, x: fx + 100, y: fy, size: 12, color: '#333333', weight: 'bold' });
   }
 
-  // --- 二维码 ---
+  // --- 二维码（扫描后显示所有字段内容）---
   var qrSize = 180;
   var qrX = (W - qrSize) / 2;
   var qrY = fieldY + 5 * rowH + 20;
-  var qrText = [
-    'PO:' + (form.po || ''),
-    'Art:' + (form.artNo || ''),
-    'Pkg:' + pageNo + '/' + totalPages,
-    'Qty:' + (form.perBoxQty || '')
-  ].join(' ');
+  var qrLines = [
+    'Company: ' + (form.company || ''),
+    'PO: ' + (form.po || ''),
+    'Art No: ' + (form.artNo || ''),
+    'Maschinennr: ' + (form.maschinenNr || ''),
+    'Projekt Nr: ' + (form.projektNr || ''),
+    'Unit: ' + (form.unit || ''),
+    'Total Qty: ' + (form.totalQty || ''),
+    'Per Box: ' + (form.perBoxQty || ''),
+    'Total Boxes: ' + (form.totalBoxes || ''),
+    'Package No: ' + pageNo + '/' + totalPages
+  ];
+  if (pageNo === totalPages && form.remark) qrLines.push('Remarks: ' + form.remark);
+  var qrText = qrLines.join('\n');
   try {
     var matrix = qr.generateQRMatrix(qrText);
     cv.drawQRCode(ctx, matrix, qrX, qrY, qrSize);
