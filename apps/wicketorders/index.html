@@ -3,8 +3,8 @@
 <head>
     <script src="../auto-scale.js?v=20260917a"></script>
 	<script>window.SUPABASE_APP_ID='wicketorders';</script>
-        <script src="../cloudbase-sync.js?v=20260918g"></script>
-        <script src="../cloudbase-admin.js?v=20260916d"></script>
+        <script src="../cloudbase-sync.js?v=20260918j"></script>
+        <script src="../cloudbase-admin.js?v=20260918c"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>外贸出口管理系统</title>
@@ -3263,7 +3263,8 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            const dateStr = new Date().toISOString().slice(0, 10);
+            const _d = new Date();
+            const dateStr = `${_d.getFullYear()}${String(_d.getMonth()+1).padStart(2,'0')}${String(_d.getDate()).padStart(2,'0')}_${String(_d.getHours()).padStart(2,'0')}${String(_d.getMinutes()).padStart(2,'0')}${String(_d.getSeconds()).padStart(2,'0')}`;
             a.download = `外贸数据备份_${dateStr}.json`;
             document.body.appendChild(a);
             a.click();
@@ -3290,6 +3291,18 @@
                         if (!data.data || !data.backupTime) {
                             throw new Error('无效的备份文件格式');
                         }
+
+                        // 版本对比：备份时间 vs 当前本地最新修改时间
+                        var backupTime = new Date(data.backupTime).getTime();
+                        var localNewest = 0;
+                        try {
+                            var lv = window.CloudbaseSync && window.CloudbaseSync.getLocalVersions ? window.CloudbaseSync.getLocalVersions() : {};
+                            Object.keys(lv).forEach(function(k){ if(lv[k]>localNewest) localNewest=lv[k]; });
+                        } catch(e2) {}
+                        var verHint = backupTime > localNewest ? '\n⚠️ 备份文件比当前数据新' : '\n⚠️ 当前数据比备份文件新';
+                        if (!confirm('确认恢复数据？\n\n备份时间：' + new Date(data.backupTime).toLocaleString() +
+                            '\n当前数据最后修改：' + (localNewest ? new Date(localNewest).toLocaleString() : '未知') + verHint +
+                            '\n\n此操作将覆盖当前数据！')) return;
 
                         // 只恢复备份中实际存在的数据集（条件写入），
                         // 避免导入不含某些数据的备份（如小程序备份）时把网页端独有数据清空

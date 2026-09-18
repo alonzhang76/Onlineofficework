@@ -14,9 +14,9 @@ window.CLOUDBASE_SYNC = { email: 'sync@lori.app', password: 'LoriSync2026!' };
 </script>
 <script type="module" src="js/cloudbase.js?v=20260915l"></script>
 <!-- CloudBase 数据存储层（window.CloudbaseStore / window.SupabaseStore） -->
-<script src="js/cloudbase-store.js?v=20260915l"></script>
+<script src="js/cloudbase-store.js?v=20260918b"></script>
 <!-- 云端数据管理工具（同步 / 清空云端，window.CloudAdmin） -->
-<script src="../cloudbase-admin.js?v=20260916d"></script>
+<script src="../cloudbase-admin.js?v=20260918c"></script>
 <!-- 用户信息展示（不再跳转登录页） -->
 <script src="js/auth-guard.js"></script>
 <!-- 云存储文件中心（共享模块，与 orderschedule / wicketorders 共用同一云端目录） -->
@@ -4605,7 +4605,7 @@ function backupData() {
   const a = document.createElement('a');
   a.href = url;
   const d = new Date();
-  a.download = `工资数据备份_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.json`;
+  a.download = `工资数据备份_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}_${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}${String(d.getSeconds()).padStart(2, '0')}.json`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -4636,7 +4636,7 @@ function backupAsExcel() {
   DB.adjustments.forEach(a => adjData.push([a.employee, a.year, a.month, a.bonus, a.housing]));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(adjData), '补贴设置');
   const d = new Date();
-  XLSX.writeFile(wb, `工资数据备份_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.xlsx`);
+  XLSX.writeFile(wb, `工资数据备份_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}_${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}${String(d.getSeconds()).padStart(2, '0')}.xlsx`);
   UI.toast('Excel备份已导出（5个工作表）');
 }
 
@@ -4650,7 +4650,20 @@ function restoreData(input) {
       const data = JSON.parse(e.target.result);
       if (!data.records || !data.employees) { UI.toast('备份文件格式不正确', 'error'); return; }
       const calCount = (data.calendarEvents || []).length;
-      if (!confirm(`确认恢复数据？\n\n备份时间：${data.exportDate ? new Date(data.exportDate).toLocaleString() : '未知'}\n工资记录：${data.records.length} 条\n员工信息：${data.employees.length} 人\n工序价格：${(data.processes || []).length} 项\n订单信息：${(data.orders || []).length} 条\n补贴设置：${(data.adjustments || []).length} 条\n下拉选项：${data.dropdownOptions ? '有' : '无'}\n日历事件：${calCount} 个\n日历类型：${(data.calendarEventTypes || []).length} 个\n\n此操作将覆盖当前所有数据！`)) { input.value = ''; return; }
+      // 版本对比：备份时间 vs 当前本地最新修改时间
+      var backupTime = data.exportDate ? new Date(data.exportDate).getTime() : 0;
+      var localNewest = 0;
+      try {
+        var lv = window.CloudbaseSync && window.CloudbaseSync.getLocalVersions ? window.CloudbaseSync.getLocalVersions() : {};
+        Object.keys(lv).forEach(function(k){ if(lv[k]>localNewest) localNewest=lv[k]; });
+      } catch(e) {}
+      var verHint = '';
+      if (backupTime && localNewest) {
+        verHint = backupTime > localNewest
+          ? '\n⚠️ 备份文件比当前数据新'
+          : '\n⚠️ 当前数据比备份文件新';
+      }
+      if (!confirm(`确认恢复数据？\n\n备份时间：${data.exportDate ? new Date(data.exportDate).toLocaleString() : '未知'}\n当前数据最后修改：${localNewest ? new Date(localNewest).toLocaleString() : '未知'}${verHint}\n\n工资记录：${data.records.length} 条\n员工信息：${data.employees.length} 人\n工序价格：${(data.processes || []).length} 项\n订单信息：${(data.orders || []).length} 条\n补贴设置：${(data.adjustments || []).length} 条\n下拉选项：${data.dropdownOptions ? '有' : '无'}\n日历事件：${calCount} 个\n日历类型：${(data.calendarEventTypes || []).length} 个\n\n此操作将覆盖当前所有数据！`)) { input.value = ''; return; }
       Object.keys(STORE_KEYS).forEach(k => {
         if (k === 'dropdownOptions') {
           DB[k] = data[k] || DB.dropdownOptions;

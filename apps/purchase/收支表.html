@@ -3,7 +3,7 @@
 <head>
     <script src="../auto-scale.js?v=20260917a"></script>
 	<script>window.SUPABASE_APP_ID='purchase';</script>
-	<script src="../cloudbase-sync.js?v=20260918g"></script>
+	<script src="../cloudbase-sync.js?v=20260918j"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>收支管理系统 - 多公司财务追踪</title>
@@ -2119,7 +2119,8 @@
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `收支表备份_${new Date().toISOString().split('T')[0]}.json`;
+                const _d = new Date();
+                a.download = `收支表备份_${_d.getFullYear()}${String(_d.getMonth()+1).padStart(2,'0')}${String(_d.getDate()).padStart(2,'0')}_${String(_d.getHours()).padStart(2,'0')}${String(_d.getMinutes()).padStart(2,'0')}${String(_d.getSeconds()).padStart(2,'0')}.json`;
                 document.body.appendChild(a);
                 a.click();
                 

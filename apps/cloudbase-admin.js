@@ -163,25 +163,35 @@
 
   // ===== 下载：从云端拉取最新数据到本地（只下载，不上传） =====
   async function pullFromCloud() {
-    var sb = getClient();
-    if (!sb) { toast('同步层未就绪，请稍后重试', 'error'); return; }
     if (_busy) { toast('上一个同步操作还在进行中，请稍候', 'error'); return; }
     _busy = true;
     showProgress('⬇️ 下载云端数据');
     updateProgress(0, 0, '正在连接云端，请稍候…');
 
-    // 路径 1：cloudbase-sync.js（orderschedule / wicketorders）
+    // 路径 1：cloudbase-sync.js（orderschedule / wicketorders / purchase / incomeexpense 等）
     if (window.CloudbaseSync && typeof window.CloudbaseSync.pullAll === 'function') {
       try {
         var r = await window.CloudbaseSync.pullAll();
-        if (r && r.ok) {
-          if (r.changed) {
-            // 有新数据落本地：自动刷新一次，确保页面渲染最新数据
-            finishProgressAndReload('✅ 下载完成，页面即将自动刷新…');
+        if (r && r.ok && r.comparison) {
+          var c = r.comparison;
+          finishProgress(true, '✅ 版本对比完成');
+          var msg = '云端数据对比结果：\n\n';
+          msg += '云端更新：' + c.cloudNewerCount + ' 项\n';
+          msg += '本地更新：' + c.localNewerCount + ' 项\n';
+          msg += '版本相同：' + c.sameCount + ' 项\n';
+
+          if (c.cloudNewerCount === 0) {
+            toast('✅ 本地已是最新数据，无需下载');
+            _busy = false;
+            return;
+          }
+          msg += '\n是否用云端数据覆盖本地？\n（本地更新的数据不会被覆盖）';
+          if (confirm(msg)) {
+            var changed = window.CloudbaseSync.applyCloudRows(c.cloudNewer);
+            toast('✅ 已从云端更新 ' + changed + ' 项数据，页面即将刷新…');
+            setTimeout(function () { location.reload(); }, 800);
           } else {
-            var freshMsg = '✅ 已是最新数据';
-            finishProgress(true, freshMsg);
-            toast(freshMsg);
+            toast('已取消下载');
           }
         } else {
           var errMsg = '下载失败：' + (r && r.msg ? r.msg : '未知错误');
@@ -258,12 +268,15 @@
 
   // ===== 上传：把本机所有数据推送到云端（覆盖云端） =====
   async function pushToCloud() {
-    var sb = getClient();
-    if (!sb) { toast('同步层未就绪，请稍后重试', 'error'); return; }
     if (_busy) { toast('上一个同步操作还在进行中，请稍候', 'error'); return; }
 
-    // 二次确认
-    if (!window.confirm('确定要把本机数据上传到云端吗？\n\n云端对应数据将被本机数据覆盖。\n建议先"下载云端数据"备份。')) return;
+    // 二次确认（Excel 保存模式：上传会用本地数据覆盖云端）
+    var vi = (window.CloudbaseSync && typeof window.CloudbaseSync.getVersionInfo === 'function')
+      ? window.CloudbaseSync.getVersionInfo() : null;
+    var verMsg = vi && vi.localNewest
+      ? '\n本地最后修改：' + new Date(vi.localNewest).toLocaleString()
+      : '';
+    if (!window.confirm('确定要把本机数据上传到云端吗？\n\n云端对应数据将被本机数据覆盖。\n建议先"下载云端数据"备份。' + verMsg)) return;
 
     _busy = true;
     showProgress('⏫ 上传本机数据到云端');
@@ -381,8 +394,7 @@
 
   // ===== 彻底清空云端数据 =====
   async function clearCloudData() {
-    var sb = getClient();
-    if (!sb) { toast('同步层未就绪，无法清空', 'error'); return; }
+    // 兼容层改为懒加载：此处不再拦截，doClear 内会 await ensureClient()
 
     showPasswordModal('🗑️ 彻底清空云端数据', '确认清空', function () {
       toast('⏳ 正在清空云端数据...');
@@ -390,6 +402,12 @@
     });
 
     async function doClear() {
+      // 懒加载：确保云端兼容层已就绪（CloudbaseGetAccessToken 依赖它）
+      try {
+        if (window.CloudbaseSync && typeof window.CloudbaseSync.ensureClient === 'function') {
+          await window.CloudbaseSync.ensureClient();
+        }
+      } catch (e) {}
       // 0. 立刻停掉本页同步层的在途自动上传，避免删除间隙把数据又 upsert 回去。
       //    purchase 数据键多、编辑频繁，在途上传是"清空后数据复活"的主要原因之一。
       try {
@@ -559,6 +577,120 @@
     syncNow: syncNow,           // 兼容旧调用名（= pullFromCloud）
     clearCloudData: clearCloudData
   };
+
+  // ===== 本地 / 云端记录条数浮动徽标 =====
+  // 固定在右下角，显示「本地 N · 云端 M」；一致绿色、不一致琥珀色、云端未加载灰色。
+  // 点击展开每个数据集的明细，方便对比后决定上传/下载。
+  var KEY_LABELS = {
+    orderRecords: '订单记录', paymentRecords: '收汇记录',
+    wage_records: '工资记录', wage_employees: '员工', wage_processes: '工序',
+    wage_orders: '订单', wage_adjustments: '补贴', wage_calendar_events: '日历事件',
+    transactions: '收支流水', currentCompany: '当前公司', currentCompany_statement: '对账单',
+    memo: '备忘录', calendarNotes: '日历备注', memos: '备忘录'
+  };
+  function keyLabel(k) {
+    if (KEY_LABELS[k]) return KEY_LABELS[k];
+    return String(k).replace(/^(orderschedule|wicketorders|wage|purchase|incomeexpense|stainlessbusiness|saintysys)_+/, '');
+  }
+  function getCounts() {
+    try {
+      if (window.CloudbaseSync && typeof window.CloudbaseSync.getRecordCounts === 'function') {
+        return window.CloudbaseSync.getRecordCounts();
+      }
+      if (window.CloudbaseStore && typeof window.CloudbaseStore.getRecordCounts === 'function') {
+        return window.CloudbaseStore.getRecordCounts();
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  var _cntPill = null, _cntPanel = null, _cntOpen = false;
+  function ensureCountWidget() {
+    if (_cntPill && _cntPill.parentNode) return;
+    if (!document.body) return;
+    var pill = document.createElement('div');
+    pill.id = 'cloudCountPill';
+    pill.style.cssText = 'position:fixed;right:10px;bottom:10px;z-index:99990;display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;font-size:12px;font-family:-apple-system,system-ui,"Microsoft YaHei",sans-serif;color:#fff;background:rgba(156,163,175,.95);box-shadow:0 2px 10px rgba(0,0,0,.25);cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;font-variant-numeric:tabular-nums;';
+    pill.innerHTML = '<span id="cloudCountText">本地 … · 云端 …</span><span id="cloudCountCaret" style="font-size:10px;opacity:.85;">▾</span>';
+    pill.addEventListener('click', function (e) { e.stopPropagation(); toggleCountPanel(); });
+    document.body.appendChild(pill);
+    _cntPill = pill;
+
+    var panel = document.createElement('div');
+    panel.id = 'cloudCountPanel';
+    panel.style.cssText = 'position:fixed;right:10px;bottom:46px;z-index:99990;display:none;max-width:300px;max-height:60vh;overflow:auto;background:#fff;color:#1f2937;border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.28);font-size:12px;font-family:-apple-system,system-ui,"Microsoft YaHei",sans-serif;padding:8px 0;';
+    document.body.appendChild(panel);
+    _cntPanel = panel;
+
+    document.addEventListener('click', function (e) {
+      if (_cntOpen && _cntPanel && _cntPill &&
+          !_cntPanel.contains(e.target) && !_cntPill.contains(e.target)) {
+        _cntOpen = false;
+        _cntPanel.style.display = 'none';
+      }
+    });
+  }
+
+  function toggleCountPanel() {
+    _cntOpen = !_cntOpen;
+    if (_cntPanel) _cntPanel.style.display = _cntOpen ? 'block' : 'none';
+    renderCounts();
+  }
+
+  function renderCounts() {
+    var c = getCounts();
+    ensureCountWidget();
+    if (!_cntPill || !c) {
+      if (_cntPill) _cntPill.style.display = 'none';
+      return;
+    }
+    _cntPill.style.display = 'flex';
+    var text = document.getElementById('cloudCountText');
+    if (text) {
+      text.textContent = c.cloudLoaded
+        ? ('本地 ' + c.localTotal + ' · 云端 ' + c.cloudTotal)
+        : ('本地 ' + c.localTotal + ' · 云端 …');
+    }
+    // 颜色：云端未加载灰；本地==云端绿；不一致琥珀
+    var bg = 'rgba(156,163,175,.95)';
+    if (c.cloudLoaded) bg = (c.localTotal === c.cloudTotal) ? 'rgba(16,185,129,.95)' : 'rgba(245,158,11,.96)';
+    _cntPill.style.background = bg;
+
+    if (_cntOpen && _cntPanel) {
+      var html = '<div style="padding:2px 14px 8px;color:#6b7280;line-height:1.5;">'
+        + '本应用数据集条数对比。<br>不一致时请用菜单中的「下载/上传云端数据」同步。</div>'
+        + '<table style="width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;">'
+        + '<tr style="color:#9ca3af;"><td style="padding:3px 14px;">数据集</td><td style="padding:3px 6px;text-align:right;">本地</td><td style="padding:3px 14px 3px 6px;text-align:right;">云端</td></tr>';
+      (c.perKey || []).forEach(function (r) {
+        var diff = c.cloudLoaded && r.local !== r.cloud;
+        var color = diff ? '#d97706' : '#374151';
+        html += '<tr>'
+          + '<td style="padding:3px 14px;color:' + color + ';">' + keyLabel(r.key) + '</td>'
+          + '<td style="padding:3px 6px;text-align:right;color:' + color + ';">' + r.local + '</td>'
+          + '<td style="padding:3px 14px 3px 6px;text-align:right;color:' + color + ';">'
+          + (r.cloud === null ? '…' : r.cloud) + '</td></tr>';
+      });
+      html += '<tr style="font-weight:600;border-top:1px solid #e5e7eb;">'
+        + '<td style="padding:6px 14px;">合计</td>'
+        + '<td style="padding:6px 6px;text-align:right;">' + c.localTotal + '</td>'
+        + '<td style="padding:6px 14px 6px 6px;text-align:right;">' + (c.cloudLoaded ? c.cloudTotal : '…') + '</td></tr>';
+      html += '</table>';
+      _cntPanel.innerHTML = html;
+    }
+  }
+
+  function startCountWidget() {
+    ensureCountWidget();
+    renderCounts();
+    // 本地编辑会改变条数，定时刷新；云端数据到达时事件立即刷新
+    setInterval(renderCounts, 2500);
+    try {
+      window.addEventListener('cloud-data-updated', function () { setTimeout(renderCounts, 50); });
+      document.addEventListener('visibilitychange', function () { if (!document.hidden) renderCounts(); });
+    } catch (e) {}
+  }
+  if (document && document.body) startCountWidget();
+  else if (document) document.addEventListener('DOMContentLoaded', startCountWidget);
 
   console.log('[CloudAdmin] 云端数据管理工具已就绪 (密码已配置)');
 })();

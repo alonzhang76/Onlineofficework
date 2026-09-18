@@ -50,6 +50,31 @@ var _recentWrites = {};
 var _initialized = false;
 var _initPromise = null;
 
+// 云端条数快照（独立于可能混入本地值的 _cache），null 表示尚未加载
+var _cloudCounts = null;
+function _countValue(val) {
+  if (val === null || val === undefined) return 0;
+  if (Array.isArray(val)) return val.length;
+  if (typeof val === 'object') { try { return Object.keys(val).length; } catch (e) { return 0; } }
+  return 0;
+}
+// data 为云端返回行数组，按 store_key 去重（取最新）后统计条数
+function _ingestCloudCounts(data) {
+  var newest = {};
+  try {
+    (data || []).forEach(function (row) {
+      if (!row || !row.store_key) return;
+      var prev = newest[row.store_key];
+      if (!prev || new Date(row.updated_at).getTime() > new Date(prev.updated_at).getTime()) {
+        newest[row.store_key] = row;
+      }
+    });
+  } catch (e) { return; }
+  var counts = {};
+  Object.keys(newest).forEach(function (k) { counts[k] = _countValue(newest[k].payload); });
+  _cloudCounts = counts;
+}
+
 // 防抖：同一 key 400ms 内多次写入只上传最后一次
 var _debounceTimers = {};
 var UPLOAD_DEBOUNCE = 400;
@@ -110,6 +135,7 @@ var CloudbaseStore = {
               _cacheTimestamps[row.store_key] = row.updated_at || '';
             }
           });
+          _ingestCloudCounts(data);
         }
 
         // 迁移 localStorage 数据
@@ -171,6 +197,29 @@ var CloudbaseStore = {
   async migrateFromLocalStorage() { return migrateFromLocalStorage(); },
 
   refreshFromCloud: function () { return refreshFromCloud(); },
+
+  // 本地/云端记录条数（供页面徽标显示）
+  getRecordCounts: function () {
+    var perKey = [];
+    var localTotal = 0, cloudTotal = 0;
+    WAGE_KEYS.forEach(function (key) {
+      var lc = 0, cc = _cloudCounts ? (_cloudCounts[key] || 0) : null;
+      try {
+        var raw = localStorage.getItem(key);
+        if (raw) lc = _countValue(JSON.parse(raw));
+      } catch (e) {}
+      localTotal += lc;
+      if (cc !== null) cloudTotal += cc;
+      perKey.push({ key: key, local: lc, cloud: cc });
+    });
+    return {
+      appId: 'wage',
+      cloudLoaded: !!_cloudCounts,
+      localTotal: localTotal,
+      cloudTotal: _cloudCounts ? cloudTotal : null,
+      perKey: perKey
+    };
+  },
 
   // 手动上传：把本地所有数据推送到云端（覆盖云端）
   // alsoDelete=true 时，同时删除云端有但本地没有的 key（清理残留）
@@ -293,11 +342,24 @@ async function refreshFromCloud() {
   var sb = getClient();
   if (!sb || !sb.from) return [];
 
+  // Excel 保存模式：编辑期间（30s 内有本地写入）不自动加载云端数据
+  var EDIT_GUARD_MS = 30000;
+  var now = Date.now();
+  var hasRecentEdit = false;
+  try {
+    var rwKeys = Object.keys(_recentWrites);
+    for (var ri = 0; ri < rwKeys.length; ri++) {
+      if (now - _recentWrites[rwKeys[ri]] < EDIT_GUARD_MS) { hasRecentEdit = true; break; }
+    }
+  } catch (e) {}
+  if (hasRecentEdit) return [];
+
   try {
     var { data, error } = await sb.from('app_data_store').select('store_key, payload, updated_at');
     if (error) { console.warn('[CloudbaseStore] refresh 查询错误:', error); noteFailure('refresh'); return []; }
     noteSuccess();
     if (!data) return [];
+    _ingestCloudCounts(data); // 刷新云端条数快照（getRecordCounts 只取 WAGE_KEYS）
 
     var now = Date.now();
     var SKIP_WINDOW = 10000;
