@@ -22,7 +22,7 @@
   'use strict';
 
   // ===== 版本守卫：防止旧版 cloudbase-sync.js 在新版之后重新初始化 =====
-  var SYNC_VERSION = '20260918f';
+  var SYNC_VERSION = '20260918g';
   if (window.__CLOUDBASE_SYNC_VERSION__) {
     console.warn('[CloudbaseSync] 检测到已加载版本 ' + window.__CLOUDBASE_SYNC_VERSION__ +
       '，当前版本 ' + SYNC_VERSION + ' 跳过初始化');
@@ -1166,6 +1166,29 @@
           }
         }
 
+        // 空值兜底：云端 payload 为空数组/空对象，但本地（缓存或 localStorage）有数据时，
+        // 保留本地，绝不用云端空值清空。典型场景：某台设备 storage.init 初始空数组被误上传
+        // （旧版本缺陷）后，15 秒定时刷新会把所有设备的完整数据清空。
+        // 与 processCloudRows 首次加载的空值兜底保持一致。
+        if (isEmptyValue(newVal)) {
+          var _localExisting = oldVal;
+          if (_localExisting === undefined || isEmptyValue(_localExisting)) {
+            try {
+              var _lrRaw = nativeGet(toLocalKey(origKey));
+              if (_lrRaw !== null && _lrRaw !== undefined && _lrRaw !== '') {
+                _localExisting = JSON.parse(_lrRaw);
+              }
+            } catch (e2) {}
+          }
+          if (_localExisting !== undefined && !isEmptyValue(_localExisting)) {
+            console.warn('[CloudbaseSync] ⚠️ 云端值为空，保留本地数据 key=' + origKey +
+              ' cloudTs=' + cloudTs + ' 本地条数=' +
+              (Array.isArray(_localExisting) ? _localExisting.length : '非空'));
+            cache[origKey] = _localExisting;
+            return;
+          }
+        }
+
         var isChanged = false;
         if (oldVal === undefined) {
           isChanged = true;
@@ -1227,7 +1250,10 @@
     if (this === _lsInstance) {
       try { _origSetItem.call(this, toLocalKey(key), value); } catch (e) {}
 
+      var _prevCacheVal = cache[key];
+      var _prevHadData = _prevCacheVal !== undefined && !isEmptyValue(_prevCacheVal);
       try { cache[key] = JSON.parse(value); } catch (e) { cache[key] = value; }
+      var _newIsEmpty = isEmptyValue(cache[key]);
       // 注意：不在此设置 cacheTs[key] = now。
       // 若把本地写入时间当作"数据更新时间"，会导致 refreshFromCloud 的 LWW 比较
       // 中 localTime 永远 >= cloudTime，云端新数据永远无法覆盖本地旧数据
@@ -1243,7 +1269,12 @@
       // 也不会产生重复行。
       // 内部键（auth 会话 / 语言 / 凭据等设备本地状态）不上云，避免污染云端表。
       if (!shouldSkip(key)) {
-        syncToCloud(key, cache[key]);
+        // 空值上传保护：本地此前没有非空数据（典型：storage.init 写入初始空数组、
+        // 新设备/清缓存后首次打开）时，绝不上传空值，防止空库设备把云端完整数据覆盖成空。
+        // 只有"有数据 → 空"的转变（用户手动清空、删光全部记录）才正常上传空值。
+        if (!(_newIsEmpty && !_prevHadData)) {
+          syncToCloud(key, cache[key]);
+        }
       }
       return;
     }
