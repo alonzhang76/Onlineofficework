@@ -3328,8 +3328,14 @@
                                 restored.push(key);
                             }
                         });
-                        
-                        alert(`数据恢复成功！\n已恢复 ${restored.length} 类数据\n备份时间：${new Date(data.backupTime).toLocaleString()}\n\n请刷新页面查看恢复的数据。`);
+
+                        // 设置导入保护期：10 分钟内云端旧数据不会覆盖刚导入的本地数据
+                        // reload 后 sessionStorage 仍保留保护期，用户需手动点击"上传云端"推送新数据
+                        if (window.CloudbaseSync && typeof window.CloudbaseSync.setImportProtection === 'function') {
+                            window.CloudbaseSync.setImportProtection(600000);
+                        }
+
+                        alert(`数据恢复成功！\n已恢复 ${restored.length} 类数据\n备份时间：${new Date(data.backupTime).toLocaleString()}\n\n⚠️ 请刷新后点击页面上方的"上传云端"按钮，将导入的数据推送到云端。\n（10 分钟内云端旧数据不会覆盖本地新数据）`);
                         location.reload();
                     } catch (err) {
                         alert('恢复数据失败：' + err.message);

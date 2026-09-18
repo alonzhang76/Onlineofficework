@@ -2198,9 +2198,15 @@
                                 // 更新图表
                                 updateDistributionChart(document.querySelector('.chart-period-btn.bg-primary').dataset.period);
                                 updateCategoryChart(document.querySelector('.category-type-btn.bg-danger, .category-type-btn.bg-secondary').dataset.type);
-                                
+
+                                // 设置导入保护期：10 分钟内云端旧数据不会覆盖刚导入的本地数据
+                                // 用户需手动点击"上传云端"按钮推送新数据，上传成功后保护期自动解除
+                                if (window.CloudbaseSync && typeof window.CloudbaseSync.setImportProtection === 'function') {
+                                    window.CloudbaseSync.setImportProtection(600000);
+                                }
+
                                 // 显示成功提示
-                                showNotification('导入成功', '数据已成功导入', 'success');
+                                showNotification('导入成功', '数据已成功导入，请尽快点击"上传云端"按钮推送到云端', 'success');
                             } else {
                                 throw new Error('无效的JSON文件格式');
                             }

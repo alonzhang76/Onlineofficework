@@ -8843,7 +8843,14 @@
                                 if (backupData.companyName2) {
                                     localStorage.setItem('companyName2', backupData.companyName2);
                                 }
-                                
+
+                                // 设置导入保护期：10 分钟内云端旧数据不会覆盖刚导入的本地数据
+                                // reload 后 sessionStorage 仍保留保护期，用户需手动点击"上传云端"推送新数据
+                                if (window.CloudbaseSync && typeof window.CloudbaseSync.setImportProtection === 'function') {
+                                    window.CloudbaseSync.setImportProtection(600000);
+                                }
+
+                                alert('数据恢复成功！\n\n⚠️ 请刷新后点击页面上方的"上传云端"按钮，将导入的数据推送到云端。\n（10 分钟内云端旧数据不会覆盖本地新数据）');
                                 // 重新加载页面以显示恢复后的数据
                                 location.reload();
                             }

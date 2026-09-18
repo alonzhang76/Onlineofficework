@@ -3422,7 +3422,12 @@
                         if (data.memos) {
                             saveMemos(data.memos);
                         }
-                        showToast('数据恢复成功！');
+                        // 设置导入保护期：10 分钟内云端旧数据不会覆盖刚导入的本地数据
+                        // 用户需手动点击"上传云端"按钮推送新数据，上传成功后保护期自动解除
+                        if (window.CloudbaseSync && typeof window.CloudbaseSync.setImportProtection === 'function') {
+                            window.CloudbaseSync.setImportProtection(600000);
+                        }
+                        showToast('数据恢复成功！请尽快点击"上传云端"推送数据');
                         renderDashboard();
                         renderOrders();
                     } catch (error) {
@@ -3469,7 +3474,11 @@
                     const data = JSON.parse(e.target.result);
                     if (Array.isArray(data)) {
                         saveOrders(data);
-                        showToast('数据导入成功！共导入 ' + data.length + ' 条记录');
+                        // 设置导入保护期：10 分钟内云端旧数据不会覆盖刚导入的本地数据
+                        if (window.CloudbaseSync && typeof window.CloudbaseSync.setImportProtection === 'function') {
+                            window.CloudbaseSync.setImportProtection(600000);
+                        }
+                        showToast('数据导入成功！共导入 ' + data.length + ' 条记录，请尽快点击"上传云端"');
                         renderDashboard();
                     } else {
                         showToast('数据格式错误！', 'error');
