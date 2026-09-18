@@ -22,7 +22,7 @@
   'use strict';
 
   // ===== 版本守卫：防止旧版 cloudbase-sync.js 在新版之后重新初始化 =====
-  var SYNC_VERSION = '20260918l';
+  var SYNC_VERSION = '20260918m';
   if (window.__CLOUDBASE_SYNC_VERSION__) {
     console.warn('[CloudbaseSync] 检测到已加载版本 ' + window.__CLOUDBASE_SYNC_VERSION__ +
       '，当前版本 ' + SYNC_VERSION + ' 跳过初始化');
@@ -415,14 +415,12 @@
       return null;
     }
     var env = window.CLOUDBASE_ENV;
+    // 取有效 token：登录未完成则等待；refresh token 失效导致凭证被清空时主动重登。
+    // 整段加 20s 上限，避免重登网络异常时无限等待。
     var token = null;
-    // 短重试取 token（最多 5 次 × 500ms = 2.5s），等 SDK 登录完成
-    if (typeof window.CloudbaseGetAccessToken === 'function') {
-      for (var t = 0; t < 5 && !token; t++) {
-        try { token = await window.CloudbaseGetAccessToken(); } catch (e) {}
-        if (!token) await new Promise(function (r) { setTimeout(r, 500); });
-      }
-    }
+    try {
+      token = await withTimeout(ensureFreshToken(), 20000);
+    } catch (e) { token = null; }
     if (!env || !token) return null; // 信号：REST 不可用，调用方回退兼容层
 
     var base = 'https://' + env + '.api.tcloudbasegateway.com/v1/rdb/rest/' + TABLE;
@@ -965,16 +963,29 @@
       console.log('[CloudbaseSync] 云端版本对比完成。应用:', APP_ID);
     }
 
-    // 后台异步获取用户信息（不阻塞）
+    // 后台获取用户信息（仅用于展示）。
+    // 关键：不要调用 client.auth.getUser() —— 它内部会走 getLoginState → 刷新 refresh token，
+    // 当 refresh token 已被吊销（/auth/v1/token 400）时，SDK 会顺手清空整个会话凭证，
+    // 导致一次纯展示调用把刚才能正常读写的登录态毁掉。
+    // 改为直接从现有 access token 的 JWT 载荷里读邮箱/名字，完全不触发网络刷新。
     try {
-      var result = await Promise.race([
-        client.auth.getUser(),
-        new Promise(function (_, rej) { setTimeout(function () { rej(new Error('getUser 超时')); }, 5000); })
-      ]);
-      if (result && result.data && result.data.user) {
-        authedUser = result.data.user;
-        authFailReason = '';
-        console.log('[CloudbaseSync] 用户:', authedUser.email || authedUser.id || 'authed');
+      var infoToken = (typeof window.CloudbaseGetAccessToken === 'function')
+        ? await window.CloudbaseGetAccessToken() : null;
+      if (infoToken) {
+        var payload = null;
+        try {
+          payload = JSON.parse(decodeURIComponent(escape(
+            atob(infoToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))));
+        } catch (eJ) { payload = null; }
+        if (payload && (payload.email || payload.name || payload.sub)) {
+          authedUser = {
+            id: payload.sub,
+            email: payload.email || '',
+            name: payload.name || ''
+          };
+          authFailReason = '';
+          console.log('[CloudbaseSync] 用户:', authedUser.email || authedUser.name || authedUser.id);
+        }
       }
     } catch (e) {}
     refreshLegacyBadge();
@@ -1077,6 +1088,51 @@
       promise.then(function (v) { clearTimeout(timer); resolve(v); },
                    function (e) { clearTimeout(timer); reject(e); });
     });
+  }
+
+  // ===== 主动确保有可用 access token =====
+  // 会话中途 access token 过期、SDK 用 refresh token 刷新若返回 400（refresh token 被吊销），
+  // SDK 会直接清空凭证且不会自动重登，此后 getAccessToken 永远为空 → 上传/下载全败。
+  // 这里：先取 → 短重试等登录 → 仍为空则用共享账号强制重登（forceReauth 会 signOut + 密码重登）再取。
+  // 全局合并并发调用 + 30s 冷却，避免多个调用点/定时刷新同时重登。
+  var _ensureTokenInflight = null;
+  var _lastEnsureReauthAt = 0;
+  async function ensureFreshToken(opts) {
+    opts = opts || {};
+    var get = (typeof window !== 'undefined') ? window.CloudbaseGetAccessToken : null;
+    if (typeof get !== 'function') return null;
+
+    function tryGet() {
+      return Promise.resolve().then(function () { return get(); }).catch(function () { return null; });
+    }
+
+    // 1) 直接取
+    var t0 = await tryGet();
+    if (t0) return t0;
+    // 2) 短重试（兼容层首次登录可能仍在进行）
+    for (var i = 0; i < 3; i++) {
+      await new Promise(function (r) { setTimeout(r, 500); });
+      var t1 = await tryGet();
+      if (t1) return t1;
+    }
+    // 3) 仍无 token → 强制重登（30s 冷却）
+    if (typeof window.CloudbaseForceReauth !== 'function') return null;
+    if (!opts.force && (Date.now() - _lastEnsureReauthAt) < 30000) return null;
+    _lastEnsureReauthAt = Date.now();
+
+    if (!_ensureTokenInflight) {
+      _ensureTokenInflight = Promise.resolve()
+        .then(function () {
+          console.warn('[CloudbaseSync] 无有效访问令牌（可能 refresh token 已失效），强制重登...');
+          return window.CloudbaseForceReauth();
+        })
+        .catch(function () {})
+        .then(function () {
+          _ensureTokenInflight = null;
+        });
+    }
+    await _ensureTokenInflight;
+    return await tryGet();
   }
 
   var refreshFailCount = 0;
@@ -1494,12 +1550,13 @@
     }
     emit({ phase: 'start', total: keysToUpload.length });
 
-    // 等认证就绪后再开始上传（避免无 token 时所有 upsert 挂起或必败）
-    if (window.CloudbaseWhenReady) {
-      try { await Promise.race([
-        window.CloudbaseWhenReady(),
-        new Promise(function (_, rej) { setTimeout(function () { rej(new Error('认证等待超时(15s)')); }, 15000); })
-      ]); } catch (e) { console.warn('[CloudbaseSync] 上传前认证未就绪:', e && e.message ? e.message : e); }
+    // 上传前主动确保有有效令牌：会话过期/refresh token 被吊销时先重登，
+    // 避免第一条记录白等一个 15s 超时、且整个批量必败。
+    try {
+      var preToken = await withTimeout(ensureFreshToken(), 25000);
+      if (!preToken) console.warn('[CloudbaseSync] 上传前未能取得有效令牌，将继续尝试（兼容层可能自行恢复）');
+    } catch (e) {
+      console.warn('[CloudbaseSync] 上传前令牌准备异常:', e && e.message ? e.message : e);
     }
 
     notifyStatus('pending');
