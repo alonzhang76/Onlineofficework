@@ -22,7 +22,7 @@
   'use strict';
 
   // ===== 版本守卫：防止旧版 cloudbase-sync.js 在新版之后重新初始化 =====
-  var SYNC_VERSION = '20260918j';
+  var SYNC_VERSION = '20260918l';
   if (window.__CLOUDBASE_SYNC_VERSION__) {
     console.warn('[CloudbaseSync] 检测到已加载版本 ' + window.__CLOUDBASE_SYNC_VERSION__ +
       '，当前版本 ' + SYNC_VERSION + ' 跳过初始化');
@@ -310,9 +310,25 @@
   // ===== 动态加载共享 CloudBase 兼容层 =====
   // 兼容层相对路径固定为 apps/cloudbase/cloudbase.js，
   // 依据本脚本自身 URL 推导，避免不同目录深度引用时路径出错。
+  // 关键：document.currentScript 只在脚本同步执行期间有效；兼容层改为懒加载后，
+  // loadClient 可能在用户点击按钮时才执行，那时 currentScript 已为 null。
+  // 因此在 IIFE 同步阶段就把自身 URL 捕获下来。
+  var _selfSrc = '';
+  try {
+    _selfSrc = (document.currentScript && document.currentScript.src) || '';
+    if (!_selfSrc) {
+      // 兜底：按文件名在 <script> 标签里找（currentScript 失效场景）
+      var _ss = document.querySelectorAll('script[src]');
+      for (var _si = 0; _si < _ss.length; _si++) {
+        var _u = _ss[_si].src || '';
+        if (/cloudbase-sync\.js(\?|$)/.test(_u)) { _selfSrc = _u; break; }
+      }
+    }
+  } catch (e) {}
+
   function resolveModuleUrl() {
     try {
-      var src = (document.currentScript && document.currentScript.src) || '';
+      var src = _selfSrc;
       if (src) {
         // 本文件位于 apps/cloudbase-sync.js，兼容层位于 apps/cloudbase/cloudbase.js
         // 沿用本文件 ?v= 版本号，避免兼容层更新后浏览器仍用旧缓存
@@ -919,6 +935,19 @@
       return;
     }
     bindBadgeWhenReady();
+
+    // 关键：等兼容层完成登录引导（共享账号/匿名），再拉数据。
+    // 懒加载后本函数在首帧约 1.2s 才执行，而 bootstrapAuth 的登录是网络调用，
+    // 若不等待，CloudbaseGetAccessToken 此刻返回 null → REST 放弃 → 兼容层回退也未登录，
+    // 结果云端行永远拉不到，右下角云端条数一直是"…"。
+    try {
+      if (typeof window.CloudbaseWhenReady === 'function') {
+        await Promise.race([
+          window.CloudbaseWhenReady(),
+          new Promise(function (resolve) { setTimeout(resolve, 20000); })
+        ]);
+      }
+    } catch (e) {}
 
     // 后台做一次版本对比拉取（仅在无本地编辑时才采用云端更新值，符合 Excel 模式）
     try {
