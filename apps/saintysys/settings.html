@@ -65,9 +65,9 @@
 <script type="module" src="js/admin-config.js?v=20260916a"></script>
 <script type="module" src="js/form-submit.js?v=20260916a"></script>
 <script type="module" src="js/logout.js?v=20260916a"></script>
-<script src="js/init-page.js?v=20260916a"></script>
+<script src="js/init-page.js?v=20260919a"></script>
 <!-- 云端数据管理工具（页首冻结工具条：保存 / 云端下载 / 备份到电脑 / 从电脑恢复） -->
-<script src="../cloudbase-admin.js?v=20260918e"></script>
+<script src="../cloudbase-admin.js?v=20260919a"></script>
 <script>
 // ===== 关键：全局共享键（权限、用户、NAS 配置）仅管理员可写 =====
 // 防止非管理员在自动备份时把本地旧值覆盖管理员发布的全局权限
@@ -849,70 +849,6 @@ function renderNas() {
     </div>
   `;
   document.getElementById('tab-nas').innerHTML = html;
-}
-
-function exportData() {
-  const keys = ['styles', 'orders', 'fabrics', 'accessories', 'samples', 'feedbacks', 'consumptions', 'consumption_categories', 'productions', 'invoices', 'payments', 'collections', 'contacts', 'customers', 'suppliers', 'favoriteContacts', 'washes', 'shippings', 'users', 'permissions', 'nas_config', 'nas_folder_perms'];
-  const backup = { exportTime: new Date().toISOString(), version: localStorage.getItem('dataVersion') };
-  keys.forEach(key => {
-    const data = localStorage.getItem(key);
-    if (data) backup[key] = data;
-  });
-  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `sainty-hantang-export-${App.utils.formatDate(new Date())}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  App.toast('数据导出成功', 'success');
-}
-
-function importData() {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.json';
-  input.onchange = function(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = function(evt) {
-      try {
-        const data = JSON.parse(evt.target.result);
-        // 兼容两种导出格式：设置页导出（exportTime+users/permissions）与
-        // 页头 📦 按钮备份（backupTime，不含 users/permissions）。
-        // 旧逻辑硬性要求 users && permissions，导致页头备份的 JSON 永远报"文件格式不正确"。
-        const META_KEYS = ['exportTime', 'backupTime', 'version'];
-        const KNOWN_KEYS = ['styles', 'orders', 'fabrics', 'accessories', 'samples', 'feedbacks', 'consumptions', 'consumption_categories', 'productions', 'invoices', 'payments', 'collections', 'contacts', 'customers', 'suppliers', 'favoriteContacts', 'washes', 'shippings', 'users', 'permissions', 'nas_config', 'nas_folder_perms', 'express_delivery_data_v2', 'pl_records_v1', 'pl_draft_v1', 'sht_sample_data_v2', 'sht_size_tables_v2', 'sizeSheets', 'styleImages', 'maintFabrics', 'maintAccessories'];
-        const hasKnown = Object.keys(data).some(k => KNOWN_KEYS.indexOf(k) >= 0);
-        if (hasKnown) {
-          App.confirm('导入将覆盖现有所有数据，确定继续？', () => {
-            Object.keys(data).forEach(key => {
-              if (META_KEYS.indexOf(key) >= 0) return;
-              if (KNOWN_KEYS.indexOf(key) < 0) return; // 跳过未知键，防止误写
-              localStorage.setItem(key, data[key]);
-            });
-            App.toast('数据导入成功，正在同步到云端…', 'success');
-            // 关键修复：等独立写入队列排空（数据落到云端）再刷新页面。
-            // 旧逻辑固定 1.5s 后 reload，会杀死还在途的云端上传，
-            // 刷新后云端旧数据又覆盖本地 → 导入"看起来失败"。
-            const wait = (window.IndependentWriteQueue && window.IndependentWriteQueue.whenDrained)
-              ? window.IndependentWriteQueue.whenDrained(8000)
-              : new Promise(r => setTimeout(r, 2500));
-            wait.then(() => location.reload());
-          });
-        } else {
-          App.toast('文件格式不正确', 'error');
-        }
-      } catch (err) {
-        App.toast('文件解析失败', 'error');
-      }
-    };
-    reader.readAsText(file);
-  };
-  input.click();
 }
 
 function clearAllData() {

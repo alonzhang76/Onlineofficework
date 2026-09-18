@@ -991,6 +991,9 @@
     // 统一防抖（500ms）：数据页重渲染/输入时 DOM 变动频繁，避免选择器扫描拖慢页面。
     var hideTimer = null, bumpTimer = null;
     var scheduleConverge = function () {
+      // 自愈：SPA（不锈钢 React 等）若在重渲染/路由切换时把工具条从 body 移除，
+      // DOM 变动会触发本回调，立即重新注入，保证任何页面工具条都在。
+      try { ensureTopBar(); } catch (e) {}
       clearTimeout(hideTimer);
       hideTimer = setTimeout(hideLegacyControls, 500);
       clearTimeout(bumpTimer);

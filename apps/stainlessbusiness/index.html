@@ -12,7 +12,7 @@
     <!-- Supabase 数据同步（自动匿名登录 + localStorage 拦截同步） -->
     <script>window.SUPABASE_APP_ID='stainlessbusiness';</script>
     <script src="../cloudbase-sync.js?v=20260918o"></script>
-    <script src="../cloudbase-admin.js?v=20260918e"></script>
+    <script src="../cloudbase-admin.js?v=20260919a"></script>
     <!-- 手机端表格横向滑动：antd 表格默认不启用 scroll，通过 CSS 让 .ant-table-content 可横向滚动 -->
     <style>
       @media (max-width: 768px) {
@@ -49,7 +49,7 @@
         });
       })();
     </script>
-    <script defer src="./assets/index-BUzWo_C6.js"></script>
+    <script defer src="./assets/index-BUzWo_C6.js?v=20260919a"></script>
     <link rel="stylesheet" href="./assets/index-D8fI8zIA.css">
     <link rel="stylesheet" href="../tablet-compat.css?v=20260915a">
   </head>
@@ -81,6 +81,42 @@
         } else {
           inject();
         }
+      })();
+    </script>
+    <!-- 桥接 cloudbase-admin 工具条的「备份到电脑 / 从电脑恢复」：
+         React 应用的这两个功能藏在页头「数据管理」下拉菜单里，菜单收起时 DOM 中不存在，
+         cloudbase-admin 按文字找不到按钮。这里暴露 window.backupData / window.restoreData，
+         由它代为展开下拉菜单并点击对应菜单项，复用 React 自身的备份/恢复实现。 -->
+    <script>
+      (function () {
+        function clickDataMenuItem(itemText) {
+          var trigger = null;
+          var btns = document.querySelectorAll('button');
+          for (var i = 0; i < btns.length; i++) {
+            if ((btns[i].textContent || '').replace(/\s+/g, '') === '数据管理') { trigger = btns[i]; break; }
+          }
+          if (!trigger) {
+            alert('未找到「数据管理」菜单，请确认已登录后在页头操作，或直接点页头「数据管理 → ' + itemText + '」。');
+            return;
+          }
+          trigger.click(); // 展开 antd 下拉菜单（portal 挂载到 body）
+          var tries = 0;
+
+          function tick() {
+            var items = document.querySelectorAll('.ant-dropdown-menu-item, li[role="menuitem"]');
+            for (var j = 0; j < items.length; j++) {
+              if ((items[j].textContent || '').replace(/\s+/g, '') === itemText) {
+                items[j].click();
+                return;
+              }
+            }
+            if (++tries > 20) { trigger.click(); } // 约 1 秒未出现则收起菜单，避免悬停
+            else setTimeout(tick, 50);
+          }
+          setTimeout(tick, 60);
+        }
+        window.backupData = function () { clickDataMenuItem('备份到电脑'); };
+        window.restoreData = function () { clickDataMenuItem('从电脑恢复'); };
       })();
     </script>
   </body>

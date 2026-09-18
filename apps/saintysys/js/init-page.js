@@ -920,4 +920,70 @@
     setTimeout(runAutoBackup, 500);
   });
 
+  // ===== 备份到电脑 / 从电脑恢复（原仅 settings.html 内联定义）=====
+  // 收敛到本共享层：所有业务页面都引用 init-page.js，cloudbase-admin 页首
+  // 工具条在任何页面点「备份到电脑 / 从电脑恢复」都能直接调用。
+  var BACKUP_KEYS = ['styles', 'orders', 'fabrics', 'accessories', 'samples', 'feedbacks', 'consumptions', 'consumption_categories', 'productions', 'invoices', 'payments', 'collections', 'contacts', 'customers', 'suppliers', 'favoriteContacts', 'washes', 'shippings', 'users', 'permissions', 'nas_config', 'nas_folder_perms'];
+  var META_KEYS = ['exportTime', 'backupTime', 'version'];
+  var KNOWN_KEYS = ['styles', 'orders', 'fabrics', 'accessories', 'samples', 'feedbacks', 'consumptions', 'consumption_categories', 'productions', 'invoices', 'payments', 'collections', 'contacts', 'customers', 'suppliers', 'favoriteContacts', 'washes', 'shippings', 'users', 'permissions', 'nas_config', 'nas_folder_perms', 'express_delivery_data_v2', 'pl_records_v1', 'pl_draft_v1', 'sht_sample_data_v2', 'sht_size_tables_v2', 'sizeSheets', 'styleImages', 'maintFabrics', 'maintAccessories'];
+
+  global.exportData = function () {
+    var backup = { exportTime: new Date().toISOString(), version: localStorage.getItem('dataVersion') };
+    BACKUP_KEYS.forEach(function (key) {
+      var data = localStorage.getItem(key);
+      if (data) backup[key] = data;
+    });
+    var blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'sainty-hantang-export-' + App.utils.formatDate(new Date()) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    App.toast('数据导出成功', 'success');
+  };
+
+  global.importData = function () {
+    var input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = function (e) {
+      var file = e.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function (evt) {
+        try {
+          var data = JSON.parse(evt.target.result);
+          // 兼容两种导出格式：设置页导出（exportTime+users/permissions）与
+          // 页头 📦 按钮备份（backupTime，不含 users/permissions）。
+          var hasKnown = Object.keys(data).some(function (k) { return KNOWN_KEYS.indexOf(k) >= 0; });
+          if (hasKnown) {
+            App.confirm('导入将覆盖现有所有数据，确定继续？', function () {
+              Object.keys(data).forEach(function (key) {
+                if (META_KEYS.indexOf(key) >= 0) return;
+                if (KNOWN_KEYS.indexOf(key) < 0) return; // 跳过未知键，防止误写
+                localStorage.setItem(key, data[key]);    // 经 localstorage-patch 自动入队上传
+              });
+              App.toast('数据导入成功，正在同步到云端…', 'success');
+              // 等独立写入队列排空（数据落到云端）再刷新页面，避免在途上传被杀、
+              // 刷新后云端旧数据覆盖本地。
+              var wait = (window.IndependentWriteQueue && window.IndependentWriteQueue.whenDrained)
+                ? window.IndependentWriteQueue.whenDrained(8000)
+                : new Promise(function (r) { setTimeout(r, 2500); });
+              wait.then(function () { location.reload(); });
+            });
+          } else {
+            App.toast('文件格式不正确', 'error');
+          }
+        } catch (err) {
+          App.toast('文件解析失败', 'error');
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  };
+
 })(window);
