@@ -63,36 +63,100 @@ Page({
     });
   },
 
-  /** 导出备份 JSON 并发送 */
+  /** 平台：devtools / windows / mac 上可直接存磁盘，手机走微信发送 */
+  getPlatform() {
+    try {
+      if (wx.getDeviceInfo && wx.getDeviceInfo().platform) return wx.getDeviceInfo().platform;
+    } catch (e) {}
+    try { return wx.getSystemInfoSync().platform || ''; } catch (e) { return ''; }
+    return '';
+  },
+
+  /** 导出备份 JSON：电脑端直接存盘，手机端通过微信（可选文件传输助手）发到电脑 */
   exportBackup() {
+    if (this.data._exporting) return;
     const keys = cb.CONFIG.namespaces.app;
     const backup = { backupTime: new Date().toISOString(), app: cb.CONFIG.env };
     keys.forEach(k => { backup[k] = db.get(k); });
     const content = JSON.stringify(backup, null, 2);
-    const path = (wx.env.USER_DATA_PATH || '') + '/backup-' + fmt.today() + '.json';
+    const stamp = fmt.today() + '-' + String(Date.now()).slice(-6);
+    const path = (wx.env.USER_DATA_PATH || '') + '/backup-' + stamp + '.json';
     try {
-      const fs = wx.getFileSystemManager();
-      fs.writeFileSync(path, content, 'utf8');
-      wx.shareFileMessage({
+      wx.getFileSystemManager().writeFileSync(path, content, 'utf8');
+    } catch (err) {
+      console.warn('[backup] 写入失败', err);
+      wx.showToast({ title: '备份生成失败', icon: 'none' });
+      return;
+    }
+
+    const isDesktop = ['devtools', 'windows', 'mac'].indexOf(this.getPlatform()) >= 0;
+    const saveToDisk = (onUnsupported) => {
+      if (typeof wx.saveFileToDisk !== 'function') { onUnsupported(); return; }
+      wx.showLoading({ title: '正在保存…', mask: true });
+      wx.saveFileToDisk({
         filePath: path,
-        success: () => wx.showToast({ title: '备份已发送', icon: 'success' }),
+        success: () => {
+          wx.hideLoading();
+          wx.showToast({ title: '已保存到电脑', icon: 'success' });
+        },
         fail: (e) => {
-          if (e && /cancel/i.test(e.errMsg || '')) return;
-          wx.showModal({
-            title: '备份已生成',
-            content: '文件已保存到：' + path + '\n（发送失败时可在电脑端开发者工具中取出）',
-            showCancel: false
-          });
+          wx.hideLoading();
+          const msg = (e && e.errMsg) || '';
+          if (/cancel/i.test(msg)) return;
+          onUnsupported(msg);
         }
       });
-    } catch (err) {
-      console.warn('[backup] 导出失败', err);
-      wx.showToast({ title: '导出失败', icon: 'none' });
+    };
+    const shareToWeChat = (onFail) => {
+      if (typeof wx.shareFileMessage !== 'function') { onFail('当前微信版本不支持文件发送'); return; }
+      this.data._exporting = true;
+      wx.shareFileMessage({
+        filePath: path,
+        fileName: 'backup-' + stamp + '.json',
+        success: () => {
+          this.data._exporting = false;
+          wx.showToast({ title: '已发送，可在电脑微信接收', icon: 'none' });
+        },
+        fail: (e) => {
+          this.data._exporting = false;
+          const msg = (e && e.errMsg) || '';
+          if (/cancel/i.test(msg)) return;
+          onFail(msg);
+        }
+      });
+    };
+
+    if (isDesktop) {
+      // 电脑端优先存磁盘，不支持时退回微信发送，最后兜底弹窗给出文件路径
+      saveToDisk(() => shareToWeChat(() => {
+        wx.showModal({ title: '备份已生成', content: '文件路径：' + path, showCancel: false });
+      }));
+    } else {
+      // 手机端走微信分享（可选「文件传输助手」）
+      shareToWeChat(() => saveToDisk(() => {
+        wx.showModal({ title: '备份已生成', content: '文件路径：' + path, showCancel: false });
+      }));
     }
   },
 
-  /** 导入恢复 */
+  /** 从电脑恢复：手机从微信聊天记录选文件，电脑端直接选磁盘文件 */
   importBackup() {
+    wx.showModal({
+      title: '从电脑恢复',
+      content: '手机：请先让电脑微信把备份文件发到「文件传输助手」，确定后从聊天记录中选取；\n电脑微信/开发者工具：确定后直接选择磁盘上的备份文件。',
+      confirmText: '选择文件',
+      success: (r) => {
+        if (!r.confirm) return;
+        this.chooseBackupFile();
+      }
+    });
+  },
+
+  chooseBackupFile() {
+    if (typeof wx.chooseMessageFile !== 'function') {
+      wx.showToast({ title: '当前微信版本不支持选文件', icon: 'none' });
+      return;
+    }
     wx.chooseMessageFile({
       count: 1,
       type: 'file',
@@ -100,10 +164,12 @@ Page({
       success: res => {
         const f = res.tempFiles && res.tempFiles[0];
         if (!f) return;
+        wx.showLoading({ title: '正在恢复…', mask: true });
         wx.getFileSystemManager().readFile({
           filePath: f.path,
           encoding: 'utf8',
           success: r => {
+            wx.hideLoading();
             try {
               const data = JSON.parse(r.data);
               if (!data || !data.backupTime) throw new Error('格式不对');
@@ -127,8 +193,15 @@ Page({
               wx.showToast({ title: '无效的备份文件', icon: 'none' });
             }
           },
-          fail: () => wx.showToast({ title: '读取文件失败', icon: 'none' })
+          fail: () => {
+            wx.hideLoading();
+            wx.showToast({ title: '读取文件失败', icon: 'none' });
+          }
         });
+      },
+      fail: (e) => {
+        if (e && /cancel/i.test(e.errMsg || '')) return;
+        wx.showToast({ title: '未选择文件', icon: 'none' });
       }
     });
   }

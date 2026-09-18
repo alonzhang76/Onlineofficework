@@ -28,6 +28,8 @@ module.exports = {
     "supplier",
     "fabricCode"
   ],
+  "titleFn": r => r.fabricName || r.id,
+  "subFn": r => [r.styleNo, r.supplier].filter(Boolean).join(' · '),
   "kvFields": [
     "fabricCode",
     "composition",

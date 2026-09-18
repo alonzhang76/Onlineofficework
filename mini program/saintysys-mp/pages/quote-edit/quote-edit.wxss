@@ -1,0 +1,87 @@
+.sec-title {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 28rpx; font-weight: 700; color: #004D6D;
+  margin-bottom: 20rpx;
+}
+
+/* ===== 字段 ===== */
+.fld-row { display: flex; gap: 20rpx; }
+.fld { flex: 1; min-width: 0; margin-bottom: 18rpx; }
+.fld-grow { flex: 2; }
+.fld-grow2 { flex: 2; }
+.lab { display: block; font-size: 22rpx; color: #6b7280; margin-bottom: 8rpx; font-weight: 600; }
+.inp {
+  width: 100%; box-sizing: border-box;
+  min-height: 72rpx; padding: 0 20rpx;
+  background: #f4f5f7; border: 1rpx solid #e5e7eb; border-radius: 12rpx;
+  font-size: 27rpx; color: #1f2937;
+  line-height: 72rpx;
+}
+.inp.ta { line-height: 1.6; padding: 16rpx 20rpx; min-height: 72rpx; }
+.inp.tall { min-height: 180rpx; }
+.inp-ro { background: #eef4f7; color: #004D6D; font-weight: 600; }
+.pick { color: #1f2937; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pick.ph { color: #9ca3af; font-weight: 400; }
+
+.regen {
+  flex-shrink: 0; align-self: flex-end;
+  height: 72rpx; line-height: 72rpx; padding: 0 26rpx; margin-bottom: 18rpx;
+  border-radius: 12rpx; background: #e8f1f5; color: #004D6D;
+  font-size: 24rpx; font-weight: 600;
+}
+
+.mini-btn {
+  font-size: 22rpx; font-weight: 600; color: #004D6D;
+  background: #e8f1f5; border-radius: 999rpx; padding: 8rpx 22rpx;
+}
+.it-del { font-size: 22rpx; color: #d44848; padding: 8rpx 10rpx; }
+
+/* ===== 明细行卡片 ===== */
+.item-card {
+  border: 1rpx solid #e5e7eb; border-radius: 14rpx;
+  padding: 20rpx; margin-bottom: 18rpx; background: #fcfcfd;
+}
+.it-head { display: flex; align-items: center; gap: 16rpx; margin-bottom: 14rpx; }
+.it-no { font-size: 24rpx; font-weight: 700; color: #9ca3af; }
+.it-pick { margin-left: auto; }
+.it-total { font-weight: 700; color: #004D6D; text-align: right; }
+.num-row .fld { flex: 1; }
+
+/* ===== 合计 ===== */
+.sum-row {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 27rpx; color: #374151; padding: 12rpx 4rpx;
+}
+.sum-row.grand {
+  border-top: 2rpx solid #004D6D; margin-top: 8rpx; padding-top: 20rpx;
+  font-size: 30rpx; font-weight: 800; color: #004D6D;
+}
+.discount-ctl { display: flex; align-items: center; gap: 14rpx; }
+.seg { display: flex; border: 1rpx solid #d1d5db; border-radius: 8rpx; overflow: hidden; }
+.seg-i {
+  font-size: 22rpx; padding: 6rpx 20rpx; color: #6b7280; background: #fff;
+}
+.seg-i.on { background: #004D6D; color: #fff; }
+.mini-num {
+  width: 110rpx; height: 56rpx; line-height: 56rpx; text-align: right;
+  border: 1rpx solid #d1d5db; border-radius: 8rpx; padding: 0 14rpx;
+  font-size: 24rpx; background: #fff;
+}
+
+/* ===== 底部操作栏 ===== */
+.action-bar {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  display: flex; gap: 18rpx; padding: 18rpx 24rpx calc(18rpx + env(safe-area-inset-bottom));
+  background: #fff; border-top: 1rpx solid #e5e7eb;
+  box-shadow: 0 -4rpx 18rpx rgba(0,0,0,.04);
+}
+.ab-btn {
+  flex: 1; height: 88rpx; line-height: 88rpx; border-radius: 14rpx;
+  font-size: 28rpx; font-weight: 700; margin: 0; padding: 0;
+}
+.ab-btn::after { border: none; }
+.ab-plain { background: #e5e7eb; color: #374151; flex: 0 0 200rpx; }
+.ab-primary {
+  background: linear-gradient(135deg, #004D6D, #003a52);
+  color: #fff; box-shadow: 0 8rpx 20rpx rgba(0,77,109,.28);
+}

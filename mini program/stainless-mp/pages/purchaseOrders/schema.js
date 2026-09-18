@@ -25,9 +25,12 @@ module.exports = {
     "orderNo",
     "supplier",
     "customer",
+    "product",
     "material",
     "specification"
   ],
+  "titleFn": r => r.orderNo || r.id,
+  "subFn": r => [r.supplier, r.customer].filter(Boolean).join(' · '),
   "kvFields": [
     "product",
     "material",
@@ -35,14 +38,18 @@ module.exports = {
     "quantity",
     "weight",
     "totalAmount",
-    "orderDate",
-    "status2"
+    "expectedDate"
   ],
   "autoSum": {
     "qtyField": "weight",
     "priceField": "price",
     "target": "totalAmount",
     "money": true
+  },
+  "action": {
+    "label": "生成采购合同",
+    "url": "/pages/contract/contract",
+    "query": "type=purchase"
   },
   "fields": [
     {
@@ -59,18 +66,31 @@ module.exports = {
     },
     {
       "k": "expectedDate",
-      "label": "预计到货",
+      "label": "交货日期",
       "type": "date"
     },
     {
       "k": "supplier",
       "label": "供应商",
-      "type": "text"
+      "type": "text",
+      "required": true
     },
     {
       "k": "customer",
       "label": "客户",
       "type": "text"
+    },
+    {
+      "k": "status",
+      "label": "状态",
+      "type": "select",
+      "options": [
+        "待处理",
+        "待发货",
+        "执行中",
+        "执行完毕"
+      ],
+      "defaultValue": "待处理"
     },
     {
       "k": "product",
@@ -98,9 +118,14 @@ module.exports = {
       "type": "text"
     },
     {
-      "k": "otherRequirements",
-      "label": "其它要求",
-      "type": "textarea"
+      "k": "inventoryNo",
+      "label": "坯料产地",
+      "type": "text"
+    },
+    {
+      "k": "warrantyNo",
+      "label": "质保书号",
+      "type": "text"
     },
     {
       "k": "quantity",
@@ -136,13 +161,13 @@ module.exports = {
     },
     {
       "k": "price",
-      "label": "单价",
+      "label": "单价(元)",
       "type": "number",
       "money": true
     },
     {
       "k": "totalAmount",
-      "label": "总金额",
+      "label": "总金额(元)",
       "type": "number",
       "money": true
     },
@@ -152,21 +177,9 @@ module.exports = {
       "type": "text"
     },
     {
-      "k": "warehouseNo",
-      "label": "仓库编号",
-      "type": "text"
-    },
-    {
-      "k": "status",
-      "label": "状态",
-      "type": "select",
-      "options": [
-        "待处理",
-        "待发货",
-        "执行中",
-        "执行完毕"
-      ],
-      "defaultValue": "待处理"
+      "k": "otherRequirements",
+      "label": "其它要求",
+      "type": "textarea"
     },
     {
       "k": "remarks",

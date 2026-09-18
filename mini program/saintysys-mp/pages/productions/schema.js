@@ -25,6 +25,8 @@ module.exports = {
     "orderNo",
     "factoryName"
   ],
+  "titleFn": r => (r.styleNo || '') + (r.factoryName ? ' @ ' + r.factoryName : ''),
+  "subFn": r => r.orderNo || '',
   "kvFields": [
     "orderNo",
     "factoryType",

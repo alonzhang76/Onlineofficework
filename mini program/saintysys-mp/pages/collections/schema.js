@@ -23,6 +23,8 @@ module.exports = {
     "orderNo",
     "styleNo"
   ],
+  "titleFn": r => (r.orderNo || r.id) + (r.amount ? '  ' + r.amount : ''),
+  "subFn": r => r.styleNo || '',
   "kvFields": [
     "styleNo",
     "amount",

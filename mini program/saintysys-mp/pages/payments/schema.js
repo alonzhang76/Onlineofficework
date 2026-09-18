@@ -22,6 +22,8 @@ module.exports = {
     "styleNo",
     "invoiceNo"
   ],
+  "titleFn": r => r.payee || r.id,
+  "subFn": r => [r.invoiceNo, r.styleNo].filter(Boolean).join(' · '),
   "kvFields": [
     "amount",
     "paymentDate",

@@ -9,7 +9,7 @@
 const cb = require('./cloudbase');
 
 // 各数据键的本地默认值（数组型数据；构建脚本按需覆盖对象型键）
-const DEFAULTS = {"orders":[],"productions":[],"fabrics":[],"accessories":[],"washes":[],"samples":[],"shippings":[],"collections":[],"invoices":[],"payments":[],"contacts":[],"express_delivery_data_v2":[]};
+const DEFAULTS = {"orders":[],"productions":[],"fabrics":[],"accessories":[],"washes":[],"samples":[],"shippings":[],"collections":[],"invoices":[],"payments":[],"contacts":[],"express_delivery_data_v2":[],"fashion_quotations":[],"fashion_quotation_settings":{"companyName":"JIANGSU SAINTY HANTANG TRADING CO LTD","companyAddress":"","companyPhone":"+86-510-82734291","companyEmail":"adamstig@163.com","companyTaxId":"","userName":"Adam","custCompany":"Castro Model LTD.","custContact":"Yaara Bar","custAddress":"31 Ort Israel St. Bat Yam 59590 Israel","custPhone":"052-8593287","custEmail":"yaara.b@castro.co.il","defaultCurrency":"USD","defaultPaymentTerms":"30% deposit, 70% before shipment","defaultDeliveryTerms":"FOB Shanghai","defaultLeadTime":"45-60 days after order confirmation","defaultValidity":"30 days","defaultHangerCost":1.1,"defaultDiscount":0,"defaultNotes":"1. Sample lead time: 7-10 working days.\n2. All prices include standard poly bag and carton packing; hanger packing available upon request.\n3. Color matching is subject to fabric mill confirmation; slight variation may occur between lots.\n4. Size charts and tech packs available upon request.\n5. Prices are valid for 30 days from quotation date and subject to final confirmation.\n6. Compliance with REACH and OEKO-TEX standards; test reports available upon request."}};
 
 const data = {};
 let _loaded = false;

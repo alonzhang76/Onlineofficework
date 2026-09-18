@@ -194,6 +194,16 @@ App({
     "stat": "sum",
     "sumField": "cost",
     "statLabel": "快递费合计(元)"
+  },
+  {
+    "key": "fashion_quotations",
+    "title": "报价系统",
+    "icon": "📑",
+    "color": "#004D6D",
+    "url": "/pages/quote-list/quote-list",
+    "stat": "count",
+    "sumField": "",
+    "statLabel": "份报价"
   }
 ]
   }

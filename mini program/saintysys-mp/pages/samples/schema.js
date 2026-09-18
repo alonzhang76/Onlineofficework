@@ -28,6 +28,8 @@ module.exports = {
     "factory",
     "confirmedBy"
   ],
+  "titleFn": r => r.styleNo || r.id,
+  "subFn": r => [r.stageKey, r.factory].filter(Boolean).join(' · '),
   "kvFields": [
     "size",
     "qty",

@@ -8,11 +8,23 @@
     </view>
   </view>
 
+  <!-- 当前抬头切换条（分公司作用域模块） -->
+  <view class="co-bar" wx:if="{{scoped}}" bindtap="switchCompany">
+    <text class="co-bar-icon">🏢</text>
+    <text class="co-bar-name">{{companyName}}</text>
+    <text class="co-bar-switch">切换抬头 ▾</text>
+  </view>
+
   <!-- 搜索 -->
   <view class="search-bar">
     <text>🔍</text>
     <input class="search-input" value="{{q}}" placeholder="搜索关键字" placeholder-class="ph" bindinput="onSearch" confirm-type="search" />
     <text class="search-clear" wx:if="{{q}}" bindtap="clearSearch">✕</text>
+  </view>
+
+  <!-- 主动作按钮（生成合同等） -->
+  <view class="act-row" wx:if="{{actionLabel}}">
+    <button class="act-btn" bindtap="onAction">＋ {{actionLabel}}</button>
   </view>
 
   <!-- 状态筛选 -->

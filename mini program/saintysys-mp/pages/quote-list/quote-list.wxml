@@ -1,0 +1,42 @@
+<view class="page">
+  <view class="hero">
+    <view class="hero-title">报价系统</view>
+    <view class="hero-sub">QUOTATION · 与电脑端实时同步</view>
+    <view class="hero-sum">全部报价合计 USD {{totalAmount}}</view>
+  </view>
+
+  <!-- 搜索 + 状态筛选 -->
+  <view class="card">
+    <view class="search-bar">
+      <text class="search-ico">🔍</text>
+      <input class="search-input" placeholder="搜索报价号 / 客户 / 款号" value="{{q}}" bindinput="onSearch" confirm-type="search" />
+    </view>
+    <scroll-view scroll-x class="chips" enhanced show-scrollbar="{{false}}">
+      <view class="chip {{filter === item.key ? 'on' : ''}}" wx:for="{{filters}}" wx:key="key"
+            data-key="{{item.key}}" bindtap="setFilter">{{item.label}}</view>
+    </scroll-view>
+    <view class="list-meta">{{totalText}}</view>
+
+    <view wx:if="{{!list.length}}" class="empty">
+      <view class="empty-ico">📑</view>
+      <view>暂无报价单，点右下角 ＋ 新建</view>
+    </view>
+
+    <view class="q-row {{item.status}}" wx:for="{{list}}" wx:key="id" data-id="{{item.id}}"
+          bindtap="open" bindlongpress="onLong" hover-class="row-hover">
+      <view class="q-top">
+        <text class="q-no">{{item.quoteNo}}</text>
+        <text class="q-amt">{{item.amount}}</text>
+      </view>
+      <view class="q-mid">{{item.customer}}<text wx:if="{{item.attn && item.attn !== item.customer}}"> · Attn: {{item.attn}}</text></view>
+      <view class="q-bot">
+        <text class="q-date">{{item.date}}<text wx:if="{{item.season}}"> · {{item.season}}</text></text>
+        <text class="q-badge st-{{item.status}}">{{item.statusLabel}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="page-foot"></view>
+
+  <view class="fab" bindtap="create">＋</view>
+</view>

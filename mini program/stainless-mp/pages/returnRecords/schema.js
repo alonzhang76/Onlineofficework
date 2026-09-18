@@ -8,11 +8,14 @@ module.exports = {
   "stat": "count",
   "statLabel": "收退货记录",
   "searchKeys": [
+    "returnDate",
     "orderNo",
     "supplier",
-    "material",
+    "product",
     "logisticsNo"
   ],
+  "titleFn": r => r.orderNo || r.id,
+  "subFn": r => [r.supplier, r.product].filter(Boolean).join(' · '),
   "kvFields": [
     "returnDate",
     "receivedWeight",
@@ -37,6 +40,36 @@ module.exports = {
     {
       "k": "supplier",
       "label": "供应商",
+      "type": "text"
+    },
+    {
+      "k": "logisticsNo",
+      "label": "物流单号",
+      "type": "text"
+    },
+    {
+      "k": "logistics",
+      "label": "物流公司",
+      "type": "text"
+    },
+    {
+      "k": "carPlate",
+      "label": "车牌号",
+      "type": "text"
+    },
+    {
+      "k": "driver",
+      "label": "司机",
+      "type": "text"
+    },
+    {
+      "k": "driverPhone",
+      "label": "司机电话",
+      "type": "text"
+    },
+    {
+      "k": "receivingAddress",
+      "label": "收货地址",
       "type": "text"
     },
     {
@@ -65,11 +98,6 @@ module.exports = {
       "type": "number"
     },
     {
-      "k": "logisticsNo",
-      "label": "物流单号",
-      "type": "text"
-    },
-    {
       "k": "logisticsCost",
       "label": "物流费用",
       "type": "number",
@@ -82,22 +110,7 @@ module.exports = {
       "money": true
     },
     {
-      "k": "carPlate",
-      "label": "车牌号",
-      "type": "text"
-    },
-    {
-      "k": "driver",
-      "label": "司机",
-      "type": "text"
-    },
-    {
-      "k": "driverPhone",
-      "label": "司机电话",
-      "type": "text"
-    },
-    {
-      "k": "remarks",
+      "k": "purchaseRemarks",
       "label": "备注",
       "type": "textarea"
     }

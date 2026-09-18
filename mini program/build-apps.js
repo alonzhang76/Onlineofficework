@@ -3,6 +3,9 @@
  *   - saintysys-mp   服装外贸小程序（云端裸键，与网页版 apps/saintysys 共用）
  *   - stainless-mp   不锈钢贸易小程序（stainlessbusiness__ 前缀，与网页版共用）
  *
+ * stainless-mp 额外叠加 _stainless/ 覆盖层：
+ *   三抬头作用域数据层、合同 PDF 渲染/分享、抬头切换、统计页等。
+ *
  * 用法：node build-apps.js
  */
 const fs = require('fs');
@@ -12,6 +15,7 @@ const ROOT = __dirname;
 const TPL = path.join(ROOT, '_app-template');
 
 function read(p) { return fs.readFileSync(path.join(TPL, p), 'utf8'); }
+function readIn(baseDir, p) { return fs.readFileSync(path.join(ROOT, baseDir, p), 'utf8'); }
 function write(p, c) {
   const full = path.join(ROOT, p);
   fs.mkdirSync(path.dirname(full), { recursive: true });
@@ -120,7 +124,7 @@ const SAINTY_MODULES = [
       { k: 'accessoryCode', label: '辅料编号', type: 'text' },
       { k: 'usagePart', label: '使用部位', type: 'text' },
       { k: 'supplier', label: '供应商', type: 'text' },
-      { k: 'spec', label: '规格', type: 'text' },
+      { k: 'composition', label: '成分', type: 'text' },
       { k: 'color', label: '颜色', type: 'text' },
       { k: 'unitPrice', label: '单价', type: 'number', money: true },
       { k: 'qtyOrdered', label: '订购数量', type: 'number' },
@@ -149,8 +153,7 @@ const SAINTY_MODULES = [
       { k: 'washResult', label: '水洗结果', type: 'text' },
       { k: 'status', label: '状态', type: 'select', options: ['未确认', '寄样中', '已确认'], defaultValue: '寄样中' },
       { k: 'customerFeedback', label: '客户反馈', type: 'textarea' },
-      { k: 'confirmedDate', label: '确认日期', type: 'date' },
-      { k: 'remark', label: '备注', type: 'textarea' }
+      { k: 'confirmedDate', label: '确认日期', type: 'date' }
     ]
   },
   {
@@ -302,67 +305,132 @@ const SAINTY_MODULES = [
   }
 ];
 
-/* ---------- 不锈钢贸易（stainlessbusiness） ---------- */
+/* ---------- 服装外贸：报价系统额外云键（与 apps/saintysys/quotation.html 互通） ---------- */
+const SAINTY_EXTRA_KEYS = ['fashion_quotations', 'fashion_quotation_settings'];
+
+/* 报价默认设置（与桌面端 defaultSettings 完全一致） */
+const DEFAULT_QUOTE_SETTINGS = {
+  companyName: 'JIANGSU SAINTY HANTANG TRADING CO LTD',
+  companyAddress: '',
+  companyPhone: '+86-510-82734291',
+  companyEmail: 'adamstig@163.com',
+  companyTaxId: '',
+  userName: 'Adam',
+  custCompany: 'Castro Model LTD.',
+  custContact: 'Yaara Bar',
+  custAddress: '31 Ort Israel St. Bat Yam 59590 Israel',
+  custPhone: '052-8593287',
+  custEmail: 'yaara.b@castro.co.il',
+  defaultCurrency: 'USD',
+  defaultPaymentTerms: '30% deposit, 70% before shipment',
+  defaultDeliveryTerms: 'FOB Shanghai',
+  defaultLeadTime: '45-60 days after order confirmation',
+  defaultValidity: '30 days',
+  defaultHangerCost: 1.10,
+  defaultDiscount: 0,
+  defaultNotes: '1. Sample lead time: 7-10 working days.\n2. All prices include standard poly bag and carton packing; hanger packing available upon request.\n3. Color matching is subject to fabric mill confirmation; slight variation may occur between lots.\n4. Size charts and tech packs available upon request.\n5. Prices are valid for 30 days from quotation date and subject to final confirmation.\n6. Compliance with REACH and OEKO-TEX standards; test reports available upon request.'
+};
+
+/* ---------- 不锈钢贸易（stainlessbusiness） ----------
+ * 键名/字段与桌面端 apps/stainlessbusiness 完全一致：
+ * 业务键按 <companyId>__<key> 分公司作用域存储，contacts/memos 等为全局键。
+ */
+const STAINLESS_GLOBAL_KEYS = [
+  'memos', 'contacts', 'favoriteContacts',
+  'industryTypes', 'industryApplications', 'gradeComparisons', 'vocabularies',
+  'hscodes', 'hscodeData', 'calculationParams', 'plateCalcData',
+  'certificateData', 'paymentTerms', 'customColumns',
+  'products', 'productCategories',
+  'companyList', 'currentCompanyId',
+  'isLoggedIn', 'username', 'userPhone', 'dataCleared', 'contractTerms'
+];
+const STAINLESS_SCOPED_KEYS = [
+  'inquiries', 'quotations',
+  'purchaseOrders', 'returnRecords',
+  'salesOrders', 'salesReturnRecords',
+  'inventoryRecords', 'warehouses', 'warehouseHistory',
+  'warehouseSales', 'warehouseSalePayments', 'warehouseSaleInvoices',
+  'transactions', 'transactionCategories', 'initialBalanceData',
+  'invoices',
+  'purchaseContractTerms', 'salesContractTerms',
+  'calendarEvents', 'companyName1', 'companyName2'
+];
+const STAINLESS_COMPANY_IDS = ['default-1', 'default-2', 'default-3'];
+
+const UNIT_OPTS = ['公斤', '吨', '件', '支', '米'];
+const WEIGHT_OPTS = ['公斤', '吨'];
+
 const STAINLESS_MODULES = [
-  {
-    key: 'purchaseOrders', title: '采购订单', icon: '🛒', color: '#5856D6', idPrefix: 'PO',
-    stat: 'sum', sumField: 'totalAmount', statLabel: '采购总额(元)',
-    statuses: ['待处理', '待发货', '执行中', '执行完毕'], statusDefault: '待处理',
-    statusColors: { '待处理': 'tag-gray', '待发货': 'tag-blue', '执行中': 'tag-orange', '执行完毕': 'tag-green' },
-    searchKeys: ['orderNo', 'supplier', 'customer', 'material', 'specification'],
-    titleFn: r => r.orderNo || r.id, subFn: r => [r.supplier, r.customer].filter(Boolean).join(' · '),
-    kvFields: ['product', 'material', 'specification', 'quantity', 'weight', 'totalAmount', 'orderDate', 'status2'],
-    autoSum: { qtyField: 'weight', priceField: 'price', target: 'totalAmount', money: true },
-    fields: [
-      { k: 'orderNo', label: '订单编号', type: 'text', required: true },
-      { k: 'orderDate', label: '下单日期', type: 'date', defaultToday: true },
-      { k: 'expectedDate', label: '预计到货', type: 'date' },
-      { k: 'supplier', label: '供应商', type: 'text' },
-      { k: 'customer', label: '客户', type: 'text' },
-      { k: 'product', label: '产品', type: 'text' },
-      { k: 'material', label: '材质', type: 'text' },
-      { k: 'materialCode', label: '物料编码/图号', type: 'text' },
-      { k: 'specification', label: '规格', type: 'text' },
-      { k: 'heatNo', label: '炉号', type: 'text' },
-      { k: 'otherRequirements', label: '其它要求', type: 'textarea' },
-      { k: 'quantity', label: '数量', type: 'number' },
-      { k: 'unit', label: '单位', type: 'select', options: ['公斤', '吨', '件', '支', '米'] },
-      { k: 'weight', label: '订单重量', type: 'number' },
-      { k: 'weightUnit', label: '重量单位', type: 'select', options: ['公斤', '吨'], defaultValue: '公斤' },
-      { k: 'price', label: '单价', type: 'number', money: true },
-      { k: 'totalAmount', label: '总金额', type: 'number', money: true },
-      { k: 'logisticsNo', label: '物流单号', type: 'text' },
-      { k: 'warehouseNo', label: '仓库编号', type: 'text' },
-      { k: 'status', label: '状态', type: 'select', options: ['待处理', '待发货', '执行中', '执行完毕'], defaultValue: '待处理' },
-      { k: 'remarks', label: '备注', type: 'textarea' }
-    ]
-  },
   {
     key: 'salesOrders', title: '销售订单', icon: '💼', color: '#007AFF', idPrefix: 'SO',
     stat: 'sum', sumField: 'totalAmount', statLabel: '销售总额(元)',
     statuses: ['待发货', '已发货', '已完成'], statusDefault: '待发货',
     statusColors: { '待发货': 'tag-orange', '已发货': 'tag-blue', '已完成': 'tag-green' },
-    searchKeys: ['orderNo', 'customer', 'material', 'specification'],
-    titleFn: r => r.orderNo || r.id, subFn: r => r.customer || '',
-    kvFields: ['product', 'material', 'specification', 'quantity', 'weight', 'totalAmount', 'deliveryDate'],
-    autoSum: { qtyField: 'weight', priceField: 'price', target: 'totalAmount', money: true },
+    searchKeys: ['orderNo', 'customer', 'product', 'material', 'specification', 'contractNo'],
+    titleFn: r => r.orderNo || r.id,
+    subFn: r => [r.customer, r.contractNo ? '合同:' + r.contractNo : ''].filter(Boolean).join(' · '),
+    kvFields: ['product', 'material', 'specification', 'quantity', 'weight', 'weightAdjustment', 'totalAmount', 'deliveryDate'],
+    autoSum: { qtyField: 'weight', adjustField: 'weightAdjustment', priceField: 'price', target: 'totalAmount', money: true },
+    action: { label: '生成销售合同', url: '/pages/contract/contract', query: 'type=sales' },
     fields: [
       { k: 'orderNo', label: '订单编号', type: 'text', required: true },
       { k: 'orderDate', label: '下单日期', type: 'date', defaultToday: true },
       { k: 'deliveryDate', label: '交货日期', type: 'date' },
       { k: 'customer', label: '客户', type: 'text', required: true },
+      { k: 'status', label: '状态', type: 'select', options: ['待发货', '已发货', '已完成'], defaultValue: '待发货' },
+      { k: 'contractNo', label: '合同号', type: 'text' },
       { k: 'product', label: '产品', type: 'text' },
       { k: 'material', label: '材质', type: 'text' },
       { k: 'materialCode', label: '物料编码/图号', type: 'text' },
       { k: 'specification', label: '规格', type: 'text' },
-      { k: 'otherRequirements', label: '其它要求', type: 'textarea' },
+      { k: 'heatNo', label: '炉号', type: 'text' },
+      { k: 'warrantyNo', label: '质保书号码', type: 'text' },
+      { k: 'inventoryNo', label: '坯料产地', type: 'text' },
       { k: 'quantity', label: '数量', type: 'number' },
-      { k: 'unit', label: '单位', type: 'select', options: ['公斤', '吨', '件', '支', '米'] },
+      { k: 'unit', label: '单位', type: 'select', options: UNIT_OPTS },
       { k: 'weight', label: '订单重量', type: 'number' },
-      { k: 'weightUnit', label: '重量单位', type: 'select', options: ['公斤', '吨'], defaultValue: '公斤' },
-      { k: 'price', label: '单价', type: 'number', money: true },
-      { k: 'totalAmount', label: '总金额', type: 'number', money: true },
-      { k: 'status', label: '状态', type: 'select', options: ['待发货', '已发货', '已完成'], defaultValue: '待发货' },
+      { k: 'weightAdjustment', label: '损/溢重量(±)', type: 'number' },
+      { k: 'weightUnit', label: '重量单位', type: 'select', options: WEIGHT_OPTS, defaultValue: '公斤' },
+      { k: 'price', label: '单价(元)', type: 'number', money: true },
+      { k: 'totalAmount', label: '总金额(元)', type: 'number', money: true },
+      { k: 'paymentTerms', label: '付款方式', type: 'text' },
+      { k: 'otherRequirements', label: '其它要求', type: 'textarea' },
+      { k: 'description', label: '备注', type: 'textarea' }
+    ]
+  },
+  {
+    key: 'purchaseOrders', title: '采购订单', icon: '🛒', color: '#5856D6', idPrefix: 'PO',
+    stat: 'sum', sumField: 'totalAmount', statLabel: '采购总额(元)',
+    statuses: ['待处理', '待发货', '执行中', '执行完毕'], statusDefault: '待处理',
+    statusColors: { '待处理': 'tag-gray', '待发货': 'tag-blue', '执行中': 'tag-orange', '执行完毕': 'tag-green' },
+    searchKeys: ['orderNo', 'supplier', 'customer', 'product', 'material', 'specification'],
+    titleFn: r => r.orderNo || r.id,
+    subFn: r => [r.supplier, r.customer].filter(Boolean).join(' · '),
+    kvFields: ['product', 'material', 'specification', 'quantity', 'weight', 'totalAmount', 'expectedDate'],
+    autoSum: { qtyField: 'weight', priceField: 'price', target: 'totalAmount', money: true },
+    action: { label: '生成采购合同', url: '/pages/contract/contract', query: 'type=purchase' },
+    fields: [
+      { k: 'orderNo', label: '订单编号', type: 'text', required: true },
+      { k: 'orderDate', label: '下单日期', type: 'date', defaultToday: true },
+      { k: 'expectedDate', label: '交货日期', type: 'date' },
+      { k: 'supplier', label: '供应商', type: 'text', required: true },
+      { k: 'customer', label: '客户', type: 'text' },
+      { k: 'status', label: '状态', type: 'select', options: ['待处理', '待发货', '执行中', '执行完毕'], defaultValue: '待处理' },
+      { k: 'product', label: '产品', type: 'text' },
+      { k: 'material', label: '材质', type: 'text' },
+      { k: 'materialCode', label: '物料编码/图号', type: 'text' },
+      { k: 'specification', label: '规格', type: 'text' },
+      { k: 'heatNo', label: '炉号', type: 'text' },
+      { k: 'inventoryNo', label: '坯料产地', type: 'text' },
+      { k: 'warrantyNo', label: '质保书号', type: 'text' },
+      { k: 'quantity', label: '数量', type: 'number' },
+      { k: 'unit', label: '单位', type: 'select', options: UNIT_OPTS },
+      { k: 'weight', label: '订单重量', type: 'number' },
+      { k: 'weightUnit', label: '重量单位', type: 'select', options: WEIGHT_OPTS, defaultValue: '公斤' },
+      { k: 'price', label: '单价(元)', type: 'number', money: true },
+      { k: 'totalAmount', label: '总金额(元)', type: 'number', money: true },
+      { k: 'logisticsNo', label: '物流单号', type: 'text' },
+      { k: 'otherRequirements', label: '其它要求', type: 'textarea' },
       { k: 'remarks', label: '备注', type: 'textarea' }
     ]
   },
@@ -371,103 +439,348 @@ const STAINLESS_MODULES = [
     stat: 'count', statLabel: '询价单',
     statuses: ['待回复', '已回复', '已成交', '已关闭'], statusDefault: '待回复',
     statusColors: { '待回复': 'tag-gray', '已回复': 'tag-blue', '已成交': 'tag-green', '已关闭': 'tag-gray' },
-    searchKeys: ['inquiryNo', 'supplier', 'customer', 'material'],
-    titleFn: r => r.inquiryNo || r.id, subFn: r => [r.supplier, r.product].filter(Boolean).join(' · '),
-    kvFields: ['product', 'material', 'specification', 'quantity', 'targetPrice', 'dueDate', 'status'],
+    searchKeys: ['inquiryNo', 'supplier', 'customer', 'product', 'material'],
+    titleFn: r => r.inquiryNo || r.id,
+    subFn: r => [r.supplier, r.customer].filter(Boolean).join(' · '),
+    kvFields: ['product', 'material', 'specification', 'quantity', 'weight', 'expectedPrice', 'dueDate'],
     fields: [
       { k: 'inquiryNo', label: '询价单号', type: 'text', required: true },
       { k: 'inquiryDate', label: '询价日期', type: 'date', defaultToday: true },
       { k: 'dueDate', label: '回复期限', type: 'date' },
+      { k: 'status', label: '状态', type: 'select', options: ['待回复', '已回复', '已成交', '已关闭'], defaultValue: '待回复' },
       { k: 'supplier', label: '供应商', type: 'text' },
+      { k: 'supplierContact', label: '供应商联系人', type: 'text' },
+      { k: 'supplierPhone', label: '供应商电话', type: 'text' },
       { k: 'customer', label: '客户', type: 'text' },
+      { k: 'customerContact', label: '客户联系人', type: 'text' },
+      { k: 'customerPhone', label: '客户电话', type: 'text' },
+      { k: 'product', label: '产品', type: 'text' },
+      { k: 'materialCode', label: '物料编码/图号', type: 'text' },
+      { k: 'material', label: '材质', type: 'text' },
+      { k: 'specification', label: '规格', type: 'text' },
+      { k: 'quantity', label: '数量', type: 'number' },
+      { k: 'unit', label: '单位', type: 'select', options: UNIT_OPTS },
+      { k: 'weight', label: '重量', type: 'number' },
+      { k: 'weightUnit', label: '重量单位', type: 'select', options: WEIGHT_OPTS, defaultValue: '公斤' },
+      { k: 'expectedPrice', label: '期望价格', type: 'number', money: true },
+      { k: 'outerDiameter', label: '外径', type: 'number' },
+      { k: 'innerDiameter', label: '内径', type: 'number' },
+      { k: 'wallThickness', label: '壁厚', type: 'number' },
+      { k: 'width', label: '宽度', type: 'number' },
+      { k: 'height', label: '高度', type: 'number' },
+      { k: 'length', label: '长度', type: 'number' },
+      { k: 'thickness', label: '厚度', type: 'number' },
+      { k: 'sideLength', label: '边长', type: 'number' },
+      { k: 'diameter', label: '直径', type: 'number' },
+      { k: 'crossSectionArea', label: '截面积(mm²)', type: 'number' },
+      { k: 'description', label: '备注', type: 'textarea' }
+    ]
+  },
+  {
+    key: 'quotations', title: '报价单', icon: '💰', color: '#10B981', idPrefix: 'QT',
+    stat: 'count', statLabel: '报价单',
+    statuses: ['待报价', '已报价', '已成交', '已关闭'], statusDefault: '待报价',
+    statusColors: { '待报价': 'tag-gray', '已报价': 'tag-blue', '已成交': 'tag-green', '已关闭': 'tag-gray' },
+    searchKeys: ['inquiryNo', 'customer', 'supplier', 'product', 'material'],
+    titleFn: r => r.inquiryNo || r.id,
+    subFn: r => [r.customer, r.supplier].filter(Boolean).join(' · '),
+    kvFields: ['product', 'specification', 'quantity', 'weight', 'unitPrice', 'purchasePrice', 'profitMargin'],
+    autoDiff: { aField: 'unitPrice', bField: 'purchasePrice', target: 'profitMargin', money: true },
+    fields: [
+      { k: 'inquiryNo', label: '询价/报价单号', type: 'text', required: true },
+      { k: 'quotationDate', label: '报价日期', type: 'date', defaultToday: true },
+      { k: 'validUntil', label: '有效期至', type: 'date' },
+      { k: 'status', label: '状态', type: 'select', options: ['待报价', '已报价', '已成交', '已关闭'], defaultValue: '待报价' },
+      { k: 'customer', label: '客户', type: 'text' },
+      { k: 'supplier', label: '供应商', type: 'text' },
       { k: 'product', label: '产品', type: 'text' },
       { k: 'material', label: '材质', type: 'text' },
       { k: 'specification', label: '规格', type: 'text' },
       { k: 'quantity', label: '数量', type: 'number' },
-      { k: 'unit', label: '单位', type: 'select', options: ['公斤', '吨', '件', '支', '米'] },
+      { k: 'unit', label: '单位', type: 'select', options: UNIT_OPTS },
       { k: 'weight', label: '重量', type: 'number' },
-      { k: 'targetPrice', label: '目标价', type: 'number', money: true },
-      { k: 'status', label: '状态', type: 'select', options: ['待回复', '已回复', '已成交', '已关闭'], defaultValue: '待回复' },
+      { k: 'weightUnit', label: '重量单位', type: 'select', options: WEIGHT_OPTS, defaultValue: '公斤' },
+      { k: 'unitPrice', label: '报价(元)', type: 'number', money: true },
+      { k: 'purchasePrice', label: '采购价(元)', type: 'number', money: true },
+      { k: 'profitMargin', label: '单位毛利(元)', type: 'number', money: true },
       { k: 'description', label: '备注', type: 'textarea' }
     ]
   },
   {
     key: 'returnRecords', title: '采购收退货', icon: '📥', color: '#10B981', idPrefix: 'RT',
     stat: 'count', statLabel: '收退货记录',
-    searchKeys: ['orderNo', 'supplier', 'material', 'logisticsNo'],
-    titleFn: r => r.orderNo || r.id, subFn: r => [r.supplier, r.product].filter(Boolean).join(' · '),
+    searchKeys: ['returnDate', 'orderNo', 'supplier', 'product', 'logisticsNo'],
+    titleFn: r => r.orderNo || r.id,
+    subFn: r => [r.supplier, r.product].filter(Boolean).join(' · '),
     kvFields: ['returnDate', 'receivedWeight', 'returnedWeight', 'logisticsCost', 'otherCost', 'logisticsNo'],
     fields: [
       { k: 'returnDate', label: '收退货日期', type: 'date', defaultToday: true },
       { k: 'orderNo', label: '订单编号', type: 'text', required: true },
       { k: 'supplier', label: '供应商', type: 'text' },
+      { k: 'logisticsNo', label: '物流单号', type: 'text' },
+      { k: 'logistics', label: '物流公司', type: 'text' },
+      { k: 'carPlate', label: '车牌号', type: 'text' },
+      { k: 'driver', label: '司机', type: 'text' },
+      { k: 'driverPhone', label: '司机电话', type: 'text' },
+      { k: 'receivingAddress', label: '收货地址', type: 'text' },
       { k: 'product', label: '产品', type: 'text' },
       { k: 'material', label: '材质', type: 'text' },
       { k: 'specification', label: '规格', type: 'text' },
       { k: 'receivedWeight', label: '收货重量', type: 'number' },
       { k: 'returnedWeight', label: '退货重量', type: 'number' },
-      { k: 'logisticsNo', label: '物流单号', type: 'text' },
       { k: 'logisticsCost', label: '物流费用', type: 'number', money: true },
       { k: 'otherCost', label: '其它费用', type: 'number', money: true },
-      { k: 'carPlate', label: '车牌号', type: 'text' },
-      { k: 'driver', label: '司机', type: 'text' },
-      { k: 'driverPhone', label: '司机电话', type: 'text' },
-      { k: 'remarks', label: '备注', type: 'textarea' }
+      { k: 'purchaseRemarks', label: '备注', type: 'textarea' }
     ]
   },
   {
-    key: 'salesReturnRecords', title: '销售退货', icon: '📤', color: '#EF4444', idPrefix: 'SRT',
-    stat: 'count', statLabel: '退货记录',
-    searchKeys: ['orderNo', 'customer', 'material', 'logisticsNo'],
-    titleFn: r => r.orderNo || r.id, subFn: r => [r.customer, r.product].filter(Boolean).join(' · '),
-    kvFields: ['returnDate', 'deliveredWeight', 'returnedWeight', 'logisticsCost', 'logisticsNo'],
+    key: 'salesReturnRecords', title: '销售发退货', icon: '📤', color: '#EF4444', idPrefix: 'SRT',
+    stat: 'count', statLabel: '发退货记录',
+    searchKeys: ['returnDate', 'orderNo', 'customer', 'product', 'logisticsNo'],
+    titleFn: r => r.orderNo || r.id,
+    subFn: r => [r.customer, r.product].filter(Boolean).join(' · '),
+    kvFields: ['returnDate', 'deliveredWeight', 'salesReturnedWeight', 'salesLogisticsCost', 'salesOtherCost', 'logisticsNo'],
     fields: [
-      { k: 'returnDate', label: '退货日期', type: 'date', defaultToday: true },
+      { k: 'returnDate', label: '发退货日期', type: 'date', defaultToday: true },
       { k: 'orderNo', label: '订单编号', type: 'text', required: true },
       { k: 'customer', label: '客户', type: 'text' },
+      { k: 'logisticsNo', label: '物流单号', type: 'text' },
       { k: 'product', label: '产品', type: 'text' },
       { k: 'material', label: '材质', type: 'text' },
       { k: 'specification', label: '规格', type: 'text' },
       { k: 'deliveredWeight', label: '发货重量', type: 'number' },
-      { k: 'returnedWeight', label: '退货重量', type: 'number' },
-      { k: 'logisticsNo', label: '物流单号', type: 'text' },
-      { k: 'logisticsCost', label: '物流费用', type: 'number', money: true },
-      { k: 'otherCost', label: '其它费用', type: 'number', money: true },
+      { k: 'salesReturnedWeight', label: '退货重量', type: 'number' },
+      { k: 'salesLogisticsCost', label: '物流费用', type: 'number', money: true },
+      { k: 'salesOtherCost', label: '其它费用', type: 'number', money: true },
+      { k: 'salesRemarks', label: '备注', type: 'textarea' }
+    ]
+  },
+  {
+    key: 'inventoryRecords', title: '库存记录', icon: '🏬', color: '#0A84FF', idPrefix: 'INV',
+    stat: 'count', statLabel: '库存记录',
+    searchKeys: ['stockInDate', 'warehouseId', 'product', 'material', 'specification'],
+    titleFn: r => [r.product, r.material].filter(Boolean).join(' ') || r.id,
+    subFn: r => [r.warehouseId, r.locationId].filter(Boolean).join(' · '),
+    kvFields: ['warehouseId', 'locationId', 'specification', 'quantity', 'weight', 'supplier'],
+    fields: [
+      { k: 'stockInDate', label: '入库日期', type: 'date', defaultToday: true },
+      { k: 'warehouseId', label: '仓库', type: 'text' },
+      { k: 'locationId', label: '库位', type: 'text' },
+      { k: 'operator', label: '经手人', type: 'text' },
+      { k: 'supplier', label: '供应商', type: 'text' },
+      { k: 'product', label: '产品', type: 'text' },
+      { k: 'material', label: '材质', type: 'text' },
+      { k: 'specification', label: '规格', type: 'text' },
+      { k: 'quantity', label: '数量', type: 'number' },
+      { k: 'unit', label: '单位', type: 'select', options: UNIT_OPTS },
+      { k: 'weight', label: '重量', type: 'number' },
+      { k: 'weightUnit', label: '重量单位', type: 'select', options: WEIGHT_OPTS, defaultValue: '公斤' },
+      { k: 'notes', label: '备注', type: 'textarea' }
+    ]
+  },
+  {
+    key: 'warehouses', title: '仓库设置', icon: '🗄️', color: '#64748B', idPrefix: 'WH',
+    stat: 'count', statLabel: '仓库',
+    searchKeys: ['name', 'location', 'manager'],
+    titleFn: r => r.name || r.id,
+    subFn: r => [r.location, r.manager].filter(Boolean).join(' · '),
+    kvFields: ['location', 'manager', 'phone'],
+    fields: [
+      { k: 'name', label: '仓库名称', type: 'text', required: true },
+      { k: 'location', label: '仓库地址', type: 'text' },
+      { k: 'manager', label: '管理员', type: 'text' },
+      { k: 'phone', label: '联系电话', type: 'text' },
+      { k: 'remark', label: '备注', type: 'textarea' }
+    ]
+  },
+  {
+    key: 'transactions', title: '收付款', icon: '💴', color: '#F97316', idPrefix: 'TX',
+    stat: 'sum', sumField: 'amount', statLabel: '收付款合计(元)',
+    statuses: ['收款', '付款', '其他'], statusDefault: '收款',
+    statusColors: { '收款': 'tag-green', '付款': 'tag-red', '其他': 'tag-gray' },
+    searchKeys: ['date', 'category', 'payee', 'payer', 'handler', 'paymentMethod'],
+    titleFn: r => (r.category || '收付款') + (r.amount != null && r.amount !== '' ? '  ¥' + r.amount : ''),
+    subFn: r => [r.payee, r.payer].filter(Boolean).join(' → '),
+    kvFields: ['date', 'paymentMethod', 'payee', 'payer', 'amount', 'handler'],
+    fields: [
+      { k: 'date', label: '收付款日期', type: 'date', defaultToday: true },
+      { k: 'category', label: '交易类别', type: 'select', options: ['收款', '付款', '其他'], defaultValue: '收款', required: true },
+      { k: 'paymentMethod', label: '结算方式', type: 'select', options: ['承兑汇票', '电汇', '现金', '微信', '支付宝'], defaultValue: '电汇' },
+      { k: 'handler', label: '经手人', type: 'text', defaultValue: '周瑾' },
+      { k: 'payee', label: '收款单位', type: 'text' },
+      { k: 'payer', label: '付款单位', type: 'text' },
+      { k: 'amount', label: '金额(元)', type: 'number', money: true, required: true },
       { k: 'remarks', label: '备注', type: 'textarea' }
     ]
   },
   {
-    key: 'contacts', title: '通讯录', icon: '👥', color: '#6366F1', idPrefix: 'CT',
-    stat: 'count', statLabel: '联系人',
-    searchKeys: ['name', 'contactPerson', 'phone', 'type'],
-    titleFn: r => r.name || r.id, subFn: r => [r.type, r.contactPerson].filter(Boolean).join(' · '),
-    kvFields: ['contactPerson', 'phone', 'address'],
+    key: 'invoices', title: '发票登记', icon: '🧾', color: '#F59E0B', idPrefix: 'IV',
+    stat: 'sum', sumField: 'totalAmount', statLabel: '价税合计(元)',
+    statuses: ['进项', '销项'], statusDefault: '销项',
+    statusColors: { '进项': 'tag-blue', '销项': 'tag-orange' },
+    searchKeys: ['invoiceDate', 'invoiceNo', 'seller', 'buyer', 'type'],
+    titleFn: r => r.invoiceNo || r.id,
+    subFn: r => [r.type, r.seller, r.buyer].filter(Boolean).join(' · '),
+    kvFields: ['invoiceDate', 'type', 'seller', 'buyer', 'amount', 'taxRate', 'taxAmount', 'totalAmount'],
+    autoTax: { amountField: 'amount', rateField: 'taxRate', taxTarget: 'taxAmount', totalTarget: 'totalAmount' },
     fields: [
-      { k: 'name', label: '名称', type: 'text', required: true },
-      { k: 'type', label: '类型', type: 'select', options: ['供应商', '客户', '工厂', '物流', '其他'], required: true },
+      { k: 'invoiceDate', label: '登记日期', type: 'date', defaultToday: true },
+      { k: 'type', label: '发票类型', type: 'select', options: ['进项', '销项'], defaultValue: '销项', required: true },
+      { k: 'invoiceNo', label: '发票号码', type: 'text', required: true },
+      { k: 'seller', label: '销售方', type: 'text' },
+      { k: 'buyer', label: '购买方', type: 'text' },
+      { k: 'amount', label: '不含税金额', type: 'number', money: true },
+      { k: 'taxRate', label: '税率(%)', type: 'number' },
+      { k: 'taxAmount', label: '税额', type: 'number', money: true },
+      { k: 'totalAmount', label: '价税合计', type: 'number', money: true },
+      { k: 'remarks', label: '备注', type: 'textarea' }
+    ]
+  },
+  {
+    key: 'calendarEvents', title: '日历记事', icon: '📅', color: '#AF52DE', idPrefix: 'EV',
+    stat: 'count', statLabel: '记事',
+    statuses: ['待办', '已完成'], statusDefault: '待办',
+    statusColors: { '待办': 'tag-orange', '已完成': 'tag-green' },
+    searchKeys: ['title', 'startDate', 'location'],
+    titleFn: r => r.title || r.id,
+    subFn: r => [r.startDate, r.time, r.location].filter(Boolean).join(' · '),
+    kvFields: ['startDate', 'endDate', 'time', 'endTime', 'reminder', 'location'],
+    fields: [
+      { k: 'title', label: '事项', type: 'text', required: true },
+      { k: 'startDate', label: '开始日期', type: 'date', defaultToday: true },
+      { k: 'endDate', label: '结束日期', type: 'date' },
+      { k: 'time', label: '开始时间', type: 'text', placeholder: '如 09:30' },
+      { k: 'endTime', label: '结束时间', type: 'text' },
+      { k: 'reminder', label: '提醒', type: 'select', options: ['不提醒', '准时', '15分钟前', '30分钟前', '1小时前', '1天前'], defaultValue: '不提醒' },
+      { k: 'location', label: '地点', type: 'text' },
+      { k: 'status', label: '状态', type: 'select', options: ['待办', '已完成'], defaultValue: '待办' },
+      { k: 'notes', label: '备注', type: 'textarea' }
+    ]
+  },
+  /* ===== 全局资料（不按公司隔离，scoped:false） ===== */
+  {
+    key: 'contacts', title: '通讯录', icon: '👥', color: '#6366F1', idPrefix: 'CT',
+    scoped: false,
+    stat: 'count', statLabel: '联系人',
+    searchKeys: ['name', 'businessType', 'contactPerson', 'phone'],
+    titleFn: r => r.name || r.id,
+    subFn: r => [r.businessType, r.contactPerson].filter(Boolean).join(' · '),
+    kvFields: ['businessType', 'contactPerson', 'phone', 'address'],
+    fields: [
+      { k: 'name', label: '单位名称', type: 'text', required: true },
+      { k: 'businessType', label: '类型', type: 'select', options: ['供应商', '客户', '工厂', '物流', '其他'], defaultValue: '客户', required: true },
       { k: 'contactPerson', label: '联系人', type: 'text' },
       { k: 'position', label: '职位', type: 'text' },
       { k: 'phone', label: '电话', type: 'text' },
       { k: 'email', label: '邮箱', type: 'text' },
+      { k: 'website', label: '网址', type: 'text' },
       { k: 'address', label: '地址', type: 'text' },
-      { k: 'remarks', label: '备注', type: 'textarea' }
+      { k: 'bankAddress', label: '开户行', type: 'text' },
+      { k: 'bankCode', label: '行号/SWIFT', type: 'text' },
+      { k: 'bankAccount', label: '银行账号', type: 'text' }
     ]
   },
   {
-    key: 'memoRecords', title: '备忘录', icon: '📝', color: '#8B5CF6', idPrefix: 'MEMO',
+    key: 'memos', title: '备忘录', icon: '📝', color: '#8B5CF6', idPrefix: 'MEMO',
+    scoped: false,
     stat: 'count', statLabel: '备忘',
-    statuses: ['进行中', '已完成'],
-    statusColors: { '进行中': 'tag-orange', '已完成': 'tag-green' },
-    searchKeys: ['content'],
-    titleFn: r => (r.content || '').slice(0, 24) || r.id, subFn: r => r.date || '',
-    kvFields: [],
+    statuses: ['待办', '进行中', '已完成'], statusDefault: '进行中',
+    statusColors: { '待办': 'tag-gray', '进行中': 'tag-orange', '已完成': 'tag-green' },
+    searchKeys: ['title', 'content', 'tags'],
+    titleFn: r => r.title || (r.content || '').slice(0, 24) || r.id,
+    subFn: r => [r.priority, r.tags].filter(Boolean).join(' · '),
+    kvFields: ['priority', 'tags', 'status'],
     fields: [
-      { k: 'date', label: '日期', type: 'date', defaultToday: true },
+      { k: 'title', label: '标题', type: 'text', required: true },
       { k: 'content', label: '内容', type: 'textarea', required: true },
-      { k: 'status', label: '状态', type: 'select', options: ['进行中', '已完成'], defaultValue: '进行中' }
+      { k: 'priority', label: '优先级', type: 'select', options: ['高', '中', '低'], defaultValue: '中' },
+      { k: 'tags', label: '标签', type: 'text' },
+      { k: 'status', label: '状态', type: 'select', options: ['待办', '进行中', '已完成'], defaultValue: '进行中' }
+    ]
+  },
+  {
+    key: 'gradeComparisons', title: '材质对照', icon: '🔩', color: '#0F766E', idPrefix: 'GR',
+    scoped: false,
+    stat: 'count', statLabel: '材质牌号',
+    searchKeys: ['grade', 'gbOld', 'gbNew', 'uns', 'astm', 'jis', 'din'],
+    titleFn: r => r.grade || r.id,
+    subFn: r => [r.gbNew, r.astm].filter(Boolean).join(' / '),
+    kvFields: ['grade', 'gbOld', 'gbNew', 'astm', 'jis', 'density'],
+    fields: [
+      { k: 'grade', label: '牌号', type: 'text', required: true },
+      { k: 'gbOld', label: '旧国标 GB', type: 'text' },
+      { k: 'gbNew', label: '新国标 GB', type: 'text' },
+      { k: 'uns', label: 'UNS(美)', type: 'text' },
+      { k: 'astm', label: 'ASTM(美)', type: 'text' },
+      { k: 'sae', label: 'SAE(美)', type: 'text' },
+      { k: 'jis', label: 'JIS(日)', type: 'text' },
+      { k: 'ks', label: 'KS(韩)', type: 'text' },
+      { k: 'din', label: 'DIN(德)', type: 'text' },
+      { k: 'nf', label: 'NF(法)', type: 'text' },
+      { k: 'bs', label: 'BS(英)', type: 'text' },
+      { k: 'en', label: 'EN(欧)', type: 'text' },
+      { k: 'iso', label: 'ISO', type: 'text' },
+      { k: 'density', label: '密度(g/cm³)', type: 'number' },
+      { k: 'composition', label: '化学成分', type: 'textarea' }
+    ]
+  },
+  {
+    key: 'vocabularies', title: '钢材英语', icon: '🔤', color: '#0284C7', idPrefix: 'VO',
+    scoped: false,
+    stat: 'count', statLabel: '词汇',
+    searchKeys: ['english', 'chinese', 'phonetic', 'categoryEn'],
+    titleFn: r => r.english || r.id,
+    subFn: r => r.chinese || '',
+    kvFields: ['phonetic', 'chinese', 'categoryEn'],
+    fields: [
+      { k: 'english', label: 'English', type: 'text', required: true },
+      { k: 'phonetic', label: '音标', type: 'text' },
+      { k: 'chinese', label: '中文', type: 'text', required: true },
+      { k: 'categoryEn', label: '分类', type: 'text' }
+    ]
+  },
+  {
+    key: 'hscodes', title: 'HS编码/标准', icon: '📚', color: '#7C3AED', idPrefix: 'HS',
+    scoped: false,
+    stat: 'count', statLabel: '编码',
+    searchKeys: ['productName', 'productNameEn', 'hscode', 'standard'],
+    titleFn: r => r.productName || r.id,
+    subFn: r => r.hscode || '',
+    kvFields: ['hscode', 'standard', 'productNameEn'],
+    fields: [
+      { k: 'productName', label: '产品名称', type: 'text', required: true },
+      { k: 'productNameEn', label: '英文名称', type: 'text' },
+      { k: 'hscode', label: 'HS 编码', type: 'text', required: true },
+      { k: 'standard', label: '国标', type: 'text' },
+      { k: 'standardEn', label: '国际标准', type: 'text' },
+      { k: 'techRequirements', label: '技术要求', type: 'textarea' },
+      { k: 'techRequirementsEn', label: '英文技术要求', type: 'textarea' },
+      { k: 'note', label: '备注', type: 'textarea' },
+      { k: 'noteEn', label: '英文备注', type: 'textarea' },
+      { k: 'descriptionEn', label: '英文描述', type: 'textarea' }
+    ]
+  },
+  {
+    key: 'calculationParams', title: '理算参数', icon: '🧮', color: '#DB2777', idPrefix: 'CP',
+    scoped: false,
+    stat: 'count', statLabel: '公式',
+    searchKeys: ['serial', 'title'],
+    titleFn: r => (r.serial ? r.serial + '. ' : '') + (r.title || r.id),
+    subFn: r => r.formula || '',
+    kvFields: ['serial', 'title', 'formula'],
+    fields: [
+      { k: 'serial', label: '序号', type: 'text', required: true },
+      { k: 'title', label: '标题', type: 'text', required: true },
+      { k: 'formula', label: '计算公式', type: 'textarea' },
+      { k: 'example', label: '示例', type: 'textarea' }
     ]
   }
 ];
+
+/* stainless 同步云键：全局 + 三家公司作用域 */
+const STAINLESS_SYNC_KEYS = STAINLESS_GLOBAL_KEYS.slice()
+  .concat(STAINLESS_COMPANY_IDS.reduce((acc, cid) =>
+    acc.concat(STAINLESS_SCOPED_KEYS.map(k => cid + '__' + k)), []));
 
 /* ================================================================
  * 项目定义
@@ -482,11 +795,20 @@ const PROJECTS = [
     company: 'SAINTY 服装外贸',
     companyEn: 'SAINTY GARMENT EXPORT SYSTEM',
     appid: 'touristappid',
-    keys: SAINTY_MODULES.map(m => m.key),
+    keys: SAINTY_MODULES.map(m => m.key).concat(SAINTY_EXTRA_KEYS),
     cloudPrefix: '',
     fileRoot: '',
     brand: { a: '#EC4899', b: '#BE185D', shadow: 'rgba(236, 72, 153, 0.30)', bg: '#FDF2F8' },
-    modules: SAINTY_MODULES
+    modules: SAINTY_MODULES,
+    // 对象型键的默认值（数组型键默认 [] 由构建流程自动补）
+    objectDefaults: { fashion_quotation_settings: DEFAULT_QUOTE_SETTINGS },
+    overlay: '_sainty',
+    pagesExtra: ['pages/quote-list/quote-list', 'pages/quote-edit/quote-edit'],
+    // 首页宫格额外入口（非通用模块页）
+    homeExtra: [
+      { key: 'fashion_quotations', title: '报价系统', icon: '📑', color: '#004D6D',
+        url: '/pages/quote-list/quote-list', stat: 'count', statLabel: '份报价' }
+    ]
   },
   {
     dir: 'stainless-mp',
@@ -497,13 +819,86 @@ const PROJECTS = [
     company: '不锈钢业务管理系统',
     companyEn: 'STAINLESS STEEL BUSINESS SYSTEM',
     appid: 'touristappid',
-    keys: STAINLESS_MODULES.map(m => m.key),
+    keys: STAINLESS_SYNC_KEYS,
     cloudPrefix: 'stainlessbusiness__',
     fileRoot: 'stainlessbusiness',
     brand: { a: '#0EA5E9', b: '#0369A1', shadow: 'rgba(14, 165, 233, 0.30)', bg: '#F0F9FF' },
-    modules: STAINLESS_MODULES
+    modules: STAINLESS_MODULES,
+    overlay: '_stainless',
+    cleanPages: true,
+    pagesExtra: ['pages/contract/contract', 'pages/stats/stats']
   }
 ];
+
+/* ================================================================
+ * 覆盖层（_stainless）拷贝 + 占位符替换
+ * ================================================================ */
+function overlayTokens(P, c) {
+  return c
+    .replace('@APP_TITLE@', ' * ' + P.title)
+    .replace('@@APP_NAME@@', P.appName)
+    .replaceAll('@APP_NAME@', P.appName)
+    .replaceAll('@APP_NAME_EN@', P.appNameEn)
+    .replaceAll('@COMPANY@', P.company)
+    .replaceAll('@COMPANY_EN@', P.companyEn)
+    .replaceAll('@BRAND_A@', P.brand.a)
+    .replaceAll('@BRAND_B@', P.brand.b)
+    .replaceAll('@BRAND_SHADOW@', P.brand.shadow)
+    .replaceAll('@BRAND_BG@', P.brand.bg);
+}
+
+/**
+ * 模块 schema → JS 源码。
+ * JSON.stringify 会丢弃 titleFn/subFn 等函数，这里用占位符保留函数体。
+ */
+function schemaSource(m) {
+  const fns = [];
+  const json = JSON.stringify(m, (k, v) => {
+    if (typeof v === 'function') {
+      fns.push(v.toString());
+      return 'FNPLACEHOLDER' + (fns.length - 1) + '';
+    }
+    return v;
+  }, 2);
+  return json.replace(/"FNPLACEHOLDER(\d+)"/g, (_, i) => fns[Number(i)]);
+}
+
+function copyOverlay(P) {
+  if (!P.overlay) return;
+  const srcRoot = path.join(ROOT, P.overlay);
+  const dstRoot = path.join(ROOT, P.dir);
+  const TEXT_EXT = new Set(['.js', '.json', '.wxml', '.wxss', '.wxs', '.css', '.txt']);
+  const modulesJson = (P.modules || []).map(m => ({
+    key: m.key, title: m.title, icon: m.icon, color: m.color,
+    url: '/pages/' + m.key + '/' + m.key,
+    stat: m.stat || 'count', sumField: m.sumField || '', statLabel: m.statLabel || ''
+  })).concat((P.homeExtra || []).map(m => ({
+    key: m.key, title: m.title, icon: m.icon, color: m.color, url: m.url,
+    stat: m.stat || 'count', sumField: m.sumField || '', statLabel: m.statLabel || ''
+  })));
+  function walk(dir, rel) {
+    fs.readdirSync(dir, { withFileTypes: true }).forEach(ent => {
+      const src = path.join(dir, ent.name);
+      const relPath = rel ? rel + '/' + ent.name : ent.name;
+      // 模块页模板只供构建时复制到各模块目录，不作为页面进入产物
+      if (relPath === 'pages/_module' || relPath.indexOf('pages/_module/') === 0) return;
+      if (ent.isDirectory()) { walk(src, relPath); return; }
+      const dst = path.join(dstRoot, relPath);
+      fs.mkdirSync(path.dirname(dst), { recursive: true });
+      const ext = path.extname(ent.name).toLowerCase();
+      if (TEXT_EXT.has(ext)) {
+        fs.writeFileSync(dst,
+          overlayTokens(P, fs.readFileSync(src, 'utf8'))
+            .replace('@@MODULES_JSON@@', JSON.stringify(modulesJson, null, 2))
+        );
+      } else {
+        fs.copyFileSync(src, dst); // 图片等二进制资源
+      }
+      console.log('  ~ ' + P.dir + '/' + relPath);
+    });
+  }
+  walk(srcRoot, '');
+}
 
 /* ================================================================
  * 构建
@@ -511,6 +906,12 @@ const PROJECTS = [
 function buildProject(P) {
   console.log('\n========== 构建 ' + P.dir + ' ==========');
   const D = P.dir + '/';
+
+  // 覆盖层项目：清理旧页面目录，避免已废弃模块残留被打包
+  if (P.cleanPages) {
+    const pagesDir = path.join(ROOT, D + 'pages');
+    fs.rmSync(pagesDir, { recursive: true, force: true });
+  }
 
   // ---- utils/cloudbase.js ----
   write(D + 'utils/cloudbase.js',
@@ -528,23 +929,27 @@ function buildProject(P) {
                'function rootOf(app) {\n  return APP_ROOTS[app] !== undefined ? APP_ROOTS[app] : String(app || \'files\');\n}')
   );
 
-  // ---- utils/db.js ----
+  // ---- utils/db.js（若覆盖层提供 db.js，稍后会被覆盖） ----
   const defaults = {};
   P.keys.forEach(k => { defaults[k] = []; });
+  Object.assign(defaults, P.objectDefaults || {});
   write(D + 'utils/db.js',
     read('utils/db.js').replace('@@DEFAULTS_JSON@@', JSON.stringify(defaults))
   );
 
-  // ---- utils/format.js / list-page.js ----
+  // ---- utils/format.js / list-page.js（覆盖层稍后可能覆盖） ----
   write(D + 'utils/format.js', read('utils/format.js'));
   write(D + 'utils/list-page.js', read('utils/list-page.js'));
 
-  // ---- app.js ----
+  // ---- app.js ----（含首页额外入口 homeExtra，如报价系统） ----
   const modulesJson = P.modules.map(m => ({
     key: m.key, title: m.title, icon: m.icon, color: m.color,
     url: '/pages/' + m.key + '/' + m.key,
     stat: m.stat || 'count', sumField: m.sumField || '', statLabel: m.statLabel || ''
-  }));
+  })).concat((P.homeExtra || []).map(m => ({
+    key: m.key, title: m.title, icon: m.icon, color: m.color, url: m.url,
+    stat: m.stat || 'count', sumField: m.sumField || '', statLabel: m.statLabel || ''
+  })));
   write(D + 'app.js',
     read('app.js')
       .replace('@APP_TITLE@', P.title)
@@ -556,7 +961,9 @@ function buildProject(P) {
 
   // ---- app.json ----
   const pages = [
-    'pages/login/login', 'pages/home/home', 'pages/backup/backup',
+    'pages/login/login', 'pages/home/home',
+    ...(P.pagesExtra || []),
+    'pages/backup/backup',
     'pages/cloudfiles/cloudfiles',
     ...P.modules.map(m => 'pages/' + m.key + '/' + m.key)
   ];
@@ -577,6 +984,7 @@ function buildProject(P) {
   // ---- app.wxss（品牌色） ----
   write(D + 'app.wxss',
     read('app.wxss')
+      .replaceAll('@APP_NAME@', P.appName)
       .replaceAll('@BRAND_A@', P.brand.a)
       .replaceAll('@BRAND_B@', P.brand.b)
       .replaceAll('@BRAND_SHADOW@', P.brand.shadow)
@@ -602,7 +1010,7 @@ function buildProject(P) {
     write(D + 'pages/login/' + f, c);
   });
 
-  // ---- 首页 ----
+  // ---- 首页（覆盖层稍后可能覆盖） ----
   ['home.js', 'home.wxml', 'home.json', 'home.wxss'].forEach(f => {
     let c = read('pages/home/' + f);
     c = c.replaceAll('@APP_NAME@', P.appName)
@@ -624,17 +1032,26 @@ function buildProject(P) {
     write(D + 'pages/cloudfiles/' + f, c);
   });
 
-  // ---- 业务模块页 ----
+  // ---- 业务模块页（覆盖层提供模块模板时优先使用） ----
   P.modules.forEach(m => {
     const md = D + 'pages/' + m.key + '/';
     write(md + 'schema.js',
-      '/** ' + m.title + ' 模块配置（构建脚本生成） */\nmodule.exports = ' + JSON.stringify(m, null, 2) + ';\n');
+      '/** ' + m.title + ' 模块配置（构建脚本生成） */\nmodule.exports = ' + schemaSource(m) + ';\n');
     write(md + m.key + '.js',
       "Page(require('../../utils/list-page')(require('./schema')));\n");
-    write(md + m.key + '.wxml', read('pages/_module/m.wxml'));
-    write(md + m.key + '.wxss', read('pages/_module/m.wxss'));
+    const overlayMWxml = P.overlay && fs.existsSync(path.join(ROOT, P.overlay, 'pages/_module/m.wxml'));
+    if (overlayMWxml) {
+      write(md + m.key + '.wxml', readIn(P.overlay, 'pages/_module/m.wxml'));
+      write(md + m.key + '.wxss', readIn(P.overlay, 'pages/_module/m.wxss'));
+    } else {
+      write(md + m.key + '.wxml', read('pages/_module/m.wxml'));
+      write(md + m.key + '.wxss', read('pages/_module/m.wxss'));
+    }
     write(md + m.key + '.json', read('pages/_module/m.json').replace('@MODULE_TITLE@', m.title));
   });
+
+  // ---- 覆盖层（最后执行，覆盖 db.js / app.js / 首页 / 工具与新页面、图片） ----
+  copyOverlay(P);
 
   // ---- README ----
   write(D + 'README.md', readme(P));

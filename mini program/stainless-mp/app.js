@@ -1,7 +1,7 @@
 /**
  * 不锈钢贸易小程序（与网页版 apps/stainlessbusiness 共用 CloudBase 后端） —— 微信小程序
  *
- * 登录 → 首页（功能模块入口）→ 各业务模块列表页
+ * 登录 → 首页（三抬头切换 + 功能模块入口）→ 各业务模块列表页
  * 数据与网页版共用 CloudBase 后端，双端自动同步。
  */
 const db = require('./utils/db');
@@ -32,9 +32,7 @@ Page = function (options) {
 
 App({
   onLaunch() {
-    // 恢复登录用户
     this.globalData.user = cb.getUser();
-    // 本地加载 + 云端拉取合并
     db.loadAll();
     db.syncFromCloud(() => {
       try {
@@ -47,13 +45,8 @@ App({
     this._lastTick = Date.now();
   },
 
-  onShow() {
-    cb.flushQueue();
-  },
-
-  onHide() {
-    cb.flushQueue();
-  },
+  onShow() { cb.flushQueue(); },
+  onHide() { cb.flushQueue(); },
 
   /** 节流的云端拉取（页面 onShow 触发；8 秒内不重复） */
   cloudTick() {
@@ -73,18 +66,7 @@ App({
     appName: '不锈钢业务管理',
     appNameEn: 'STAINLESS STEEL BUSINESS',
     user: null,
-    // 功能模块清单（构建脚本生成）
     modules: [
-  {
-    "key": "purchaseOrders",
-    "title": "采购订单",
-    "icon": "🛒",
-    "color": "#5856D6",
-    "url": "/pages/purchaseOrders/purchaseOrders",
-    "stat": "sum",
-    "sumField": "totalAmount",
-    "statLabel": "采购总额(元)"
-  },
   {
     "key": "salesOrders",
     "title": "销售订单",
@@ -96,6 +78,16 @@ App({
     "statLabel": "销售总额(元)"
   },
   {
+    "key": "purchaseOrders",
+    "title": "采购订单",
+    "icon": "🛒",
+    "color": "#5856D6",
+    "url": "/pages/purchaseOrders/purchaseOrders",
+    "stat": "sum",
+    "sumField": "totalAmount",
+    "statLabel": "采购总额(元)"
+  },
+  {
     "key": "inquiries",
     "title": "询价单",
     "icon": "📨",
@@ -104,6 +96,16 @@ App({
     "stat": "count",
     "sumField": "",
     "statLabel": "询价单"
+  },
+  {
+    "key": "quotations",
+    "title": "报价单",
+    "icon": "💰",
+    "color": "#10B981",
+    "url": "/pages/quotations/quotations",
+    "stat": "count",
+    "sumField": "",
+    "statLabel": "报价单"
   },
   {
     "key": "returnRecords",
@@ -117,13 +119,63 @@ App({
   },
   {
     "key": "salesReturnRecords",
-    "title": "销售退货",
+    "title": "销售发退货",
     "icon": "📤",
     "color": "#EF4444",
     "url": "/pages/salesReturnRecords/salesReturnRecords",
     "stat": "count",
     "sumField": "",
-    "statLabel": "退货记录"
+    "statLabel": "发退货记录"
+  },
+  {
+    "key": "inventoryRecords",
+    "title": "库存记录",
+    "icon": "🏬",
+    "color": "#0A84FF",
+    "url": "/pages/inventoryRecords/inventoryRecords",
+    "stat": "count",
+    "sumField": "",
+    "statLabel": "库存记录"
+  },
+  {
+    "key": "warehouses",
+    "title": "仓库设置",
+    "icon": "🗄️",
+    "color": "#64748B",
+    "url": "/pages/warehouses/warehouses",
+    "stat": "count",
+    "sumField": "",
+    "statLabel": "仓库"
+  },
+  {
+    "key": "transactions",
+    "title": "收付款",
+    "icon": "💴",
+    "color": "#F97316",
+    "url": "/pages/transactions/transactions",
+    "stat": "sum",
+    "sumField": "amount",
+    "statLabel": "收付款合计(元)"
+  },
+  {
+    "key": "invoices",
+    "title": "发票登记",
+    "icon": "🧾",
+    "color": "#F59E0B",
+    "url": "/pages/invoices/invoices",
+    "stat": "sum",
+    "sumField": "totalAmount",
+    "statLabel": "价税合计(元)"
+  },
+  {
+    "key": "calendarEvents",
+    "title": "日历记事",
+    "icon": "📅",
+    "color": "#AF52DE",
+    "url": "/pages/calendarEvents/calendarEvents",
+    "stat": "count",
+    "sumField": "",
+    "statLabel": "记事"
   },
   {
     "key": "contacts",
@@ -136,14 +188,54 @@ App({
     "statLabel": "联系人"
   },
   {
-    "key": "memoRecords",
+    "key": "memos",
     "title": "备忘录",
     "icon": "📝",
     "color": "#8B5CF6",
-    "url": "/pages/memoRecords/memoRecords",
+    "url": "/pages/memos/memos",
     "stat": "count",
     "sumField": "",
     "statLabel": "备忘"
+  },
+  {
+    "key": "gradeComparisons",
+    "title": "材质对照",
+    "icon": "🔩",
+    "color": "#0F766E",
+    "url": "/pages/gradeComparisons/gradeComparisons",
+    "stat": "count",
+    "sumField": "",
+    "statLabel": "材质牌号"
+  },
+  {
+    "key": "vocabularies",
+    "title": "钢材英语",
+    "icon": "🔤",
+    "color": "#0284C7",
+    "url": "/pages/vocabularies/vocabularies",
+    "stat": "count",
+    "sumField": "",
+    "statLabel": "词汇"
+  },
+  {
+    "key": "hscodes",
+    "title": "HS编码/标准",
+    "icon": "📚",
+    "color": "#7C3AED",
+    "url": "/pages/hscodes/hscodes",
+    "stat": "count",
+    "sumField": "",
+    "statLabel": "编码"
+  },
+  {
+    "key": "calculationParams",
+    "title": "理算参数",
+    "icon": "🧮",
+    "color": "#DB2777",
+    "url": "/pages/calculationParams/calculationParams",
+    "stat": "count",
+    "sumField": "",
+    "statLabel": "公式"
   }
 ]
   }

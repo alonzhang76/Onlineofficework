@@ -1,29 +1,33 @@
-/** 销售退货 模块配置（构建脚本生成） */
+/** 销售发退货 模块配置（构建脚本生成） */
 module.exports = {
   "key": "salesReturnRecords",
-  "title": "销售退货",
+  "title": "销售发退货",
   "icon": "📤",
   "color": "#EF4444",
   "idPrefix": "SRT",
   "stat": "count",
-  "statLabel": "退货记录",
+  "statLabel": "发退货记录",
   "searchKeys": [
+    "returnDate",
     "orderNo",
     "customer",
-    "material",
+    "product",
     "logisticsNo"
   ],
+  "titleFn": r => r.orderNo || r.id,
+  "subFn": r => [r.customer, r.product].filter(Boolean).join(' · '),
   "kvFields": [
     "returnDate",
     "deliveredWeight",
-    "returnedWeight",
-    "logisticsCost",
+    "salesReturnedWeight",
+    "salesLogisticsCost",
+    "salesOtherCost",
     "logisticsNo"
   ],
   "fields": [
     {
       "k": "returnDate",
-      "label": "退货日期",
+      "label": "发退货日期",
       "type": "date",
       "defaultToday": true
     },
@@ -36,6 +40,11 @@ module.exports = {
     {
       "k": "customer",
       "label": "客户",
+      "type": "text"
+    },
+    {
+      "k": "logisticsNo",
+      "label": "物流单号",
       "type": "text"
     },
     {
@@ -59,29 +68,24 @@ module.exports = {
       "type": "number"
     },
     {
-      "k": "returnedWeight",
+      "k": "salesReturnedWeight",
       "label": "退货重量",
       "type": "number"
     },
     {
-      "k": "logisticsNo",
-      "label": "物流单号",
-      "type": "text"
-    },
-    {
-      "k": "logisticsCost",
+      "k": "salesLogisticsCost",
       "label": "物流费用",
       "type": "number",
       "money": true
     },
     {
-      "k": "otherCost",
+      "k": "salesOtherCost",
       "label": "其它费用",
       "type": "number",
       "money": true
     },
     {
-      "k": "remarks",
+      "k": "salesRemarks",
       "label": "备注",
       "type": "textarea"
     }

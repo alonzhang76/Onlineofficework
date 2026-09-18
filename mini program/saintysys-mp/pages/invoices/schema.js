@@ -25,6 +25,8 @@ module.exports = {
     "orderNo",
     "styleNo"
   ],
+  "titleFn": r => r.invoiceNo || r.id,
+  "subFn": r => [r.orderNo, r.styleNo].filter(Boolean).join(' · '),
   "kvFields": [
     "orderNo",
     "invoiceDate",

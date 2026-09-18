@@ -14,6 +14,8 @@ module.exports = {
     "styleNo",
     "company"
   ],
+  "titleFn": r => (r.company || '') + (r.tracking ? ' ' + r.tracking : ''),
+  "subFn": r => [r.date, r.item].filter(Boolean).join(' · '),
   "kvFields": [
     "tracking",
     "date",

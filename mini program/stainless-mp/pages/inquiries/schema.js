@@ -24,16 +24,19 @@ module.exports = {
     "inquiryNo",
     "supplier",
     "customer",
+    "product",
     "material"
   ],
+  "titleFn": r => r.inquiryNo || r.id,
+  "subFn": r => [r.supplier, r.customer].filter(Boolean).join(' · '),
   "kvFields": [
     "product",
     "material",
     "specification",
     "quantity",
-    "targetPrice",
-    "dueDate",
-    "status"
+    "weight",
+    "expectedPrice",
+    "dueDate"
   ],
   "fields": [
     {
@@ -54,8 +57,30 @@ module.exports = {
       "type": "date"
     },
     {
+      "k": "status",
+      "label": "状态",
+      "type": "select",
+      "options": [
+        "待回复",
+        "已回复",
+        "已成交",
+        "已关闭"
+      ],
+      "defaultValue": "待回复"
+    },
+    {
       "k": "supplier",
       "label": "供应商",
+      "type": "text"
+    },
+    {
+      "k": "supplierContact",
+      "label": "供应商联系人",
+      "type": "text"
+    },
+    {
+      "k": "supplierPhone",
+      "label": "供应商电话",
       "type": "text"
     },
     {
@@ -64,8 +89,23 @@ module.exports = {
       "type": "text"
     },
     {
+      "k": "customerContact",
+      "label": "客户联系人",
+      "type": "text"
+    },
+    {
+      "k": "customerPhone",
+      "label": "客户电话",
+      "type": "text"
+    },
+    {
       "k": "product",
       "label": "产品",
+      "type": "text"
+    },
+    {
+      "k": "materialCode",
+      "label": "物料编码/图号",
       "type": "text"
     },
     {
@@ -101,22 +141,70 @@ module.exports = {
       "type": "number"
     },
     {
-      "k": "targetPrice",
-      "label": "目标价",
+      "k": "weightUnit",
+      "label": "重量单位",
+      "type": "select",
+      "options": [
+        "公斤",
+        "吨"
+      ],
+      "defaultValue": "公斤"
+    },
+    {
+      "k": "expectedPrice",
+      "label": "期望价格",
       "type": "number",
       "money": true
     },
     {
-      "k": "status",
-      "label": "状态",
-      "type": "select",
-      "options": [
-        "待回复",
-        "已回复",
-        "已成交",
-        "已关闭"
-      ],
-      "defaultValue": "待回复"
+      "k": "outerDiameter",
+      "label": "外径",
+      "type": "number"
+    },
+    {
+      "k": "innerDiameter",
+      "label": "内径",
+      "type": "number"
+    },
+    {
+      "k": "wallThickness",
+      "label": "壁厚",
+      "type": "number"
+    },
+    {
+      "k": "width",
+      "label": "宽度",
+      "type": "number"
+    },
+    {
+      "k": "height",
+      "label": "高度",
+      "type": "number"
+    },
+    {
+      "k": "length",
+      "label": "长度",
+      "type": "number"
+    },
+    {
+      "k": "thickness",
+      "label": "厚度",
+      "type": "number"
+    },
+    {
+      "k": "sideLength",
+      "label": "边长",
+      "type": "number"
+    },
+    {
+      "k": "diameter",
+      "label": "直径",
+      "type": "number"
+    },
+    {
+      "k": "crossSectionArea",
+      "label": "截面积(mm²)",
+      "type": "number"
     },
     {
       "k": "description",
