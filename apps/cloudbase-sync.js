@@ -22,7 +22,7 @@
   'use strict';
 
   // ===== 版本守卫：防止旧版 cloudbase-sync.js 在新版之后重新初始化 =====
-  var SYNC_VERSION = '20260918m';
+  var SYNC_VERSION = '20260918n';
   if (window.__CLOUDBASE_SYNC_VERSION__) {
     console.warn('[CloudbaseSync] 检测到已加载版本 ' + window.__CLOUDBASE_SYNC_VERSION__ +
       '，当前版本 ' + SYNC_VERSION + ' 跳过初始化');
@@ -443,7 +443,8 @@
           res = await fetch(url, {
             method: 'GET',
             headers: { 'Authorization': 'Bearer ' + token },
-            signal: ctrl.signal
+            signal: ctrl.signal,
+            cache: 'no-store' // 不用浏览器缓存：上传/清理后必须读到最新物理行
           });
           break;
         } catch (e) {
@@ -1640,6 +1641,30 @@
           for (var d = 0; d < stale.length; d++) {
             try { await withTimeout(sb.from(TABLE).delete().eq('store_key', stale[d]), _uploadTimeoutMs); } catch (e) {}
             emit({ phase: 'cleanup', current: d + 1, total: stale.length });
+          }
+
+          // 清理同一 store_key 的历史重复行：
+          // 旧版同步层每次写入都生成随机 UUID 物理行（id≠store_key），同键多行长期堆积。
+          // 下载/初始加载按 updated_at 取最新行，一旦某个残留行时间戳更新（旧代码自动上传、
+          // 其它设备晚写入等），其中的旧数据就会"复活"，覆盖刚上传/导入的新数据。
+          // 规范行物理 id == store_key（doUpload upsert 保证）；其余物理行全部删除。
+          var dupIds = [];
+          for (var q = 0; q < cloudKeys.length; q++) {
+            var rowK = cloudKeys[q];
+            var sk2 = rowK.store_key;
+            if (!sk2 || sk2.indexOf(APP_PREFIX) !== 0) continue;
+            if (rowK.id !== undefined && rowK.id !== null && String(rowK.id) !== String(sk2)) {
+              dupIds.push(String(rowK.id));
+            }
+          }
+          // 去重后逐个按物理主键删除（id 等值走服务端，精确不误删）
+          var uniqDupIds = Array.prototype.filter.call(dupIds, function (v, i, a) { return a.indexOf(v) === i; });
+          for (var dd = 0; dd < uniqDupIds.length; dd++) {
+            try { await withTimeout(sb.from(TABLE).delete().eq('id', uniqDupIds[dd]), _uploadTimeoutMs); } catch (e) {}
+            emit({ phase: 'cleanup', current: dd + 1, total: uniqDupIds.length });
+          }
+          if (uniqDupIds.length > 0) {
+            console.log('[CloudbaseSync] 已清理历史重复行', uniqDupIds.length, '个（应用:', APP_ID + '）');
           }
         }
       } catch (e) {}
