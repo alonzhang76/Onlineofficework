@@ -642,6 +642,10 @@
       'font-family:-apple-system,system-ui,"Microsoft YaHei",sans-serif;box-sizing:border-box;}' +
       '#cbTopBar *{box-sizing:border-box;}' +
       'html.cb-bar-on body{padding-top:' + BAR_H + 'px !important;}' +
+      /* wicketorders：.full-width-container 自带的 padding-top:120px 会被 Tailwind CDN
+         的 .py-6(24px) 同优先级覆盖，导致操作按钮行钻到 fixed 导航栏底下。
+         顶栏下移 40 后仍需 120px 占位（80px 栏高 + 40px 间隙），此处强制恢复。 */
+      'html.cb-bar-on:has(nav.top-nav) .full-width-container{padding-top:120px !important;}' +
       '#cbTopBar .cb-btn{height:28px;padding:0 12px;border:none;border-radius:6px;cursor:pointer;' +
       'font-size:13px;color:#fff;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;}' +
       '#cbTopBar .cb-btn:active{transform:translateY(1px);}' +
@@ -730,21 +734,116 @@
     bumpFixedHeaders();
   }
 
-  // 页面自身固定/吸顶导航条让出顶部 40px，避免被工具条遮挡
+  // 页面自身固定/吸顶导航条让出顶部 40px，避免被工具条遮挡。
+  // 关键区分：
+  //  - fixed 横栏（相对视口定位，如 wicketorders 顶部 nav）：top 由 0 改为 40px；
+  //  - fixed 竖栏（如 wage 左侧侧边栏）：top 由 0 改为 40px，bottom 保持 0 自动缩短；
+  //  - sticky 且在「页面级滚动」中吸顶：top 由 0 改为 40px；
+  //  - sticky 但在「应用内部滚动容器」（如 purchase 的 main.overflow-y-auto）内吸顶：
+  //    绝不能改 top —— sticky 元素视觉下移却不占据文档流，会把标签行下方的
+  //    「新增/更多操作」按钮行盖住。容器本身已被 body padding-top 推到 40px 以下，
+  //    sticky top:0 自然吸在工具条正下方。
+  //  - bottom:0 的移动端底栏：不动（top/bottom 同时 !important 会把底栏拉飞）。
+  var BUMP_SEL = 'header, nav, aside, [class*="header"], [class*="navbar"], [class*="topbar"], [class*="sidebar"], [class*="submenu"], [class*="tab-bar"], [class*="tabs-bar"]';
+
+  function findInnerScrollParent(el) {
+    var p = el.parentElement;
+    while (p && p !== document.documentElement && p !== document.body) {
+      var s = window.getComputedStyle(p);
+      // 只要祖先链上存在 overflow 非 visible/clip 的滚动容器（含 hidden、
+      // 即使当前内容不足一屏），sticky 就相对该容器而非视口吸顶，不能 bump。
+      // 移动端样式会显式把 overflow 改回 visible，此时自然落到视口吸顶分支。
+      if (/(auto|scroll|overlay|hidden)/.test(s.overflowY) && p.clientHeight > 0) return p;
+      p = p.parentElement;
+    }
+    return null;
+  }
+
+  // 撤销曾施加的 top 修正（响应式切换后元素可能不再符合 bump 条件）
+  function releaseBump(el) {
+    if (el.getAttribute('data-cb-origtop') !== null) {
+      el.style.removeProperty('top');
+      el.removeAttribute('data-cb-origtop');
+    }
+  }
+
+  function bumpOne(el) {
+    if (el.id === 'cbTopBar' || (el.closest && (el.closest('#cbTopBar') || el.closest('table')))) return;
+    var cs = window.getComputedStyle(el);
+    var pos = cs.position;
+    if (pos !== 'fixed' && pos !== 'sticky') { releaseBump(el); return; }
+
+    var h = el.offsetHeight || 0, w = el.offsetWidth || 0;
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var isWideBar = h >= 28 && h <= 120 && w >= vw * 0.55 && h <= vh * 0.5;
+    var isTallRail = w <= 320 && h >= vh * 0.7;
+    if (!isWideBar && !isTallRail) { releaseBump(el); return; }
+
+    // 移动端底部导航（宽扁 + bottom:0）跳过；竖栏 top:0;bottom:0 贴满全高仍需下移
+    if (isWideBar && cs.bottom !== 'auto' && Math.abs(parseFloat(cs.bottom) || 99) <= 1) { releaseBump(el); return; }
+
+    var origTop = parseFloat(cs.top);
+    if (!(origTop >= 0 && origTop <= 120)) { releaseBump(el); return; }   // 只处理顶部带内的栏
+
+    // 内部滚动容器吸顶：不动（并撤销可能在其它断点下施加过的修正）
+    if (pos === 'sticky' && findInnerScrollParent(el)) { releaseBump(el); return; }
+
+    // 幂等：记录原始 top，重复执行（MutationObserver）时从原始值计算，不累加
+    var stored = el.getAttribute('data-cb-origtop');
+    var base = stored === null ? origTop : parseFloat(stored);
+    if (stored === null) el.setAttribute('data-cb-origtop', String(origTop));
+    el.style.setProperty('top', (base + BAR_H) + 'px', 'important');
+  }
+
   function bumpFixedHeaders() {
     try {
-      var nodes = document.querySelectorAll('header, nav, [class*="header"], [class*="navbar"], [class*="topbar"]');
-      for (var i = 0; i < nodes.length; i++) {
-        var el = nodes[i];
-        if (el.id === 'cbTopBar') continue;
+      var nodes = document.querySelectorAll(BUMP_SEL);
+      for (var i = 0; i < nodes.length; i++) bumpOne(nodes[i]);
+    } catch (e) {}
+    shrinkViewportShells();
+  }
+
+  // 内部滚动型应用（purchase / stainless React 等）：body 下直接挂着
+  // 高 100vh 的应用壳（.flex.h-screen / #root 子元素），body padding-top 后
+  // 壳顶部已下移 40px，但高度仍是 100vh → 底部溢出 40px、整页可多滚。
+  // 仅当元素「自然高度恰为视口高」时把它修正为 100vh-40px（fixed/absolute 的
+  // 全屏遮罩不动）；移动端媒体查询常把壳改为 height:auto（自然高≠视口高），
+  // 此时必须跳过——若视口变化导致条件不再满足，还要撤销之前的修正。
+  function shrinkViewportShells() {
+    try {
+      var fullH = window.innerHeight;
+      var kids = document.body.children;
+      for (var i = 0; i < kids.length; i++) {
+        var el = kids[i];
+        if (el.id === 'cbTopBar' || el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || el.tagName === 'LINK') continue;
         var cs = window.getComputedStyle(el);
-        if (cs.position !== 'fixed' && cs.position !== 'sticky') continue;
-        var top = parseFloat(cs.top || '0');
-        if (!(top >= -2 && top <= 2)) continue;
-        var h = el.offsetHeight || 0, w = el.offsetWidth || 0;
-        if (h < 24 || h > 100 || w < window.innerWidth * 0.55) continue;     // 只处理横置顶栏
-        if (h > window.innerHeight * 0.6) continue;                            // 跳过全屏遮罩
-        el.style.setProperty('top', BAR_H + 'px', 'important');
+        if (cs.position === 'fixed' || cs.position === 'absolute') continue;
+        // 桌面内部滚动壳为 overflow:hidden；移动端媒体查询会改为 visible 恢复自然流，
+        // 此时绝不锁高
+        if (cs.overflowY === 'visible' && cs.overflowX === 'visible') {
+          if (el.getAttribute('data-cb-shell') === '1') {
+            el.style.removeProperty('height');
+            el.style.removeProperty('min-height');
+            el.removeAttribute('data-cb-shell');
+          }
+          continue;
+        }
+        var marked = el.getAttribute('data-cb-shell') === '1';
+        if (marked) el.style.removeProperty('height');
+        var natH = el.offsetHeight;
+        if (natH >= fullH - 1 && natH <= fullH + 1) {
+          el.setAttribute('data-cb-shell', '1');
+          el.style.setProperty('height', 'calc(100vh - ' + BAR_H + 'px)', 'important');
+          el.style.setProperty('height', 'calc(100dvh - ' + BAR_H + 'px)', 'important');
+          var natMin = parseFloat(window.getComputedStyle(el).minHeight) || 0;
+          if (natMin >= fullH - 1 && natMin <= fullH + 1) {
+            el.style.setProperty('min-height', 'calc(100vh - ' + BAR_H + 'px)', 'important');
+            el.style.setProperty('min-height', 'calc(100dvh - ' + BAR_H + 'px)', 'important');
+          }
+        } else if (marked) {
+          el.removeAttribute('data-cb-shell');
+          el.style.removeProperty('min-height');
+        }
       }
     } catch (e) {}
   }
