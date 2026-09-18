@@ -843,6 +843,67 @@ function recoverFromLocalStorage() {
   }
 }
 
+// ===== 记录条数统计（供 cloudbase-admin.js 页首工具条显示「本地 N · 云端 M」）=====
+// 只统计本应用（saintysys）的业务数据键；用户/权限/版本/草稿等配置或临时键不计入。
+// 物理表 app_data_store 是所有应用共用的，历史上可能混入其它应用的键，
+// 必须用白名单过滤，不能把整表行数算进来。
+var COUNT_KEYS = MIGRATION_KEYS.filter(function (k) {
+  return ['users', 'permissions', 'dataVersion', 'pl_draft_v1'].indexOf(k) === -1;
+});
+
+function countRecordValue(val) {
+  if (val === null || val === undefined) return 0;
+  if (Array.isArray(val)) return val.length;
+  if (typeof val === 'object') {
+    try { return Object.keys(val).length; } catch (e) { return 0; }
+  }
+  return 0;
+}
+
+function getRecordCounts() {
+  var local = {}, cloud = {};
+
+  // 本地：以 localStorage 持久缓存为准（与 App 实际读写一致）
+  try {
+    var origLS = window._origLocalStorage || window.localStorage;
+    COUNT_KEYS.forEach(function (k) {
+      var raw = origLS.getItem(k);
+      if (raw === null || raw === undefined || raw === '') { local[k] = 0; return; }
+      try { local[k] = countRecordValue(JSON.parse(raw)); }
+      catch (e) { local[k] = 0; }
+    });
+  } catch (e) {}
+
+  // 云端：初始化后 _cache 由云端全量行填充，只取白名单键
+  if (_initialized) {
+    COUNT_KEYS.forEach(function (k) {
+      if (_cache[k] !== undefined) cloud[k] = countRecordValue(_cache[k]);
+    });
+  }
+
+  var union = {};
+  Object.keys(local).forEach(function (k) { union[k] = true; });
+  Object.keys(cloud).forEach(function (k) { union[k] = true; });
+
+  var perKey = [];
+  var localTotal = 0, cloudTotal = 0;
+  Object.keys(union).sort().forEach(function (k) {
+    var lc = local[k] || 0;
+    var cc = _initialized ? (cloud[k] || 0) : null;
+    localTotal += lc;
+    if (cc !== null) cloudTotal += cc;
+    perKey.push({ key: k, local: lc, cloud: cc });
+  });
+
+  return {
+    appId: 'saintysys',
+    cloudLoaded: _initialized,
+    localTotal: localTotal,
+    cloudTotal: _initialized ? cloudTotal : null,
+    perKey: perKey
+  };
+}
+
 // 暴露到全局（非模块方式，兼容所有浏览器）
 // 同时保留 window.SupabaseStore 别名，兼容页面内联脚本的既有引用
 var storePublicApi = {
@@ -857,6 +918,7 @@ var storePublicApi = {
   setSync,
   refreshFromCloud,
   forceRefreshFromCloud,
+  getRecordCounts,
   _flushSync,
   _isInitialized: function () { return _initialized; },
   _getCache: function () { return _cache; },

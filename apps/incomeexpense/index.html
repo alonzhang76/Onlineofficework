@@ -4,8 +4,8 @@
     <script src="../auto-scale.js?v=20260917a"></script>
     <!-- Supabase 云端数据同步层（必须在应用逻辑之前加载） -->
     <script>window.SUPABASE_APP_ID='incomeexpense';</script>
-    <script src="../cloudbase-sync.js?v=20260918n"></script>
-    <script src="../cloudbase-admin.js?v=20260918c"></script>
+    <script src="../cloudbase-sync.js?v=20260918o"></script>
+    <script src="../cloudbase-admin.js?v=20260918d"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>收支管理系统 - 多公司财务追踪</title>
@@ -242,8 +242,8 @@
                         <a href="#" id="account-settings" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">清空所有交易记录</a>
                         <a href="#" id="export-excel" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">导出Excel</a>
                         <a href="#" id="import-excel" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">导入Excel</a>
-                        <a href="#" id="export-json" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">导出JSON</a>
-                        <a href="#" id="import-json" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">导入JSON</a>
+                        <a href="#" id="export-json" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">备份到电脑</a>
+                        <a href="#" id="import-json" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">从电脑恢复</a>
                         <div class="border-t border-gray-200 my-1"></div>
                         <a href="#" onclick="try{CloudAdmin.pullFromCloud()}catch(e){}; return false;" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">从云端下载</a>
                         <a href="#" onclick="try{CloudAdmin.pushToCloud()}catch(e){}; return false;" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">上传到云端</a>

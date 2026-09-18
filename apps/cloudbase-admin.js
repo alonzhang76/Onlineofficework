@@ -578,18 +578,43 @@
     clearCloudData: clearCloudData
   };
 
-  // ===== 本地 / 云端记录条数浮动徽标 =====
-  // 固定在右下角，显示「本地 N · 云端 M」；一致绿色、不一致琥珀色、云端未加载灰色。
-  // 点击展开每个数据集的明细，方便对比后决定上传/下载。
+  // ============================================================
+  // 冻结页首工具条：保存 / 云端下载 / 备份到电脑 / 从电脑恢复
+  // + 当前应用「本地 N · 云端 M」记录条数 + 清空云端（更多菜单）
+  // 所有 7 个应用统一注入；页面内旧入口自动隐藏，避免重复。
+  // ============================================================
+  var BAR_H = 40;
+
   var KEY_LABELS = {
-    orderRecords: '订单记录', paymentRecords: '收汇记录',
+    orderRecords: '订单记录', paymentRecords: '收汇记录', exportRecords: '导出记录',
+    receiptRecords: '收款记录', invoiceRecords: '发票记录', customerRecords: '客户',
+    memoRecords: '备忘录', businessRecords: '业务记录', deliveryNoticeRecords: '发货通知',
     wage_records: '工资记录', wage_employees: '员工', wage_processes: '工序',
-    wage_orders: '订单', wage_adjustments: '补贴', wage_calendar_events: '日历事件',
+    wage_orders: '订单', wage_adjustments: '补贴',
+    wage_dropdown_options: '下拉选项',
+    wage_calendar_events: '日历事件', wage_calendar_event_types: '日历事件类型',
     transactions: '收支流水', currentCompany: '当前公司', currentCompany_statement: '对账单',
-    memo: '备忘录', calendarNotes: '日历备注', memos: '备忘录'
+    reconciliation_transactions: '对账流水', reconciliation_params: '对账参数',
+    todos: '待办事项', memo: '备忘录', calendarNotes: '日历备注', memos: '备忘录',
+    production_orders_data: '生产订单',
+    // saintysys（业务系统）
+    styles: '款式', orders: '订单', fabrics: '面料', accessories: '辅料',
+    samples: '样布', feedbacks: '客诉反馈', productions: '生产单', invoices: '发票',
+    payments: '收款记录', collections: '集合', contacts: '联系人', customers: '客户',
+    suppliers: '供应商', favoriteContacts: '常用联系人', washes: '水洗单', shippings: '出货单',
+    maintFabrics: '面料维护', maintAccessories: '辅料维护',
+    express_delivery_data_v2: '快递记录', pl_records_v1: '装箱记录',
+    sht_sample_data_v2: '样衣单', sht_size_tables_v2: '尺寸表', sizeSheets: '尺寸单'
+  };
+  var COMPANY_LABELS = {
+    company1: '公司1', company2: '公司2', companyA: '公司A', companyB: '公司B'
   };
   function keyLabel(k) {
     if (KEY_LABELS[k]) return KEY_LABELS[k];
+    var m;
+    if ((m = /^transactions_(.+)$/.exec(k))) return '收支流水（' + (COMPANY_LABELS[m[1]] || m[1]) + '）';
+    if ((m = /^lastUpdated_(.+)$/.exec(k))) return '最后更新（' + (COMPANY_LABELS[m[1]] || m[1]) + '）';
+    if ((m = /^(contracts|receipts|returns|purchaseOrders)_(.+)$/.exec(k))) return m[1] + '（' + (COMPANY_LABELS[m[2]] || m[2]) + '）';
     return String(k).replace(/^(orderschedule|wicketorders|wage|purchase|incomeexpense|stainlessbusiness|saintysys)_+/, '');
   }
   function getCounts() {
@@ -604,31 +629,216 @@
     return null;
   }
 
-  var _cntPill = null, _cntPanel = null, _cntOpen = false;
-  function ensureCountWidget() {
-    if (_cntPill && _cntPill.parentNode) return;
+  var _bar = null, _cntPill = null, _cntPanel = null, _cntOpen = false, _moreMenu = null;
+
+  function injectBarCSS() {
+    if (document.getElementById('cbTopBarStyle')) return;
+    var st = document.createElement('style');
+    st.id = 'cbTopBarStyle';
+    st.textContent =
+      '#cbTopBar{position:fixed;top:0;left:0;right:0;height:' + BAR_H + 'px;z-index:99990;' +
+      'display:flex;align-items:center;gap:8px;padding:0 12px;' +
+      'background:#1f2937;box-shadow:0 1px 6px rgba(0,0,0,.3);' +
+      'font-family:-apple-system,system-ui,"Microsoft YaHei",sans-serif;box-sizing:border-box;}' +
+      '#cbTopBar *{box-sizing:border-box;}' +
+      'html.cb-bar-on body{padding-top:' + BAR_H + 'px !important;}' +
+      '#cbTopBar .cb-btn{height:28px;padding:0 12px;border:none;border-radius:6px;cursor:pointer;' +
+      'font-size:13px;color:#fff;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;}' +
+      '#cbTopBar .cb-btn:active{transform:translateY(1px);}' +
+      '#cbBtnSave{background:#16a34a;} #cbBtnSave:hover{background:#15803d;}' +
+      '#cbBtnPull{background:#2563eb;} #cbBtnPull:hover{background:#1d4ed8;}' +
+      '.cb-btn-ghost{background:rgba(255,255,255,.12) !important;} .cb-btn-ghost:hover{background:rgba(255,255,255,.22) !important;}' +
+      '#cbRight{margin-left:auto;display:flex;align-items:center;gap:8px;}' +
+      '#cloudCountPill{display:flex;align-items:center;gap:6px;height:28px;padding:0 12px;border-radius:999px;' +
+      'font-size:12px;color:#fff;background:rgba(156,163,175,.95);cursor:pointer;user-select:none;' +
+      'font-variant-numeric:tabular-nums;white-space:nowrap;}' +
+      '#cbMoreBtn{padding:0 10px !important;}' +
+      '#cbMoreMenu{position:fixed;top:' + (BAR_H + 4) + 'px;right:12px;z-index:99991;display:none;' +
+      'background:#fff;border-radius:8px;box-shadow:0 12px 40px rgba(0,0,0,.28);overflow:hidden;}' +
+      '#cbMoreMenu button{display:block;width:100%;padding:9px 18px;border:none;background:#fff;cursor:pointer;' +
+      'font-size:13px;color:#dc2626;text-align:left;} #cbMoreMenu button:hover{background:#fef2f2;}' +
+      '#cloudCountPanel{position:fixed;top:' + (BAR_H + 4) + 'px;right:56px;z-index:99991;display:none;' +
+      'width:300px;max-width:86vw;max-height:60vh;overflow:auto;background:#fff;color:#1f2937;' +
+      'border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.28);font-size:12px;' +
+      'font-family:-apple-system,system-ui,"Microsoft YaHei",sans-serif;padding:8px 0;}' +
+      '@media (max-width:640px){#cbTopBar{gap:5px;padding:0 6px;} #cbTopBar .cb-btn{padding:0 8px;font-size:12px;}}';
+    document.head.appendChild(st);
+  }
+
+  function ensureTopBar() {
+    if (_bar && _bar.parentNode) return;
     if (!document.body) return;
-    var pill = document.createElement('div');
-    pill.id = 'cloudCountPill';
-    pill.style.cssText = 'position:fixed;right:10px;bottom:10px;z-index:99990;display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;font-size:12px;font-family:-apple-system,system-ui,"Microsoft YaHei",sans-serif;color:#fff;background:rgba(156,163,175,.95);box-shadow:0 2px 10px rgba(0,0,0,.25);cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;font-variant-numeric:tabular-nums;';
-    pill.innerHTML = '<span id="cloudCountText">本地 … · 云端 …</span><span id="cloudCountCaret" style="font-size:10px;opacity:.85;">▾</span>';
-    pill.addEventListener('click', function (e) { e.stopPropagation(); toggleCountPanel(); });
-    document.body.appendChild(pill);
-    _cntPill = pill;
+    injectBarCSS();
+    document.documentElement.classList.add('cb-bar-on');
+
+    var bar = document.createElement('div');
+    bar.id = 'cbTopBar';
+    bar.innerHTML =
+      '<button id="cbBtnSave" class="cb-btn" title="把本机数据上传到云端（相当于 Excel 的保存）">💾 保存</button>' +
+      '<button id="cbBtnPull" class="cb-btn" title="从云端下载数据（会先与本机对比）">⬇️ 云端下载</button>' +
+      '<button id="cbBtnBackup" class="cb-btn cb-btn-ghost" title="把数据备份为 JSON 文件保存到本电脑">📥 备份到电脑</button>' +
+      '<button id="cbBtnRestore" class="cb-btn cb-btn-ghost" title="从本电脑选择 JSON 备份文件恢复">📤 从电脑恢复</button>' +
+      '<div id="cbRight">' +
+        '<div id="cloudCountPill"><span id="cloudCountText">本地 … · 云端 …</span></div>' +
+        '<button id="cbMoreBtn" class="cb-btn cb-btn-ghost" title="更多">更多 ▾</button>' +
+      '</div>';
+    document.body.appendChild(bar);
+    _bar = bar;
+
+    document.getElementById('cbBtnSave').addEventListener('click', function () {
+      try { pushToCloud(); } catch (e) { toast('保存失败：' + (e && e.message ? e.message : e), 'error'); }
+    });
+    document.getElementById('cbBtnPull').addEventListener('click', function () {
+      try { pullFromCloud(); } catch (e) { toast('下载失败：' + (e && e.message ? e.message : e), 'error'); }
+    });
+    document.getElementById('cbBtnBackup').addEventListener('click', doBackupToComputer);
+    document.getElementById('cbBtnRestore').addEventListener('click', doRestoreFromComputer);
+
+    _cntPill = document.getElementById('cloudCountPill');
+    _cntPill.addEventListener('click', function (e) { e.stopPropagation(); toggleCountPanel(); });
 
     var panel = document.createElement('div');
     panel.id = 'cloudCountPanel';
-    panel.style.cssText = 'position:fixed;right:10px;bottom:46px;z-index:99990;display:none;max-width:300px;max-height:60vh;overflow:auto;background:#fff;color:#1f2937;border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.28);font-size:12px;font-family:-apple-system,system-ui,"Microsoft YaHei",sans-serif;padding:8px 0;';
     document.body.appendChild(panel);
     _cntPanel = panel;
 
+    var more = document.createElement('div');
+    more.id = 'cbMoreMenu';
+    more.innerHTML = '<button id="cbBtnClear">🗑️ 清空云端数据</button>';
+    document.body.appendChild(more);
+    _moreMenu = more;
+    document.getElementById('cbBtnClear').addEventListener('click', function () {
+      more.style.display = 'none';
+      try { clearCloudData(); } catch (e) {}
+    });
+    document.getElementById('cbMoreBtn').addEventListener('click', function (e) {
+      e.stopPropagation();
+      more.style.display = more.style.display === 'block' ? 'none' : 'block';
+    });
     document.addEventListener('click', function (e) {
-      if (_cntOpen && _cntPanel && _cntPill &&
-          !_cntPanel.contains(e.target) && !_cntPill.contains(e.target)) {
+      if (more.style.display === 'block' && !more.contains(e.target) &&
+          !(e.target.closest && e.target.closest('#cbMoreBtn'))) {
+        more.style.display = 'none';
+      }
+      if (_cntOpen && _cntPanel && !_cntPanel.contains(e.target) &&
+          !(e.target.closest && e.target.closest('#cloudCountPill'))) {
         _cntOpen = false;
         _cntPanel.style.display = 'none';
       }
     });
+
+    bumpFixedHeaders();
+  }
+
+  // 页面自身固定/吸顶导航条让出顶部 40px，避免被工具条遮挡
+  function bumpFixedHeaders() {
+    try {
+      var nodes = document.querySelectorAll('header, nav, [class*="header"], [class*="navbar"], [class*="topbar"]');
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (el.id === 'cbTopBar') continue;
+        var cs = window.getComputedStyle(el);
+        if (cs.position !== 'fixed' && cs.position !== 'sticky') continue;
+        var top = parseFloat(cs.top || '0');
+        if (!(top >= -2 && top <= 2)) continue;
+        var h = el.offsetHeight || 0, w = el.offsetWidth || 0;
+        if (h < 24 || h > 100 || w < window.innerWidth * 0.55) continue;     // 只处理横置顶栏
+        if (h > window.innerHeight * 0.6) continue;                            // 跳过全屏遮罩
+        el.style.setProperty('top', BAR_H + 'px', 'important');
+      }
+    } catch (e) {}
+  }
+
+  // ===== 隐藏页面内旧的同步/备份入口（功能已收敛到页首工具条）=====
+  var HIDE_SELECTORS = [
+    '[onclick*="CloudAdmin.pullFromCloud"]', '[onclick*="CloudAdmin.pushToCloud"]', '[onclick*="CloudAdmin.clearCloudData"]',
+    '[data-act="pull"]', '[data-act="push"]', '[data-act="clear"]',
+    '#export-json', '#import-json',                                  // 收支表
+    '#backup-dropdown-btn', '#export-data-btn', 'label[for="import-data-input"]', // 采购
+    '[onclick*="backupData"]', '[onclick*="restoreData"]',           // 订单/外贸/工资
+    '[onclick*="restoreFileInput"]',                                 // 工资恢复按钮
+    '[onclick*="App.backupData"]',                                   // saintysys 首页
+    '#panel-backup .backup-card',                                    // 工资设置页两张备份/恢复卡片
+    '[onclick^="exportData()"]', '[onclick^="importData()"]'         // saintysys 设置页
+  ];
+  function hideLegacyControls() {
+    try {
+      for (var i = 0; i < HIDE_SELECTORS.length; i++) {
+        var els = document.querySelectorAll(HIDE_SELECTORS[i]);
+        for (var j = 0; j < els.length; j++) {
+          var el2 = els[j];
+          if (el2.closest && el2.closest('#cbTopBar')) continue;
+          if (el2.getAttribute('data-cb-hidden') === '1') continue;
+          el2.setAttribute('data-cb-hidden', '1');
+          el2.style.setProperty('display', 'none', 'important');
+        }
+      }
+      // 不锈钢应用的浮动按钮盒：三个按钮都被隐藏后，把整个盒子藏掉
+      var floatBtns = document.querySelectorAll('[data-act]');
+      floatBtns.forEach(function (b) {
+        var box = b.parentElement;
+        if (!box || box.getAttribute('data-cb-floatbox') === '1') return;
+        var visibleBtn = false;
+        Array.prototype.forEach.call(box.querySelectorAll('[data-act]'), function (x) {
+          if (x.getAttribute('data-cb-hidden') !== '1') visibleBtn = true;
+        });
+        if (!visibleBtn) {
+          box.setAttribute('data-cb-floatbox', '1');
+          box.style.setProperty('display', 'none', 'important');
+        }
+      });
+    } catch (e) {}
+  }
+
+  // ===== 备份到电脑 / 从电脑恢复：转发到各页面已有实现（格式兼容性最好）=====
+  function clickIfExists(sel) {
+    var el = document.querySelector(sel);
+    if (el) { el.click(); return true; }
+    return false;
+  }
+  function clickByText(regex) {
+    var nodes = document.querySelectorAll('button,a,li,span,div,[role="menuitem"]');
+    var best = null;
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (el.closest && el.closest('#cbTopBar')) continue;
+      var t = (el.textContent || '').trim();
+      if (!t || t.length > 12) continue;
+      if (regex.test(t)) {
+        // 优先选语义化的可点击元素
+        if (el.tagName === 'BUTTON' || el.tagName === 'A' || el.getAttribute('role') === 'menuitem') { best = el; break; }
+        if (!best) best = el;
+      }
+    }
+    if (best) { best.click(); return true; }
+    return false;
+  }
+  function doBackupToComputer() {
+    try {
+      if (clickIfExists('#export-json')) return;        // 收支表
+      if (clickIfExists('#export-data-btn')) return;    // 采购
+      if (window.App && typeof window.App.backupData === 'function') { window.App.backupData(); return; } // saintysys
+      if (typeof window.backupData === 'function') { window.backupData(); return; } // 订单/外贸/工资
+      if (typeof window.exportData === 'function') { window.exportData(); return; } // saintysys 设置页
+      if (clickByText(/^(备份到电脑|备份数据|导出数据|导出所有数据)$/)) return; // 不锈钢 React 界面
+      toast('未找到本页的备份功能');
+    } catch (e) {
+      toast('备份失败：' + (e && e.message ? e.message : e), 'error');
+    }
+  }
+  function doRestoreFromComputer() {
+    try {
+      // 直接点隐藏的 file input：工具条点击本身是用户手势，文件选择框可正常弹出
+      if (clickIfExists('#import-data-input')) return;  // 采购
+      if (clickIfExists('#restoreFileInput')) return;   // 工资
+      if (clickIfExists('#import-json')) return;        // 收支表
+      if (typeof window.restoreData === 'function') { window.restoreData(); return; } // 订单/外贸
+      if (typeof window.importData === 'function') { window.importData(); return; }   // saintysys 设置页
+      if (clickByText(/^(从电脑恢复|恢复数据|导入数据)$/)) return; // 不锈钢 React 界面
+      toast('本页没有可直接调用的恢复入口，请在应用内"数据管理/系统设置"中恢复');
+    } catch (e) {
+      toast('恢复失败：' + (e && e.message ? e.message : e), 'error');
+    }
   }
 
   function toggleCountPanel() {
@@ -638,27 +848,22 @@
   }
 
   function renderCounts() {
+    if (!_bar) return;
     var c = getCounts();
-    ensureCountWidget();
-    if (!_cntPill || !c) {
-      if (_cntPill) _cntPill.style.display = 'none';
-      return;
-    }
-    _cntPill.style.display = 'flex';
+    if (!c) return;
     var text = document.getElementById('cloudCountText');
     if (text) {
       text.textContent = c.cloudLoaded
         ? ('本地 ' + c.localTotal + ' · 云端 ' + c.cloudTotal)
         : ('本地 ' + c.localTotal + ' · 云端 …');
     }
-    // 颜色：云端未加载灰；本地==云端绿；不一致琥珀
     var bg = 'rgba(156,163,175,.95)';
     if (c.cloudLoaded) bg = (c.localTotal === c.cloudTotal) ? 'rgba(16,185,129,.95)' : 'rgba(245,158,11,.96)';
     _cntPill.style.background = bg;
 
     if (_cntOpen && _cntPanel) {
       var html = '<div style="padding:2px 14px 8px;color:#6b7280;line-height:1.5;">'
-        + '本应用数据集条数对比。<br>不一致时请用菜单中的「下载/上传云端数据」同步。</div>'
+        + '当前应用各数据集的记录条数。<br>不一致时点页首「保存」上传本机数据，或「云端下载」拉取云端数据。</div>'
         + '<table style="width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;">'
         + '<tr style="color:#9ca3af;"><td style="padding:3px 14px;">数据集</td><td style="padding:3px 6px;text-align:right;">本地</td><td style="padding:3px 14px 3px 6px;text-align:right;">云端</td></tr>';
       (c.perKey || []).forEach(function (r) {
@@ -679,18 +884,36 @@
     }
   }
 
-  function startCountWidget() {
-    ensureCountWidget();
+  function startTopBar() {
+    ensureTopBar();
+    hideLegacyControls();
     renderCounts();
+    // React/SPA（不锈钢）与延迟渲染的菜单需要反复收敛。
+    // 统一防抖（500ms）：数据页重渲染/输入时 DOM 变动频繁，避免选择器扫描拖慢页面。
+    var hideTimer = null, bumpTimer = null;
+    var scheduleConverge = function () {
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(hideLegacyControls, 500);
+      clearTimeout(bumpTimer);
+      bumpTimer = setTimeout(bumpFixedHeaders, 700);
+    };
+    var mo = null;
+    try {
+      mo = new MutationObserver(scheduleConverge);
+      mo.observe(document.body, { childList: true, subtree: true });
+    } catch (e) {}
+    setTimeout(function () { hideLegacyControls(); bumpFixedHeaders(); }, 400);
+    setTimeout(function () { hideLegacyControls(); bumpFixedHeaders(); }, 1500);
     // 本地编辑会改变条数，定时刷新；云端数据到达时事件立即刷新
     setInterval(renderCounts, 2500);
     try {
       window.addEventListener('cloud-data-updated', function () { setTimeout(renderCounts, 50); });
+      window.addEventListener('resize', bumpFixedHeaders);
       document.addEventListener('visibilitychange', function () { if (!document.hidden) renderCounts(); });
     } catch (e) {}
   }
-  if (document && document.body) startCountWidget();
-  else if (document) document.addEventListener('DOMContentLoaded', startCountWidget);
+  if (document && document.body) startTopBar();
+  else if (document) document.addEventListener('DOMContentLoaded', startTopBar);
 
   console.log('[CloudAdmin] 云端数据管理工具已就绪 (密码已配置)');
 })();

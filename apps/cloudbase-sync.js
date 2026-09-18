@@ -206,24 +206,36 @@
       'nas_folder_perms', 'styleImages', 'orders', 'draft',
       'permissions', 'dataVersion', 'nas_config']
   };
+  // 注册表条目：字符串 = 前缀匹配；正则字面量 = 完全匹配。
+  // 注意：purchase 用 companyA/companyB，收支表（incomeexpense）用 company1/company2，
+  // 两边都有 transactions_<公司> 键，单纯前缀匹配会把另一应用公司的历史串味行算进来，
+  // 因此用正则按真实公司 id 收窄。
   var _DEFAULT_APP_KEY_PREFIXES = {
-    purchase: ['transactions_', 'lastUpdated_', 'contracts_', 'receipts_', 'returns_', 'purchaseOrders_'],
-    incomeexpense: ['transactions_', 'lastUpdated_'],
-    wicketorders: ['quotation_products_', 'invoice_products_', 'contract_products_'],
-    saintysys: ['currentCompany']
+    purchase: [
+      /^transactions_(companyA|companyB)$/,
+      /^lastUpdated_(companyA|companyB)$/,
+      /^(contracts|receipts|returns|purchaseOrders)_(companyA|companyB)$/
+    ],
+    incomeexpense: [
+      /^transactions_(company1|company2)$/,
+      /^lastUpdated_(company1|company2)$/
+    ],
+    wicketorders: ['quotation_products_', 'invoice_products_', 'contract_products_']
   };
   var APP_KEYS = window.CLOUDBASE_APP_KEYS || _DEFAULT_APP_KEYS[APP_ID] || [];
   var APP_KEY_PREFIXES = window.CLOUDBASE_APP_KEY_PREFIXES || _DEFAULT_APP_KEY_PREFIXES[APP_ID] || [];
 
   // 判断一个未带其他应用前缀的 localStorage 键是否属于当前应用
   function isAppKey(key) {
-    // 已有当前应用前缀的键直接通过
+    // 已有当前应用前缀的键直接通过（双前缀垃圾由 cloudKeyToOurs 另行拦截）
     if (key.indexOf(APP_ID + '__') === 0) return true;
     // 精确匹配
     if (APP_KEYS.indexOf(key) >= 0) return true;
-    // 前缀匹配（动态键如 transactions_company1）
+    // 动态键：字符串前缀匹配 或 正则完全匹配
     for (var i = 0; i < APP_KEY_PREFIXES.length; i++) {
-      if (key.indexOf(APP_KEY_PREFIXES[i]) === 0) return true;
+      var p = APP_KEY_PREFIXES[i];
+      if (p instanceof RegExp) { if (p.test(key)) return true; }
+      else if (key.indexOf(p) === 0) return true;
     }
     return false;
   }
@@ -430,8 +442,9 @@
     var PAGE = 100;
     while (true) {
       // select=id,data（物理列），jsonb 过滤 data->>store_key
+      // SQL LIKE 通配符是 %（encodeURIComponent → %25），不能用 *（实测本网关虽兼容，但非标准）
       var url = base + '?select=id,data' +
-        '&data-%3E%3Estore_key=like.' + encodeURIComponent(prefix + '*') +
+        '&data-%3E%3Estore_key=like.' + encodeURIComponent(prefix + '%') +
         '&offset=' + offset + '&limit=' + PAGE;
       // 每页请求 30 秒超时（慢网络下 10s 太紧，大 jsonb 分页必被 abort）；
       // 超时中止自动重试 1 次再判失败
@@ -518,6 +531,20 @@
     return 0;
   }
 
+  // 云端 store_key → 本机键名；只认真正属于当前应用的键。
+  // 历史污染：旧版无差别上传曾把其它应用数据（wage_records/orderRecords/cdg_* 等）、
+  // 内部会话键（credentials_/lang_/tcb_auth_session）、双前缀垃圾键
+  // （incomeexpense__incomeexpense__todos）都写到当前应用前缀下。
+  // 这些行绝不能参与计数、下载覆盖或对比，否则右下角条数虚高、旧数据还会"复活"。
+  function cloudKeyToOurs(sk) {
+    if (!sk || sk.indexOf(APP_ID + '__') !== 0) return null;
+    var origKey = sk.substring((APP_ID + '__').length);
+    if (!origKey || origKey.indexOf(APP_ID + '__') === 0) return null; // 双前缀垃圾
+    if (!isAppKey(origKey)) return null;    // 非本应用注册键（其它应用串味数据）
+    if (shouldSkip(origKey)) return null;   // 内部/凭据/语言等
+    return origKey;
+  }
+
   // 用云端原始行刷新云端条数快照（同一 store_key 取最新行，独立于 LWW 合并结果）
   function ingestCloudCounts(rows) {
     var newest = {};
@@ -525,6 +552,7 @@
       for (var i = 0; i < rows.length; i++) {
         var rw = rows[i];
         if (!rw || !rw.store_key) continue;
+        if (!cloudKeyToOurs(rw.store_key)) continue; // 只统计本应用真实业务键
         var prev = newest[rw.store_key];
         if (!prev || new Date(rw.updated_at).getTime() > new Date(prev.updated_at).getTime()) {
           newest[rw.store_key] = rw;
@@ -533,7 +561,7 @@
     } catch (e) { return; }
     var counts = {};
     Object.keys(newest).forEach(function (sk) {
-      var origKey = unprefixKey(sk);
+      var origKey = cloudKeyToOurs(sk);
       if (origKey) counts[origKey] = countValue(newest[sk].payload);
     });
     cloudCounts = counts;
@@ -610,8 +638,8 @@
     }
     Object.keys(newest).forEach(function (sk) {
       var row = newest[sk];
-      var origKey = unprefixKey(sk);
-      if (!origKey) return;
+      var origKey = cloudKeyToOurs(sk);
+      if (!origKey) return; // 非本应用键（跨应用串味/凭据/双前缀垃圾）一律不落地
       // 导入保护期内：本地已有数据时完全跳过（不覆盖 cache 也不覆盖 localStorage）
       if (importProtected) {
         var localRaw0 = nativeGet(toLocalKey(origKey));
@@ -1361,7 +1389,7 @@
 
       Object.keys(newestRows).forEach(function (sk) {
         var row = newestRows[sk];
-        var origKey = unprefixKey(row.store_key);
+        var origKey = cloudKeyToOurs(row.store_key);
         if (!origKey) return;
         // 导入保护期内：本地已有数据时跳过云端覆盖（保护刚导入的数据）
         if (isImportProtected()) {
@@ -1718,7 +1746,7 @@
       var cloudNewer = [], localNewer = [], same = [];
       Object.keys(newest).forEach(function (sk) {
         var row = newest[sk];
-        var origKey = unprefixKey(sk);
+        var origKey = cloudKeyToOurs(sk);
         if (!origKey) return;
         var cloudTime = 0;
         try { cloudTime = new Date(row.updated_at).getTime(); } catch (e) {}
@@ -1740,7 +1768,7 @@
           if (!isAppKey(ok2) || shouldSkip(ok2)) continue;
           var cloudHas = false;
           Object.keys(newest).forEach(function (sk) {
-            if (unprefixKey(sk) === ok2) cloudHas = true;
+            if (cloudKeyToOurs(sk) === ok2) cloudHas = true;
           });
           if (!cloudHas) {
             var lt = localVersions[ok2] || 0;

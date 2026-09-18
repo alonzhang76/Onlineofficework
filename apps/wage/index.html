@@ -16,7 +16,7 @@ window.CLOUDBASE_SYNC = { email: 'sync@lori.app', password: 'LoriSync2026!' };
 <!-- CloudBase 数据存储层（window.CloudbaseStore / window.SupabaseStore） -->
 <script src="js/cloudbase-store.js?v=20260918b"></script>
 <!-- 云端数据管理工具（同步 / 清空云端，window.CloudAdmin） -->
-<script src="../cloudbase-admin.js?v=20260918c"></script>
+<script src="../cloudbase-admin.js?v=20260918d"></script>
 <!-- 用户信息展示（不再跳转登录页） -->
 <script src="js/auth-guard.js"></script>
 <!-- 云存储文件中心（共享模块，与 orderschedule / wicketorders 共用同一云端目录） -->
@@ -544,9 +544,9 @@ table.batch-table .batch-proc { width: 100%; }
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         <span>日历记事</span>
       </div>
-      <div class="nav-item" data-tab="backup" title="数据备份">
+      <div class="nav-item" data-tab="backup" title="备份与恢复">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7"/><polyline points="7 9 12 4 17 9"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
-        <span>数据备份</span>
+        <span>备份与恢复</span>
       </div>
       <div class="nav-item" data-tab="cloudfiles" title="云存储">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
@@ -986,17 +986,17 @@ table.batch-table .batch-proc { width: 100%; }
             <div class="backup-icon" style="background:var(--primary-light);">
               <svg viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7"/><polyline points="7 9 12 4 17 9"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
             </div>
-            <h3>数据备份</h3>
+            <h3>备份到电脑</h3>
             <p>将系统全部数据（工资记录、员工信息、工序价格、订单信息、补贴设置）导出为 JSON 备份文件，保存到本地。建议定期备份以防数据丢失。</p>
-            <button class="btn btn-primary" onclick="backupData()">立即备份</button>
+            <button class="btn btn-primary" onclick="backupData()">备份到电脑</button>
           </div>
           <div class="backup-card">
             <div class="backup-icon" style="background:var(--success-light);">
               <svg viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             </div>
-            <h3>数据恢复</h3>
+            <h3>从电脑恢复</h3>
             <p>从之前导出的 JSON 备份文件中恢复全部数据。恢复操作会覆盖当前所有数据。</p>
-            <button class="btn btn-success" onclick="document.getElementById('restoreFileInput').click()">选择文件恢复</button>
+            <button class="btn btn-success" onclick="document.getElementById('restoreFileInput').click()">从电脑恢复</button>
             <input type="file" id="restoreFileInput" accept=".json" onchange="restoreData(this)">
             <div class="restore-note">注意：恢复操作将覆盖当前全部数据，请谨慎操作。建议在恢复前先做一次备份。</div>
           </div>
