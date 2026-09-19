@@ -955,6 +955,193 @@
             max-width: 2000px;
             width: 98%;
         }
+
+        /* ===== 订单表单：iOS 毛玻璃效果 ===== */
+        .modal-overlay.glass-modal {
+            background: rgba(35, 40, 58, 0.25);
+            -webkit-backdrop-filter: blur(10px) saturate(140%);
+            backdrop-filter: blur(10px) saturate(140%);
+        }
+        .glass-modal .order-modal-content {
+            background: rgba(255, 255, 255, 0.5);
+            -webkit-backdrop-filter: blur(30px) saturate(180%);
+            backdrop-filter: blur(30px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.65);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+        }
+        .glass-modal input.form-input,
+        .glass-modal select.form-input,
+        .glass-modal textarea.form-input {
+            background: rgba(255, 255, 255, 0.42);
+            border-color: rgba(255, 255, 255, 0.55);
+        }
+        .glass-modal input.form-input:focus,
+        .glass-modal select.form-input:focus,
+        .glass-modal textarea.form-input:focus {
+            background: rgba(255, 255, 255, 0.62);
+        }
+        .glass-modal .product-row {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.45);
+        }
+        .glass-modal .divider-line {
+            background: rgba(50, 55, 75, 0.18);
+        }
+        .glass-modal input:-webkit-autofill,
+        .glass-modal select:-webkit-autofill {
+            -webkit-box-shadow: 0 0 0 1000px rgba(255, 255, 255, 0.55) inset;
+            -webkit-text-fill-color: #1f2937;
+            transition: background-color 9999s ease-in-out 0s;
+        }
+
+        /* ===== LOGO 自定义选择器（支持图片选项）===== */
+        .logo-picker {
+            position: relative;
+            width: 100%;
+        }
+        .logo-picker-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            width: 100%;
+            text-align: left;
+            padding: 0 8px;
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.42);
+        }
+        .logo-picker-btn .lp-label {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 0.875rem;
+        }
+        .lp-thumb {
+            width: 24px;
+            height: 24px;
+            object-fit: contain;
+            flex: 0 0 24px;
+        }
+        .logo-picker-menu {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            min-width: 180px;
+            max-height: 250px;
+            overflow-y: auto;
+            z-index: 60;
+            background: rgba(255, 255, 255, 0.88);
+            -webkit-backdrop-filter: blur(20px);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.7);
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+            padding: 4px;
+        }
+        .logo-picker-menu[hidden] {
+            display: none;
+        }
+        .lp-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .lp-item:hover {
+            background: rgba(0, 86, 179, 0.12);
+        }
+        .lp-item-thumb {
+            width: 22px;
+            height: 22px;
+            object-fit: contain;
+        }
+        .lp-manage-btn {
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-size: 0.72rem;
+            padding: 0 0 0 3px;
+            color: #6b7280;
+            line-height: 1;
+        }
+        .lp-manage-btn:hover {
+            color: var(--primary);
+        }
+
+        /* ===== LOGO 选项管理弹窗 ===== */
+        .lp-mgr {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.42);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100000;
+        }
+        .lp-mgr.hidden {
+            display: none;
+        }
+        .lp-mgr-panel {
+            width: 580px;
+            max-width: 94%;
+            max-height: 86vh;
+            overflow-y: auto;
+            background: rgba(255, 255, 255, 0.94);
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        .lp-mgr-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px;
+            border-radius: 10px;
+            background: rgba(245, 247, 252, 0.8);
+            margin-bottom: 8px;
+        }
+        .lp-mgr-row img {
+            width: 34px;
+            height: 34px;
+            object-fit: contain;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            background: #fff;
+        }
+        .lp-mgr-row .lp-mgr-name {
+            flex: 1;
+            min-width: 0;
+        }
+        .lp-mgr-row input.lp-mgr-name-input {
+            flex: 1;
+            min-width: 0;
+            height: 32px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 0 8px;
+            font-size: 0.85rem;
+        }
+        .lp-icon-btn {
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-size: 0.95rem;
+            padding: 4px 6px;
+            border-radius: 6px;
+            line-height: 1;
+        }
+        .lp-icon-btn:hover {
+            background: rgba(0, 0, 0, 0.07);
+        }
+        .lp-add-box {
+            border: 1px dashed #b9c2d4;
+            border-radius: 12px;
+            padding: 12px;
+            margin-top: 12px;
+            background: rgba(245, 247, 252, 0.6);
+        }
         
         /* 产品行样式 */
         .product-row {
@@ -4272,7 +4459,7 @@
     </div>
 
     <!-- 新增订单记录模态框 -->
-    <div id="orderModal" class="modal-overlay hidden">
+    <div id="orderModal" class="modal-overlay glass-modal hidden">
         <div class="modal-content order-modal-content">
             <div class="p-6">
                 <div class="flex justify-between items-center mb-4">
@@ -4371,7 +4558,7 @@
                                                oninput="filterProducts(this.value, this)" onclick="showProductSuggestions(this)" placeholder="输入产品名称">
                                         <div class="absolute bg-white border border-gray-300 rounded shadow-lg mt-1 z-10 hidden w-full"></div>
                                     </div>
-                                    <div class="form-group relative" style="flex: 1 1 150px; min-width: 150px;">
+                                    <div class="form-group relative" style="flex: 1 1 105px; min-width: 105px;">
                                         <label class="form-label">规格</label>
                                         <input type="text" name="spec" class="form-input product-spec" 
                                                oninput="filterSpecs(this.value, this)" onclick="showSpecSuggestions(this)" placeholder="输入产品规格">
@@ -4390,21 +4577,15 @@
                                             <option value="否">否</option>
                                         </select>
                                     </div>
-                                    <div class="form-group" style="flex: 0 0 105px;">
-                                        <label class="form-label">LOGO</label>
-                                        <select name="logo" class="form-input product-logo">
-                                            <option value="LONGLI" selected>LONGLI</option>
-                                            <option value="KBA">KBA</option>
-                                            <option value="PERM">PERM</option>
-                                            <option value="EPCCS">EPCCS</option>
-                                            <option value="INGHOR">INGHOR</option>
-                                            <option value="CC">CC</option>
-                                            <option value="J">J</option>
-                                            <option value="HS">HS</option>
-                                            <option value="无">无</option>
-                                        </select>
+                                    <div class="form-group" style="flex: 0 0 130px;">
+                                        <label class="form-label">LOGO<button type="button" class="lp-manage-btn" onclick="openLogoManager()" title="管理LOGO选项">⚙</button></label>
+                                        <div class="logo-picker product-logo">
+                                            <button type="button" class="form-input logo-picker-btn"><span class="lp-label">LONGLI</span></button>
+                                            <input type="hidden" name="logo" value="LONGLI">
+                                            <div class="logo-picker-menu" hidden></div>
+                                        </div>
                                     </div>
-                                    <div class="form-group" style="flex: 0 0 75px;">
+                                    <div class="form-group" style="flex: 0 0 110px;">
                                         <label class="form-label">单位</label>
                                         <input type="text" name="unit" class="form-input product-unit" list="unitOptions" placeholder="选择或输入" onchange="saveCustomUnit(this)">
                                         <datalist id="unitOptions">
@@ -4459,7 +4640,7 @@
     </div>
 
     <!-- 编辑订单记录模态框 -->
-    <div id="editOrderModal" class="modal-overlay hidden">
+    <div id="editOrderModal" class="modal-overlay glass-modal hidden">
         <div class="modal-content order-modal-content">
             <div class="p-6">
                 <div class="flex justify-between items-center mb-4">
@@ -4561,7 +4742,7 @@
                                                oninput="filterProducts(this.value, this)" onclick="showProductSuggestions(this)" placeholder="输入产品名称">
                                         <div class="absolute bg-white border border-gray-300 rounded shadow-lg mt-1 z-10 hidden w-full"></div>
                                     </div>
-                                    <div class="form-group relative" style="flex: 1 1 150px; min-width: 150px;">
+                                    <div class="form-group relative" style="flex: 1 1 105px; min-width: 105px;">
                                         <label class="form-label">规格</label>
                                         <input type="text" name="spec" class="form-input product-spec" 
                                                oninput="filterSpecs(this.value, this)" onclick="showSpecSuggestions(this)" placeholder="输入产品规格">
@@ -4580,21 +4761,15 @@
                                             <option value="否">否</option>
                                         </select>
                                     </div>
-                                    <div class="form-group" style="flex: 0 0 105px;">
-                                        <label class="form-label">LOGO</label>
-                                        <select name="logo" class="form-input product-logo">
-                                            <option value="LONGLI" selected>LONGLI</option>
-                                            <option value="KBA">KBA</option>
-                                            <option value="PERM">PERM</option>
-                                            <option value="EPCCS">EPCCS</option>
-                                            <option value="INGHOR">INGHOR</option>
-                                            <option value="CC">CC</option>
-                                            <option value="J">J</option>
-                                            <option value="HS">HS</option>
-                                            <option value="无">无</option>
-                                        </select>
+                                    <div class="form-group" style="flex: 0 0 130px;">
+                                        <label class="form-label">LOGO<button type="button" class="lp-manage-btn" onclick="openLogoManager()" title="管理LOGO选项">⚙</button></label>
+                                        <div class="logo-picker product-logo">
+                                            <button type="button" class="form-input logo-picker-btn"><span class="lp-label">LONGLI</span></button>
+                                            <input type="hidden" name="logo" value="LONGLI">
+                                            <div class="logo-picker-menu" hidden></div>
+                                        </div>
                                     </div>
-                                    <div class="form-group" style="flex: 0 0 75px;">
+                                    <div class="form-group" style="flex: 0 0 110px;">
                                         <label class="form-label">单位</label>
                                         <input type="text" name="unit" class="form-input product-unit" list="unitOptions" placeholder="选择或输入" onchange="saveCustomUnit(this)">
                                         <datalist id="unitOptions">
@@ -4942,7 +5117,7 @@
 
     <!-- JavaScript文件 -->
     <script src="login.js"></script>
-    <script src="app.js?v=20260915j"></script>
+    <script src="app.js?v=20260919a"></script>
     <!-- Enhanced Payment Functionality -->
     <script src="./enhanced-payment.js"></script>
     <!-- 云存储文件中心（共享模块，三应用通用）：全局搜索 + 跨应用同步 -->
