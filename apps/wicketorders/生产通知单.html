@@ -285,6 +285,21 @@
             return params;
         }
         
+        // 根据 LOGO 名称查找对应图片（从 localStorage 的 logoOptions 中匹配）
+        function getLogoImageByName(name) {
+            if (!name) return null;
+            try {
+                const raw = localStorage.getItem('logoOptions');
+                if (!raw) return null;
+                const arr = JSON.parse(raw);
+                if (!Array.isArray(arr)) return null;
+                const opt = arr.find(x => x && x.name === name);
+                return (opt && opt.image) ? opt.image : null;
+            } catch (e) {
+                return null;
+            }
+        }
+
         // 渲染生产通知单
         function renderProductionNotice(params) {
             // 设置客户信息
@@ -334,7 +349,11 @@
                 const plated = params[`plated${i}`];
                 const quantity = params[`quantity${i}`];
                 const bow = params[`bow${i}`] || '否';
-                
+                const bowImg = getLogoImageByName(bow);
+                const bowCell = bowImg
+                    ? `<img src="${bowImg}" alt="${String(bow).replace(/"/g, '&quot;')}" style="max-height:48px;max-width:160px;object-fit:contain;vertical-align:middle;" onerror="this.replaceWith(document.createTextNode('${String(bow).replace(/'/g, "\\'")}'))">`
+                    : String(bow || '');
+
                 const row = document.createElement('tr');
                 row.className = 'border-t border-gray-200';
                 
@@ -343,7 +362,7 @@
                     <td class="table-cell">${spec || ''}</td>
                     <td class="table-cell">${drawing || ''}</td>
                     <td class="table-cell">${plated || ''}</td>
-                    <td class="table-cell">${bow}</td>
+                    <td class="table-cell">${bowCell}</td>
                     <td class="table-cell text-right">${quantity ? formatNumberWithCommas(quantity) : ''}</td>
                 `;
                 
@@ -384,13 +403,14 @@
             const editableElements = document.querySelectorAll('.field-value, .table-cell, #createdBy, #approvedBy, #productionBy');
             
             editableElements.forEach(el => {
-                // 保存原始值
-                el.dataset.originalValue = el.textContent;
+                // 保存原始值（含 LOGO 图片的单元格取图片 alt 即 LOGO 名称）
+                const imgEl = el.querySelector('img');
+                el.dataset.originalValue = imgEl ? (imgEl.alt || '') : el.textContent;
                 
                 // 创建输入框
                 const input = document.createElement('input');
                 input.type = 'text';
-                input.value = el.textContent;
+                input.value = el.dataset.originalValue;
                 input.className = 'w-full p-1 border border-gray-300 rounded text-sm';
                 
                 // 替换内容

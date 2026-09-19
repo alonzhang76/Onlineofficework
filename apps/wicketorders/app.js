@@ -634,7 +634,7 @@ class PageController {
                     <td>${record.spec || ''}</td>
                     <td>${record.drawingNo || ''}</td>
                     <td><span class="inline-block px-2 py-1 rounded ${record.plating === '否' ? 'bg-green-600 text-white' : record.plating === '是' ? 'bg-red-600 text-white' : ''}">${record.plating || ''}</span></td>
-                    <td>${record.logo || ''}</td>
+                    <td>${renderLogoCell(record.logo)}</td>
                     <td>${record.unit || ''}</td>
                     <td>${record.unitPrice ? parseFloat(record.unitPrice).toFixed(2) : '0.00'}</td>
                     <td>${record.quantity || ''}</td>
@@ -8545,8 +8545,22 @@ const LogoOptionStore = {
     },
     findByName(name) {
         return this.getAll().find(x => x.name === name) || null;
+    },
+    getImageByName(name) {
+        const opt = this.findByName(name);
+        return (opt && opt.image) ? opt.image : null;
     }
 };
+
+// 根据 LOGO 名称渲染表格单元格内容：有图片显示图片（名称作 tooltip），无图片显示文字
+function renderLogoCell(name) {
+    if (!name) return '';
+    const img = LogoOptionStore.getImageByName(name);
+    if (img) {
+        return `<img src="${img}" alt="${String(name).replace(/"/g, '&quot;')}" title="${String(name).replace(/"/g, '&quot;')}" style="max-height:34px;max-width:120px;object-fit:contain;vertical-align:middle;" onerror="this.replaceWith(document.createTextNode('${String(name).replace(/'/g, "\\'")}'))">`;
+    }
+    return String(name);
+}
 
 // 图片文件 → 等比缩小（maxSize 像素内）→ PNG dataURL，控制 localStorage 体积
 function logoImageToDataUrl(file, maxSize, cb) {
