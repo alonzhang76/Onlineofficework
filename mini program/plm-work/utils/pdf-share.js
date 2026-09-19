@@ -117,35 +117,61 @@ function generateAndShare(renderFn, data, fileName, orientation, done) {
     return;
   }
 
-  // 写文件
+  // 写文件（pdfBuffer 为 ArrayBuffer，直接写入，不传 encoding）
   var fs = wx.getFileSystemManager();
-  var filePath = wx.env.USER_DATA_PATH + '/' + fileName + '_' + fmt.today() + '.pdf';
+  // 文件名中的中文/特殊字符可能导致 wx.shareFileMessage 失败，路径用安全名，分享显示名保留中文
+  var safeName = String(fileName).replace(/[^\w\-]/g, '_');
+  var filePath = wx.env.USER_DATA_PATH + '/' + safeName + '_' + fmt.today() + '.pdf';
   try {
-    fs.writeFileSync(filePath, pdfBuffer, 'binary');
+    fs.writeFileSync(filePath, pdfBuffer);
   } catch (e) {
     wx.hideLoading();
-    wx.showToast({ title: '文件写入失败', icon: 'none' });
+    wx.showToast({ title: '文件写入失败: ' + (e.message || ''), icon: 'none' });
+    done && done(false);
+    return;
+  }
+  // 校验文件是否写入成功
+  var stat = null;
+  try { stat = fs.statSync(filePath); } catch (e2) {}
+  if (!stat || stat.size === 0) {
+    wx.hideLoading();
+    wx.showToast({ title: 'PDF文件生成失败', icon: 'none' });
     done && done(false);
     return;
   }
 
   wx.hideLoading();
 
-  // 分享
+  // 分享为 PDF 文件给微信好友
   wx.shareFileMessage({
     filePath: filePath,
+    fileName: fileName + '.pdf',
     success: function () {
       wx.showToast({ title: '已发送', icon: 'success' });
       done && done(true);
     },
     fail: function (err) {
-      // 分享失败 → 尝试保存图片到相册作为回退
-      saveFirstPageToAlbum(pages[0], function (ok) {
-        if (!ok) {
-          wx.showToast({ title: '分享已取消', icon: 'none' });
-        }
+      var msg = (err && err.errMsg) || '';
+      // 用户主动取消分享 → 只提示，不存图片
+      if (msg.indexOf('cancel') >= 0) {
+        wx.showToast({ title: '已取消分享', icon: 'none' });
         done && done(false);
+        return;
+      }
+      // 真实错误 → 提示错误，不自动存图片（避免用户误以为是图片分享）
+      wx.showModal({
+        title: 'PDF分享失败',
+        content: '错误：' + msg + '\n\n可尝试在"文件"中手动发送，或重新生成。',
+        showCancel: true,
+        cancelText: '知道了',
+        confirmText: '存为图片',
+        success: function (res) {
+          if (res.confirm) {
+            saveFirstPageToAlbum(pages[0], function () {});
+          }
+        }
       });
+      done && done(false);
     }
   });
   }
@@ -161,7 +187,7 @@ function saveFirstPageToAlbum(page, done) {
     var base64 = dataURL.split(',')[1];
     var fs = wx.getFileSystemManager();
     var path = wx.env.USER_DATA_PATH + '/doc_page.jpg';
-    fs.writeFileSync(path, base64ToUint8Array(base64).buffer, 'binary');
+    fs.writeFileSync(path, base64ToUint8Array(base64).buffer);
     wx.saveImageToPhotosAlbum({
       filePath: path,
       success: function () {
