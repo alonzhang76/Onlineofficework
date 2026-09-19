@@ -57,18 +57,28 @@ function base64ToUint8Array(b64) {
 function generateAndShare(renderFn, data, fileName, orientation, done) {
   wx.showLoading({ title: '生成PDF中...' });
 
-  // 渲染页面
-  var result;
+  // 渲染页面（支持同步返回或返回 Promise 的渲染函数，如生产通知单需预加载 LOGO 图片）
+  var syncResult;
   try {
-    result = renderFn(data);
+    syncResult = renderFn(data);
   } catch (e) {
     wx.hideLoading();
     wx.showToast({ title: '渲染失败: ' + (e.message || ''), icon: 'none' });
     done && done(false);
     return;
   }
+  if (syncResult && typeof syncResult.then === 'function') {
+    syncResult.then(renderPdfPages, function (e) {
+      wx.hideLoading();
+      wx.showToast({ title: '渲染失败: ' + ((e && e.message) || e), icon: 'none' });
+      done && done(false);
+    });
+    return;
+  }
+  renderPdfPages(syncResult);
 
-  // 归一化为数组
+  function renderPdfPages(result) {
+    // 归一化为数组
   var pages = Array.isArray(result) ? result : [result];
   if (pages.length === 0) {
     wx.hideLoading();
@@ -138,6 +148,7 @@ function generateAndShare(renderFn, data, fileName, orientation, done) {
       });
     }
   });
+  }
 }
 
 /**

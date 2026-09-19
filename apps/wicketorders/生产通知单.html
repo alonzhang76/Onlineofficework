@@ -288,16 +288,19 @@
         // 根据 LOGO 名称查找对应图片（从 localStorage 的 logoOptions 中匹配）
         function getLogoImageByName(name) {
             if (!name) return null;
+            // 优先：用户在表单 LOGO 管理弹窗上传的 dataURL 图
             try {
                 const raw = localStorage.getItem('logoOptions');
-                if (!raw) return null;
-                const arr = JSON.parse(raw);
-                if (!Array.isArray(arr)) return null;
-                const opt = arr.find(x => x && x.name === name);
-                return (opt && opt.image) ? opt.image : null;
-            } catch (e) {
-                return null;
-            }
+                if (raw) {
+                    const arr = JSON.parse(raw);
+                    if (Array.isArray(arr)) {
+                        const opt = arr.find(x => x && x.name === name);
+                        if (opt && opt.image) return opt.image;
+                    }
+                }
+            } catch (e) { /* 解析失败则走文件夹回退 */ }
+            // 回退：按名称约定取 apps/logos/{name}.png；文件不存在由 <img onerror> 显示文字
+            return '../logos/' + String(name).toLowerCase() + '.png';
         }
 
         // 渲染生产通知单

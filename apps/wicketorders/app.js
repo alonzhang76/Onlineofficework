@@ -8548,7 +8548,9 @@ const LogoOptionStore = {
     },
     getImageByName(name) {
         const opt = this.findByName(name);
-        return (opt && opt.image) ? opt.image : null;
+        if (opt && opt.image) return opt.image;
+        // 无用户上传图时，按名称约定回退到 apps/logos/{name}.png；文件不存在由 <img onerror> 显示文字
+        return name ? '../logos/' + String(name).toLowerCase() + '.png' : null;
     }
 };
 
