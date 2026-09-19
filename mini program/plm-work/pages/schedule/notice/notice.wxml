@@ -25,6 +25,69 @@
       <view class="btn btn-primary btn-sm" bindtap="previewDoc">生成通知单预览</view>
     </view>
 
+    <!-- 单据预览（生成后显示在订单列表上方） -->
+    <view class="doc" wx:if="{{doc}}">
+      <view class="doc-top">
+        <view class="doc-company">
+          <view class="doc-brand"><text class="doc-brand-cn">普利美</text><text class="doc-brand-en">PULIMEI</text></view>
+          <view class="doc-title-cn">生产通知单</view>
+          <view class="doc-title-en">PRODUCTION ORDER</view>
+        </view>
+        <view class="doc-info-grid">
+          <view class="di"><text class="di-label">下单日期</text><text class="di-val">{{doc.orderDate || '-'}}</text></view>
+          <view class="di"><text class="di-label">订单号</text><text class="di-val strong">{{doc.orderNo || '-'}}</text></view>
+          <view class="di"><text class="di-label">客户</text><text class="di-val">{{doc.customer || '-'}}</text></view>
+          <view class="di"><text class="di-label">交货日期</text><text class="di-val">{{doc.deliveryDate || '-'}}</text></view>
+        </view>
+      </view>
+
+      <view wx:if="{{doc.warn}}" class="doc-alert alert-{{doc.warn.level}}">⚠️ {{doc.warn.text}}</view>
+
+      <view class="doc-table">
+        <view class="dt-row dt-head">
+          <text class="dt-name">产品名称</text>
+          <text class="dt-spec">规格</text>
+          <text class="dt-draw">图号</text>
+          <text class="dt-plat">电镀</text>
+          <text class="dt-logo">LOGO</text>
+          <text class="dt-qty">数量</text>
+        </view>
+        <view class="dt-row" wx:for="{{doc.products}}" wx:key="id">
+          <text class="dt-name">{{item.productName || '-'}}</text>
+          <text class="dt-spec">{{item.spec || '-'}}</text>
+          <text class="dt-draw">{{item.drawingNo || '-'}}</text>
+          <text class="dt-plat">{{item.plating || '-'}}</text>
+          <text class="dt-logo">{{item.logo || '-'}}</text>
+          <text class="dt-qty">{{item.quantity}}</text>
+        </view>
+        <view class="dt-row dt-total">
+          <text class="dt-name">合计</text>
+          <text class="dt-spec"></text>
+          <text class="dt-draw"></text>
+          <text class="dt-plat"></text>
+          <text class="dt-logo"></text>
+          <text class="dt-qty">{{doc.totalQty}}</text>
+        </view>
+      </view>
+
+      <view class="doc-remark" wx:if="{{doc.remark}}">
+        <text class="dr-label">备注</text>
+        <text class="dr-content">{{doc.remark}}</text>
+      </view>
+
+      <view class="doc-sign">
+        <view class="ds-item"><text class="ds-label">制单</text><view class="ds-line"></view><text class="ds-name">吴小英</text></view>
+        <view class="ds-item"><text class="ds-label">审核</text><view class="ds-line"></view><text class="ds-name">吴小英</text></view>
+        <view class="ds-item"><text class="ds-label">生产</text><view class="ds-line"></view><text class="ds-name">许小成</text></view>
+        <view class="ds-item"><text class="ds-label">日期</text><view class="ds-line"></view></view>
+      </view>
+    </view>
+
+    <view class="btn-row" wx:if="{{doc}}">
+      <view class="btn btn-plain" bindtap="buildPDF">生成PDF</view>
+      <view class="btn btn-primary" wx:if="{{pdfReady}}" bindtap="onShareFile">📨 发送给微信好友</view>
+    </view>
+
     <view class="empty" wx:if="{{list.length === 0}}">
       <view class="empty-icon">📋</view>暂无订单记录
     </view>
@@ -41,69 +104,6 @@
         <view class="chk-txt dim">下单 {{item.date || '-'}} ｜ 交期 {{item.deadline || '-'}}</view>
       </view>
     </view>
-  </view>
-
-  <!-- 单据预览 -->
-  <view class="doc" wx:if="{{doc}}">
-    <view class="doc-top">
-      <view class="doc-company">
-        <view class="doc-brand"><text class="doc-brand-cn">普利美</text><text class="doc-brand-en">PULIMEI</text></view>
-        <view class="doc-title-cn">生产通知单</view>
-        <view class="doc-title-en">PRODUCTION ORDER</view>
-      </view>
-      <view class="doc-info-grid">
-        <view class="di"><text class="di-label">下单日期</text><text class="di-val">{{doc.orderDate || '-'}}</text></view>
-        <view class="di"><text class="di-label">订单号</text><text class="di-val strong">{{doc.orderNo || '-'}}</text></view>
-        <view class="di"><text class="di-label">客户</text><text class="di-val">{{doc.customer || '-'}}</text></view>
-        <view class="di"><text class="di-label">交货日期</text><text class="di-val">{{doc.deliveryDate || '-'}}</text></view>
-      </view>
-    </view>
-
-    <view wx:if="{{doc.warn}}" class="doc-alert alert-{{doc.warn.level}}">⚠️ {{doc.warn.text}}</view>
-
-    <view class="doc-table">
-      <view class="dt-row dt-head">
-        <text class="dt-name">产品名称</text>
-        <text class="dt-spec">规格</text>
-        <text class="dt-draw">图号</text>
-        <text class="dt-plat">电镀</text>
-        <text class="dt-logo">LOGO</text>
-        <text class="dt-qty">数量</text>
-      </view>
-      <view class="dt-row" wx:for="{{doc.products}}" wx:key="id">
-        <text class="dt-name">{{item.productName || '-'}}</text>
-        <text class="dt-spec">{{item.spec || '-'}}</text>
-        <text class="dt-draw">{{item.drawingNo || '-'}}</text>
-        <text class="dt-plat">{{item.plating || '-'}}</text>
-        <text class="dt-logo">{{item.logo || '-'}}</text>
-        <text class="dt-qty">{{item.quantity}}</text>
-      </view>
-      <view class="dt-row dt-total">
-        <text class="dt-name">合计</text>
-        <text class="dt-spec"></text>
-        <text class="dt-draw"></text>
-        <text class="dt-plat"></text>
-        <text class="dt-logo"></text>
-        <text class="dt-qty">{{doc.totalQty}}</text>
-      </view>
-    </view>
-
-    <view class="doc-remark" wx:if="{{doc.remark}}">
-      <text class="dr-label">备注</text>
-      <text class="dr-content">{{doc.remark}}</text>
-    </view>
-
-    <view class="doc-sign">
-      <view class="ds-item"><text class="ds-label">制单</text><view class="ds-line"></view><text class="ds-name">吴小英</text></view>
-      <view class="ds-item"><text class="ds-label">审核</text><view class="ds-line"></view><text class="ds-name">吴小英</text></view>
-      <view class="ds-item"><text class="ds-label">生产</text><view class="ds-line"></view><text class="ds-name">许小成</text></view>
-      <view class="ds-item"><text class="ds-label">日期</text><view class="ds-line"></view></view>
-    </view>
-  </view>
-
-  <view class="btn-row" wx:if="{{doc}}">
-    <view class="btn btn-plain" bindtap="buildPDF">生成PDF</view>
-    <view class="btn btn-primary" wx:if="{{pdfReady}}" bindtap="onShareFile">📨 发送给微信好友</view>
   </view>
 
   <view class="page-foot"></view>

@@ -151,7 +151,6 @@ Page({
           remark: remarks.join('\n')
         }
       });
-      wx.pageScrollTo({ scrollTop: 9999, duration: 200 });
     };
 
     // 含已出货订单时二次确认（与桌面版一致）
