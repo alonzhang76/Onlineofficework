@@ -214,6 +214,23 @@ function drawHLine(ctx, x, y, w, color, lineWidth) {
   ctx.stroke();
 }
 
+/**
+ * 绘制图片（等比缩放到边界框并居中）
+ * @param {Object} opts - {ctx, img, x, y, maxW, maxH} img 须为已加载完成的 Image 对象
+ * @returns {boolean} 是否成功绘制
+ */
+function drawImage(opts) {
+  var ctx = opts.ctx;
+  var img = opts.img;
+  if (!img || !img.width || !img.height) return false;
+  var maxW = opts.maxW, maxH = opts.maxH;
+  var scale = Math.min(maxW / img.width, maxH / img.height);
+  var dw = img.width * scale, dh = img.height * scale;
+  var dx = opts.x + (maxW - dw) / 2;
+  var dy = opts.y + (maxH - dh) / 2;
+  try { ctx.drawImage(img, dx, dy, dw, dh); return true; } catch (e) { return false; }
+}
+
 module.exports = {
   A4: A4,
   createPage: createPage,
@@ -223,5 +240,6 @@ module.exports = {
   drawQRCode: drawQRCode,
   drawRect: drawRect,
   fillRect: fillRect,
-  drawHLine: drawHLine
+  drawHLine: drawHLine,
+  drawImage: drawImage
 };
