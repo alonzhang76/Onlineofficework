@@ -28,9 +28,11 @@
   <!-- 客户信息 -->
   <view class="card">
     <view class="sec-title">客户信息 | Customer</view>
-    <picker wx:if="{{customerLabels.length > 0}}" range="{{customerLabels}}" bindchange="onCustomerPick">
-      <view class="form-item"><text class="f-label">速填客户</text><text class="f-value placeholder">从客户档案选择自动回填</text></view>
-    </picker>
+    <view class="form-item pick-fill" bindtap="openCust">
+      <text class="f-label">速填客户</text>
+      <text class="f-value placeholder">输入关键字搜索，点选自动回填</text>
+      <text class="pick-arrow">›</text>
+    </view>
     <view class="form-item">
       <text class="f-label">公司</text>
       <input value="{{header.customerCompany}}" placeholder="客户公司名称" data-f="customerCompany" bindinput="onHeadInput" />
@@ -96,9 +98,11 @@
       <text class="line-no">产品 {{li + 1}}</text>
       <view class="mini-btn mini-danger" data-i="{{li}}" catchtap="removeLine">删除</view>
     </view>
-    <picker wx:if="{{productLabels.length > 0}}" range="{{productLabels}}" data-i="{{li}}" bindchange="onProductPick">
-      <view class="form-item pick-fill"><text class="f-label">速填</text><text class="f-value placeholder">产品库/历史报价速填</text></view>
-    </picker>
+    <view class="form-item pick-fill" data-i="{{li}}" bindtap="openProd">
+      <text class="f-label">速填</text>
+      <text class="f-value placeholder">输入关键字搜索产品库/历史报价</text>
+      <text class="pick-arrow">›</text>
+    </view>
     <view class="form-item">
       <text class="f-label">产品编号</text>
       <input value="{{line.productNo}}" placeholder="Product No." data-i="{{li}}" data-f="productNo" bindinput="onLineInput" />
@@ -159,5 +163,51 @@
   <view class="footer-bar">
     <view class="btn btn-outline foot-btn" bindtap="onSave">保存</view>
     <view class="btn btn-primary foot-btn" bindtap="onSharePdf">📄 生成PDF发微信</view>
+  </view>
+
+  <!-- 客户速填搜索弹层 -->
+  <view catchtouchmove="noop" class="mask" wx:if="{{custModal}}" bindtap="closeCust">
+    <view class="sheet pick-sheet" catchtap="noop">
+      <view class="sheet-title">速填客户<text class="sheet-close" bindtap="closeCust">×</text></view>
+      <view class="pick-search">
+        <input class="pick-input" value="{{custKw}}" focus cursor-spacing="140" confirm-type="search"
+               placeholder="客户名/联系人/电话/邮箱/地区关键字" bindinput="onCustKw" />
+      </view>
+      <view class="pick-count">匹配 {{custTotal}} 条<text wx:if="{{custTotal > custResults.length}}">，仅显示前 {{custResults.length}} 条，请细化关键字</text></view>
+      <scroll-view scroll-y class="sheet-body pick-list">
+        <view wx:if="{{custResults.length === 0}}" class="pick-empty">无匹配客户，可关闭后在下方表单手工填写</view>
+        <view class="pick-item" wx:for="{{custResults}}" wx:key="index" data-i="{{index}}" bindtap="selectCust">
+          <view class="pick-main">
+            <view class="pick-name">{{item.customerName}}</view>
+            <view class="pick-sub">{{item.contactName || '无联系人'}}<text wx:if="{{item.phone}}"> ｜ {{item.phone}}</text></view>
+          </view>
+          <text class="badge badge-gray" wx:if="{{item.region}}">{{item.region}}</text>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+
+  <!-- 产品速填搜索弹层 -->
+  <view catchtouchmove="noop" class="mask" wx:if="{{prodModal}}" bindtap="closeProd">
+    <view class="sheet pick-sheet" catchtap="noop">
+      <view class="sheet-title">速填产品（第 {{prodPickLine + 1}} 行）<text class="sheet-close" bindtap="closeProd">×</text></view>
+      <view class="pick-search">
+        <input class="pick-input" value="{{prodKw}}" focus cursor-spacing="140" confirm-type="search"
+               placeholder="编号/名称/图号/规格关键字" bindinput="onProdKw" />
+      </view>
+      <view class="pick-count">匹配 {{prodTotal}} 条<text wx:if="{{prodTotal > prodResults.length}}">，仅显示前 {{prodResults.length}} 条，请细化关键字</text></view>
+      <scroll-view scroll-y class="sheet-body pick-list">
+        <view wx:if="{{prodResults.length === 0}}" class="pick-empty">无匹配产品，可关闭后在本行手工填写</view>
+        <view class="pick-item" wx:for="{{prodResults}}" wx:key="index" data-i="{{index}}" bindtap="selectProd">
+          <view class="pick-main">
+            <view class="pick-name">{{item.fromLib ? '📦 ' : '🕘 '}}{{item.productNo}}<text class="pick-name2" wx:if="{{item.productName}}"> {{item.productName}}</text></view>
+            <view class="pick-sub">
+              <text wx:if="{{item.specification}}">{{item.specification}} ｜ </text>
+              <text wx:if="{{item.unitPrice}}">{{item.currency}} {{item.unitPrice}}</text>
+            </view>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
   </view>
 </view>

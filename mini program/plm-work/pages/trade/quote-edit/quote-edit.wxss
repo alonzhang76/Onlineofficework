@@ -24,7 +24,6 @@
 }
 .line-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8rpx; }
 .line-no { font-size: 28rpx; font-weight: 700; color: #0d47a1; }
-.pick-fill { background: rgba(0, 122, 255, 0.05); border-radius: 14rpx; }
 .qty-row .form-item { min-width: 0; }
 .currency-item .f-value { color: #007AFF; }
 .line-amount {
@@ -43,6 +42,30 @@
   background: linear-gradient(90deg, #2563eb, #10b981);
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
+
+/* 速填入口与搜索弹层 */
+.pick-fill { background: rgba(0, 122, 255, 0.05); border-radius: 14rpx; }
+.pick-arrow { flex-shrink: 0; margin-left: 12rpx; color: #007AFF; font-size: 36rpx; line-height: 1; }
+
+.pick-sheet { max-height: 78vh; }
+.pick-search { padding: 0 32rpx 16rpx; flex-shrink: 0; }
+.pick-input {
+  background: #fff; border: 1rpx solid #E5E5EA; border-radius: 16rpx;
+  padding: 20rpx 24rpx; font-size: 28rpx; color: #1C1C1E;
+}
+.pick-count { padding: 0 36rpx 12rpx; font-size: 22rpx; color: #8E8E93; flex-shrink: 0; }
+.pick-list { max-height: calc(78vh - 260rpx); }
+.pick-empty { padding: 60rpx 24rpx; text-align: center; font-size: 26rpx; color: #8E8E93; }
+.pick-item {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16rpx; background: #fff; border-radius: 16rpx;
+  padding: 22rpx 24rpx; margin-bottom: 14rpx;
+}
+.pick-item:active { background: #E9F1FF; }
+.pick-main { flex: 1; min-width: 0; }
+.pick-name { font-size: 28rpx; font-weight: 600; color: #1C1C1E; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pick-name2 { font-weight: 400; color: #3A3A3C; }
+.pick-sub { margin-top: 6rpx; font-size: 24rpx; color: #8E8E93; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
 .footer-space { height: 140rpx; }
 .footer-bar {

@@ -25,6 +25,33 @@ function emptyLine() {
   };
 }
 
+/** 速填候选单次最多渲染条数（数据库量大时避免长列表卡顿） */
+var RESULT_CAP = 50;
+
+function matchKw() {
+  var parts = [];
+  for (var i = 0; i < arguments.length; i++) parts.push(String(arguments[i] || '').toLowerCase());
+  return parts.join(' ');
+}
+
+/** 客户模糊筛选：名称/联系人/电话/邮箱/地区/地址 */
+function filterCustomers(list, kw) {
+  var k = String(kw || '').trim().toLowerCase();
+  if (!k) return list;
+  return list.filter(function (c) {
+    return matchKw(c.customerName, c.contactName, c.phone, c.email, c.region, c.address, c.tags).indexOf(k) > -1;
+  });
+}
+
+/** 产品模糊筛选：编号/名称/图号/规格/备注 */
+function filterProducts(list, kw) {
+  var k = String(kw || '').trim().toLowerCase();
+  if (!k) return list;
+  return list.filter(function (p) {
+    return matchKw(p.productNo, p.productName, p.drawingNumber, p.specification, p.remark).indexOf(k) > -1;
+  });
+}
+
 Page({
   data: {
     isEdit: false,
@@ -50,8 +77,10 @@ Page({
     unitIdx: -1, termsIdx: 0, methodIdx: 0, ratioIdx: -1,
     dmIdx: 2, dlIdx: 0, taxIdx: 0,
 
-    customers: [], customerLabels: [], customerIdx: -1,
-    productPicks: [], productLabels: [],
+    customers: [], customerIdx: -1,
+    custModal: false, custKw: '', custResults: [], custTotal: 0,
+    productPicks: [],
+    prodModal: false, prodKw: '', prodResults: [], prodTotal: 0, prodPickLine: -1,
 
     products: [emptyLine()],
 
@@ -68,19 +97,16 @@ Page({
     var ratios = db.getQuoteOptions('quotationSystemPaymentRatios');
 
     var customers = db.data.customerRecords.filter(function (c) { return !!c.customerName; });
-    var customerLabels = customers.map(function (c) {
-      return c.customerName + (c.contactName ? '（' + c.contactName + '）' : '') + (c.phone ? ' ' + c.phone : '');
-    });
-
     var picks = db.quoteProductCandidates();
-    var pickLabels = picks.map(function (p) {
-      return (p.fromLib ? '📦 ' : '🕘 ') + p.productNo + ' ' + (p.productName || '') + (p.specification ? ' / ' + p.specification : '');
-    });
 
     var base = {
       units: units, terms: terms, methods: methods, ratios: ratios,
-      customers: customers, customerLabels: customerLabels,
-      productPicks: picks, productLabels: pickLabels
+      customers: customers,
+      custResults: filterCustomers(customers, '').slice(0, RESULT_CAP),
+      custTotal: customers.length,
+      productPicks: picks,
+      prodResults: filterProducts(picks, '').slice(0, RESULT_CAP),
+      prodTotal: picks.length
     };
 
     if (query && query.no) {
@@ -241,14 +267,29 @@ Page({
     this.setData({ 'header.quoteNo': db.nextQuoteNo() });
   },
 
-  /* ---------- 客户速填 ---------- */
+  /* ---------- 客户速填（搜索弹层） ---------- */
 
-  onCustomerPick(e) {
-    var idx = Number(e.detail.value);
-    var c = this.data.customers[idx];
+  noop() {},
+
+  openCust() {
+    this.setData({
+      custModal: true, custKw: '',
+      custResults: filterCustomers(this.data.customers, '').slice(0, RESULT_CAP),
+      custTotal: this.data.customers.length
+    });
+  },
+  closeCust() { this.setData({ custModal: false }); },
+  onCustKw(e) {
+    var kw = e.detail.value;
+    var matched = filterCustomers(this.data.customers, kw);
+    this.setData({ custKw: kw, custResults: matched.slice(0, RESULT_CAP), custTotal: matched.length });
+  },
+  selectCust(e) {
+    var c = this.data.custResults[Number(e.currentTarget.dataset.i)];
     if (!c) return;
     this.setData({
-      customerIdx: idx,
+      custModal: false,
+      customerIdx: this.data.customers.indexOf(c),
       'header.customerCompany': c.customerName || '',
       'header.customerContact': c.contactName || '',
       'header.customerTel': c.phone || '',
@@ -286,12 +327,27 @@ Page({
     this.recompute();
   },
 
-  onProductPick(e) {
-    var i = e.currentTarget.dataset.i;
-    var pi = Number(e.detail.value);
-    var p = this.data.productPicks[pi];
-    if (!p) return;
-    var patch = {};
+  /* ---------- 产品速填（搜索弹层，按行打开） ---------- */
+
+  openProd(e) {
+    var i = Number(e.currentTarget.dataset.i);
+    this.setData({
+      prodModal: true, prodPickLine: i, prodKw: '',
+      prodResults: filterProducts(this.data.productPicks, '').slice(0, RESULT_CAP),
+      prodTotal: this.data.productPicks.length
+    });
+  },
+  closeProd() { this.setData({ prodModal: false, prodPickLine: -1 }); },
+  onProdKw(e) {
+    var kw = e.detail.value;
+    var matched = filterProducts(this.data.productPicks, kw);
+    this.setData({ prodKw: kw, prodResults: matched.slice(0, RESULT_CAP), prodTotal: matched.length });
+  },
+  selectProd(e) {
+    var p = this.data.prodResults[Number(e.currentTarget.dataset.i)];
+    var i = this.data.prodPickLine;
+    if (!p || i < 0) return;
+    var patch = { prodModal: false, prodPickLine: -1 };
     patch['products[' + i + '].productNo'] = p.productNo || '';
     patch['products[' + i + '].productName'] = p.productName || '';
     patch['products[' + i + '].drawingNumber'] = p.drawingNumber || '';
