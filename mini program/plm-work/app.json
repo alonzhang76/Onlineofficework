@@ -28,6 +28,8 @@
     "pages/trade/payment/payment",
     "pages/trade/memo/memo",
     "pages/trade/business/business",
+    "pages/trade/quote/quote",
+    "pages/trade/quote-edit/quote-edit",
     "pages/trade/report/report",
     "pages/trade/more/more",
     "pages/trade/backup/backup",

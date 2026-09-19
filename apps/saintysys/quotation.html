@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <script src="../auto-scale.js?v=20260917a"></script>
@@ -331,13 +331,6 @@ a{text-decoration:none;color:inherit;}
 
 <!-- Toast -->
 <div class="toast" id="toast"></div>
-
-<!-- 云同步：localStorage 桥接 CloudBase（与小程序 fashion_quotations 互通） -->
-<script src="js/common.js?v=20260919a"></script>
-<script src="js/localstorage-patch.js?v=20260919a"></script>
-<script src="js/cloudbase-store.js?v=20260919a"></script>
-<script src="js/init-page.js?v=20260919a"></script>
-<script src="js/auth-guard.js?v=20260919a"></script>
 
 <script>
 // ===== Storage =====
@@ -1228,7 +1221,7 @@ function loadSampleData(){
 }
 
 // ===== Init =====
-function bootQuotation(){
+(function init(){
   // ensure settings exist, or migrate from old defaults
   var s = getSettings();
   if(!s.companyName || s.companyName === 'AA Fashion Trading Co., Ltd.'){
@@ -1243,19 +1236,7 @@ function bootQuotation(){
   renderList();
   // set default nav active
   setNavActive('nav-list');
-
-  // 云端轮询拉到其他设备（含小程序）的报价变更时，列表自动刷新
-  window.addEventListener('cloud-data-updated', function(){
-    if (currentView === 'list') renderList();
-  });
-}
-
-// 等待 CloudBase 数据加载完成后再渲染（保证读到小程序同步的报价单）
-if (typeof _init === 'function') {
-  _init(bootQuotation);
-} else {
-  bootQuotation();
-}
+})();
 </script>
 </body>
 </html>

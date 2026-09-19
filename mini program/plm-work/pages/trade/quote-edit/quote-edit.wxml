@@ -1,0 +1,163 @@
+<view class="page">
+  <!-- 报价抬头公司 -->
+  <view class="card">
+    <view class="sec-title">报价抬头公司 | Company</view>
+    <view class="segment">
+      <view class="segment-item {{companyIdx === index ? 'active' : ''}}"
+            wx:for="{{companyTabs}}" wx:key="*this" data-i="{{index}}" bindtap="onCompany">{{item}}</view>
+    </view>
+    <view class="company-tip">{{header.companyName}}</view>
+  </view>
+
+  <!-- 报价信息 -->
+  <view class="card">
+    <view class="sec-title">报价信息 | Quotation</view>
+    <view class="form-item">
+      <text class="f-label">报价单号</text>
+      <text class="f-value strong">{{header.quoteNo}}</text>
+      <view class="mini-btn" catchtap="regenNo">换号</view>
+    </view>
+    <picker mode="date" value="{{header.quoteDate}}" bindchange="onQuoteDate">
+      <view class="form-item"><text class="f-label">报价日期</text><text class="f-value">{{header.quoteDate}}</text></view>
+    </picker>
+    <picker mode="date" value="{{header.validUntil}}" bindchange="onValidUntil">
+      <view class="form-item"><text class="f-label">有效期至</text><text class="f-value">{{header.validUntil}}</text></view>
+    </picker>
+  </view>
+
+  <!-- 客户信息 -->
+  <view class="card">
+    <view class="sec-title">客户信息 | Customer</view>
+    <picker wx:if="{{customerLabels.length > 0}}" range="{{customerLabels}}" bindchange="onCustomerPick">
+      <view class="form-item"><text class="f-label">速填客户</text><text class="f-value placeholder">从客户档案选择自动回填</text></view>
+    </picker>
+    <view class="form-item">
+      <text class="f-label">公司</text>
+      <input value="{{header.customerCompany}}" placeholder="客户公司名称" data-f="customerCompany" bindinput="onHeadInput" />
+    </view>
+    <view class="form-row2">
+      <view class="form-item">
+        <text class="f-label">联系人</text>
+        <input value="{{header.customerContact}}" placeholder="Contact" data-f="customerContact" bindinput="onHeadInput" />
+      </view>
+      <view class="form-item">
+        <text class="f-label">电话</text>
+        <input value="{{header.customerTel}}" placeholder="Phone" data-f="customerTel" bindinput="onHeadInput" />
+      </view>
+    </view>
+    <view class="form-item">
+      <text class="f-label">邮箱</text>
+      <input value="{{header.customerEmail}}" placeholder="Email" data-f="customerEmail" bindinput="onHeadInput" />
+    </view>
+    <view class="form-item">
+      <text class="f-label">地址</text>
+      <input value="{{header.customerAddress}}" placeholder="Address" data-f="customerAddress" bindinput="onHeadInput" />
+    </view>
+  </view>
+
+  <!-- 交货与付款 -->
+  <view class="card">
+    <view class="sec-title">交货与付款 | Delivery &amp; Payment</view>
+    <picker range="{{terms}}" value="{{termsIdx}}" bindchange="onTerms">
+      <view class="form-item"><text class="f-label">成交条款</text><text class="f-value strong">{{header.terms}}</text></view>
+    </picker>
+    <view class="form-row2">
+      <picker range="{{deliveryMethods}}" value="{{dmIdx}}" bindchange="onDeliveryMethod">
+        <view class="form-item"><text class="f-label">交货方式</text><text class="f-value">{{header.deliveryMethod}}</text></view>
+      </picker>
+      <picker range="{{deliveryLocations}}" value="{{dlIdx}}" bindchange="onDeliveryLocation">
+        <view class="form-item"><text class="f-label">交货地点</text><text class="f-value">{{header.deliveryLocation}}</text></view>
+      </picker>
+    </view>
+    <picker mode="date" value="{{header.deliveryDate}}" bindchange="onDeliveryDate">
+      <view class="form-item"><text class="f-label">交货日期</text><text class="f-value">{{header.deliveryDate}}</text></view>
+    </picker>
+    <view class="form-row2">
+      <picker range="{{methods}}" value="{{methodIdx}}" bindchange="onMethod">
+        <view class="form-item"><text class="f-label">付款方式</text><text class="f-value">{{header.paymentMethod}}</text></view>
+      </picker>
+      <picker range="{{ratios}}" value="{{ratioIdx}}" bindchange="onRatio">
+        <view class="form-item"><text class="f-label">付款比例</text><text class="f-value {{header.paymentRatio ? '' : 'placeholder'}}">{{header.paymentRatio || '请选择'}}</text></view>
+      </picker>
+    </view>
+    <picker range="{{taxRates}}" value="{{taxIdx}}" bindchange="onTax">
+      <view class="form-item"><text class="f-label">税率</text><text class="f-value">{{header.taxRate}}</text></view>
+    </picker>
+    <view class="ta-wrap">
+      <text class="ta-label">交货备注 | Remarks</text>
+      <textarea class="form-ta" value="{{header.deliveryRemarks}}" placeholder="交货/包装等备注信息"
+                data-f="deliveryRemarks" bindinput="onHeadInput" auto-height />
+    </view>
+  </view>
+
+  <!-- 产品明细 -->
+  <view class="line-card" wx:for="{{products}}" wx:for-item="line" wx:for-index="li" wx:key="index">
+    <view class="line-head">
+      <text class="line-no">产品 {{li + 1}}</text>
+      <view class="mini-btn mini-danger" data-i="{{li}}" catchtap="removeLine">删除</view>
+    </view>
+    <picker wx:if="{{productLabels.length > 0}}" range="{{productLabels}}" data-i="{{li}}" bindchange="onProductPick">
+      <view class="form-item pick-fill"><text class="f-label">速填</text><text class="f-value placeholder">产品库/历史报价速填</text></view>
+    </picker>
+    <view class="form-item">
+      <text class="f-label">产品编号</text>
+      <input value="{{line.productNo}}" placeholder="Product No." data-i="{{li}}" data-f="productNo" bindinput="onLineInput" />
+    </view>
+    <view class="form-item">
+      <text class="f-label">产品名称</text>
+      <input value="{{line.productName}}" placeholder="Product Name" data-i="{{li}}" data-f="productName" bindinput="onLineInput" />
+    </view>
+    <view class="form-row2">
+      <view class="form-item">
+        <text class="f-label">图号</text>
+        <input value="{{line.drawingNumber}}" placeholder="Drawing No." data-i="{{li}}" data-f="drawingNumber" bindinput="onLineInput" />
+      </view>
+      <picker range="{{units}}" data-i="{{li}}" bindchange="onLineUnit">
+        <view class="form-item"><text class="f-label">单位</text><text class="f-value {{line.unit ? '' : 'placeholder'}}">{{line.unit || '请选择'}}</text></view>
+      </picker>
+    </view>
+    <view class="form-item">
+      <text class="f-label">规格型号</text>
+      <input value="{{line.specification}}" placeholder="Specifications" data-i="{{li}}" data-f="specification" bindinput="onLineInput" />
+    </view>
+    <view class="form-row2 qty-row">
+      <view class="form-item">
+        <text class="f-label">数量</text>
+        <input type="digit" value="{{line.quantity}}" placeholder="0" data-i="{{li}}" data-f="quantity" bindinput="onLineInput" />
+      </view>
+      <view class="form-item">
+        <text class="f-label">单价</text>
+        <input type="digit" value="{{line.unitPrice}}" placeholder="0.00" data-i="{{li}}" data-f="unitPrice" bindinput="onLineInput" />
+      </view>
+      <picker range="{{currencies}}" data-i="{{li}}" bindchange="onLineCurrency">
+        <view class="form-item currency-item"><text class="f-label">币种</text><text class="f-value strong">{{line.currency}}</text></view>
+      </picker>
+    </view>
+    <view class="line-amount">金额：{{line.currency}} {{line.amountText}}</view>
+    <view class="form-item">
+      <text class="f-label">备注</text>
+      <input value="{{line.remark}}" placeholder="Remark" data-i="{{li}}" data-f="remark" bindinput="onLineInput" />
+    </view>
+  </view>
+
+  <view class="btn btn-outline add-line" bindtap="addLine">＋ 添加产品行</view>
+
+  <!-- 合计与银行信息 -->
+  <view class="card">
+    <view class="sec-title">合计 | Totals（{{currencyLabel}}）</view>
+    <view class="total-row"><text>小计 Subtotal</text><text>{{currencyLabel}} {{subtotalText}}</text></view>
+    <view class="total-row"><text>税费 Tax</text><text>{{currencyLabel}} {{taxText}}</text></view>
+    <view class="total-row total-grand"><text>合计 Total</text><text>{{currencyLabel}} {{totalText}}</text></view>
+    <view class="ta-wrap">
+      <text class="ta-label">银行账户信息 | Bank Account</text>
+      <textarea class="form-ta" value="{{header.bankAccountInfo}}" placeholder="Bank Account Info"
+                data-f="bankAccountInfo" bindinput="onHeadInput" auto-height />
+    </view>
+  </view>
+
+  <view class="footer-space"></view>
+  <view class="footer-bar">
+    <view class="btn btn-outline foot-btn" bindtap="onSave">保存</view>
+    <view class="btn btn-primary foot-btn" bindtap="onSharePdf">📄 生成PDF发微信</view>
+  </view>
+</view>

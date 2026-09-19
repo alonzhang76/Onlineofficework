@@ -43,6 +43,7 @@ Page({
       { key: 'export', icon: '📤', name: '出口管理', nameEn: 'Export', color: '#007AFF', url: '/pages/trade/export/export', count: d.exportRecords.length },
       { key: 'receipt', icon: '💰', name: '收汇管理', nameEn: 'Receipt', color: '#34C759', url: '/pages/trade/receipt/receipt', count: d.receiptRecords.length },
       { key: 'order', icon: '📋', name: '订单管理', nameEn: 'Order', color: '#FF3B30', url: '/pages/trade/order/order', count: d.orderRecords.length },
+      { key: 'quote', icon: '📑', name: '报价系统', nameEn: 'Quotation', color: '#007AFF', url: '/pages/trade/quote/quote', count: d.quotationRecords.length },
       { key: 'customer', icon: '👥', name: '客户信息', nameEn: 'Customer', color: '#8E8E93', url: '/pages/trade/customer/customer', count: d.customerRecords.length },
       { key: 'customerStats', icon: '📊', name: '客户统计', nameEn: 'Cust. Stats', color: '#5AC8FA', url: '/pages/trade/customer-stats/customer-stats', count: 0 },
       { key: 'notice', icon: '🏭', name: '生产通知单', nameEn: 'Prod. Notice', color: '#34C759', url: '/pages/trade/notice/notice', count: 0 },

@@ -1,0 +1,43 @@
+<view class="page">
+  <!-- 页首品牌栏 -->
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">报</text></view>
+    <view class="brand-text">
+      <view class="brand-name">报价系统 · QUOTATION</view>
+      <view class="brand-name-en">下拉页面可与电脑端同步数据</view>
+    </view>
+  </view>
+
+  <!-- 搜索区 -->
+  <view class="card">
+    <view class="form-item">
+      <text class="f-label">🔍</text>
+      <input value="{{kw}}" placeholder="报价单号/客户/产品编号/产品名称" bindinput="onSearch" />
+    </view>
+    <view class="stat-line">共 <text class="stat-num">{{list.length}}</text> 份报价单</view>
+  </view>
+
+  <view wx:if="{{list.length === 0}}" class="card">
+    <view class="empty"><view class="empty-icon">📑</view>暂无报价单，点右下角 + 新建</view>
+  </view>
+
+  <!-- 报价单卡片 -->
+  <view class="card q-card" wx:for="{{list}}" wx:key="quoteNo" data-no="{{item.quoteNo}}" bindtap="openEdit">
+    <view class="q-top">
+      <view class="q-no">{{item.quoteNo}}</view>
+      <view class="q-amount">{{item.amountText}}</view>
+    </view>
+    <view class="q-customer">{{item.customerCompany || '未填客户'}}</view>
+    <view class="q-meta">
+      <text class="q-date">{{item.quoteDate || '无日期'}}</text>
+      <text class="badge badge-gray">{{item.rows}} 行产品</text>
+    </view>
+    <view class="q-actions">
+      <view class="btn btn-outline btn-sm" catchtap="openEdit" data-no="{{item.quoteNo}}">编辑</view>
+      <view class="btn btn-outline btn-sm" catchtap="copyQuote" data-no="{{item.quoteNo}}">复制</view>
+      <view class="btn btn-outline btn-sm q-del" catchtap="delQuote" data-no="{{item.quoteNo}}">删除</view>
+    </view>
+  </view>
+
+  <view class="fab" bindtap="newQuote">＋</view>
+</view>

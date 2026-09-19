@@ -187,7 +187,10 @@
       'highlightedFollowupNos', 'deliveryNoticeRecords', 'orderLabelsData',
       'deliveryNoticePhotos', 'cdg_companies', 'cdg_records', 'cdg_details',
       'cdg_shipments', 'cdg_shipment_page_size', 'cdg_products', 'cdg_records_page_size',
-      'shipmentDetailData', 'shipmentDetailConsignee'],
+      'shipmentDetailData', 'shipmentDetailConsignee',
+      // 报价系统（与 plm-work 小程序 trade 模块共用）
+      'quotationRecords', 'libraryProducts', 'quotationSystemUnits',
+      'quotationSystemPaymentRatios', 'quotationSystemPaymentMethods', 'quotationSystemTerms'],
     wage: ['wage_records', 'wage_employees', 'wage_processes', 'wage_orders',
       'wage_adjustments', 'wage_calendarEvents', 'wage_calendarEventTypes',
       'wage_dropdownOptions'],

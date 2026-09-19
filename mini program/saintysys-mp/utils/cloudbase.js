@@ -40,7 +40,7 @@ const CONFIG = {
     password: 'LoriSync2026!'
   },
   // 本应用同步的数据键（构建脚本注入）
-  namespaces: {"app":["orders","productions","fabrics","accessories","washes","samples","shippings","collections","invoices","payments","contacts","express_delivery_data_v2","fashion_quotations","fashion_quotation_settings"]},
+  namespaces: {"app":["orders","productions","fabrics","accessories","washes","samples","shippings","collections","invoices","payments","contacts","express_delivery_data_v2"]},
   // 云端 store_key 前缀（saintysys 裸键无前缀；stainlessbusiness 带前缀）
   cloudPrefix: {"app":""}
 };

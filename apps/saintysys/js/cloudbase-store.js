@@ -113,8 +113,6 @@ const MIGRATION_KEYS = [
   'pl_records_v1', 'pl_draft_v1',
   'sht_sample_data_v2', 'sht_size_tables_v2',
   'sizeSheets',
-  // 报价系统（与小程序互通）
-  'fashion_quotations', 'fashion_quotation_settings',
   'dataVersion',
 ];
 

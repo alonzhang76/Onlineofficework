@@ -2,8 +2,6 @@
   "pages": [
     "pages/login/login",
     "pages/home/home",
-    "pages/quote-list/quote-list",
-    "pages/quote-edit/quote-edit",
     "pages/backup/backup",
     "pages/cloudfiles/cloudfiles",
     "pages/orders/orders",

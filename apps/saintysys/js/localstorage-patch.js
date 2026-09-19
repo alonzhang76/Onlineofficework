@@ -23,8 +23,6 @@ const SUPERSET_KEYS = [
   'qc_field_mgmt_v2',
   // NAS 云盘：全局共享配置与文件夹权限规则
   'nas_config', 'nas_folder_perms',
-  // 报价系统：报价单与报价默认设置（与小程序互通）
-  'fashion_quotations', 'fashion_quotation_settings',
 ];
 
 // 全局共享、仅管理员可上传到云端的键（防止普通用户覆盖管理员发布的 NAS 配置/权限）

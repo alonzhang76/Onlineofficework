@@ -305,32 +305,6 @@ const SAINTY_MODULES = [
   }
 ];
 
-/* ---------- 服装外贸：报价系统额外云键（与 apps/saintysys/quotation.html 互通） ---------- */
-const SAINTY_EXTRA_KEYS = ['fashion_quotations', 'fashion_quotation_settings'];
-
-/* 报价默认设置（与桌面端 defaultSettings 完全一致） */
-const DEFAULT_QUOTE_SETTINGS = {
-  companyName: 'JIANGSU SAINTY HANTANG TRADING CO LTD',
-  companyAddress: '',
-  companyPhone: '+86-510-82734291',
-  companyEmail: 'adamstig@163.com',
-  companyTaxId: '',
-  userName: 'Adam',
-  custCompany: 'Castro Model LTD.',
-  custContact: 'Yaara Bar',
-  custAddress: '31 Ort Israel St. Bat Yam 59590 Israel',
-  custPhone: '052-8593287',
-  custEmail: 'yaara.b@castro.co.il',
-  defaultCurrency: 'USD',
-  defaultPaymentTerms: '30% deposit, 70% before shipment',
-  defaultDeliveryTerms: 'FOB Shanghai',
-  defaultLeadTime: '45-60 days after order confirmation',
-  defaultValidity: '30 days',
-  defaultHangerCost: 1.10,
-  defaultDiscount: 0,
-  defaultNotes: '1. Sample lead time: 7-10 working days.\n2. All prices include standard poly bag and carton packing; hanger packing available upon request.\n3. Color matching is subject to fabric mill confirmation; slight variation may occur between lots.\n4. Size charts and tech packs available upon request.\n5. Prices are valid for 30 days from quotation date and subject to final confirmation.\n6. Compliance with REACH and OEKO-TEX standards; test reports available upon request.'
-};
-
 /* ---------- 不锈钢贸易（stainlessbusiness） ----------
  * 键名/字段与桌面端 apps/stainlessbusiness 完全一致：
  * 业务键按 <companyId>__<key> 分公司作用域存储，contacts/memos 等为全局键。
@@ -795,20 +769,11 @@ const PROJECTS = [
     company: 'SAINTY 服装外贸',
     companyEn: 'SAINTY GARMENT EXPORT SYSTEM',
     appid: 'touristappid',
-    keys: SAINTY_MODULES.map(m => m.key).concat(SAINTY_EXTRA_KEYS),
+    keys: SAINTY_MODULES.map(m => m.key),
     cloudPrefix: '',
     fileRoot: '',
     brand: { a: '#EC4899', b: '#BE185D', shadow: 'rgba(236, 72, 153, 0.30)', bg: '#FDF2F8' },
-    modules: SAINTY_MODULES,
-    // 对象型键的默认值（数组型键默认 [] 由构建流程自动补）
-    objectDefaults: { fashion_quotation_settings: DEFAULT_QUOTE_SETTINGS },
-    overlay: '_sainty',
-    pagesExtra: ['pages/quote-list/quote-list', 'pages/quote-edit/quote-edit'],
-    // 首页宫格额外入口（非通用模块页）
-    homeExtra: [
-      { key: 'fashion_quotations', title: '报价系统', icon: '📑', color: '#004D6D',
-        url: '/pages/quote-list/quote-list', stat: 'count', statLabel: '份报价' }
-    ]
+    modules: SAINTY_MODULES
   },
   {
     dir: 'stainless-mp',
