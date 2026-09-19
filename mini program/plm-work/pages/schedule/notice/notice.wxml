@@ -21,6 +21,10 @@
       </view>
     </picker>
 
+    <view class="btn-row">
+      <view class="btn btn-primary btn-sm" bindtap="previewDoc">生成通知单预览</view>
+    </view>
+
     <view class="empty" wx:if="{{list.length === 0}}">
       <view class="empty-icon">📋</view>暂无订单记录
     </view>
@@ -36,10 +40,6 @@
         <view class="chk-txt">{{item.customer || '-'}} ｜ {{item.product || '-'}}{{item.spec ? ' / ' + item.spec : ''}} ｜ 数量 {{item.quantity}}</view>
         <view class="chk-txt dim">下单 {{item.date || '-'}} ｜ 交期 {{item.deadline || '-'}}</view>
       </view>
-    </view>
-
-    <view class="btn-row">
-      <view class="btn btn-primary btn-sm" bindtap="previewDoc">生成通知单预览</view>
     </view>
   </view>
 
