@@ -64,8 +64,7 @@
   <view class="fab" bindtap="openNew">＋</view>
 
   <view catchtouchmove="noop" class="mask" wx:if="{{showForm}}" bindtap="closeForm">
-    <view class="sheet" catchtap="noop">
-      <view class="lp-mask" wx:if="{{form.logoMenu}}" catchtap="closeLogoMenu"></view>
+    <view class="sheet" catchtap="onSheetTap">
       <view class="sheet-title">{{form.id ? '编辑订单' : '新增订单'}}<text class="sheet-close" bindtap="closeForm">✕</text></view>
         <scroll-view scroll-y class="sheet-body">
 
@@ -86,13 +85,13 @@
         <view class="form-item lp-wrap">
           <text class="f-label">LOGO</text>
           <view class="lp">
-            <view class="lp-trigger" bindtap="toggleLogoMenu">
+            <view class="lp-trigger" catchtap="toggleLogoMenu">
               <image wx:if="{{form.logoImg && !logoErr[form.logo]}}" class="lp-thumb" src="{{form.logoImg}}" mode="aspectFit" data-ln="{{form.logo}}" binderror="onLogoErr" />
               <text class="lp-text {{form.logo ? '' : 'placeholder'}}">{{form.logo || '选择'}}</text>
               <text class="lp-caret">▾</text>
             </view>
             <view class="lp-menu" wx:if="{{form.logoMenu}}">
-              <view class="lp-opt" wx:for="{{logoOpts}}" wx:key="name" data-ln="{{item.name}}" bindtap="pickLogo">
+              <view class="lp-opt" wx:for="{{logoOpts}}" wx:key="name" data-ln="{{item.name}}" catchtap="pickLogo">
                 <image wx:if="{{item.img && !logoErr[item.name]}}" class="lp-opt-thumb" src="{{item.img}}" mode="aspectFit" data-ln="{{item.name}}" binderror="onLogoErr" />
                 <text>{{item.name}}</text>
               </view>

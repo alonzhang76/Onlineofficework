@@ -96,8 +96,7 @@
 
   <!-- 新增/编辑弹层 -->
   <view catchtouchmove="noop" class="mask" wx:if="{{modal}}" bindtap="closeModal">
-    <view class="sheet" catchtap="noop">
-      <view class="lp-mask" wx:if="{{logoMenuAny}}" catchtap="closeLogoMenus"></view>
+    <view class="sheet" catchtap="onSheetTap">
       <view class="sheet-title">{{editId ? '编辑订单' : '新增订单'}}<text class="sheet-close" bindtap="closeModal">×</text></view>
         <scroll-view scroll-y class="sheet-body">
 
@@ -165,13 +164,13 @@
           <view class="form-item lp-wrap">
             <text class="f-label">LOGO</text>
             <view class="lp">
-              <view class="lp-trigger" data-idx="{{pi}}" bindtap="toggleLogoMenu">
+              <view class="lp-trigger" data-idx="{{pi}}" catchtap="toggleLogoMenu">
                 <image wx:if="{{p.logoImg && !logoErr[p.logo]}}" class="lp-thumb" src="{{p.logoImg}}" mode="aspectFit" data-ln="{{p.logo}}" binderror="onLogoErr" />
                 <text class="lp-text">{{p.logo}}</text>
                 <text class="lp-caret">▾</text>
               </view>
               <view class="lp-menu" wx:if="{{p.logoMenu}}">
-                <view class="lp-opt" wx:for="{{logoOpts}}" wx:key="name" wx:for-item="lo" data-idx="{{pi}}" data-ln="{{lo.name}}" bindtap="pickLogo">
+                <view class="lp-opt" wx:for="{{logoOpts}}" wx:key="name" wx:for-item="lo" data-idx="{{pi}}" data-ln="{{lo.name}}" catchtap="pickLogo">
                   <image wx:if="{{lo.img && !logoErr[lo.name]}}" class="lp-opt-thumb" src="{{lo.img}}" mode="aspectFit" data-ln="{{lo.name}}" binderror="onLogoErr" />
                   <text>{{lo.name}}</text>
                 </view>

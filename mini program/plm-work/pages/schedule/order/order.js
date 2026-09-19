@@ -1,16 +1,16 @@
 const db = require('../../../utils/schedule-db');
 const fmt = require('../../../utils/format');
 
-// LOGO 选项（名称 + 对应图片路径；图片按约定存 /assets/logos/{名小写}.png，无图文件时 <image binderror> 隐藏）
+// LOGO 选项（名称 + 对应图片路径；图片按约定存 assets/logos/{名小写}.png，无图文件时 <image binderror> 隐藏）
 const LOGO_NAMES = ['无', 'LONGLI', 'KBA', 'PERM', 'EPCCS', 'INGHOR', 'CC', 'J', 'HS'];
 const LOGO_OPTS = LOGO_NAMES.map(n => ({
   name: n,
-  img: n === '无' ? '' : '/assets/logos/' + n.toLowerCase() + '.png'
+  img: n === '无' ? '' : '../../../assets/logos/' + n.toLowerCase() + '.png'
 }));
 function logoImgOf(name) {
   if (!name) return '';
   const o = LOGO_OPTS.find(x => x.name === name);
-  return o ? o.img : '/assets/logos/' + String(name).toLowerCase() + '.png';
+  return o ? o.img : '../../../assets/logos/' + String(name).toLowerCase() + '.png';
 }
 
 const STATUS_CLASS = {
@@ -124,6 +124,8 @@ Page({
     });
   },
   closeLogoMenu() { this.setData({ 'form.logoMenu': false }); },
+  // 点击弹层空白处关闭 LOGO 菜单（trigger/菜单项用 catchtap 阻止冒泡到此处）
+  onSheetTap() { this.closeLogoMenu(); },
   // LOGO 图片加载失败（未放入对应文件）→ 只显示名称文字
   onLogoErr(e) {
     this.setData({ ['logoErr.' + e.currentTarget.dataset.ln]: true });

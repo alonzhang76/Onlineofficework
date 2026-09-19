@@ -83,17 +83,26 @@ function renderProductionNotice(data) {
   ];
   var headerH = 26, rowH = 22, fontSize = 10;
 
-  // 预加载 LOGO 图片（按名称约定 /assets/logos/{name}.png；加载失败回退文字）
+  // 预加载 LOGO 图片（按名称约定 /assets/logos/{name}.png；
+  // 用 readFileSync 读 base64 再喂给 canvas Image，避免 offscreen canvas 对本地包路径支持不稳定）
   var logoImages = {};
   var logoNames = {};
   products.forEach(function (p) { if (p.bowLogo) logoNames[p.bowLogo] = 1; });
+  var fs = wx.getFileSystemManager();
 
   function loadLogo(name) {
     return new Promise(function (resolve) {
+      var path = '/assets/logos/' + String(name).toLowerCase() + '.png';
+      var dataUrl = null;
+      try {
+        var buf = fs.readFileSync(path);
+        dataUrl = 'data:image/png;base64,' + wx.arrayBufferToBase64(buf);
+      } catch (e) { /* 文件不存在，回退文字 */ }
+      if (!dataUrl) { resolve(); return; }
       var img = page.canvas.createImage();
       img.onload = function () { logoImages[name] = img; resolve(); };
-      img.onerror = function () { resolve(); }; // 无图文件则跳过，单元格回退文字
-      img.src = '/assets/logos/' + String(name).toLowerCase() + '.png';
+      img.onerror = function () { resolve(); };
+      img.src = dataUrl;
     });
   }
 

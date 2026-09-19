@@ -8,14 +8,14 @@ const DATE_TYPE = ['订单日期', '交货日期'];
 
 let ridCounter = 0;
 
-// LOGO 选项（名称 + 对应图片路径；图片按约定存 /assets/logos/{名小写}.png，无图文件时 <image binderror> 隐藏）
+// LOGO 选项（名称 + 对应图片路径；图片按约定存 assets/logos/{名小写}.png，无图文件时 <image binderror> 隐藏）
 const LOGO_OPTS = db.LOGO_OPTIONS.map(n => ({
   name: n,
-  img: n === '无' ? '' : '/assets/logos/' + n.toLowerCase() + '.png'
+  img: n === '无' ? '' : '../../../assets/logos/' + n.toLowerCase() + '.png'
 }));
 function logoImgOf(name) {
   const o = LOGO_OPTS.find(x => x.name === name);
-  return o ? o.img : (name ? '/assets/logos/' + String(name).toLowerCase() + '.png' : '');
+  return o ? o.img : (name ? '../../../assets/logos/' + String(name).toLowerCase() + '.png' : '');
 }
 
 function newProduct() {
@@ -217,6 +217,8 @@ Page({
     products.forEach(p => { p.logoMenu = false; });
     this.setData({ products: products, logoMenuAny: false });
   },
+  // 点击弹层空白处关闭 LOGO 菜单（trigger/菜单项用 catchtap 阻止冒泡到此处）
+  onSheetTap() { this.closeLogoMenus(); },
   // LOGO 图片加载失败（未放入对应文件）→ 记录后只显示名称文字
   onLogoErr(e) {
     this.setData({ ['logoErr.' + e.currentTarget.dataset.ln]: true });

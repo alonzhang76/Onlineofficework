@@ -94,7 +94,3 @@
 }
 .lp-opt:active { background: #F2F2F7; }
 .lp-opt-thumb { width: 44rpx; height: 44rpx; flex-shrink: 0; }
-.lp-mask {
-  position: fixed; left: 0; top: 0; right: 0; bottom: 0;
-  z-index: 40; background: transparent;
-}
