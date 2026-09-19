@@ -40,3 +40,33 @@
   padding: 16rpx 4rpx 4rpx;
 }
 .calc-line .mono { color: #1C1C1E; font-weight: 600; }
+
+/* ===== LOGO 自定义下拉（与桌面版一致，选项显示图案）===== */
+.lp-wrap .lp { flex: 1; position: relative; min-width: 0; }
+.lp-trigger {
+  display: flex; align-items: center; gap: 8rpx;
+  min-height: 48rpx; padding: 0 8rpx;
+  background: transparent; border-radius: 10rpx;
+}
+.lp-thumb { width: 40rpx; height: 40rpx; flex-shrink: 0; }
+.lp-text { flex: 1; font-size: 26rpx; color: #1C1C1E; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lp-text.placeholder { color: #8E8E93; }
+.lp-caret { font-size: 22rpx; color: #8E8E93; }
+.lp-menu {
+  position: absolute; left: 0; right: 0; top: calc(100% + 6rpx);
+  background: #fff; border-radius: 12rpx;
+  box-shadow: 0 8rpx 30rpx rgba(0, 0, 0, 0.16);
+  padding: 8rpx; z-index: 50;
+  max-height: 440rpx; overflow-y: auto;
+}
+.lp-opt {
+  display: flex; align-items: center; gap: 10rpx;
+  padding: 12rpx 14rpx; border-radius: 8rpx;
+  font-size: 26rpx; color: #1C1C1E;
+}
+.lp-opt:active { background: #F2F2F7; }
+.lp-opt-thumb { width: 44rpx; height: 44rpx; flex-shrink: 0; }
+.lp-mask {
+  position: fixed; left: 0; top: 0; right: 0; bottom: 0;
+  z-index: 40; background: transparent;
+}
