@@ -1,11 +1,19 @@
 /**
- * pdf-share.js — PDF 生成与分享入口
- * 流程：渲染 Canvas → 导出 JPEG → 构造 PDF → 写文件 → 分享
+ * pdf-share.js — PDF 生成与分享入口（两步式）
+ *
+ * 微信限制 wx.shareFileMessage 必须在用户 TAP 手势的同步调用栈中触发，
+ * 因此把“生成文件”和“发送文件”拆成两个独立动作：
+ *   第一步按钮 → buildFile()：渲染 Canvas → JPEG → PDF → 写文件（可异步/重活）
+ *   第二步按钮 → sharePrepared()：tap 中直接同步调起 wx.shareFileMessage
+ * 禁止在 Promise.then / setTimeout / 写文件回调里调 shareFileMessage。
  */
 
 var pdfBuilder = require('./pdf-builder');
 var docRenderers = require('./doc-renderers');
 var fmt = require('./format');
+
+// 最近一次生成的文件信息（供分享失败时相册兜底）
+var lastBuilt = { filePath: '', firstJpg: null };
 
 /**
  * 从离屏 Canvas 导出 JPEG Uint8Array
@@ -47,15 +55,15 @@ function base64ToUint8Array(b64) {
 }
 
 /**
- * 生成 PDF 并分享
- * @param {Function} renderFn - 渲染函数，返回 {canvas, width, height} 或数组
+ * 第一步：渲染并生成 PDF 文件（不触发分享，可在任意时机调用）
+ * @param {Function} renderFn - 渲染函数，同步返回 {canvas,width,height} 或数组
  * @param {*} data - 传给渲染函数的数据
  * @param {string} fileName - PDF 文件名（不含扩展名）
  * @param {string} orientation - 'portrait' | 'landscape'
- * @param {Function} done - 完成回调 done(success)
+ * @param {Function} done - done(success:boolean, filePath?:string)
  */
-function generateAndShare(renderFn, data, fileName, orientation, done) {
-  wx.showLoading({ title: '生成PDF中...' });
+function buildFile(renderFn, data, fileName, orientation, done) {
+  wx.showLoading({ title: '生成PDF中...', mask: true });
 
   // 渲染页面
   var result;
@@ -119,38 +127,59 @@ function generateAndShare(renderFn, data, fileName, orientation, done) {
     return;
   }
 
+  lastBuilt = { filePath: filePath, firstJpg: images[0].data };
   wx.hideLoading();
+  done && done(true, filePath);
+}
 
-  // 分享
+/**
+ * 第二步：发送已生成的 PDF 给微信好友
+ * 必须在 bindtap 处理函数中直接、同步调用（不要包 Promise/setTimeout/回调）。
+ * @param {string} [filePath] - buildFile 返回的路径；不传则用最近一次生成的文件
+ * @param {Function} [done] - done(success:boolean, reason?:string)
+ */
+function sharePrepared(filePath, done) {
+  var path = filePath || lastBuilt.filePath;
+  if (!path) {
+    wx.showToast({ title: '请先生成PDF', icon: 'none' });
+    done && done(false, 'empty');
+    return;
+  }
   wx.shareFileMessage({
-    filePath: filePath,
+    filePath: path,
     success: function () {
       wx.showToast({ title: '已发送', icon: 'success' });
       done && done(true);
     },
     fail: function (err) {
-      // 分享失败 → 尝试保存图片到相册作为回退
-      saveFirstPageToAlbum(pages[0], function (ok) {
+      var msg = (err && err.errMsg) || '';
+      if (/cancel/i.test(msg)) {
+        done && done(false, 'cancel');
+        return;
+      }
+      // 其它失败 → 尝试保存首页图片到相册作为回退
+      saveFirstJpgToAlbum(lastBuilt.firstJpg, function (ok) {
         if (!ok) {
-          wx.showToast({ title: '分享已取消', icon: 'none' });
+          wx.showModal({
+            title: 'PDF 已生成',
+            content: '发送未完成，文件已保存到本机，可稍后重试：' + path,
+            showCancel: false
+          });
         }
-        done && done(false);
+        done && done(false, 'fail');
       });
     }
   });
 }
 
 /**
- * 保存第一页为图片到相册（回退方案）
+ * 保存首页 JPEG 到相册（分享失败的回退方案）
  */
-function saveFirstPageToAlbum(page, done) {
-  if (!page || !page.canvas) { done && done(false); return; }
+function saveFirstJpgToAlbum(jpgData, done) {
+  if (!jpgData) { done && done(false); return; }
   try {
-    var dataURL = page.canvas.toDataURL('image/jpeg', 1.0);
-    var base64 = dataURL.split(',')[1];
-    var fs = wx.getFileSystemManager();
     var path = wx.env.USER_DATA_PATH + '/doc_page.jpg';
-    fs.writeFileSync(path, base64ToUint8Array(base64).buffer, 'binary');
+    wx.getFileSystemManager().writeFileSync(path, jpgData.buffer, 'binary');
     wx.saveImageToPhotosAlbum({
       filePath: path,
       success: function () {
@@ -165,7 +194,8 @@ function saveFirstPageToAlbum(page, done) {
 }
 
 module.exports = {
-  generateAndShare: generateAndShare,
+  buildFile: buildFile,
+  sharePrepared: sharePrepared,
   canvasToJPEG: canvasToJPEG,
   base64ToUint8Array: base64ToUint8Array,
   docRenderers: docRenderers

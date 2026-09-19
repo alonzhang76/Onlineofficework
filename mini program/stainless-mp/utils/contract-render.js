@@ -10,7 +10,7 @@
  * 红章 PNG 透明背景先在 canvas 上与合同页合成，再整页导出 JPEG，
  * 从而规避 JPEG 不支持透明通道的问题。
  *
- * renderContract(doc) → Promise<Page[]>，交给 pdf-share.sharePages()
+ * renderContract(doc) → Promise<Page[]>，交给 pdf-share.buildPages() 落盘后再分享
  */
 const { amountToChinese } = require('./num-cn');
 

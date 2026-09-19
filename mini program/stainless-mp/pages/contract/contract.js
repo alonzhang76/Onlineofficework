@@ -29,7 +29,9 @@ Page({
       paymentTerms: '', standards: ''
     },
     termsText: '',
-    generating: false
+    generating: false,
+    fileReady: false,       // PDF 已生成，等待用户点“发送”
+    pendingFilePath: ''
   },
 
   onLoad(options) {
@@ -70,7 +72,9 @@ Page({
       contactNames: [],
       contactIndex: 0,
       form: { no: this.autoNo(), date: today, deliveryDate: today, paymentTerms: '', standards: '' },
-      termsText: terms.join('\n')
+      termsText: terms.join('\n'),
+      fileReady: false,
+      pendingFilePath: ''
     }, () => {
       if (partyNames.length) this.loadParty(0);
     });
@@ -110,7 +114,9 @@ Page({
       allChecked: false,
       checkedCount: 0,
       contactNames: contactNames,
-      contactIndex: 0
+      contactIndex: 0,
+      fileReady: false,
+      pendingFilePath: ''
     });
   },
 
@@ -119,7 +125,7 @@ Page({
   },
 
   onContactChange(e) {
-    this.setData({ contactIndex: Number(e.detail.value) });
+    this.setData({ contactIndex: Number(e.detail.value), fileReady: false, pendingFilePath: '' });
   },
 
   toggleOrder(e) {
@@ -128,14 +134,21 @@ Page({
     this.setData({
       orders: orders,
       allChecked: orders.length > 0 && orders.every(o => o.checked),
-      checkedCount: orders.filter(o => o.checked).length
+      checkedCount: orders.filter(o => o.checked).length,
+      fileReady: false,
+      pendingFilePath: ''
     });
   },
 
   toggleAll() {
     const checked = !this.data.allChecked;
     const orders = this.data.orders.map(o => Object.assign({}, o, { checked: checked }));
-    this.setData({ orders: orders, allChecked: checked, checkedCount: checked ? orders.length : 0 });
+    this.setData({
+      orders: orders, allChecked: checked,
+      checkedCount: checked ? orders.length : 0,
+      fileReady: false,
+      pendingFilePath: ''
+    });
   },
 
   /* ===== 表单 ===== */
@@ -143,18 +156,18 @@ Page({
     const f = e.currentTarget.dataset.f;
     const form = Object.assign({}, this.data.form);
     form[f] = e.detail.value;
-    this.setData({ form: form });
+    this.setData({ form: form, fileReady: false, pendingFilePath: '' });
   },
 
   onDate(e) {
     const f = e.currentTarget.dataset.f;
     const form = Object.assign({}, this.data.form);
     form[f] = e.detail.value;
-    this.setData({ form: form });
+    this.setData({ form: form, fileReady: false, pendingFilePath: '' });
   },
 
   onTermsInput(e) {
-    this.setData({ termsText: e.detail.value });
+    this.setData({ termsText: e.detail.value, fileReady: false, pendingFilePath: '' });
   },
 
   autoNo() {
@@ -166,12 +179,12 @@ Page({
 
   regenNo() {
     const form = Object.assign({}, this.data.form, { no: this.autoNo() });
-    this.setData({ form: form });
+    this.setData({ form: form, fileReady: false, pendingFilePath: '' });
   },
 
   resetTerms() {
     const terms = company.getTerms(this.data.type).map(t => t.content || '');
-    this.setData({ termsText: terms.join('\n') });
+    this.setData({ termsText: terms.join('\n'), fileReady: false, pendingFilePath: '' });
     wx.showToast({ title: '已恢复默认条款', icon: 'none' });
   },
 
@@ -237,9 +250,31 @@ Page({
     }
 
     const fileName = (isSales ? '销售合同' : '采购合同') + '_' + partyName + '_' + form.no.trim();
-    pdfShare.sharePages(pagesPromise, fileName, (ok) => {
+    try {
+      const built = await pdfShare.buildPages(pagesPromise, fileName);
+      // 只落盘并缓存，不在这里调分享（分享必须在用户 tap 的同步栈中）
+      this._pending = { records: records, terms: terms };
+      this.setData({
+        generating: false,
+        fileReady: true,
+        pendingFilePath: built.filePath
+      });
+      wx.showToast({ title: 'PDF已生成，请发送', icon: 'success' });
+    } catch (e) {
       this.setData({ generating: false });
-      if (ok) this.afterShared(records, terms);
+    }
+  },
+
+  /** 第二步：由“发送给微信好友”按钮直接 tap 触发，内部第一时间同步调起分享 */
+  onShareFile() {
+    const filePath = this.data.pendingFilePath;
+    if (!filePath) {
+      wx.showToast({ title: '请先生成PDF', icon: 'none' });
+      return;
+    }
+    const pending = this._pending || {};
+    pdfShare.sharePrepared(filePath, (ok) => {
+      if (ok) this.afterShared(pending.records, pending.terms);
     });
   },
 

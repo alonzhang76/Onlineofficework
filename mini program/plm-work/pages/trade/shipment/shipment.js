@@ -46,7 +46,8 @@ Page({
 
     orderOptions: [], orderIdx: 0,
 
-    docTab: 0, doc: null
+    docTab: 0, doc: null,
+    pdfReady: false, pdfPath: ''
   },
 
   onShow() { this.renderList(); },
@@ -284,7 +285,7 @@ Page({
   },
 
   backList() { this.setData({ mode: 'list', doc: null }); },
-  onDocTab(e) { this.setData({ docTab: +e.currentTarget.dataset.i }); },
+  onDocTab(e) { this.setData({ docTab: +e.currentTarget.dataset.i, pdfReady: false }); },
 
   buildDoc(id) {
     const r = db.data.customsRecords.find(x => String(x.id) === String(id));
@@ -313,10 +314,10 @@ Page({
         nw: fmt.fmtMoney(p.nw), gw: fmt.fmtMoney(p.gw), volume: fmt.fmtMoney(p.volume)
       }))
     };
-    this.setData({ doc });
+    this.setData({ doc, pdfReady: false });
   },
 
-  generatePDF() {
+  buildPDF() {
     const d = this.data.doc;
     if (!d) return;
     const t = this.data.docTab;
@@ -366,6 +367,16 @@ Page({
       fileName = '报关明细_' + d.shipmentNo;
     }
 
-    pdfShare.generateAndShare(renderFn, docData, fileName, 'portrait', null);
+    pdfShare.buildFile(renderFn, docData, fileName, 'portrait', (ok, filePath) => {
+      if (ok) {
+        this.setData({ pdfReady: true, pdfPath: filePath });
+        wx.showToast({ title: 'PDF已生成，请发送', icon: 'success' });
+      }
+    });
+  },
+
+  // 必须由“发送给微信好友”按钮直接 tap 触发
+  onShareFile() {
+    pdfShare.sharePrepared(this.data.pdfPath, null);
   }
 });

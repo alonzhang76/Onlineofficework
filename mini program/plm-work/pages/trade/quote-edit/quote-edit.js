@@ -58,6 +58,8 @@ Page({
     oldQuoteNo: '',
     companyIdx: 0,
     companyTabs: ['龙力', '普利美', '天梁'],
+    pdfReady: false,
+    pdfPath: '',
 
     header: {
       quoteNo: '', quoteDate: '', validUntil: '',
@@ -455,12 +457,22 @@ Page({
       totals: { subtotal: subtotal, tax: r2(subtotal * rate / 100), total: subtotal },
       today: todayStr()
     };
-    pdfShare.generateAndShare(
+    pdfShare.buildFile(
       docRenderers.renderQuotation,
       doc,
       'Quotation_' + h.quoteNo,
       'portrait',
-      null
+      (ok, filePath) => {
+        if (ok) {
+          this.setData({ pdfReady: true, pdfPath: filePath });
+          wx.showToast({ title: 'PDF已生成，请发送', icon: 'success' });
+        }
+      }
     );
+  },
+
+  // 必须由“发送给微信好友”按钮直接 tap 触发
+  onShareFile() {
+    pdfShare.sharePrepared(this.data.pdfPath, null);
   }
 });

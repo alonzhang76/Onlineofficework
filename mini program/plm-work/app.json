@@ -35,6 +35,7 @@
     "pages/trade/backup/backup",
     "pages/schedule/hub/hub",
     "pages/schedule/order/order",
+    "pages/schedule/notice/notice",
     "pages/schedule/production/production",
     "pages/schedule/finance/finance",
     "pages/schedule/summary/summary",

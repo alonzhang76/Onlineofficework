@@ -7,7 +7,9 @@ Page({
   data: {
     orderOptions: [],
     orderIdx: -1,
-    doc: null
+    doc: null,
+    pdfReady: false,
+    pdfPath: ''
   },
 
   onLoad(query) {
@@ -44,7 +46,7 @@ Page({
 
   onOrder(e) {
     const idx = +e.detail.value;
-    this.setData({ orderIdx: idx });
+    this.setData({ orderIdx: idx, pdfReady: false });
     this.buildDoc(this.data.orderOptions[idx].value);
   },
 
@@ -76,6 +78,7 @@ Page({
     const remarks = Array.from(new Set(g.rows.map(r => r.remark).filter(Boolean)));
 
     this.setData({
+      pdfReady: false,
       doc: {
         orderNo: g.orderNo,
         customer: g.customer,
@@ -89,7 +92,7 @@ Page({
     });
   },
 
-  generatePDF() {
+  buildPDF() {
     const d = this.data.doc;
     if (!d) return;
     const pdfData = {
@@ -107,12 +110,22 @@ Page({
       })),
       remark: d.remark
     };
-    pdfShare.generateAndShare(
+    pdfShare.buildFile(
       docRenderers.renderProductionNotice,
       pdfData,
       '生产通知单_' + d.orderNo,
       'landscape',
-      null
+      (ok, filePath) => {
+        if (ok) {
+          this.setData({ pdfReady: true, pdfPath: filePath });
+          wx.showToast({ title: 'PDF已生成，请发送', icon: 'success' });
+        }
+      }
     );
+  },
+
+  // 必须由“发送给微信好友”按钮直接 tap 触发，内部第一时间同步调起分享
+  onShareFile() {
+    pdfShare.sharePrepared(this.data.pdfPath, null);
   }
 });

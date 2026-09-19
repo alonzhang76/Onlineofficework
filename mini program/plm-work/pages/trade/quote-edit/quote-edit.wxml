@@ -162,7 +162,8 @@
   <view class="footer-space"></view>
   <view class="footer-bar">
     <view class="btn btn-outline foot-btn" bindtap="onSave">保存</view>
-    <view class="btn btn-primary foot-btn" bindtap="onSharePdf">📄 生成PDF发微信</view>
+    <view class="btn btn-plain foot-btn" bindtap="onSharePdf">📄 生成PDF</view>
+    <view class="btn btn-primary foot-btn" wx:if="{{pdfReady}}" bindtap="onShareFile">📨 发微信好友</view>
   </view>
 
   <!-- 客户速填搜索弹层 -->

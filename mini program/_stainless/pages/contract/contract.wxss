@@ -147,6 +147,17 @@
   box-shadow: 0 10rpx 26rpx rgba(220, 38, 38, 0.28);
 }
 .gen-btn::after { border: none; }
+.gen-btn-send {
+  background: linear-gradient(135deg, #16A34A, #15803D);
+  box-shadow: 0 10rpx 26rpx rgba(22, 163, 74, 0.28);
+}
+.gen-regen {
+  text-align: center;
+  font-size: 24rpx;
+  color: #2563EB;
+  margin-top: 18rpx;
+  text-decoration: underline;
+}
 .gen-tip {
   text-align: center;
   font-size: 22rpx;

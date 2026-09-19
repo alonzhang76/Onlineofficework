@@ -829,8 +829,162 @@ function renderQuotation(doc) {
   return pages;
 }
 
+// ============================================================
+// 订单排程·生产通知单 — 横向 A4
+// 严格对齐桌面版 apps/orderschedule/生产通知单.html 版面：
+// 蓝色(#1a56db)抬头与表头、交货期四色提醒、红底白字备注条、签字栏默认人
+// ============================================================
+function renderScheduleNotice(data) {
+  var page = cv.createPage('landscape');
+  var ctx = page.ctx;
+  var W = page.width, H = page.height;
+  var margin = 38;
+  var PRIMARY = '#1a56db';
+
+  // --- 顶部：公司信息（左）+ 订单信息（右）---
+  var rightW = 420;
+  var rightX = W - margin - rightW;
+
+  // 左侧公司（蓝色大字）
+  cv.drawText({ ctx: ctx, text: '普利美', x: margin, y: margin - 4, size: 26, weight: 'bold', color: PRIMARY });
+  cv.drawText({ ctx: ctx, text: '生产通知单', x: margin + 96, y: margin - 2, size: 22, weight: 'bold', color: PRIMARY });
+  cv.drawText({ ctx: ctx, text: 'PRODUCTION ORDER', x: margin + 96, y: margin + 26, size: 10, color: '#6b7280' });
+  cv.drawText({ ctx: ctx, text: '普利美（常州）环境工程科技有限公司', x: margin, y: margin + 54, size: 10.5, color: '#111827' });
+  cv.drawText({ ctx: ctx, text: '地址：常州市武进区雪堰镇周南路8号6-1（中南高科常州雪堰智造产业园）', x: margin, y: margin + 71, size: 10, color: '#374151' });
+  cv.drawText({ ctx: ctx, text: '电话：139 5158 9291', x: margin, y: margin + 87, size: 10, color: '#374151' });
+
+  // 右侧订单信息（2×2 网格）
+  var colW = rightW / 2 - 10;
+  var rowH = 38;
+  var fields = [
+    { label: '下单日期', value: data.orderDate || '' },
+    { label: '订单号', value: data.orderNumber || '' },
+    { label: '客户', value: data.customer || '' },
+    { label: '交货日期', value: data.deliveryDate || '' }
+  ];
+  for (var fi = 0; fi < fields.length; fi++) {
+    var fcol = fi % 2, frow = Math.floor(fi / 2);
+    var fx = rightX + fcol * (colW + 20);
+    var fy = margin + frow * rowH;
+    cv.drawText({ ctx: ctx, text: fields[fi].label, x: fx, y: fy, size: 9, color: '#6b7280' });
+    cv.drawText({ ctx: ctx, text: fields[fi].value, x: fx, y: fy + 15, size: 12.5, color: '#111827', weight: 'bold', maxWidth: colW });
+  }
+
+  var cursorY = margin + 96;
+
+  // --- 交货期提醒（与桌面版同规则：无日期灰/逾期红/≤3天红紧急/≤7天黄/其余绿）---
+  var alert = null;
+  if (!data.deliveryDate) {
+    alert = { bg: '#f9fafb', border: '#e5e7eb', color: '#6b7280', text: '未设置交货期，请先填写交货日期。' };
+  } else {
+    var today0 = new Date();
+    today0.setHours(0, 0, 0, 0);
+    var dl = new Date(data.deliveryDate + 'T00:00:00');
+    var days = Math.ceil((dl - today0) / 86400000);
+    if (days < 0) {
+      alert = { bg: '#fef2f2', border: '#fecaca', color: '#b91c1c', text: '已逾期 ' + Math.abs(days) + ' 天！ 请立即处理此订单。', bold: true };
+    } else if (days <= 3) {
+      alert = { bg: '#fef2f2', border: '#fecaca', color: '#b91c1c', text: '紧急！距离交货期仅剩 ' + days + ' 天，请立即安排生产。', bold: true };
+    } else if (days <= 7) {
+      alert = { bg: '#fffbeb', border: '#fde68a', color: '#92400e', text: '距离交货期还有 ' + days + ' 天，请确保按时完成生产。' };
+    } else {
+      alert = { bg: '#f0fdf4', border: '#bbf7d0', color: '#15803d', text: '距离交货期还有 ' + days + ' 天，生产时间充裕。' };
+    }
+  }
+  var alertH = 34;
+  cv.fillRect(ctx, margin, cursorY, W - margin * 2, alertH, alert.bg);
+  cv.drawRect(ctx, margin, cursorY, W - margin * 2, alertH, alert.border, 1);
+  cv.drawText({ ctx: ctx, text: '⚠', x: margin + 10, y: cursorY + 9, size: 12, color: alert.color });
+  cv.drawText({
+    ctx: ctx, text: alert.text,
+    x: margin + 30, y: cursorY + 10, size: 11,
+    weight: alert.bold ? 'bold' : 'normal', color: alert.color
+  });
+  cursorY += alertH + 8;
+
+  // --- 备注条（红底白字，与桌面版一致）---
+  if (data.remark) {
+    var maxTextW = W - margin * 2 - 70;
+    ctx.font = 'normal 11px sans-serif';
+    var chars = String(data.remark).split('');
+    var lines = [];
+    var line = '';
+    for (var ci = 0; ci < chars.length; ci++) {
+      if (chars[ci] === '\n') { lines.push(line); line = ''; continue; }
+      var test = line + chars[ci];
+      if (ctx.measureText(test).width > maxTextW && line) {
+        lines.push(line);
+        line = chars[ci];
+      } else {
+        line = test;
+      }
+    }
+    if (line) lines.push(line);
+    if (lines.length > 4) lines = lines.slice(0, 4);
+    var barH = lines.length * 16 + 14;
+    cv.fillRect(ctx, margin, cursorY, W - margin * 2, barH, '#dc2626');
+    cv.drawText({ ctx: ctx, text: '备注', x: margin + 12, y: cursorY + 7, size: 11, weight: 'bold', color: '#ffffff' });
+    ctx.font = 'normal 11px sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    for (var li = 0; li < lines.length; li++) {
+      ctx.fillText(lines[li], margin + 56, cursorY + 7 + li * 16, maxTextW);
+    }
+    cursorY += barH + 10;
+  }
+
+  // --- 产品表格（蓝底白字表头）---
+  var tableW = W - margin * 2;
+  var products = data.products || [];
+  var colWidths = [tableW * 0.22, tableW * 0.18, tableW * 0.15, tableW * 0.13, tableW * 0.12, tableW * 0.20];
+  var columns = [
+    { title: '产品名称', width: colWidths[0], align: 'left' },
+    { title: '规格', width: colWidths[1], align: 'left' },
+    { title: '图号', width: colWidths[2], align: 'left' },
+    { title: '电镀', width: colWidths[3], align: 'left' },
+    { title: 'LOGO', width: colWidths[4], align: 'left' },
+    { title: '数量', width: colWidths[5], align: 'right' }
+  ];
+  var rows = products.map(function (p) {
+    return [p.productName || '', p.specification || '', p.drawingNumber || '', p.plating || '', p.bowLogo || '', p.quantity || ''];
+  });
+  var totalQty = products.reduce(function (s, p) {
+    return s + (parseFloat(p.quantity) || 0);
+  }, 0);
+  rows.push(['合计', '', '', '', '', String(totalQty)]);
+
+  cv.drawTable({
+    ctx: ctx, x: margin, y: cursorY,
+    columns: columns, rows: rows,
+    headerHeight: 28, rowHeight: 23, fontSize: 10.5,
+    headerColor: PRIMARY, headerTextColor: '#ffffff',
+    borderColor: '#cbd5e1'
+  });
+
+  // --- 底部签字栏（默认人与桌面版一致：吴小英/吴小英/许小成/当天）---
+  var signY = H - margin - 70;
+  var signColW = (W - margin * 2) / 4;
+  var signLabels = ['制单', '审核', '生产', '日期'];
+  var signValues = [
+    data.createdBy || '吴小英',
+    data.approvedBy || '吴小英',
+    data.productionBy || '许小成',
+    data.signDate || fmt.today()
+  ];
+  for (var si = 0; si < 4; si++) {
+    var sx = margin + si * signColW;
+    cv.drawText({ ctx: ctx, text: signLabels[si], x: sx + signColW / 2, y: signY, size: 11, weight: 'bold', align: 'center' });
+    cv.drawHLine(ctx, sx + 20, signY + 40, signColW - 40, '#9ca3af', 1);
+    cv.drawText({ ctx: ctx, text: signValues[si], x: sx + signColW / 2, y: signY + 44, size: 9, color: '#6b7280', align: 'center' });
+  }
+
+  return page;
+}
+
 module.exports = {
   renderProductionNotice: renderProductionNotice,
+  renderScheduleNotice: renderScheduleNotice,
   renderBoxMark: renderBoxMark,
   renderInvoice: renderInvoice,
   renderPackingList: renderPackingList,

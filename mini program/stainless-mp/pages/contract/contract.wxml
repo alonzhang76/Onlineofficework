@@ -99,9 +99,15 @@
               maxlength="-1" auto-height placeholder="合同条款" placeholder-class="ph" />
   </view>
 
-  <button class="gen-btn" loading="{{generating}}" bindtap="onGenerate">
-    生成{{typeLabel}}PDF 并发送微信好友
+  <block wx:if="{{fileReady}}">
+    <button class="gen-btn gen-btn-send" bindtap="onShareFile">
+      📨 发送{{typeLabel}}PDF 给微信好友
+    </button>
+    <view class="gen-regen" bindtap="onGenerate">内容有改动？重新生成 PDF</view>
+  </block>
+  <button wx:else class="gen-btn" loading="{{generating}}" bindtap="onGenerate">
+    生成{{typeLabel}}PDF
   </button>
-  <view class="gen-tip">将在微信中选择好友/群聊发送合同 PDF 文件</view>
+  <view class="gen-tip">第一步生成 PDF 文件，第二步在微信中选择好友/群聊发送（分两次点击）</view>
   <view class="page-foot"></view>
 </view>

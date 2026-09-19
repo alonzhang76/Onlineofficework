@@ -101,7 +101,7 @@ function drawTable(opts) {
 
   // 表头文字
   ctx.font = 'bold ' + fontSize + 'px sans-serif';
-  ctx.fillStyle = '#000000';
+  ctx.fillStyle = opts.headerTextColor || '#000000';
   ctx.textBaseline = 'middle';
   var cx = x;
   for (var i = 0; i < columns.length; i++) {
