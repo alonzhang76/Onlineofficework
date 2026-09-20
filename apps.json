@@ -17,6 +17,12 @@
       "name": "钢材业务",
       "icon": "⚙️",
       "color": "#06b6d4"
+    },
+    {
+      "id": "poultry",
+      "name": "家禽业务",
+      "icon": "🐔",
+      "color": "#d97706"
     }
   ],
   "apps": [
@@ -88,6 +94,16 @@
       "icon": "🔧",
       "color": "#06b6d4",
       "category": "steel",
+      "sort_order": 1
+    },
+    {
+      "id": "poultry",
+      "name": "家禽订单管理",
+      "description": "土鸡土蛋订单与财务系统",
+      "url": "apps/poultry/index.html",
+      "icon": "🐔",
+      "color": "#d97706",
+      "category": "poultry",
       "sort_order": 1
     }
   ],
