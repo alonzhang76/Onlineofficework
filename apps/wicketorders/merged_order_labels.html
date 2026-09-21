@@ -1244,9 +1244,10 @@
                     
                     // 创建打印窗口
                     const printWindow = window.open('', '_blank');
-                    printWindow.document.write('<html><head>
-	<script>window.SUPABASE_APP_ID='wicketorders';</script>
-	<script src="../cloudbase-sync.js?v=20260918o"></script><title>Print Label</title>');
+                    printWindow.document.write('<html><head>' +
+                        '<script>window.SUPABASE_APP_ID="wicketorders";<\/script>' +
+                        '<script src="../cloudbase-sync.js?v=20260918o"><\/script>' +
+                        '<title>Print Label</title>');
                     
                     // 添加样式
                     printWindow.document.write('<style>');
