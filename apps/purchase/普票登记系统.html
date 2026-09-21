@@ -14,7 +14,7 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
     <!-- PDF.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="../vendor/pdf.min.js"></script>
     <!-- Tailwind 配置 -->
     <script>
         tailwind.config = {
@@ -5972,8 +5972,8 @@
                             // 如果仍然无法获取，尝试直接使用import()动态加载
                             console.log('尝试动态加载PDF.js...');
                             try {
-                                // 动态加载cdnjs版本的PDF.js
-                                await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+                                // 动态加载本地 vendor 版本的 PDF.js
+                                await import('../vendor/pdf.min.js');
                                 // 动态加载后，PDF.js对象应该在window.pdfjsLib上可用
                                 pdfjs = window.pdfjsLib;
                                 
@@ -6014,7 +6014,7 @@
             
             // 确保设置workerSrc
             if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-                pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                pdfjs.GlobalWorkerOptions.workerSrc = '../vendor/pdf.worker.min.js';
                 console.log('已设置workerSrc:', pdfjs.GlobalWorkerOptions.workerSrc);
             }
             
