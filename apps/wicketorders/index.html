@@ -3,7 +3,7 @@
 <head>
     <script src="../auto-scale.js?v=20260917a"></script>
 	<script>window.SUPABASE_APP_ID='wicketorders';</script>
-        <script src="../cloudbase-sync.js?v=20260918o"></script>
+        <script src="../cloudbase-sync.js?v=20260923a"></script>
         <script src="../cloudbase-admin.js?v=20260919a"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -1355,6 +1355,10 @@
                     <span class="mr-2">📝</span>
                     备忘录
                 </button>
+                <button class="nav-tab" data-tab="calendar">
+                    <span class="mr-2">📅</span>
+                    日历记事
+                </button>
                 <button class="nav-tab" data-tab="business">
                     <span class="mr-2">📈</span>
                     业务跟踪
@@ -1982,6 +1986,62 @@
                 <div class="card">
                     <div id="memoList">
                         <!-- 备忘录记录将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 日历记事模块 -->
+            <div id="calendarTab" class="tab-content hidden">
+                <div class="flex justify-between items-center mb-4" style="position: relative; z-index: 20;">
+                    <h2 class="text-xl font-semibold text-gray-800">📅 日历记事</h2>
+                </div>
+                <div class="cal-three-column">
+                    <!-- 左侧：日历 -->
+                    <div class="cal-column">
+                        <div class="calendar-header">
+                            <button type="button" class="calendar-nav-btn" onclick="CalendarNotes.prevMonth()">◀</button>
+                            <span id="calendar-title"></span>
+                            <button type="button" class="calendar-nav-btn" onclick="CalendarNotes.nextMonth()">▶</button>
+                        </div>
+                        <div class="calendar-grid">
+                            <div class="calendar-weekday">日</div>
+                            <div class="calendar-weekday">一</div>
+                            <div class="calendar-weekday">二</div>
+                            <div class="calendar-weekday">三</div>
+                            <div class="calendar-weekday">四</div>
+                            <div class="calendar-weekday">五</div>
+                            <div class="calendar-weekday">六</div>
+                        </div>
+                        <div id="calendar-days" class="calendar-days"></div>
+                    </div>
+
+                    <!-- 中间：输入区域 -->
+                    <div class="cal-input-column">
+                        <h3 id="note-date-title">选择日期查看/添加记事</h3>
+                        <div class="note-help-text">
+                            <p><strong>操作说明：</strong></p>
+                            <ul>
+                                <li>🖱️ <strong>单击</strong>：标记任务完成（显示删除线）</li>
+                                <li>🔄 <strong>再次单击</strong>：取消完成状态</li>
+                                <li>👆 <strong>双击</strong>：选中记事（黄色高亮）</li>
+                                <li>🗑️ <strong>删除</strong>：选中后点击“删除记事”按钮</li>
+                                <li>📦 新建订单后，交货日期会自动同步到日历</li>
+                            </ul>
+                        </div>
+                        <div class="note-input-area">
+                            <textarea id="calendar-note-input" placeholder="输入记事内容..." rows="4"></textarea>
+                            <button type="button" class="cal-btn cal-btn-save" onclick="CalendarNotes.saveNote()">保存记事</button>
+                            <button type="button" class="cal-btn cal-btn-del" onclick="CalendarNotes.deleteNote()">删除记事</button>
+                        </div>
+                    </div>
+
+                    <!-- 右侧：记事列表 -->
+                    <div class="cal-list-column">
+                        <h3>📝 记事列表</h3>
+                        <div class="search-box-container">
+                            <input type="text" id="calendar-note-search" placeholder="搜索记事..." onkeyup="CalendarNotes.filterNotes()" class="search-input">
+                        </div>
+                        <div id="calendar-notes-list" class="notes-list"></div>
                     </div>
                 </div>
             </div>
@@ -5118,6 +5178,8 @@
     <!-- JavaScript文件 -->
     <script src="login.js"></script>
     <script src="app.js?v=20260919a"></script>
+    <!-- 日历记事功能（交货日期同步） -->
+    <script src="calendar-notes.js?v=20260923a"></script>
     <!-- Enhanced Payment Functionality -->
     <script src="./enhanced-payment.js"></script>
     <!-- 云存储文件中心（共享模块，三应用通用）：全局搜索 + 跨应用同步 -->
@@ -5585,7 +5647,7 @@
     <script>
         // ===== 手机端：在内容区左右滑动切换标签页 =====
         (function initMobileTabSwipe() {
-            var order = ['memo', 'business', 'payment', 'invoice', 'export', 'receipt', 'order', 'customer', 'report'];
+            var order = ['memo', 'calendar', 'business', 'payment', 'invoice', 'export', 'receipt', 'order', 'customer', 'report'];
             var startX = 0, startY = 0, tracking = false;
 
             // 触点位于横向滚动容器（表格等）内时不触发切换手势，避免与表格横滑冲突

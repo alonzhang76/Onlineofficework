@@ -22,7 +22,7 @@
   'use strict';
 
   // ===== 版本守卫：防止旧版 cloudbase-sync.js 在新版之后重新初始化 =====
-  var SYNC_VERSION = '20260918n';
+  var SYNC_VERSION = '20260923a';
   if (window.__CLOUDBASE_SYNC_VERSION__) {
     console.warn('[CloudbaseSync] 检测到已加载版本 ' + window.__CLOUDBASE_SYNC_VERSION__ +
       '，当前版本 ' + SYNC_VERSION + ' 跳过初始化');
@@ -190,7 +190,8 @@
       'shipmentDetailData', 'shipmentDetailConsignee',
       // 报价系统（与 plm-work 小程序 trade 模块共用）
       'quotationRecords', 'libraryProducts', 'quotationSystemUnits',
-      'quotationSystemPaymentRatios', 'quotationSystemPaymentMethods', 'quotationSystemTerms'],
+      'quotationSystemPaymentRatios', 'quotationSystemPaymentMethods', 'quotationSystemTerms',
+      'calendarNotes'],
     wage: ['wage_records', 'wage_employees', 'wage_processes', 'wage_orders',
       'wage_adjustments', 'wage_calendarEvents', 'wage_calendarEventTypes',
       'wage_dropdownOptions'],

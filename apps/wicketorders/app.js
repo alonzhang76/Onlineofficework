@@ -446,6 +446,9 @@ class PageController {
         } else if (tabName === 'memo') {
             // 渲染备忘录列表
             renderMemoList();
+        } else if (tabName === 'calendar') {
+            // 渲染日历记事
+            if (window.CalendarNotes) CalendarNotes.render();
         } else if (tabName === 'business') {
             // 切换到业务跟踪时重新加载列表（确保显示云端同步后的最新数据）
             if (typeof loadBusinessList === 'function') {
@@ -2365,14 +2368,19 @@ class PageController {
             // 保存记录
             storage.addOrderRecord(productRecord);
         });
-        
+
+        // 将交货日期同步到日历记事（同一订单只同步一次）
+        if (window.CalendarNotes && basicRecord.deliveryDate) {
+            window.CalendarNotes.upsertOrderDeliveryNote(basicRecord.orderNo, basicRecord.customer, basicRecord.deliveryDate);
+        }
+
         // 更新分页数据，确保获取最新记录
         const latestRecords = storage.getOrderRecords();
         paginations.order.setData(latestRecords);
-        
+
         // 更新表格
         this.renderOrderTable();
-        
+
         // 显示成功提示
         this.showNotification('订单记录保存成功', 'success');
         
@@ -2456,7 +2464,12 @@ class PageController {
         
         // 保存记录
         storage.orderRecords = currentRecords;
-        
+
+        // 同步交货日期到日历（改期时自动移动记事，清空日期则移除）
+        if (window.CalendarNotes) {
+            window.CalendarNotes.upsertOrderDeliveryNote(basicRecord.orderNo, basicRecord.customer, basicRecord.deliveryDate);
+        }
+
         // 更新分页数据，确保使用最新数据
         const latestRecords = storage.getOrderRecords();
         
