@@ -1,16 +1,18 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
   <head>
+    <script src="../auto-scale.js?v=20260917a"></script>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="./vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>不锈钢业务管理系统</title>
     <!-- PDF.js库 -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+    <script src="../vendor/pdf.min.js"></script>
+    <script src="../vendor/pdf.worker.min.js"></script>
     <!-- Supabase 数据同步（自动匿名登录 + localStorage 拦截同步） -->
     <script>window.SUPABASE_APP_ID='stainlessbusiness';</script>
-    <script src="../cloudbase-sync.js?v=20260914b"></script>
+    <script src="../cloudbase-sync.js?v=20260923b"></script>
+    <script src="../cloudbase-admin.js?v=20260919a"></script>
     <!-- 手机端表格横向滑动：antd 表格默认不启用 scroll，通过 CSS 让 .ant-table-content 可横向滚动 -->
     <style>
       @media (max-width: 768px) {
@@ -47,10 +49,159 @@
         });
       })();
     </script>
-    <script defer src="./assets/index-BUzWo_C6.js"></script>
+    <script defer src="./assets/index-BUzWo_C6.js?v=20260919a"></script>
     <link rel="stylesheet" href="./assets/index-D8fI8zIA.css">
+    <link rel="stylesheet" href="../tablet-compat.css?v=20260915a">
   </head>
   <body>
     <div id="root"></div>
+    <!-- 云端数据管理浮动按钮组（React 不接管 body，故此节点不会被卸载） -->
+    <script>
+      (function () {
+        function inject() {
+          if (document.getElementById('sb-cloud-admin-fab')) return;
+          var box = document.createElement('div');
+          box.id = 'sb-cloud-admin-fab';
+          box.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:2000;display:flex;flex-direction:column;gap:8px;font-family:system-ui,-apple-system,"Microsoft YaHei",sans-serif;';
+          box.innerHTML =
+            '<button data-act="pull" style="padding:8px 12px;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.18);display:flex;align-items:center;gap:6px;">⬇️ 下载</button>' +
+            '<button data-act="push" style="padding:8px 12px;background:#16a34a;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.18);display:flex;align-items:center;gap:6px;">⬆️ 上传</button>' +
+            '<button data-act="clear" style="padding:8px 12px;background:#dc2626;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.18);display:flex;align-items:center;gap:6px;">🗑️ 清空云端</button>';
+          box.addEventListener('click', function (e) {
+            var act = e.target.getAttribute('data-act');
+            if (!act) return;
+            if (act === 'pull' && window.CloudAdmin) window.CloudAdmin.pullFromCloud();
+            if (act === 'push' && window.CloudAdmin) window.CloudAdmin.pushToCloud();
+            if (act === 'clear' && window.CloudAdmin) window.CloudAdmin.clearCloudData();
+          });
+          document.body.appendChild(box);
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', inject);
+        } else {
+          inject();
+        }
+      })();
+    </script>
+    <!-- 桥接 cloudbase-admin 工具条的「备份到电脑 / 从电脑恢复」。
+         根因：React 应用这两个功能在页头「数据管理」antd Dropdown 中，而该 Dropdown
+         未指定 trigger → antd 默认 hover 触发，程序化 .click() 无法展开菜单，所以工具条
+         点击毫无反应。这里改为自包含实现，直接读写 localStorage，行为与 React 内部
+         g（备份）/ m（恢复）函数完全等价，不再依赖展开菜单。 -->
+    <script>
+      (function () {
+        // 同步层内部状态键（__cb_ 前缀）不纳入备份，避免污染恢复端
+        function isInternalKey(k) { return /^__cb_/.test(k); }
+
+        var toastEl = null, toastTimer = null;
+        function showToast(msg, ok) {
+          if (!toastEl) {
+            toastEl = document.createElement('div');
+            toastEl.style.cssText = 'position:fixed;left:50%;top:24px;transform:translateX(-50%);' +
+              'color:#fff;padding:8px 18px;border-radius:6px;font-size:13px;z-index:99999;' +
+              'box-shadow:0 2px 8px rgba(0,0,0,.2);pointer-events:none;';
+            document.body.appendChild(toastEl);
+          }
+          toastEl.textContent = msg;
+          toastEl.style.background = ok === false ? '#ff4d4f' : '#52c41a';
+          clearTimeout(toastTimer);
+          toastTimer = setTimeout(function () { if (toastEl) toastEl.remove(); toastEl = null; }, 3200);
+        }
+
+        function pad2(n) { return String(n).padStart(2, '0'); }
+        function dateStr(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+
+        // —— 备份到电脑（等价 React g）——
+        window.backupData = function () {
+          try {
+            var payload = { backupTime: new Date().toISOString(), schema: 'scoped-v1' };
+            for (var i = 0; i < localStorage.length; i++) {
+              var k = localStorage.key(i);
+              if (!k || isInternalKey(k)) continue;
+              var v = localStorage.getItem(k);
+              if (v != null) payload[k] = v;
+            }
+            var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'stainless-backup-' + dateStr(new Date()) + '.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('数据备份成功（已包含三家公司各自独立的数据 + 共享数据）');
+          } catch (e) {
+            console.error('备份数据失败:', e);
+            showToast('数据备份失败', false);
+          }
+        };
+
+        // —— 从电脑恢复（等价 React m）——
+        window.restoreData = function () {
+          try {
+            var input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = function (e) {
+              var file = e.target.files && e.target.files[0];
+              if (!file) return;
+              var reader = new FileReader();
+              reader.onload = function (evt) {
+                try {
+                  var data = JSON.parse(evt.target.result);
+                  // 保留登录态（与 React m 一致）
+                  var username = localStorage.getItem('username');
+                  var isLoggedIn = localStorage.getItem('isLoggedIn');
+                  localStorage.clear();
+                  if (username != null) localStorage.setItem('username', username);
+                  if (isLoggedIn != null) localStorage.setItem('isLoggedIn', isLoggedIn);
+                  Object.keys(data).forEach(function (key) {
+                    if (key === 'backupTime' || key === 'schema') return;
+                    var val = data[key];
+                    if (typeof val === 'string') localStorage.setItem(key, val);
+                  });
+                  if (!data.schema || data.schema !== 'scoped-v1') {
+                    try { localStorage.removeItem('__scoped_migration_done_v1__'); } catch (err) {}
+                  }
+                  // 关键①：防云端旧数据在刷新后回灌覆盖刚导入的数据（10 分钟保护期，
+                  // 保护只屏蔽"云端→本地"拉取，不影响下面的"本地→云端"上传）。
+                  if (window.CloudbaseSync && typeof window.CloudbaseSync.setImportProtection === 'function') {
+                    window.CloudbaseSync.setImportProtection(600000);
+                  }
+                  // 关键②：本应用是 Excel 手动上传模式（setItem 不自动上云）。
+                  // 若只恢复本机、不上云，10 分钟保护期过后云端旧数据会重新回灌，恢复白做。
+                  // 因此立即把恢复的数据推送云端，落云后再刷新，形成完整闭环。
+                  var reloadPage = function () { window.location.href = window.location.href; };
+                  var cs = window.CloudbaseSync;
+                  if (cs && typeof cs.pushAll === 'function') {
+                    showToast('数据恢复成功，正在上传到云端，请勿关闭页面…');
+                    Promise.resolve()
+                      .then(function () { return cs.pushAll(false); })
+                      .then(function (r) {
+                        if (r && r.ok) showToast('恢复并同步云端成功，页面将刷新…');
+                        else showToast((r && r.msg) ? r.msg : '本机数据已恢复；云端未同步，请稍后点"上传云端"', false);
+                      })
+                      .catch(function () { showToast('本机数据已恢复；云端上传失败，请稍后点"上传云端"', false); })
+                      .then(function () { setTimeout(reloadPage, 1000); });
+                  } else {
+                    showToast('数据恢复成功，页面将刷新…');
+                    setTimeout(reloadPage, 1000);
+                  }
+                } catch (err) {
+                  console.error('解析备份文件失败:', err);
+                  showToast('解析备份文件失败', false);
+                }
+              };
+              reader.readAsText(file);
+            };
+            input.click(); // 处于工具条按钮的用户手势激活窗口内，文件框可正常弹出
+          } catch (e) {
+            console.error('恢复数据失败:', e);
+            showToast('数据恢复失败', false);
+          }
+        };
+      })();
+    </script>
   </body>
 </html>

@@ -1,15 +1,15 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 	<script>window.SUPABASE_APP_ID='wicketorders';</script>
-	<script src="../cloudbase-sync.js?v=20260914b"></script>
+	<script src="../cloudbase-sync.js?v=20260923b"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Formal Quotation</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Font Awesome -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="../vendor/fontawesome/css/all.min.css" rel="stylesheet">
     <style>
         /* 蓝绿渐变配色方案 */
         :root {
@@ -487,8 +487,7 @@
                 <table class="formal-table">
                     <colgroup>
                         <col style="width: 4%">
-                        <col style="width: 7%">
-                        <col style="width: 14%">
+                        <col style="width: 21%">
                         <col style="width: 11%">
                         <col style="width: 12%">
                         <col style="width: 5%">
@@ -500,7 +499,6 @@
                     <thead>
                         <tr>
                             <th class="text-sm">序号<br><span class="text-xs">No.</span></th>
-                            <th class="text-sm">产品编号<br><span class="text-xs">Product No.</span></th>
                             <th class="text-sm">产品名称<br><span class="text-xs">Product Name</span></th>
                             <th class="text-sm">图号<br><span class="text-xs">Drawing No.</span></th>
                             <th class="text-sm">规格型号<br><span class="text-xs">Specifications</span></th>
@@ -724,11 +722,10 @@
                 const amount = product.unitPrice * product.quantity;
                 row.innerHTML = `
                     <td><input type="text" class="edit-input w-full text-center border-none bg-transparent" value="${product.serialNo || index + 1}" onchange="updateTotal()"></td>
-                    <td><input type="text" class="edit-input w-full border-none bg-transparent" value="${product.productNo || ''}" onchange="updateTotal()"></td>
                     <td><input type="text" class="edit-input w-full border-none bg-transparent" value="${product.productName || ''}" onchange="updateTotal()"></td>
                     <td><input type="text" class="edit-input w-full border-none bg-transparent" value="${product.drawingNumber || ''}" onchange="updateTotal()"></td>
                     <td><input type="text" class="edit-input w-full border-none bg-transparent" value="${product.specification || ''}" onchange="updateTotal()"></td>
-                    <td><input type="text" class="edit-input w-full text-center border-none bg-transparent" value="${product.unit || ''}" onchange="updateTotal()"></td>
+                    <td><input type="text" class="edit-input w-full text-center border-none bg-transparent" value="${(product.unit || '').split('|').pop().trim()}" onchange="updateTotal()"></td>
                     <td class="text-right"><input type="number" class="edit-input w-full text-right border-none bg-transparent quantity-input" value="${product.quantity || 0}" step="0.01" onchange="updateTotal()" onkeyup="updateTotal()"></td>
                     <td class="text-right">${data.currency} <input type="number" class="edit-input w-full text-right border-none bg-transparent unitprice-input" value="${product.unitPrice || 0}" step="0.01" onchange="updateTotal()" onkeyup="updateTotal()"></td>
                     <td class="text-right font-semibold amount-cell">${data.currency} ${formatNumber(amount)}</td>

@@ -1,8 +1,8 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 	<script>window.SUPABASE_APP_ID='purchase';</script>
-	<script src="../cloudbase-sync.js?v=20260914b"></script>
+	<script src="../cloudbase-sync.js?v=20260923b"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>发票管理系统</title>
@@ -908,8 +908,9 @@
         }
     </style>
     <link rel="stylesheet" href="mobile-compat.css">
+    <link rel="stylesheet" href="simple-theme.css?v=20260917c">
 </head>
-<body>
+<body class="simple-legacy">
     <!-- 头部 -->
     <div class="header">
             <div class="title">发票管理系统</div>
@@ -923,8 +924,8 @@
                 <div class="dropdown">
                     <button class="dropdown-btn" onclick="toggleDropdown()"><i class="fa fa-database"></i> 数据管理</button>
                     <div class="dropdown-content" id="dataDropdown">
-                        <button class="dropdown-item" onclick="backupData()"><i class="fa fa-download"></i> 备份数据</button>
-                        <button class="dropdown-item" onclick="restoreData()"><i class="fa fa-upload"></i> 恢复数据</button>
+                        <button class="dropdown-item" onclick="backupData()"><i class="fa fa-download"></i> 备份到电脑</button>
+                        <button class="dropdown-item" onclick="restoreData()"><i class="fa fa-upload"></i> 从电脑恢复</button>
                     </div>
                 </div>
              </div>
@@ -1305,7 +1306,7 @@
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="../vendor/xlsx.full.min.js"></script>
     <script>
         // 从localStorage更新公司选择器
         function updateCompanySelectors() {
