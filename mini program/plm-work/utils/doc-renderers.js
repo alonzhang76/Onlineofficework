@@ -83,16 +83,18 @@ function renderProductionNotice(data) {
   ];
   var headerH = 26, rowH = 22, fontSize = 10;
 
-  // 预加载 LOGO 图片（按名称约定 /assets/logos/{name}.png；
-  // 用 readFileSync 读 base64 再喂给 canvas Image，避免 offscreen canvas 对本地包路径支持不稳定）
+  // 预加载 LOGO 图片：仅 LOGO_IMAGE_FILES 中登记的名称才加载图片，其余（含 KBA）显示文字
+  var LOGO_IMAGE_FILES = { 'K&B': 'kba.png' };
   var logoImages = {};
   var logoNames = {};
-  products.forEach(function (p) { if (p.bowLogo) logoNames[p.bowLogo] = 1; });
+  products.forEach(function (p) { if (p.bowLogo && LOGO_IMAGE_FILES[p.bowLogo]) logoNames[p.bowLogo] = 1; });
   var fs = wx.getFileSystemManager();
 
   function loadLogo(name) {
     return new Promise(function (resolve) {
-      var path = '/assets/logos/' + String(name).toLowerCase() + '.png';
+      var file = LOGO_IMAGE_FILES[name];
+      if (!file) { resolve(); return; }
+      var path = '/assets/logos/' + file;
       var dataUrl = null;
       try {
         var buf = fs.readFileSync(path);

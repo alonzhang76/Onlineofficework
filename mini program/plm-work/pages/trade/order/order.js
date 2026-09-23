@@ -8,14 +8,15 @@ const DATE_TYPE = ['订单日期', '交货日期'];
 
 let ridCounter = 0;
 
-// LOGO 选项（名称 + 对应图片路径；图片按约定存 assets/logos/{名小写}.png，无图文件时 <image binderror> 隐藏）
+// LOGO 选项：仅 LOGO_IMAGE_FILES 中登记的名称才显示图片，其余（含 KBA）均为纯文字
 const LOGO_OPTS = db.LOGO_OPTIONS.map(n => ({
   name: n,
-  img: n === '无' ? '' : '../../../assets/logos/' + n.toLowerCase() + '.png'
+  img: db.LOGO_IMAGE_FILES[n] ? '../../../assets/logos/' + db.LOGO_IMAGE_FILES[n] : ''
 }));
 function logoImgOf(name) {
-  const o = LOGO_OPTS.find(x => x.name === name);
-  return o ? o.img : (name ? '../../../assets/logos/' + String(name).toLowerCase() + '.png' : '');
+  if (!name) return '';
+  const file = db.LOGO_IMAGE_FILES[name];
+  return file ? '../../../assets/logos/' + file : '';
 }
 
 function newProduct() {

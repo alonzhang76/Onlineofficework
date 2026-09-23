@@ -1,16 +1,17 @@
 const db = require('../../../utils/schedule-db');
 const fmt = require('../../../utils/format');
 
-// LOGO 选项（名称 + 对应图片路径；图片按约定存 assets/logos/{名小写}.png，无图文件时 <image binderror> 隐藏）
-const LOGO_NAMES = ['无', 'LONGLI', 'KBA', 'PERM', 'EPCCS', 'INGHOR', 'CC', 'J', 'HS'];
+// LOGO 选项：仅 K&B 显示图案（kba.png），其余（含 KBA）均为纯文字
+const LOGO_NAMES = ['无', 'LONGLI', 'KBA', 'K&B', 'PERM', 'EPCCS', 'INGHOR', 'CC', 'J', 'HS'];
+const LOGO_IMAGE_FILES = { 'K&B': 'kba.png' };
 const LOGO_OPTS = LOGO_NAMES.map(n => ({
   name: n,
-  img: n === '无' ? '' : '../../../assets/logos/' + n.toLowerCase() + '.png'
+  img: LOGO_IMAGE_FILES[n] ? '../../../assets/logos/' + LOGO_IMAGE_FILES[n] : ''
 }));
 function logoImgOf(name) {
   if (!name) return '';
-  const o = LOGO_OPTS.find(x => x.name === name);
-  return o ? o.img : '../../../assets/logos/' + String(name).toLowerCase() + '.png';
+  const file = LOGO_IMAGE_FILES[name];
+  return file ? '../../../assets/logos/' + file : '';
 }
 
 const STATUS_CLASS = {

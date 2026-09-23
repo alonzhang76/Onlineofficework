@@ -67,7 +67,10 @@ const TRADE_TERMS = ['FOB', 'CIF', 'CFR', 'EXW', 'DDP', 'DAP', 'FCA'];
 const TRANSPORT_METHODS = ['海运', '空运', '快递', '陆运'];
 
 /** LOGO 选项（与网页版 addProductRow 一致） */
-const LOGO_OPTIONS = ['无', 'LONGLI', 'KBA', 'PERM', 'EPCCS', 'INGHOR', 'CC', 'J', 'HS'];
+const LOGO_OPTIONS = ['无', 'LONGLI', 'KBA', 'K&B', 'PERM', 'EPCCS', 'INGHOR', 'CC', 'J', 'HS'];
+
+/** 仅这些 LOGO 名称对应图案图片（key=选项名, value=assets/logos 下的文件名）；其余均为纯文字 */
+const LOGO_IMAGE_FILES = { 'K&B': 'kba.png' };
 
 /** 单位选项 */
 const UNIT_OPTIONS = ['只', '个', '套', '箱', '公斤', '吨', '袋'];
@@ -1263,6 +1266,7 @@ module.exports = {
   TRADE_TERMS: TRADE_TERMS,
   TRANSPORT_METHODS: TRANSPORT_METHODS,
   LOGO_OPTIONS: LOGO_OPTIONS,
+  LOGO_IMAGE_FILES: LOGO_IMAGE_FILES,
   UNIT_OPTIONS: UNIT_OPTIONS,
   uid: uid,
   num: num,
