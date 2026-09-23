@@ -1244,9 +1244,8 @@
                     
                     // 创建打印窗口
                     const printWindow = window.open('', '_blank');
-                    printWindow.document.write('<html><head>
-	<script>window.SUPABASE_APP_ID='wicketorders';</script>
-	<script src="../cloudbase-sync.js?v=20260914b"></script><title>Print Label</title>');
+                    printWindow.document.write('<html><head>' +
+                        '<title>Print Label</title>');
                     
                     // 添加样式
                     printWindow.document.write('<style>');
@@ -1268,12 +1267,30 @@
                     printWindow.document.write('</style>');
                     
                     printWindow.document.write('</head><body>');
-                    printWindow.document.write(previewArea.innerHTML);
+                    // 将预览内容中的相对图片路径转为绝对路径，避免在 about:blank 的打印窗口里加载失败
+                    let printHtml = previewArea.innerHTML.replace(
+                        /\ssrc=(["'])(?!(?:https?:|data:|blob:|\/))([^"']+)\1/gi,
+                        (m, q, p) => ` src=${q}${new URL(p, location.href).href}${q}`
+                    );
+                    printWindow.document.write(printHtml);
                     printWindow.document.write('</body></html>');
                     printWindow.document.close();
-                    
-                    // 打印
-                    printWindow.print();
+
+                    // 等待文档和资源（图片、SVG二维码等）加载完成后再打印，
+                    // 避免打印预览因尚未渲染完成而显示空白
+                    function doPrint() {
+                        try {
+                            printWindow.focus();
+                            printWindow.print();
+                        } catch (e) {}
+                    }
+                    if (printWindow.document.readyState === 'complete') {
+                        setTimeout(doPrint, 300);
+                    } else {
+                        printWindow.onload = function () {
+                            setTimeout(doPrint, 300);
+                        };
+                    }
                 }
                 
                 // 初始化所有复选框的状态
