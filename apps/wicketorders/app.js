@@ -8515,6 +8515,7 @@ const LogoOptionStore = {
     defaults: [
         { id: 'lo-longli', name: 'LONGLI', image: null },
         { id: 'lo-kba', name: 'KBA', image: null },
+        { id: 'lo-kb', name: 'K&B', image: '../logos/kba.png' },
         { id: 'lo-perm', name: 'PERM', image: null },
         { id: 'lo-epccs', name: 'EPCCS', image: null },
         { id: 'lo-inghor', name: 'INGHOR', image: null },
@@ -8528,7 +8529,24 @@ const LogoOptionStore = {
             const raw = localStorage.getItem(this.KEY);
             if (!raw) return this.defaults.slice();
             const arr = JSON.parse(raw);
-            return Array.isArray(arr) ? arr : this.defaults.slice();
+            if (!Array.isArray(arr)) return this.defaults.slice();
+            // 迁移：确保 K&B 图案选项存在，KBA 保持纯文字（无图片）
+            let changed = false;
+            const kb = arr.find(x => x.name === 'K&B');
+            if (!kb) {
+                arr.splice(2, 0, { id: 'lo-kb', name: 'K&B', image: '../logos/kba.png' });
+                changed = true;
+            } else if (!kb.image) {
+                kb.image = '../logos/kba.png';
+                changed = true;
+            }
+            const kba = arr.find(x => x.name === 'KBA');
+            if (kba && kba.image) {
+                kba.image = null;
+                changed = true;
+            }
+            if (changed) this.save(arr);
+            return arr;
         } catch (e) {
             return this.defaults.slice();
         }
@@ -8561,9 +8579,9 @@ const LogoOptionStore = {
     },
     getImageByName(name) {
         const opt = this.findByName(name);
-        if (opt && opt.image) return opt.image;
-        // 无用户上传图时，按名称约定回退到 apps/logos/{name}.png；文件不存在由 <img onerror> 显示文字
-        return name ? '../logos/' + String(name).toLowerCase() + '.png' : null;
+        // 仅当选项显式配置了图片（用户上传或默认图案）时才返回图片；
+        // image 为 null 表示纯文字选项，不再按文件名自动回退，避免 KBA 等文字选项误显示成图案。
+        return (opt && opt.image) ? opt.image : null;
     }
 };
 
