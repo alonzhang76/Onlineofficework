@@ -22,7 +22,7 @@
   'use strict';
 
   // ===== 版本守卫：防止旧版 cloudbase-sync.js 在新版之后重新初始化 =====
-  var SYNC_VERSION = '20260924d';
+  var SYNC_VERSION = '20260924e';
   if (window.__CLOUDBASE_SYNC_VERSION__) {
     console.warn('[CloudbaseSync] 检测到已加载版本 ' + window.__CLOUDBASE_SYNC_VERSION__ +
       '，当前版本 ' + SYNC_VERSION + ' 跳过初始化');
@@ -211,11 +211,14 @@
       'plateCalculatorSavedResults', 'plateCalcData', 'plateCalcResult',
       'quotationRemarksUpdated', 'hs_label_load', 'hs_label_prefill_batch',
       'hs_label_prefill',
-      // 业务主表（React 应用实际读写的核心数据，此前漏登记导致从未上云）
-      'salesOrders', 'purchaseOrders', 'transactions', 'invoices', 'payments',
-      'memos', 'calendarEvents',
-      // 公司/登录态（恢复新电脑时需要，否则应用停在登录页或公司名缺失）
-      'currentCompanyId', 'companyName1', 'companyName2'],
+      // 共享键（React 包 Sle 集合：不分公司、全应用共用。
+      // contacts/favoriteContacts 经 LOCAL_KEY_REMAP 本地存为 sb_*，云端仍用原名）
+      'contacts', 'favoriteContacts', 'industryTypes', 'industryApplications',
+      'vocabularies', 'hscodes', 'hscodeData', 'customColumns',
+      'products', 'productCategories', 'companyList', 'paymentTerms',
+      'contractTerms', 'memos',
+      // 当前公司（切公司视图需要；公司名是公司级键，由下方正则覆盖）
+      'currentCompanyId'],
     saintysys: ['sht_sample_data_v2', 'sampleReviewRecords', 'consumptions',
       'clothing_cost_styles_v3', 'clothing_cost_categories_v3',
       'nas_folder_perms', 'styleImages', 'orders', 'draft',
@@ -239,6 +242,14 @@
     incomeexpense: [
       /^transactions_(company1|company2)$/,
       /^lastUpdated_(company1|company2)$/
+    ],
+    // 不锈钢业务：公司级隔离键「公司id__业务键」（React US 函数：非共享键一律
+    // 存为 `${currentCompanyId}__${key}`）。公司 id 形如 default-1/default-2/default-3
+    // 或随机串，用通配 [^_]+ 匹配；业务键限界 $ 防串味。
+    stainlessbusiness: [
+      /^[^_]+__(inquiries|quotations|purchaseOrders|returnRecords|salesOrders|salesReturnRecords|inventoryRecords|warehouses|warehouseHistory|warehouseSales|warehouseSalePayments|warehouseSaleInvoices|transactions|transactionCategories|initialBalanceData|invoices|purchaseContractTerms|salesContractTerms|calendarEvents|companyName1|companyName2|products|productCategories|paymentTerms|contractTerms)$/,
+      // 历史/双写兜底：公司级 contacts、memos（若 React 版本将其按公司隔离）
+      /^[^_]+__(contacts|favoriteContacts|memos|industryTypes|industryApplications|vocabularies|hscodes|hscodeData|customColumns|gradeComparisons|calculationParams|certificateData|plateCalcData|dataCleared|userPhone)$/
     ],
     wicketorders: ['quotation_products_', 'invoice_products_', 'contract_products_']
   };
