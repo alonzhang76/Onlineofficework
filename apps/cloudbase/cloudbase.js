@@ -66,10 +66,19 @@ if (!CLOUDBASE_ENV || CLOUDBASE_ENV === "your-env-id") {
   );
 }
 
-/* ---------- SDK 加载（UMD 动态注入 + CDN 容错） ---------- */
+/* ---------- SDK 加载（UMD 动态注入 + 本地优先 + CDN 容错） ---------- */
 // CloudBase JS SDK v3（webv3，与新版 CloudBase 环境认证 v2 兼容）
 const SDK_VERSION = "3.9.3";
+// 本地副本（随站点部署，车机/内网等无法访问腾讯 CDN 的环境优先使用）
+// 用 import.meta.url 基于本模块位置构造绝对路径，不受引用页面的目录深度影响
+var LOCAL_SDK_URL;
+try {
+  LOCAL_SDK_URL = new URL("./cloudbase.full.js", import.meta.url).href;
+} catch (_e) {
+  LOCAL_SDK_URL = "cloudbase.full.js";
+}
 const CDN_LIST = [
+  LOCAL_SDK_URL,
   "https://static.cloudbase.net/cloudbase-js-sdk/" + SDK_VERSION + "/cloudbase.full.js",
   "https://imgcache.qq.com/qcloud/cloudbase-js-sdk/" + SDK_VERSION + "/cloudbase.full.js",
 ];
