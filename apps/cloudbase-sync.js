@@ -22,7 +22,7 @@
   'use strict';
 
   // ===== 版本守卫：防止旧版 cloudbase-sync.js 在新版之后重新初始化 =====
-  var SYNC_VERSION = '20260924e';
+  var SYNC_VERSION = '20260924f';
   if (window.__CLOUDBASE_SYNC_VERSION__) {
     console.warn('[CloudbaseSync] 检测到已加载版本 ' + window.__CLOUDBASE_SYNC_VERSION__ +
       '，当前版本 ' + SYNC_VERSION + ' 跳过初始化');
@@ -218,7 +218,17 @@
       'products', 'productCategories', 'companyList', 'paymentTerms',
       'contractTerms', 'memos',
       // 当前公司（切公司视图需要；公司名是公司级键，由下方正则覆盖）
-      'currentCompanyId'],
+      'currentCompanyId',
+      // 裸业务键兜底（React V9 列表）：实测应用内大量旧组件绕过 US 作用域
+      // 直接读写裸键，且裸键数据比公司级键更新更全（如裸 invoices 17KB vs
+      // 公司级为空）。不注册这些裸键，泰坦福等公司页面可见的数据就无法上云。
+      'inquiries', 'quotations', 'purchaseOrders', 'returnRecords',
+      'salesOrders', 'salesReturnRecords', 'inventoryRecords',
+      'warehouses', 'warehouseHistory', 'warehouseSales',
+      'warehouseSalePayments', 'warehouseSaleInvoices',
+      'transactions', 'transactionCategories', 'initialBalanceData',
+      'invoices', 'purchaseContractTerms', 'salesContractTerms',
+      'calendarEvents', 'companyName1', 'companyName2', 'payments'],
     saintysys: ['sht_sample_data_v2', 'sampleReviewRecords', 'consumptions',
       'clothing_cost_styles_v3', 'clothing_cost_categories_v3',
       'nas_folder_perms', 'styleImages', 'orders', 'draft',

@@ -609,7 +609,59 @@
   var COMPANY_LABELS = {
     company1: '公司1', company2: '公司2', companyA: '公司A', companyB: '公司B'
   };
-  function keyLabel(k) {
+
+  // ===== stainlessbusiness（不锈钢业务）专属中文标签 =====
+  // 该应用同一页面会同时出现「裸键」与「公司id__业务键」两类键，
+  // 公司级键在 keyLabel 中追加公司名后缀，避免两类数据混淆。
+  var SB_LABELS = {
+    // 共享数据
+    contacts: '联系人', favoriteContacts: '常用联系人',
+    industryTypes: '行业类型', industryApplications: '行业应用',
+    vocabularies: '词库', hscodes: 'HS编码', hscodeData: 'HS编码数据',
+    customColumns: '自定义列', products: '产品', productCategories: '产品分类',
+    companyList: '公司列表', paymentTerms: '付款条款', contractTerms: '合同条款',
+    memos: '备忘录', currentCompanyId: '当前公司',
+    // 业务主表（裸键兜底数据）
+    inquiries: '询价单', quotations: '报价单', purchaseOrders: '采购订单',
+    returnRecords: '收货记录', salesOrders: '销售订单', salesReturnRecords: '退货记录',
+    inventoryRecords: '库存记录', warehouses: '仓库', warehouseHistory: '出入库记录',
+    warehouseSales: '仓库销售单', warehouseSalePayments: '仓库销售收款',
+    warehouseSaleInvoices: '仓库销售发票', transactions: '收支流水',
+    transactionCategories: '收支分类', initialBalanceData: '初始余额',
+    invoices: '发票', purchaseContractTerms: '采购合同条款',
+    salesContractTerms: '销售合同条款', calendarEvents: '日历事件',
+    companyName1: '公司名称1', companyName2: '公司名称2', payments: '付款记录',
+    // 工具/杂项
+    certificateData: '证明资料', calculationParams: '计算参数',
+    gradeComparisons: '材质对比', plateCalculatorSavedResults: '板材计算保存结果',
+    plateCalcData: '板材计算数据', plateCalcResult: '板材计算结果',
+    quotationRemarksUpdated: '报价备注更新标记',
+    hs_label_load: '标签数据', hs_label_prefill: '标签预填',
+    hs_label_prefill_batch: '标签批量预填'
+  };
+  // 公司 id → 公司中文名（读 companyList；如 default-1 → 无锡华烁特钢有限公司）
+  function sbCompanyName(id) {
+    try {
+      var raw = localStorage.getItem('companyList');
+      if (raw) {
+        var arr = JSON.parse(raw);
+        for (var i = 0; i < arr.length; i++) {
+          if (arr[i] && arr[i].id === id) return arr[i].nameCn || id;
+        }
+      }
+    } catch (e) {}
+    return id;
+  }
+  function keyLabel(k, appId) {
+    // 不锈钢：裸键/公司级键分别取中文名
+    if (appId === 'stainlessbusiness') {
+      var sc = /^([A-Za-z0-9][\w-]*)__(.+)$/.exec(k);
+      if (sc) {
+        var nm = SB_LABELS[sc[2]] || sc[2];
+        return nm + '（' + sbCompanyName(sc[1]) + '）';
+      }
+      return SB_LABELS[k] || k;
+    }
     if (KEY_LABELS[k]) return KEY_LABELS[k];
     var m;
     if ((m = /^transactions_(.+)$/.exec(k))) return '收支流水（' + (COMPANY_LABELS[m[1]] || m[1]) + '）';
@@ -969,7 +1021,7 @@
         var diff = c.cloudLoaded && r.local !== r.cloud;
         var color = diff ? '#d97706' : '#374151';
         html += '<tr>'
-          + '<td style="padding:3px 14px;color:' + color + ';">' + keyLabel(r.key) + '</td>'
+          + '<td style="padding:3px 14px;color:' + color + ';">' + keyLabel(r.key, c.appId) + '</td>'
           + '<td style="padding:3px 6px;text-align:right;color:' + color + ';">' + r.local + '</td>'
           + '<td style="padding:3px 14px 3px 6px;text-align:right;color:' + color + ';">'
           + (r.cloud === null ? '…' : r.cloud) + '</td></tr>';

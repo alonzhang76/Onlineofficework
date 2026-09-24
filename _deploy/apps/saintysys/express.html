@@ -1,6 +1,7 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+    <script src="../auto-scale.js?v=20260917a"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>寄件管理 - AA服装外贸系统</title>
@@ -715,7 +716,7 @@ table.data-table {
         <div class="section-header">
           <div class="section-title"><span class="dot"></span> 快递记录明细</div>
           <div class="section-actions">
-            <button class="btn-icon toolbar" onclick="document.getElementById('importFile').click()" title="恢复数据(JSON)">📂</button>
+            <button class="btn-icon toolbar" onclick="document.getElementById('importFile').click()" title="从电脑恢复(JSON)">📂</button>
             <button class="btn-icon toolbar" onclick="clearAllRecords()" title="一键清空">🗑️</button>
             <button class="btn-icon toolbar" onclick="exportExcel()" title="导出Excel">📗</button>
             <button class="btn-icon toolbar" onclick="document.getElementById('importExcelFile').click()" title="导入Excel">📘</button>
@@ -849,15 +850,16 @@ table.data-table {
 </div>
 
 <script src="js/xlsx.full.min.js?v=20260821c"></script>
-<script src="js/common.js?v=20260912c"></script>
+<script src="js/common.js?v=20260916a"></script>
 <!-- Supabase 登录守卫 -->
-<script src="js/localstorage-patch.js?v=20260823a"></script>
-<script src="js/cloudbase-store.js?v=20260914b"></script>
-<script src="js/init-page.js?v=20260825b"></script>
-<script src="js/auth-guard.js?v=20260912a"></script>
-<script type="module" src="js/admin-config.js?v=20260813"></script>
-<script type="module" src="js/form-submit.js?v=20260912a"></script>
-<script type="module" src="js/logout.js?v=20260813"></script>
+<script src="js/localstorage-patch.js?v=20260916a"></script>
+<script src="js/cloudbase-store.js?v=20260916b"></script>
+<script src="js/init-page.js?v=20260919a"></script>
+<script src="../cloudbase-admin.js?v=20260924a"></script>
+<script src="js/auth-guard.js?v=20260916a"></script>
+<script type="module" src="js/admin-config.js?v=20260916a"></script>
+<script type="module" src="js/form-submit.js?v=20260916a"></script>
+<script type="module" src="js/logout.js?v=20260916a"></script>
 <script>
 // ===== 云端同步：提前注册监听器 =====
 // 关键修复：云端数据变更时必须先 loadData() 重新读取（从已更新的缓存/localStorage），
