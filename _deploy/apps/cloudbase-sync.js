@@ -197,10 +197,14 @@
     wage: ['wage_records', 'wage_employees', 'wage_processes', 'wage_orders',
       'wage_adjustments', 'wage_calendarEvents', 'wage_calendarEventTypes',
       'wage_dropdownOptions'],
-    purchase: ['currentCompany', 'companyNames', 'todos',
+    purchase: ['currentCompany', 'currentCompany_index', 'lastActivePage',
+      'companyNames', 'todos',
       'reconciliation_transactions', 'reconciliation_params',
       'invoice_management_invoices', 'invoiceData', 'invoiceExportData',
-      'woodenBoxCalculatorResults'],
+      'woodenBoxCalculatorResults',
+      // 供应商管理 / 普票登记 / 发票页待办、记事本、筛选等辅助数据
+      'suppliers', 'invoices', 'units',
+      'todoList', 'todoIdCounter', 'notepadContent', 'advancedFilters'],
     incomeexpense: ['currentCompany', 'todos',
       'reconciliation_transactions', 'reconciliation_params'],
     stainlessbusiness: ['certificateData', 'calculationParams', 'gradeComparisons',
@@ -220,7 +224,12 @@
     purchase: [
       /^transactions_(companyA|companyB)$/,
       /^lastUpdated_(companyA|companyB)$/,
-      /^(contracts|receipts|returns|purchaseOrders)_(companyA|companyB)$/
+      /^(contracts|receipts|returns|purchaseOrders)_(companyA|companyB)$/,
+      // 发票管理 / 付款管理（页面主表使用「公司-类型」连字符键）
+      /^(companyA|companyB)-(invoices|payments)$/,
+      // 采购待办、采购记事本（公司级）
+      /^procurementTodos_(companyA|companyB)$/,
+      /^procurement-notepad-content_(companyA|companyB)$/
     ],
     incomeexpense: [
       /^transactions_(company1|company2)$/,
