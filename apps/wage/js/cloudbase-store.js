@@ -104,6 +104,55 @@ var WAGE_KEYS = [
   'wage_records', 'wage_employees', 'wage_processes', 'wage_orders',
   'wage_adjustments', 'wage_dropdown_options', 'wage_calendar_events', 'wage_calendar_event_types'
 ];
+// 当前应用云端键前缀：用于按应用过滤云端行/清理残留（wage 应用使用裸 wage_* 键）
+var APP_KEY_PREFIX = 'wage_';
+
+// ===== 本地清空标记（防止自动刷新用云端旧数据"复活"刚清空的本地数据）=====
+// 业务页面清空数据（如"清空全部工资记录"）时写 localStorage 'xxx_cleared'='1'；
+// 云端刷新看到该标记且云端行比标记旧时跳过，由"上传/保存"覆盖云端并清除标记。
+var CLEARED_FLAG_SUFFIX = '_cleared';
+function setClearFlag(key) {
+  try { localStorage.setItem(key + CLEARED_FLAG_SUFFIX, String(Date.now())); } catch (e) {}
+}
+function removeClearFlag(key) {
+  try { localStorage.removeItem(key + CLEARED_FLAG_SUFFIX); } catch (e) {}
+}
+function getClearFlag(key) {
+  try {
+    var v = localStorage.getItem(key + CLEARED_FLAG_SUFFIX);
+    if (!v) return 0;
+    var n = parseInt(v, 10);
+    return isNaN(n) ? 1 : n; // 老格式 '1' → 只要求存在即跳过
+  } catch (e) { return 0; }
+}
+
+// 只统计 wage 自身键（云端表是多应用共享的，其他应用的行不能算进来）
+function _pickWageRows(data) {
+  var rows = [];
+  try {
+    (data || []).forEach(function (row) {
+      if (row && row.store_key && WAGE_KEYS.indexOf(row.store_key) >= 0) rows.push(row);
+    });
+  } catch (e) {}
+  return rows;
+}
+
+// 从云端按 id（= store_key）精准拉取本应用 8 个键，避免全表扫描把其他应用数据拉进缓存。
+// 兼容层 _fetchRows 对单个 id 等值过滤走服务端；多个键逐个查询（8 次小查询，比拉 1 万行全表快得多）。
+async function _fetchWageCloudRows(sb) {
+  var all = [];
+  for (var i = 0; i < WAGE_KEYS.length; i++) {
+    var key = WAGE_KEYS[i];
+    try {
+      var res = await sb.from('app_data_store').select('store_key, payload, updated_at').eq('id', key);
+      if (res && res.error) { return { rows: null, error: res.error }; }
+      if (res && Array.isArray(res.data)) all = all.concat(res.data);
+    } catch (e) {
+      return { rows: null, error: e };
+    }
+  }
+  return { rows: all, error: null };
+}
 
 var CloudbaseStore = {
   async init() {
@@ -120,7 +169,10 @@ var CloudbaseStore = {
 
       try {
         var sb = getClient();
-        var { data, error } = await sb.from('app_data_store').select('store_key, payload, updated_at');
+        // 只按 id 精准拉取本应用 8 个键，不做全表扫描（云端是多应用共享表，
+        // 全表扫描会把其他应用上万行数据拉下来拖慢启动，还会污染本地缓存）
+        var qr = await _fetchWageCloudRows(sb);
+        var data = qr.rows, error = qr.error;
 
         if (error) {
           console.error('[CloudbaseStore] 云端加载失败:', error.message || error);
@@ -129,10 +181,27 @@ var CloudbaseStore = {
         }
 
         if (data && Array.isArray(data)) {
+          var _now = Date.now();
           data.forEach(function (row) {
             if (row.store_key && _cache[row.store_key] === undefined) {
-              _cache[row.store_key] = normalizePayload(row.payload);
+              // 本地刚清空该键且云端行更旧 → 跳过（防止刚清空的数据被云端旧数据复活）
+              var cf = getClearFlag(row.store_key);
+              if (cf) {
+                var ct = new Date(row.updated_at || 0).getTime();
+                if (!ct || isNaN(ct) || ct <= cf) return;
+                removeClearFlag(row.store_key); // 云端比清空标记新（他端已上传新数据），标记失效
+              }
+              // 本地有未上传的编辑且云端行不更新 → 保留本地（防止刚保存的数据被旧值覆盖）
+              if (_recentWrites[row.store_key] && _now - _recentWrites[row.store_key] < 30000) {
+                var lt0 = new Date(_cacheTimestamps[row.store_key] || 0).getTime();
+                var ct0 = new Date(row.updated_at || 0).getTime();
+                if (!isNaN(lt0) && !isNaN(ct0) && ct0 <= lt0) return;
+              }
+              var pv = normalizePayload(row.payload);
+              _cache[row.store_key] = pv;
               _cacheTimestamps[row.store_key] = row.updated_at || '';
+              // 持久化到 localStorage，保证刷新后还能看到
+              try { localStorage.setItem(row.store_key, JSON.stringify(pv)); } catch (e) {}
             }
           });
           _ingestCloudCounts(data);
@@ -177,6 +246,8 @@ var CloudbaseStore = {
     _cache[key] = value;
     _cacheTimestamps[key] = new Date().toISOString();
     _recentWrites[key] = Date.now();
+    // 新数据写入后，旧的"已清空"标记失效
+    if (_countValue(value) > 0) removeClearFlag(key);
     // 同步写 localStorage 作为缓存
     try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
     // ⚠️ 手动同步模式：不再自动上传云端。
@@ -187,6 +258,7 @@ var CloudbaseStore = {
     delete _cache[key];
     delete _cacheTimestamps[key];
     _recentWrites[key] = Date.now();
+    setClearFlag(key);
     try { localStorage.removeItem(key); } catch (e) {}
     // ⚠️ 手动同步模式：不再自动删除云端。
     // 上传时若云端有本地已删的 key，需用 CloudbaseStore.pushAll(true) 清理。
@@ -194,9 +266,16 @@ var CloudbaseStore = {
 
   isReady() { return _initialized; },
 
-  async migrateFromLocalStorage() { return migrateFromLocalStorage(); },
+  migrateFromLocalStorage: function () { return migrateFromLocalStorage(); },
 
   refreshFromCloud: function () { return refreshFromCloud(); },
+
+  // 手动"下载云端数据"专用：无视编辑守卫强制拉取（供 CloudAdmin.pullFromCloud 调用）
+  forceRefreshFromCloud: function () { return forceRefreshFromCloud(); },
+
+  // 本地清空标记：业务页面"清空全部xx"后调用，阻止自动刷新把云端旧数据拉回
+  setClearFlag: function (key) { setClearFlag(key); },
+  removeClearFlag: function (key) { removeClearFlag(key); },
 
   // 本地/云端记录条数（供页面徽标显示）
   getRecordCounts: function () {
@@ -208,6 +287,8 @@ var CloudbaseStore = {
         var raw = localStorage.getItem(key);
         if (raw) lc = _countValue(JSON.parse(raw));
       } catch (e) {}
+      // localStorage 没写成功/被清理时，回退到内存缓存计数
+      if (lc === 0 && _cache[key] !== undefined) lc = _countValue(_cache[key]);
       localTotal += lc;
       if (cc !== null) cloudTotal += cc;
       perKey.push({ key: key, local: lc, cloud: cc });
@@ -266,14 +347,32 @@ async function pushAll(alsoDelete, onProgress) {
 
   // 收集所有本地非空业务 key（优先用 WAGE_KEYS，兜底遍历 localStorage）
   var keysToUpload = [];
+  var seenKeys = {};
   for (var i = 0; i < WAGE_KEYS.length; i++) {
     var key = WAGE_KEYS[i];
     var raw = null;
     try { raw = localStorage.getItem(key); } catch (e) {}
-    if (raw === null || raw === undefined || raw === '') continue;
+    if (raw === null || raw === undefined || raw === '') {
+      // localStorage 没有但内存缓存有数据 → 也上传（防 localStorage 写入失败丢数据）
+      if (_cache[key] !== undefined && _countValue(_cache[key]) > 0) {
+        keysToUpload.push({ key: key, value: _cache[key] });
+        seenKeys[key] = true;
+      }
+      continue;
+    }
     var value;
     try { value = JSON.parse(raw); } catch (e) { value = raw; }
     keysToUpload.push({ key: key, value: value });
+    seenKeys[key] = true;
+  }
+  // 本地刚清空的键（带 _cleared 标记）→ 上传空数组覆盖云端旧数据
+  for (var ci = 0; ci < WAGE_KEYS.length; ci++) {
+    var ck = WAGE_KEYS[ci];
+    if (seenKeys[ck]) continue;
+    if (getClearFlag(ck)) {
+      keysToUpload.push({ key: ck, value: [] });
+      seenKeys[ck] = true;
+    }
   }
   // 兜底：WAGE_KEYS 没列出但 localStorage 里有数据的 key 也上传
   if (keysToUpload.length === 0) {
@@ -305,22 +404,25 @@ async function pushAll(alsoDelete, onProgress) {
       okCount++;
       _cache[it.key] = it.value;
       _cacheTimestamps[it.key] = new Date().toISOString();
+      // 云端已被本机覆盖，"已清空"标记使命完成
+      removeClearFlag(it.key);
+      // 兜底补写 localStorage（防御某些浏览器/车机 localStorage 写入失败）
+      try { localStorage.setItem(it.key, JSON.stringify(it.value)); } catch (e) {}
     } else {
       failCount++;
     }
     emit({ phase: 'progress', current: m + 1, total: keysToUpload.length, key: it.key, ok: ok });
   }
 
-  // 可选清理：删除云端有但本地没有的 key
+  // 可选清理：删除云端有但本地没有的 wage_ 键（只查本应用 8 个键，不做全表扫描）
   if (alsoDelete) {
     try {
-      var listRes = await sb.from('app_data_store').select('store_key');
+      var qr2 = await _fetchWageCloudRows(sb);
       var localSet = new Set(keysToUpload.map(function (x) { return x.key; }));
-      if (listRes && !listRes.error && Array.isArray(listRes.data)) {
-        for (var n = 0; n < listRes.data.length; n++) {
-          var sk = listRes.data[n].store_key;
-          // 只清理当前应用的 key（wage_ 前缀）
-          if (sk && sk.indexOf('wage_') === 0 && !localSet.has(sk)) {
+      if (qr2 && !qr2.error && Array.isArray(qr2.rows)) {
+        for (var n = 0; n < qr2.rows.length; n++) {
+          var sk = qr2.rows[n].store_key;
+          if (sk && sk.indexOf(APP_KEY_PREFIX) === 0 && !localSet.has(sk)) {
             try { await sb.from('app_data_store').delete().eq('store_key', sk); } catch (e) {}
           }
         }
@@ -355,7 +457,9 @@ async function refreshFromCloud() {
   if (hasRecentEdit) return [];
 
   try {
-    var { data, error } = await sb.from('app_data_store').select('store_key, payload, updated_at');
+    // 只拉取本应用 8 个键（云端是多应用共享表，全表扫描会把其他应用数据拉进本地缓存）
+    var qr = await _fetchWageCloudRows(sb);
+    var data = qr.rows, error = qr.error;
     if (error) { console.warn('[CloudbaseStore] refresh 查询错误:', error); noteFailure('refresh'); return []; }
     noteSuccess();
     if (!data) return [];
@@ -372,6 +476,13 @@ async function refreshFromCloud() {
       if (_recentWrites[key] && now - _recentWrites[key] < SKIP_WINDOW) return;
       // 防抖窗口内的 key 跳过：上传还没发出，本地即最新
       if (_debounceTimers[key]) return;
+      // 本地刚清空该键：云端行比清空标记旧 → 跳过（防止刚清空的数据被云端旧数据复活）
+      var cf = getClearFlag(key);
+      if (cf) {
+        var cts = new Date(row.updated_at || 0).getTime();
+        if (!cts || isNaN(cts) || cts <= cf) return;
+        removeClearFlag(key); // 云端比清空标记新（他端已上传新数据），标记失效
+      }
       // LWW 保护：云端不比本地新则跳过。典型场景：导入数据后 token 失效上传失败，
       // 若无此保护，10 秒后刷新会用云端旧数据覆盖刚导入的本地数据（数据消失）
       var localTs = _cacheTimestamps[key];
@@ -410,6 +521,24 @@ async function refreshFromCloud() {
   } catch (e) {
     console.warn('[CloudbaseStore] refresh 异常:', e);
     return [];
+  }
+}
+
+// 手动"下载云端数据"专用：无视 30s 编辑守卫 + 10s 写入宽限，强制拉取云端最新。
+// 返回变更的 key 数组（cloudbase-admin.js 的 CloudAdmin.pullFromCloud 会调用它）。
+async function forceRefreshFromCloud() {
+  if (!_initialized) {
+    var ok = await CloudbaseStore.init();
+    if (!ok) return [];
+  }
+  var savedRW = _recentWrites;
+  _recentWrites = {};
+  try {
+    return await refreshFromCloud();
+  } finally {
+    // 把手动下载期间新出现的写入合并回去（理论上没有，防御）
+    for (var k2 in _recentWrites) { savedRW[k2] = _recentWrites[k2]; }
+    _recentWrites = savedRW;
   }
 }
 

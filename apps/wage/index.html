@@ -14,7 +14,7 @@ window.CLOUDBASE_SYNC = { email: 'sync@lori.app', password: 'LoriSync2026!' };
 </script>
 <script type="module" src="js/cloudbase.js?v=20260915l"></script>
 <!-- CloudBase 数据存储层（window.CloudbaseStore / window.SupabaseStore） -->
-<script src="js/cloudbase-store.js?v=20260918b"></script>
+<script src="js/cloudbase-store.js?v=20260924a"></script>
 <!-- 云端数据管理工具（同步 / 清空云端，window.CloudAdmin） -->
 <script src="../cloudbase-admin.js?v=20260919a"></script>
 <!-- 用户信息展示（不再跳转登录页） -->
@@ -2002,11 +2002,13 @@ function clearAllRecords() {
   if (!confirm('再次确认：真的要清空全部记录吗？')) return;
   DB.records = [];
   DB.save('records');
-  localStorage.setItem('wage_records_cleared', '1');
+  // 打"已清空"标记：阻止云端自动刷新用旧数据复活刚清空的记录，
+  // 下次"保存/上传"会推送空数组覆盖云端
+  if (window.SupabaseStore && window.SupabaseStore.setClearFlag) window.SupabaseStore.setClearFlag('wage_records');
   executeQuery();
   renderTodayRecords();
   UI.renderDataOverview();
-  UI.toast('全部记录已清空');
+  UI.toast('全部记录已清空，请点击顶部"保存"同步到云端');
 }
 
 function exportQueryResult() {
@@ -3506,11 +3508,12 @@ function clearAllEmployees() {
   if (!confirm('再次确认：真的要清空全部员工数据吗？')) return;
   DB.employees = [];
   DB.save('employees');
-  localStorage.setItem('wage_employees_cleared', '1');
+  // 打"已清空"标记：阻止云端自动刷新用旧数据复活刚清空的员工
+  if (window.SupabaseStore && window.SupabaseStore.setClearFlag) window.SupabaseStore.setClearFlag('wage_employees');
   UI.renderEmployeeTable();
   UI.initSelects();
   UI.renderDataOverview();
-  UI.toast('全部员工数据已清空');
+  UI.toast('全部员工数据已清空，请点击顶部"保存"同步到云端');
 }
 
 // ===================== PROCESS MGMT =====================
@@ -4675,6 +4678,12 @@ function restoreData(input) {
           DB[k] = [];
         }
       });
+      // 恢复覆盖后重置同步层时间戳为"现在"，防止云端旧数据把刚恢复的数据覆盖回去
+      try {
+        if (window.SupabaseStore && window.SupabaseStore.set) {
+          Object.keys(STORE_KEYS).forEach(k => window.SupabaseStore.set(STORE_KEYS[k], DB[k]));
+        }
+      } catch (e) {}
       Object.keys(STORE_KEYS).forEach(k => DB.save(k));
       UI.toast('数据恢复成功，正在刷新...');
       setTimeout(() => location.reload(), 1200);
