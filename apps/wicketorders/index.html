@@ -38,50 +38,6 @@
             --table-hover-bg: #f1f3f5;
         }
 
-        /* 登录窗口样式 */
-        #loginOverlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, #1e3a5f 0%, #0d1b2a 100%);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-        }
-        
-        #loginOverlay.hidden {
-            display: none;
-        }
-
-        .login-container {
-            background: white;
-            padding: 2.5rem;
-            border-radius: 12px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            width: 380px;
-            max-width: 90%;
-        }
-
-        .login-logo {
-            text-align: center;
-            margin-bottom: 1.5rem;
-        }
-
-        .login-logo h2 {
-            color: var(--primary);
-            font-size: 1.5rem;
-            margin: 0.5rem 0 0;
-        }
-
-        .login-logo p {
-            color: var(--text-secondary);
-            font-size: 0.875rem;
-            margin: 0.25rem 0 0;
-        }
-
         .form-group {
             margin-bottom: 1.25rem;
         }
@@ -129,20 +85,6 @@
             font-size: 0.875rem;
             cursor: pointer;
             user-select: none;
-        }
-
-        /* 登录按钮样式 */
-        #loginForm .btn-primary {
-            width: 100%;
-            padding: 0.875rem;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background-color 0.2s, transform 0.1s;
         }
 
         .btn-primary:hover {
@@ -508,25 +450,6 @@
         /* 移除可能的滚动限制 */
         body {
             position: relative;
-        }
-        
-        /* 确保登录覆盖层不会影响滚动 */
-        #loginOverlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, #1e3a5f 0%, #0d1b2a 100%);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-        }
-        
-        #loginOverlay.hidden {
-            display: none;
-            z-index: -1;
         }
         
         /* 顶部导航栏内容容器 */
@@ -1268,81 +1191,6 @@
         }
     </style>
 
-    <!-- 登录窗口 -->
-    <div id="loginOverlay" class="hidden" style="display:none !important;">
-        <div class="login-container">
-            <div class="login-logo">
-                <h2>🚢 外贸出口管理系统</h2>
-                <p>Foreign Trade Export Management System</p>
-            </div>
-            
-            <div id="loginError" class="error-message"></div>
-            <div id="loginSuccess" class="success-message"></div>
-            
-            <form id="loginForm" action="javascript:void(0)" onsubmit="loginManager.handleLogin();return false;">
-                <div class="form-group">
-                    <label for="username">用户名</label>
-                    <input type="text" id="username" placeholder="请输入用户名" required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="password">密码</label>
-                    <input type="password" id="password" placeholder="请输入密码" required>
-                </div>
-                
-                <div class="remember-section">
-                    <input type="checkbox" id="rememberUsername">
-                    <label for="rememberUsername">记住用户名</label>
-                </div>
-                
-                <div class="remember-section">
-                    <input type="checkbox" id="rememberPassword">
-                    <label for="rememberPassword">记住密码（自动登录）</label>
-                </div>
-                
-                <button type="button" class="btn-primary" onclick="loginManager.handleLogin()">登录系统</button>
-            </form>
-            
-            <div class="login-footer">
-                <a onclick="showChangePasswordModal()">修改密码</a>
-            </div>
-        </div>
-    </div>
-
-    <!-- 修改密码模态框 -->
-    <div id="changePasswordModal" class="modal-overlay hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>修改密码</h3>
-                <button class="modal-close" onclick="closeChangePasswordModal()">&times;</button>
-            </div>
-            
-            <div id="cpError" class="error-message"></div>
-            <div id="cpSuccess" class="success-message"></div>
-            
-            <form id="changePasswordForm" action="javascript:void(0)" onsubmit="loginManager.handleChangePassword();return false;">
-                <div class="form-group">
-                    <label for="currentPassword">当前密码</label>
-                    <input type="password" id="currentPassword" placeholder="请输入当前密码" required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="newPassword">新密码</label>
-                    <input type="password" id="newPassword" placeholder="请输入新密码（至少6位）" required minlength="6">
-                </div>
-                
-                <div class="form-group">
-                    <label for="confirmNewPassword">确认新密码</label>
-                    <input type="password" id="confirmNewPassword" placeholder="请再次输入新密码" required>
-                </div>
-                
-                <div class="modal-actions">
-                    <button type="button" class="btn-secondary" onclick="closeChangePasswordModal()">取消</button>
-                    <button type="button" class="btn-primary" onclick="loginManager.handleChangePassword()">确认修改</button>
-                </div>
-            </form>
-        </div>
-    </div>
     <link rel="stylesheet" href="../tablet-compat.css?v=20260915a">
 </head>
 <body>
@@ -1424,10 +1272,6 @@
                         清空云端数据
                     </button>
                     <div class="border-t border-indigo-200 my-1"></div>
-                    <button class="block w-full text-left px-4 py-2 text-red-600 hover:bg-red-100" onclick="handleLogout()">
-                        <span class="mr-2">🚪</span>
-                        退出登录
-                    </button>
                 </div>
             </div>
         </div>
@@ -5195,7 +5039,6 @@
     </div>
 
     <!-- JavaScript文件 -->
-    <script src="login.js"></script>
     <script src="app.js?v=20260919a"></script>
     <!-- 日历记事功能（交货日期同步） -->
     <script src="calendar-notes.js?v=20260923a"></script>
