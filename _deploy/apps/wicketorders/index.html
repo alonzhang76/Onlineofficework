@@ -513,6 +513,29 @@
             box-shadow: 0 0 0 2px rgba(0, 86, 179, 0.25);
         }
 
+        /* 新增/编辑订单表单：需人工输入的控件统一浅蓝底色
+           （自动计算的只读「金额」框不加色，保持毛玻璃浅色以作区分） */
+        #orderModal input.form-input:not([readonly]):not([type="hidden"]),
+        #orderModal select.form-input,
+        #orderModal textarea.form-input,
+        #orderModal .logo-picker-btn,
+        #editOrderModal input.form-input:not([readonly]):not([type="hidden"]),
+        #editOrderModal select.form-input,
+        #editOrderModal textarea.form-input,
+        #editOrderModal .logo-picker-btn {
+            background-color: #e8f2ff;
+        }
+        #orderModal input.form-input:not([readonly]):focus,
+        #orderModal select.form-input:focus,
+        #orderModal textarea.form-input:focus,
+        #orderModal .logo-picker-btn:focus,
+        #editOrderModal input.form-input:not([readonly]):focus,
+        #editOrderModal select.form-input:focus,
+        #editOrderModal textarea.form-input:focus,
+        #editOrderModal .logo-picker-btn:focus {
+            background-color: #d6e9ff;
+        }
+
         /* 按钮样式 */
         .btn {
             padding: 0.5rem 1rem;
