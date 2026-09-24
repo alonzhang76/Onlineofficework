@@ -7,6 +7,10 @@ const loginManager = {
         this.loadSavedCredentials();
         this.bindEvents();
         this.checkAutoLogin();
+        // 未登录时显式显示登录遮罩（兼容车机浏览器 CSS display:none 失效问题）
+        if (!this.isLoggedIn()) {
+            this.showLogin();
+        }
     },
     
     loadUsers() {
@@ -172,11 +176,17 @@ const loginManager = {
     },
     
     hideLogin() {
-        document.getElementById('loginOverlay').classList.add('hidden');
+        const el = document.getElementById('loginOverlay');
+        if (!el) return;
+        el.classList.add('hidden');
+        el.style.display = 'none !important';  // 兼容车机浏览器：双保险
     },
     
     showLogin() {
-        document.getElementById('loginOverlay').classList.remove('hidden');
+        const el = document.getElementById('loginOverlay');
+        if (!el) return;
+        el.classList.remove('hidden');
+        el.style.display = '';  // 清除 inline display:none，交给 CSS 的 display:flex
     },
     
     logout() {
