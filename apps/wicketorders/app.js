@@ -640,6 +640,7 @@ class PageController {
                     <td>${renderLogoCell(record.logo)}</td>
                     <td>${record.unit || ''}</td>
                     <td>${record.unitPrice ? parseFloat(record.unitPrice).toFixed(2) : '0.00'}</td>
+                    <td>${record.packPrice ? parseFloat(record.packPrice).toFixed(2) : '0.00'}</td>
                     <td>${record.quantity || ''}</td>
                     <td>${record.amount ? parseFloat(record.amount).toFixed(2) : '0.00'}</td>
                     <td>${record.currency || ''}</td>
@@ -2356,6 +2357,7 @@ class PageController {
                 unit: row.querySelector('[name="unit"]').value,
                 quantity: row.querySelector('[name="quantity"]').value,
                 unitPrice: row.querySelector('[name="unitPrice"]').value,
+                packPrice: row.querySelector('[name="packPrice"]') ? row.querySelector('[name="packPrice"]').value : '0',
                 amount: row.querySelector('[name="amount"]').value
             };
             
@@ -2450,6 +2452,7 @@ class PageController {
                 unit: row.querySelector('[name="unit"]').value,
                 quantity: row.querySelector('[name="quantity"]').value,
                 unitPrice: row.querySelector('[name="unitPrice"]').value,
+                packPrice: row.querySelector('[name="packPrice"]') ? row.querySelector('[name="packPrice"]').value : '0',
                 amount: row.querySelector('[name="amount"]').value
             };
             
@@ -3750,6 +3753,7 @@ class PageController {
             'LOGO': 'logo',
             '单位': 'unit',
             '单价': 'unitPrice',
+            '包装单价': 'packPrice',
             '数量': 'quantity',
             '金额': 'amount',
             '货币': 'currency'
@@ -6300,6 +6304,7 @@ function editOrder(id) {
             const productUnitSelect = firstProductRow.querySelector('.product-unit');
             const productQuantityInput = firstProductRow.querySelector('.product-quantity');
             const productUnitPriceInput = firstProductRow.querySelector('.product-unit-price');
+            const productPackPriceInput = firstProductRow.querySelector('.product-pack-price');
             const productAmountInput = firstProductRow.querySelector('.product-amount');
             
             if (productNameInput) productNameInput.value = order.productName || '';
@@ -6316,6 +6321,7 @@ function editOrder(id) {
             if (productUnitSelect) productUnitSelect.value = order.unit || '';
             if (productQuantityInput) productQuantityInput.value = order.quantity || '';
             if (productUnitPriceInput) productUnitPriceInput.value = parseFloat(order.unitPrice || 0).toFixed(2);
+            if (productPackPriceInput) productPackPriceInput.value = parseFloat(order.packPrice || 0).toFixed(2);
             if (productAmountInput) productAmountInput.value = parseFloat(order.amount || 0).toFixed(2);
         }
         
@@ -8460,19 +8466,21 @@ function calculateAmount(inputElement) {
     const productRow = inputElement.closest('.product-row');
     if (!productRow) return;
     
-    // 获取数量和单价
+    // 获取数量、单价和包装单价
     const quantityInput = productRow.querySelector('.product-quantity');
     const unitPriceInput = productRow.querySelector('.product-unit-price');
+    const packPriceInput = productRow.querySelector('.product-pack-price');
     const amountInput = productRow.querySelector('.product-amount');
     
     if (!quantityInput || !unitPriceInput || !amountInput) return;
     
-    // 转换为数字
+    // 转换为数字（包装单价可缺省，旧数据/旧节点按 0 处理）
     const quantity = parseFloat(quantityInput.value) || 0;
     const unitPrice = parseFloat(unitPriceInput.value) || 0;
+    const packPrice = packPriceInput ? (parseFloat(packPriceInput.value) || 0) : 0;
     
-    // 计算金额
-    const amount = quantity * unitPrice;
+    // 计算金额 =（产品单价 + 包装单价）× 数量
+    const amount = (unitPrice + packPrice) * quantity;
     
     // 更新金额输入框
     amountInput.value = amount.toFixed(2);
@@ -8938,6 +8946,11 @@ function addProductRow(containerId = 'productRowsContainer') {
             <div class="form-group" style="flex: 0 0 115px;">
                 <label class="form-label">单价 <span class="text-red-500">*</span></label>
                 <input type="number" name="unitPrice" class="form-input product-unit-price" required min="0" step="0.01" placeholder="输入单价" 
+                       oninput="calculateAmount(this)">
+            </div>
+            <div class="form-group" style="flex: 0 0 115px;">
+                <label class="form-label">包装单价</label>
+                <input type="number" name="packPrice" class="form-input product-pack-price" min="0" step="0.01" placeholder="包装单价" value="0"
                        oninput="calculateAmount(this)">
             </div>
             <div class="form-group" style="flex: 0 0 130px;">
