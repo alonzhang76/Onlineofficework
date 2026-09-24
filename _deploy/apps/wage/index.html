@@ -18,7 +18,7 @@ window.CLOUDBASE_SYNC = { email: 'sync@lori.app', password: 'LoriSync2026!' };
 <!-- 云端数据管理工具（同步 / 清空云端，window.CloudAdmin） -->
 <script src="../cloudbase-admin.js?v=20260919a"></script>
 <!-- 用户信息展示（不再跳转登录页） -->
-<script src="js/auth-guard.js"></script>
+<script src="js/auth-guard.js?v=20260924a"></script>
 <!-- 云存储文件中心（共享模块，与 orderschedule / wicketorders 共用同一云端目录） -->
 <link rel="stylesheet" href="../cloudbase/cfb.css?v=20260914b">
 <script>
@@ -497,7 +497,7 @@ table.batch-table .batch-proc { width: 100%; }
 
 
 </style>
-<link rel="stylesheet" href="../tablet-compat.css?v=20260915a">
+<link rel="stylesheet" href="../tablet-compat.css?v=20260924a">
 </head>
 <body>
 <div class="layout">
@@ -505,7 +505,6 @@ table.batch-table .batch-proc { width: 100%; }
     <div class="sidebar-header">
       <h1>计件工资管理系统</h1>
       <p>Piece-rate Wage System</p>
-      <div id="userInfo" style="margin-top:8px;font-size:11px;color:#94a3b8;text-align:center;"></div>
     </div>
     <nav class="nav" id="nav">
       <div class="nav-item active" data-tab="entry" title="工序登记">
@@ -4735,11 +4734,6 @@ UI.renderDataOverview = function() {
 DB.init();
 UI.init().then(function() {
   UI.renderDataOverview();
-  // 显示当前登录用户
-  var userInfoEl = document.getElementById('userInfo');
-  if (userInfoEl && window.currentSupabaseUser) {
-    userInfoEl.textContent = '当前用户：' + (window.currentSupabaseUser.email || '');
-  }
 });
 
 // ===================== 移动端点击/滚动兼容修复 =====================

@@ -22,7 +22,7 @@
   'use strict';
 
   // ===== 版本守卫：防止旧版 cloudbase-sync.js 在新版之后重新初始化 =====
-  var SYNC_VERSION = '20260923b';
+  var SYNC_VERSION = '20260924d';
   if (window.__CLOUDBASE_SYNC_VERSION__) {
     console.warn('[CloudbaseSync] 检测到已加载版本 ' + window.__CLOUDBASE_SYNC_VERSION__ +
       '，当前版本 ' + SYNC_VERSION + ' 跳过初始化');
@@ -210,7 +210,12 @@
     stainlessbusiness: ['certificateData', 'calculationParams', 'gradeComparisons',
       'plateCalculatorSavedResults', 'plateCalcData', 'plateCalcResult',
       'quotationRemarksUpdated', 'hs_label_load', 'hs_label_prefill_batch',
-      'hs_label_prefill'],
+      'hs_label_prefill',
+      // 业务主表（React 应用实际读写的核心数据，此前漏登记导致从未上云）
+      'salesOrders', 'purchaseOrders', 'transactions', 'invoices', 'payments',
+      'memos', 'calendarEvents',
+      // 公司/登录态（恢复新电脑时需要，否则应用停在登录页或公司名缺失）
+      'currentCompanyId', 'companyName1', 'companyName2'],
     saintysys: ['sht_sample_data_v2', 'sampleReviewRecords', 'consumptions',
       'clothing_cost_styles_v3', 'clothing_cost_categories_v3',
       'nas_folder_perms', 'styleImages', 'orders', 'draft',

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <script src="../auto-scale.js?v=20260917a"></script>
@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>生产订单管理系统</title>
     <script>window.SUPABASE_APP_ID='orderschedule';</script>
-    <script src="../cloudbase-sync.js?v=20260924c"></script>
+    <script src="../cloudbase-sync.js?v=20260924d"></script>
     <script src="../cloudbase-admin.js?v=20260919a"></script>
     <script src="../vendor/xlsx.full.min.js"></script>
     <style>
@@ -759,6 +759,22 @@
             border: none;
         }
 
+        /* ===== 表格"操作"列图标按钮：只显示符号，紧凑居中 ===== */
+        td .btn.btn-sm[title],
+        .memo-item-actions .btn-complete,
+        .memo-item-actions .btn-edit,
+        .memo-item-actions .btn-delete {
+            padding: 4px 6px;
+            min-width: 30px;
+            font-size: 15px;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            vertical-align: middle;
+        }
+        td .btn.btn-sm[title] + .btn.btn-sm[title] { margin-left: 4px; }
+
         /* 状态标签 */
         .badge {
             padding: 4px 10px;
@@ -1247,7 +1263,7 @@
         }
     </style>
     <link rel="stylesheet" href="../cloudbase/cfb.css?v=20260914b">
-    <link rel="stylesheet" href="../tablet-compat.css?v=20260915a">
+    <link rel="stylesheet" href="../tablet-compat.css?v=20260924a">
 </head>
 <body>
     <div id="app-container" class="container">
@@ -2359,8 +2375,8 @@
                         <td>${o.remark || '-'}</td>
                         <td class="${statusClass}">${deliveryStatus}</td>
                         <td>
-                            <button class="btn btn-sm btn-primary" onclick="editOrder('${o.id}')">编辑</button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteOrder('${o.id}')">删除</button>
+                            <button class="btn btn-sm btn-primary" onclick="editOrder('${o.id}')" title="编辑">✏️</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteOrder('${o.id}')" title="删除">🗑️</button>
                         </td>
                     </tr>
                 `}).join('');
@@ -2523,7 +2539,7 @@
                         <td>${o.packaging || '-'}</td>
                         <td class="${statusClass}">${getStatusBadge(deliveryStatus)}</td>
                         <td>
-                            <button class="btn btn-sm btn-primary" onclick="editOrder('${o.id}')">编辑</button>
+                            <button class="btn btn-sm btn-primary" onclick="editOrder('${o.id}')" title="编辑">✏️</button>
                         </td>
                     </tr>
                 `;
@@ -2659,7 +2675,7 @@
                         <td>${o.invoiceTitle || '-'}</td>
                         <td>${getStatusBadge(deliveryStatus)}</td>
                         <td>
-                            <button class="btn btn-sm btn-primary" onclick="editOrder('${o.id}')">编辑</button>
+                            <button class="btn btn-sm btn-primary" onclick="editOrder('${o.id}')" title="编辑">✏️</button>
                         </td>
                     </tr>
                 `;
@@ -4591,11 +4607,11 @@
                             <div class="memo-item-meta">
                                 <span>${deadlineText} | ${statusText}</span>
                                 <div class="memo-item-actions">
-                                    <button class="btn-complete" onclick="toggleMemoStatus('${memo.id}')">
-                                        ${memo.status === 'completed' ? '撤销' : '完成'}
+                                    <button class="btn-complete" onclick="toggleMemoStatus('${memo.id}')" title="${memo.status === 'completed' ? '撤销' : '完成'}">
+                                        ${memo.status === 'completed' ? '↩️' : '✅'}
                                     </button>
-                                    <button class="btn-edit" onclick="editMemo('${memo.id}')">编辑</button>
-                                    <button class="btn-delete" onclick="deleteMemo('${memo.id}')">删除</button>
+                                    <button class="btn-edit" onclick="editMemo('${memo.id}')" title="编辑">✏️</button>
+                                    <button class="btn-delete" onclick="deleteMemo('${memo.id}')" title="删除">🗑️</button>
                                 </div>
                             </div>
                         </div>
