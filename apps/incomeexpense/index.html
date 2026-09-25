@@ -148,6 +148,19 @@
             }
         }
     </style>
+    <style>
+        /* 待办弹窗内输入框占满宽度（覆盖 .input-field 的 max-width:180px） */
+        #todo-modal .input-field { max-width: none; }
+        /* 打印对账单 / 余额调节表时只保留打印区 */
+        @media print {
+            body * { visibility: hidden !important; }
+            #recon-print-area, #recon-print-area * { visibility: visible !important; }
+            #recon-print-area { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none !important; }
+            .no-print, .no-print * { display: none !important; }
+            #recon-panel-bank { position: absolute; left: 0; top: 0; width: 100%; }
+            #recon-panel-bank * { visibility: visible !important; }
+        }
+    </style>
     <link rel="stylesheet" href="../tablet-compat.css?v=20260915a">
 </head>
 <body class="bg-gray-50 min-h-screen">
@@ -162,73 +175,15 @@
         <div class="container mx-auto px-4 py-3">
             <div class="flex flex-col md:flex-row justify-between items-center gap-4">
                 <div class="flex items-center">
-                <svg width="80" height="80" viewBox="0 0 100 100" class="mr-2 animate-bounce">
-                    <!-- 会动的美钞 -->
-                    <style>
-                        @keyframes float {
-                            0%, 100% { transform: translateY(0) rotate(0deg); }
-                            25% { transform: translateY(-3px) rotate(2deg); }
-                            50% { transform: translateY(0) rotate(0deg); }
-                            75% { transform: translateY(-3px) rotate(-2deg); }
-                        }
-                        @keyframes shine {
-                            0% { opacity: 0; transform: translateX(-100%) rotate(45deg); }
-                            50% { opacity: 0.6; }
-                            100% { opacity: 0; transform: translateX(100%) rotate(45deg); }
-                        }
-                        .floating-bill {
-                            animation: float 2s ease-in-out infinite;
-                        }
-                        .shine-effect {
-                            animation: shine 3s ease-in-out infinite;
-                        }
-                    </style>
-                    
-                    <!-- 美钞 -->
-                    <g class="floating-bill">
-                        <!-- 纸币主体 -->
-                        <rect x="15" y="20" width="70" height="50" rx="2" ry="2" fill="#85BB65" stroke="#000000" stroke-width="0.5"/>
-                        
-                        <!-- 水印效果 -->
-                        <rect x="18" y="23" width="64" height="44" rx="1" ry="1" fill="none" stroke="#008000" stroke-width="0.2" opacity="0.3"/>
-                        
-                        <!-- 美元符号 -->
-                        <text x="50" y="45" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#008000" text-anchor="middle">$</text>
-                        <text x="50" y="65" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#008000" text-anchor="middle">100</text>
-                        
-                        <!-- 装饰线条 -->
-                        <path d="M18,30 L82,30" stroke="#008000" stroke-width="0.5" opacity="0.7"/>
-                        <path d="M18,70 L82,70" stroke="#008000" stroke-width="0.5" opacity="0.7"/>
-                        
-                        <!-- 角落数字 -->
-                        <text x="22" y="30" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#008000">100</text>
-                        <text x="78" y="30" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#008000" text-anchor="end">100</text>
-                        <text x="22" y="68" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#008000">100</text>
-                        <text x="78" y="68" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#008000" text-anchor="end">100</text>
-                        
-                        <!-- 发光效果 -->
-                        <path class="shine-effect" d="M0,25 L100,25" stroke="#FFFFFF" stroke-width="40" stroke-opacity="0.3" stroke-linecap="round"/>
-                        
-                        <!-- 安全线 -->
-                        <rect x="48" y="25" width="4" height="40" fill="#006400" opacity="0.5"/>
-                    </g>
-                </svg>
-                    
-                    <!-- 腮红 -->
-                    <circle cx="25" cy="60" r="6" fill="#FFCCCC" opacity="0.7"/>
-                    <circle cx="75" cy="60" r="6" fill="#FFCCCC" opacity="0.7"/>
-                </svg>
-                <h1 class="text-xl font-bold text-gray-800">常州收支表</h1>
-                <p class="text-lg font-cursive text-gray-700 bg-blue-50 p-2 rounded-lg inline-block mt-1">Designed By AlonZhang</p>
+                <h1 id="page-title" class="text-xl font-bold text-gray-800">常州收支表</h1>
             </div>
-            <!-- 公司切换按钮 -->
-            <div class="flex space-x-2">
-                <button id="company1-btn" class="company-btn px-3 py-1.5 bg-primary text-white rounded-lg font-medium text-sm whitespace-nowrap transition-colors duration-300 hover:bg-primary/90">
-                    普利美（常州）环境工程科技有限公司
-                </button>
-                <button id="company2-btn" class="company-btn px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg font-medium text-sm whitespace-nowrap transition-colors duration-300 hover:bg-gray-300">
-                    无锡龙力印铁设备制造有限公司
-                </button>
+            <!-- 公司抬头切换（下拉菜单） -->
+            <div class="flex items-center space-x-2">
+                <label for="company-select" class="text-sm text-gray-600 whitespace-nowrap"><i class="fa fa-building-o mr-1"></i>公司抬头</label>
+                <select id="company-select" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 bg-white max-w-[260px] focus:outline-none focus:ring-2 focus:ring-primary">
+                    <option value="company1">普利美（常州）环境工程科技有限公司</option>
+                    <option value="company2">无锡龙力印铁设备制造有限公司</option>
+                </select>
             </div>
             <div class="flex items-center space-x-4">
 
@@ -258,6 +213,22 @@
 
     <!-- 主内容区 -->
     <main class="container mx-auto px-4 py-6">
+      <!-- 一级标签栏 -->
+      <div class="bg-white rounded-xl p-1.5 card-shadow mb-6 flex flex-wrap gap-1 sticky top-0 z-20">
+        <button class="main-tab flex-1 min-w-[120px] px-4 py-2.5 rounded-lg text-sm font-medium transition-colors bg-primary text-white" data-tab="home">
+          <i class="fa fa-home mr-1.5"></i>首页
+        </button>
+        <button class="main-tab flex-1 min-w-[120px] px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-gray-600 hover:bg-gray-100" data-tab="recon">
+          <i class="fa fa-balance-scale mr-1.5"></i>财务对账
+        </button>
+        <button class="main-tab flex-1 min-w-[120px] px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-gray-600 hover:bg-gray-100 relative" data-tab="todo">
+          <i class="fa fa-check-square-o mr-1.5"></i>待办事项
+          <span id="todo-tab-badge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] leading-4 min-w-[16px] h-4 px-1 rounded-full">0</span>
+        </button>
+      </div>
+
+      <!-- ========== 视图：首页 ========== -->
+      <section id="view-home">
         <!-- 财务概览卡片 -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div class="bg-white rounded-xl p-6 card-shadow">
@@ -313,21 +284,8 @@
         
         <!-- 图表和交易记录区域 -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- 左侧：图表和待办事项区域 -->
+            <!-- 左侧：图表区域 -->
             <div class="lg:col-span-1 space-y-6">
-                <!-- 待办事项 -->
-                <div class="bg-white rounded-xl p-6 card-shadow">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-lg font-semibold text-gray-700">待办事项</h3>
-                        <button id="add-todo-btn" class="text-secondary hover:text-secondary-dark">
-                            <i class="fa fa-plus-circle text-xl"></i>
-                        </button>
-                    </div>
-                    <div id="todos-container" class="space-y-2 max-h-60 overflow-y-auto">
-                        <!-- 待办事项将通过JavaScript动态生成 -->
-                        <div class="text-center text-gray-500 py-4" id="empty-todos">暂无待办事项</div>
-                    </div>
-                </div>
                 <!-- 收入支出分布图表 -->
                 <div class="bg-white rounded-xl p-6 card-shadow">
                     <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
@@ -455,100 +413,6 @@
                         </div>
                     </div>
                     
-                    <!-- 财务对账功能 -->
-                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-100 mb-6">
-                        <h3 class="text-lg font-medium text-blue-800 mb-3 flex items-center">
-                            <i class="fa fa-balance-scale mr-2"></i>财务对账
-                        </h3>
-                        <div class="flex flex-col md:flex-row gap-4 items-start">
-                            <div class="w-full md:w-auto">
-                                <label for="reconciliation-unit" class="block text-sm font-medium text-gray-700 mb-1">收款/付款单位</label>
-                                <div class="relative">
-                                    <div class="inline-block">
-                                        <input type="text" id="reconciliation-unit" class="px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white min-w-[200px] max-w-full" placeholder="请输入单位名称" autocomplete="off">
-                                        <input type="hidden" id="reconciliation-unit-value" value="">
-                                    </div>
-                                    <div id="reconciliation-unit-suggestions" class="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto hidden">
-                                        <!-- 单位建议将动态生成 -->
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="w-full md:w-auto">
-                                <label for="reconciliation-start-date" class="block text-sm font-medium text-gray-700 mb-1">开始日期</label>
-                                <input type="date" id="reconciliation-start-date" class="px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white w-full">
-                            </div>
-                            <div class="w-full md:w-auto">
-                                <label for="reconciliation-end-date" class="block text-sm font-medium text-gray-700 mb-1">结束日期</label>
-                                <input type="date" id="reconciliation-end-date" class="px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white w-full">
-                            </div>
-                            <div class="w-full md:w-auto flex flex-col items-end space-y-2">
-                                <button id="reset-reconciliation-btn" class="btn-secondary w-full md:w-auto text-sm whitespace-nowrap min-w-[120px]" onclick="resetReconciliation()">
-                                    <i class="fa fa-refresh mr-1"></i> 重置
-                                </button>
-                                <button id="reconciliation-btn" class="btn-primary w-full md:w-auto text-sm whitespace-nowrap min-w-[120px]" onclick="performReconciliation()">
-                                    <i class="fa fa-search mr-1"></i> 对账
-                                </button>
-                                <button id="generate-reconciliation-btn" class="btn-secondary w-full md:w-auto text-sm whitespace-nowrap min-w-[120px]" onclick="generateReconciliationReport()">
-                                    <i class="fa fa-file-text-o mr-1"></i> 生成对账单
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <!-- 对账结果区域 -->
-                        <div id="reconciliation-results" class="mt-4 hidden">
-                            <div class="bg-white p-4 rounded-lg border border-gray-200">
-                                <div id="company-header" class="text-center mb-6">
-                                    <h2 class="text-2xl font-bold text-gray-800">公司名称</h2>
-                                    <p class="text-sm text-gray-500">财务对账单</p>
-                                </div>
-                                
-                                <!-- 交易明细表格 -->
-                                <div class="mt-4">
-                                    <h5 class="text-sm font-medium text-gray-700 mb-2">交易明细</h5>
-                                    <div class="overflow-x-auto">
-                                        <table class="min-w-full divide-y divide-gray-200">
-                                            <thead>
-                                                <tr>
-                                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">日期</th>
-                                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">类型</th>
-                                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">分类</th>
-                                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">说明</th>
-                                                    <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">金额</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody id="reconciliation-details" class="bg-white divide-y divide-gray-200">
-                                                <!-- 对账结果将动态生成 -->
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                                
-                                <!-- 对账结果（移到交易明细下方） -->
-                                <div class="mt-4">
-                                    <h4 class="text-md font-medium text-gray-800 mb-3">交易记录汇总</h4>
-                                    <div class="flex flex-wrap gap-4">
-                                        <div class="flex-1 min-w-[160px]">
-                                            <div class="text-sm text-gray-500 mb-1">总收入</div>
-                                            <div id="reconciliation-income" class="text-xl font-bold text-secondary">¥0.00</div>
-                                        </div>
-                                        <div class="flex-1 min-w-[160px]">
-                                            <div class="text-sm text-gray-500 mb-1">总支出</div>
-                                            <div id="reconciliation-expense" class="text-xl font-bold text-danger">¥0.00</div>
-                                        </div>
-                                        <div class="flex-1 min-w-[160px]">
-                                            <div class="text-sm text-gray-500 mb-1">净额</div>
-                                            <div id="reconciliation-balance" class="text-xl font-bold">¥0.00</div>
-                                        </div>
-                                        <div class="flex-1 min-w-[160px]">
-                                            <div class="text-sm text-gray-500 mb-1">交易笔数</div>
-                                            <div id="reconciliation-count" class="text-xl font-bold text-gray-700">0</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
                     <!-- 交易记录列表 -->
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200">
@@ -602,8 +466,290 @@
                 </div>
             </div>
         </div>
+      </section>
+      <!-- ========== /视图：首页 ========== -->
+
+      <!-- ========== 视图：财务对账 ========== -->
+      <section id="view-recon" class="hidden">
+        <!-- 二级标签 -->
+        <div class="bg-white rounded-xl p-1.5 card-shadow mb-6 flex flex-wrap gap-1">
+          <button class="recon-tab flex-1 min-w-[140px] px-4 py-2 rounded-lg text-sm font-medium bg-primary text-white" data-panel="unit">
+            <i class="fa fa-file-text-o mr-1.5"></i>往来对账单
+          </button>
+          <button class="recon-tab flex-1 min-w-[140px] px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100" data-panel="balances">
+            <i class="fa fa-list-alt mr-1.5"></i>往来余额表
+          </button>
+          <button class="recon-tab flex-1 min-w-[140px] px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100" data-panel="bank">
+            <i class="fa fa-university mr-1.5"></i>银行余额调节表
+          </button>
+        </div>
+
+        <!-- 面板一：往来对账单 -->
+        <div id="recon-panel-unit">
+          <div class="bg-white rounded-xl p-6 card-shadow mb-6">
+            <h3 class="text-lg font-semibold text-gray-700 mb-4"><i class="fa fa-filter mr-2 text-primary"></i>对账条件</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">往来单位（收/付款单位）</label>
+                <div class="relative">
+                  <input type="text" id="reconciliation-unit" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="全部单位 / 输入名称筛选" autocomplete="off">
+                  <input type="hidden" id="reconciliation-unit-value" value="">
+                  <div id="reconciliation-unit-suggestions" class="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto hidden"></div>
+                </div>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">开始日期</label>
+                <input type="date" id="reconciliation-start-date" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">结束日期</label>
+                <input type="date" id="reconciliation-end-date" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">核对状态</label>
+                <select id="reconciliation-checked" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                  <option value="all">全部记录</option>
+                  <option value="unchecked">仅未核对</option>
+                  <option value="checked">仅已核对</option>
+                </select>
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 mt-4">
+              <span class="text-xs text-gray-500 mr-1">快捷区间：</span>
+              <button class="recon-quick px-3 py-1 text-xs rounded-full border border-gray-300 text-gray-600 hover:bg-gray-100" data-range="month">本月</button>
+              <button class="recon-quick px-3 py-1 text-xs rounded-full border border-gray-300 text-gray-600 hover:bg-gray-100" data-range="lastmonth">上月</button>
+              <button class="recon-quick px-3 py-1 text-xs rounded-full border border-gray-300 text-gray-600 hover:bg-gray-100" data-range="quarter">本季</button>
+              <button class="recon-quick px-3 py-1 text-xs rounded-full border border-gray-300 text-gray-600 hover:bg-gray-100" data-range="year">本年</button>
+              <button class="recon-quick px-3 py-1 text-xs rounded-full border border-gray-300 text-gray-600 hover:bg-gray-100" data-range="all">全部</button>
+            </div>
+            <div class="flex flex-wrap gap-3 mt-4">
+              <button id="reconciliation-btn" class="btn-primary text-sm"><i class="fa fa-search mr-1"></i>开始对账</button>
+              <button id="reset-reconciliation-btn" class="btn-secondary text-sm"><i class="fa fa-refresh mr-1"></i>重置</button>
+              <button id="recon-check-all-btn" class="px-4 py-2 text-sm rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200"><i class="fa fa-check-double mr-1"></i>当前结果全部标记已核对</button>
+              <button id="recon-export-btn" class="px-4 py-2 text-sm rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200"><i class="fa fa-file-excel-o mr-1"></i>导出Excel</button>
+              <button id="generate-reconciliation-btn" class="px-4 py-2 text-sm rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200"><i class="fa fa-file-text-o mr-1"></i>生成对账单</button>
+              <button id="recon-print-btn" class="px-4 py-2 text-sm rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200"><i class="fa fa-print mr-1"></i>打印</button>
+            </div>
+          </div>
+
+          <div id="reconciliation-results" class="hidden">
+            <!-- 汇总卡片 -->
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+              <div class="bg-white rounded-xl p-4 card-shadow">
+                <div class="text-xs text-gray-500 mb-1">期初余额</div>
+                <div id="reconciliation-opening" class="text-lg font-bold text-gray-800">¥0.00</div>
+              </div>
+              <div class="bg-white rounded-xl p-4 card-shadow">
+                <div class="text-xs text-gray-500 mb-1">本期收入</div>
+                <div id="reconciliation-income" class="text-lg font-bold text-secondary">¥0.00</div>
+              </div>
+              <div class="bg-white rounded-xl p-4 card-shadow">
+                <div class="text-xs text-gray-500 mb-1">本期支出</div>
+                <div id="reconciliation-expense" class="text-lg font-bold text-danger">¥0.00</div>
+              </div>
+              <div class="bg-white rounded-xl p-4 card-shadow">
+                <div class="text-xs text-gray-500 mb-1">期末余额</div>
+                <div id="reconciliation-balance" class="text-lg font-bold text-gray-800">¥0.00</div>
+              </div>
+              <div class="bg-white rounded-xl p-4 card-shadow">
+                <div class="text-xs text-gray-500 mb-1">未核对</div>
+                <div class="text-lg font-bold text-warning"><span id="reconciliation-unchecked-count">0</span> 笔 / <span id="reconciliation-unchecked-amount">¥0.00</span></div>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-xl p-6 card-shadow" id="recon-print-area">
+              <div id="company-header" class="text-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-800">公司名称</h2>
+                <p class="text-sm text-gray-500 mt-1">往来对账单（<span id="recon-period-text"></span>）</p>
+                <p class="text-sm text-gray-700 mt-1">往来单位：<span id="recon-unit-text">全部单位</span></p>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead>
+                    <tr>
+                      <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">日期</th>
+                      <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">类型</th>
+                      <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">分类</th>
+                      <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">说明 / 单位</th>
+                      <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">收入</th>
+                      <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">支出</th>
+                      <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">余额</th>
+                      <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase no-print">核对</th>
+                    </tr>
+                  </thead>
+                  <tbody id="reconciliation-details" class="divide-y divide-gray-200"></tbody>
+                </table>
+              </div>
+              <p class="text-xs text-gray-400 mt-4">说明：收入为正、支出为负；期初余额为开始日期之前该单位（或全部单位）的累计净余额；"已核对"标记保存在本机并随云端数据同步。</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 面板二：往来余额表 -->
+        <div id="recon-panel-balances" class="hidden">
+          <div class="bg-white rounded-xl p-6 card-shadow mb-6">
+            <div class="flex flex-wrap items-end gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">余额截止日期</label>
+                <input type="date" id="balance-asof-date" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+              </div>
+              <button id="balance-refresh-btn" class="btn-primary text-sm"><i class="fa fa-refresh mr-1"></i>刷新</button>
+              <button id="balance-export-btn" class="px-4 py-2 text-sm rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200"><i class="fa fa-file-excel-o mr-1"></i>导出Excel</button>
+              <span class="text-xs text-gray-400">点击任意单位行可直接生成该单位的往来对账单</span>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white rounded-xl p-4 card-shadow"><div class="text-xs text-gray-500 mb-1">往来单位</div><div id="bal-stat-units" class="text-lg font-bold text-gray-800">0</div></div>
+            <div class="bg-white rounded-xl p-4 card-shadow"><div class="text-xs text-gray-500 mb-1">应收（人欠我）</div><div id="bal-stat-receivable" class="text-lg font-bold text-secondary">¥0.00</div></div>
+            <div class="bg-white rounded-xl p-4 card-shadow"><div class="text-xs text-gray-500 mb-1">应付（我欠人）</div><div id="bal-stat-payable" class="text-lg font-bold text-danger">¥0.00</div></div>
+            <div class="bg-white rounded-xl p-4 card-shadow"><div class="text-xs text-gray-500 mb-1">净往来余额</div><div id="bal-stat-net" class="text-lg font-bold text-gray-800">¥0.00</div></div>
+          </div>
+          <div class="bg-white rounded-xl p-6 card-shadow">
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead>
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">往来单位</th>
+                    <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">收入累计</th>
+                    <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">支出累计</th>
+                    <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">净余额</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">最近往来</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">账龄区间</th>
+                    <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">笔数</th>
+                  </tr>
+                </thead>
+                <tbody id="balance-details" class="divide-y divide-gray-200"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- 面板三：银行余额调节表 -->
+        <div id="recon-panel-bank" class="hidden">
+          <div class="bg-white rounded-xl p-6 card-shadow max-w-4xl">
+            <h3 class="text-lg font-semibold text-gray-700 mb-1"><i class="fa fa-university mr-2 text-primary"></i>银行存款余额调节表</h3>
+            <p class="text-xs text-gray-400 mb-5">依据财政部《会计软件基本功能和服务规范》银行对账要求：根据日记账余额、银行对账单余额及未达账项调节，两侧调节后余额应相等。数据按公司保存在本机。</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div class="border border-gray-200 rounded-lg p-4">
+                <h4 class="font-medium text-gray-800 mb-3">企业银行存款日记账</h4>
+                <div class="space-y-3">
+                  <div>
+                    <label class="block text-xs text-gray-500 mb-1">账面余额</label>
+                    <input type="number" step="0.01" id="br-book-balance" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-500 mb-1">加：银行已收、企业未收</label>
+                    <input type="number" step="0.01" id="br-bank-add" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="0.00">
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-500 mb-1">减：银行已付、企业未付</label>
+                    <input type="number" step="0.01" id="br-bank-sub" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="0.00">
+                  </div>
+                  <div class="border-t border-gray-200 pt-3 flex justify-between items-center">
+                    <span class="text-sm font-medium text-gray-700">调节后余额</span>
+                    <span id="br-book-adjusted" class="text-lg font-bold text-primary">¥0.00</span>
+                  </div>
+                </div>
+              </div>
+              <div class="border border-gray-200 rounded-lg p-4">
+                <h4 class="font-medium text-gray-800 mb-3">银行对账单</h4>
+                <div class="space-y-3">
+                  <div>
+                    <label class="block text-xs text-gray-500 mb-1">对账单余额</label>
+                    <input type="number" step="0.01" id="br-bank-balance" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-500 mb-1">加：企业已收、银行未收</label>
+                    <input type="number" step="0.01" id="br-book-add" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="0.00">
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-500 mb-1">减：企业已付、银行未付</label>
+                    <input type="number" step="0.01" id="br-book-sub" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="0.00">
+                  </div>
+                  <div class="border-t border-gray-200 pt-3 flex justify-between items-center">
+                    <span class="text-sm font-medium text-gray-700">调节后余额</span>
+                    <span id="br-bank-adjusted" class="text-lg font-bold text-primary">¥0.00</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-4 mt-5">
+              <div>
+                <label class="block text-xs text-gray-500 mb-1">截止日期</label>
+                <input type="date" id="br-date" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+              </div>
+              <button id="br-save-btn" class="btn-primary text-sm mt-4"><i class="fa fa-save mr-1"></i>保存</button>
+              <button id="br-print-btn" class="px-4 py-2 text-sm rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 mt-4"><i class="fa fa-print mr-1"></i>打印</button>
+              <div id="br-status" class="text-sm font-medium mt-4"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <!-- ========== /视图：财务对账 ========== -->
+
+      <!-- ========== 视图：待办事项 ========== -->
+      <section id="view-todo" class="hidden">
+        <!-- 统计卡片 -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div class="bg-white rounded-xl p-4 card-shadow">
+            <div class="flex justify-between items-center"><div class="text-xs text-gray-500">未完成</div><i class="fa fa-list-ul text-primary"></i></div>
+            <div id="todo-stat-open" class="text-2xl font-bold text-gray-800 mt-1">0</div>
+          </div>
+          <div class="bg-white rounded-xl p-4 card-shadow">
+            <div class="flex justify-between items-center"><div class="text-xs text-gray-500">今日到期</div><i class="fa fa-clock-o text-warning"></i></div>
+            <div id="todo-stat-today" class="text-2xl font-bold text-warning mt-1">0</div>
+          </div>
+          <div class="bg-white rounded-xl p-4 card-shadow">
+            <div class="flex justify-between items-center"><div class="text-xs text-gray-500">已逾期</div><i class="fa fa-exclamation-triangle text-danger"></i></div>
+            <div id="todo-stat-overdue" class="text-2xl font-bold text-danger mt-1">0</div>
+          </div>
+          <div class="bg-white rounded-xl p-4 card-shadow">
+            <div class="flex justify-between items-center"><div class="text-xs text-gray-500">完成率</div><i class="fa fa-check-circle text-secondary"></i></div>
+            <div id="todo-stat-rate" class="text-2xl font-bold text-secondary mt-1">0%</div>
+          </div>
+        </div>
+        <!-- 进度条 -->
+        <div class="bg-white rounded-xl px-5 py-3 card-shadow mb-6">
+          <div class="flex justify-between text-xs text-gray-500 mb-2"><span>完成进度</span><span id="todo-progress-text">0 / 0</span></div>
+          <div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden"><div id="todo-progress-bar" class="h-full bg-secondary transition-all duration-300" style="width:0%"></div></div>
+        </div>
+        <!-- 工具栏 -->
+        <div class="bg-white rounded-xl p-4 card-shadow mb-6 flex flex-wrap items-center gap-3">
+          <button id="add-todo-btn" class="btn-primary text-sm"><i class="fa fa-plus mr-1"></i>新建待办</button>
+          <div class="relative flex-1 min-w-[180px]">
+            <input type="text" id="todo-search" class="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="搜索待办内容...">
+            <i class="fa fa-search absolute left-3 top-3 text-gray-400 text-sm"></i>
+          </div>
+          <select id="todo-filter-status" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+            <option value="open">未完成</option>
+            <option value="all">全部</option>
+            <option value="overdue">已逾期</option>
+            <option value="today">今日到期</option>
+            <option value="done">已完成</option>
+          </select>
+          <select id="todo-filter-category" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+            <option value="all">全部分类</option>
+          </select>
+          <select id="todo-sort" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+            <option value="due">按截止日期</option>
+            <option value="priority">按优先级</option>
+            <option value="created">按创建时间</option>
+          </select>
+          <button id="todo-clear-done" class="px-3 py-2 text-sm rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200"><i class="fa fa-trash-o mr-1"></i>清除已完成</button>
+        </div>
+        <!-- 待办列表 -->
+        <div class="bg-white rounded-xl p-6 card-shadow">
+          <div id="todos-container" class="space-y-2">
+            <div class="text-center text-gray-500 py-10" id="empty-todos">
+              <i class="fa fa-inbox text-4xl text-gray-300 block mb-3"></i>
+              暂无待办事项，点击"新建待办"开始安排工作
+            </div>
+          </div>
+        </div>
+      </section>
+      <!-- ========== /视图：待办事项 ========== -->
     </main>
-    
+
     <!-- 待办事项编辑模态框 -->
         <div id="todo-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden animate-fade-in">
             <div class="bg-white rounded-xl p-6 w-full max-w-md card-shadow">
@@ -619,13 +765,34 @@
                         <label for="todo-text" class="block text-sm font-medium text-gray-700 mb-1">待办内容</label>
                         <textarea id="todo-text" rows="3" class="input-field" placeholder="请输入待办事项内容" required></textarea>
                     </div>
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label for="todo-category" class="block text-sm font-medium text-gray-700 mb-1">分类</label>
+                            <select id="todo-category" class="input-field">
+                                <option value="general">日常事务</option>
+                                <option value="payment">催款收款</option>
+                                <option value="invoice-out">开票</option>
+                                <option value="invoice-in">收票</option>
+                                <option value="tax">报税缴税</option>
+                                <option value="salary">工资社保</option>
+                                <option value="repayment">还款/借款</option>
+                                <option value="reimburse">报销</option>
+                                <option value="recon">对账结账</option>
+                                <option value="other">其他</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="todo-priority" class="block text-sm font-medium text-gray-700 mb-1">优先级</label>
+                            <select id="todo-priority" class="input-field">
+                                <option value="low">低</option>
+                                <option value="medium" selected>中</option>
+                                <option value="high">高</option>
+                            </select>
+                        </div>
+                    </div>
                     <div class="mb-4">
-                        <label for="todo-priority" class="block text-sm font-medium text-gray-700 mb-1">优先级</label>
-                        <select id="todo-priority" class="input-field">
-                            <option value="low">低</option>
-                            <option value="medium" selected>中</option>
-                            <option value="high">高</option>
-                        </select>
+                        <label for="todo-due-date" class="block text-sm font-medium text-gray-700 mb-1">截止日期（可选）</label>
+                        <input type="date" id="todo-due-date" class="input-field">
                     </div>
                     <div class="flex justify-end space-x-3">
                         <button type="button" id="cancel-todo-btn" class="btn-secondary px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors">取消</button>
@@ -801,31 +968,9 @@
             // 确保本地存储已初始化
             initializeLocalStorage(currentCompany);
             
-            // 等待DOM完全加载后再设置公司按钮样式
-            setTimeout(() => {
-                // 设置当前公司按钮样式
-                const companyBtns = document.querySelectorAll('.company-btn');
-                if (companyBtns.length > 0) {
-                    companyBtns.forEach(btn => {
-                        btn.classList.remove('bg-primary', 'text-white', 'bg-gray-200', 'text-gray-700');
-                        btn.classList.add('bg-gray-200', 'text-gray-700');
-                    });
-                    
-                    const currentCompanyBtn = document.getElementById(`${currentCompany}-btn`);
-                    if (currentCompanyBtn) {
-                        currentCompanyBtn.classList.remove('bg-gray-200', 'text-gray-700');
-                        currentCompanyBtn.classList.add('bg-primary', 'text-white');
-                        
-                        // 更新页面标题
-                        const companyName = currentCompanyBtn.textContent.trim();
-                        const pageTitle = document.querySelector('h1.text-xl.font-bold');
-                        if (pageTitle) {
-                            pageTitle.textContent = `${companyName}收支表`;
-                        }
-                    }
-                }
-            }, 50);
-            
+            // 同步公司抬头下拉框与页面标题
+            syncCompanySelect(currentCompany);
+
             // 初始化UI事件监听
             initializeEventListeners();
             
@@ -881,10 +1026,10 @@
             
             // 检查是否需要选中第一个公司
             if (selectFirstCompany === 'true') {
-                // 选中第一个公司按钮
-                const firstCompanyBtn = document.getElementById('company1-btn');
-                if (firstCompanyBtn && !firstCompanyBtn.classList.contains('bg-primary')) {
-                    firstCompanyBtn.click();
+                // 选中下拉框中的第一个公司
+                const companySelect = document.getElementById('company-select');
+                if (companySelect && companySelect.value !== 'company1') {
+                    switchCompany('company1');
                 }
             }
             
@@ -947,17 +1092,27 @@
 
         // 初始化应用
         document.addEventListener('DOMContentLoaded', function() {
-            // 公司切换按钮事件监听
-            if (document.getElementById('company1-btn') && document.getElementById('company2-btn')) {
-                document.getElementById('company1-btn').addEventListener('click', function() {
-                    switchCompany('company1');
-                });
-                
-                document.getElementById('company2-btn').addEventListener('click', function() {
-                    switchCompany('company2');
+            // 公司抬头下拉切换
+            const companySelect = document.getElementById('company-select');
+            if (companySelect) {
+                companySelect.addEventListener('change', function() {
+                    switchCompany(this.value);
                 });
             }
-            
+
+            // 一级标签切换
+            document.querySelectorAll('.main-tab').forEach(function(tab) {
+                tab.addEventListener('click', function() {
+                    switchMainTab(this.dataset.tab);
+                });
+            });
+            // 财务对账二级标签切换
+            document.querySelectorAll('.recon-tab').forEach(function(tab) {
+                tab.addEventListener('click', function() {
+                    switchReconPanel(this.dataset.panel);
+                });
+            });
+
             // 初始化应用
             initializeApp();
 
@@ -984,19 +1139,55 @@
                 try {
                     if (typeof updateCategoryOptions === 'function') updateCategoryOptions();
                 } catch (err) { console.warn('[CloudUpdate] 分类下拉刷新失败:', err); }
-                // 首次全量同步时，强制刷新公司按钮状态
+                // 首次全量同步时，强制刷新公司下拉状态
                 if (detail.initial) {
                     try {
-                        var cc = getCurrentCompany();
-                        var ccBtn = document.getElementById(cc + '-btn');
-                        if (ccBtn) {
-                            ccBtn.classList.remove('bg-gray-200', 'text-gray-700');
-                            ccBtn.classList.add('bg-primary', 'text-white');
-                        }
+                        syncCompanySelect(getCurrentCompany());
                     } catch (err) {}
                 }
+                // 若正停留在财务对账页，同步刷新对账数据
+                try {
+                    if (currentMainTab === 'recon') refreshReconOnDataChange();
+                } catch (err) {}
             });
         });
+
+        // ===== 公司抬头 =====
+        var COMPANY_NAMES = {
+            company1: '普利美（常州）环境工程科技有限公司',
+            company2: '无锡龙力印铁设备制造有限公司'
+        };
+        function getCompanyName(companyId) {
+            return COMPANY_NAMES[companyId] || companyId;
+        }
+        // 同步下拉框选中值与页面标题
+        function syncCompanySelect(companyId) {
+            var sel = document.getElementById('company-select');
+            if (sel) sel.value = companyId;
+            var title = document.getElementById('page-title');
+            if (title) title.textContent = getCompanyName(companyId) + '收支表';
+        }
+
+        // ===== 一级标签 =====
+        var currentMainTab = 'home';
+        function switchMainTab(tabName) {
+            currentMainTab = tabName;
+            ['home', 'recon', 'todo'].forEach(function(name) {
+                var view = document.getElementById('view-' + name);
+                if (view) view.classList.toggle('hidden', name !== tabName);
+            });
+            document.querySelectorAll('.main-tab').forEach(function(btn) {
+                var active = btn.dataset.tab === tabName;
+                btn.classList.toggle('bg-primary', active);
+                btn.classList.toggle('text-white', active);
+                btn.classList.toggle('text-gray-600', !active);
+                btn.classList.toggle('hover:bg-gray-100', !active);
+            });
+            if (tabName === 'recon') {
+                refreshReconOnDataChange();
+            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
 
         // 获取当前选中的公司
         function getCurrentCompany() {
@@ -1022,45 +1213,105 @@
         
         // 切换公司
         function switchCompany(companyId) {
+            if (!COMPANY_NAMES[companyId]) companyId = 'company1';
             // 保存当前选中的公司
             localStorage.setItem('currentCompany', companyId);
-            
-            // 更新按钮样式
-            document.querySelectorAll('.company-btn').forEach(btn => {
-                btn.classList.remove('bg-primary', 'text-white', 'bg-gray-200', 'text-gray-700');
-                btn.classList.add('bg-gray-200', 'text-gray-700');
-            });
-            document.getElementById(`${companyId}-btn`).classList.remove('bg-gray-200', 'text-gray-700');
-            document.getElementById(`${companyId}-btn`).classList.add('bg-primary', 'text-white');
-            
-            // 更新页面标题
-            const companyName = document.getElementById(`${companyId}-btn`).textContent.trim();
-            document.querySelector('h1.text-xl.font-bold').textContent = `${companyName}收支表`;
-            
+
+            // 同步下拉框与页面标题
+            syncCompanySelect(companyId);
+
             // 初始化本地存储并重新加载数据
             initializeLocalStorage(companyId);
             loadTransactions();
             updateFinancialSummary();
             updateDistributionChart('month');
             updateCategoryChart('expense', 'month');
-            
-            // 初始化财务对账单位下拉框
-            if (typeof initReconciliationUnits === 'function') {
-                initReconciliationUnits();
+
+            // 同步财务对账页（结果重算、余额表与银行调节表按新公司加载）
+            if (typeof onReconCompanyChanged === 'function') {
+                onReconCompanyChanged();
             }
-            
+
             // 显示切换成功通知
-            showNotification('公司切换', `已切换至${companyName}`, 'success');
+            showNotification('公司切换', '已切换至' + getCompanyName(companyId), 'success');
         }
 
-        // 待办事项相关函数
+        // ================= 待办事项（独立标签页版） =================
         let todos = [];
-        
-        // 加载待办事项
+
+        var TODO_CATEGORIES = {
+            general:   { name: '日常事务', color: '#6b7280', icon: 'fa-flag-o' },
+            payment:   { name: '催款收款', color: '#ef4444', icon: 'fa-money' },
+            'invoice-out': { name: '开票', color: '#f59e0b', icon: 'fa-file-text-o' },
+            'invoice-in':  { name: '收票', color: '#8b5cf6', icon: 'fa-inbox' },
+            tax:       { name: '报税缴税', color: '#3b82f6', icon: 'fa-building-o' },
+            salary:    { name: '工资社保', color: '#10b981', icon: 'fa-users' },
+            repayment: { name: '还款/借款', color: '#ec4899', icon: 'fa-handshake-o' },
+            reimburse: { name: '报销', color: '#14b8a6', icon: 'fa-credit-card' },
+            recon:     { name: '对账结账', color: '#0ea5e9', icon: 'fa-balance-scale' },
+            other:     { name: '其他', color: '#9ca3af', icon: 'fa-ellipsis-h' }
+        };
+        var TODO_PRIORITY = {
+            high: { name: '高', color: '#ef4444' },
+            medium: { name: '中', color: '#f59e0b' },
+            low: { name: '低', color: '#10b981' }
+        };
+
+        function todoEscapeHtml(str) {
+            return String(str == null ? '' : str)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+        // 当天 00:00
+        function todoToday() {
+            var d = new Date();
+            d.setHours(0, 0, 0, 0);
+            return d;
+        }
+        // 待办状态：overdue / today / future / none（未完成无截止日期）/ done
+        function todoStatus(todo) {
+            if (todo.completed) return 'done';
+            if (!todo.dueDate) return 'none';
+            var due = new Date(todo.dueDate + 'T00:00:00');
+            var today = todoToday();
+            var diff = Math.round((due - today) / 86400000);
+            if (diff < 0) return 'overdue';
+            if (diff === 0) return 'today';
+            return 'future';
+        }
+        function todoDueLabel(todo) {
+            var st = todoStatus(todo);
+            if (st === 'done') {
+                return todo.completedAt
+                    ? '<span class="text-xs text-gray-400"><i class="fa fa-check mr-1"></i>' + formatDate(String(todo.completedAt).split('T')[0]) + '完成</span>'
+                    : '<span class="text-xs text-gray-400">已完成</span>';
+            }
+            if (st === 'none') return '<span class="text-xs text-gray-400"><i class="fa fa-calendar-o mr-1"></i>无截止日期</span>';
+            var due = new Date(todo.dueDate + 'T00:00:00');
+            var diff = Math.round((due - todoToday()) / 86400000);
+            if (st === 'overdue') return '<span class="text-xs font-medium text-red-600"><i class="fa fa-exclamation-circle mr-1"></i>逾期' + (-diff) + '天 · ' + formatDate(todo.dueDate) + '</span>';
+            if (st === 'today') return '<span class="text-xs font-medium text-amber-600"><i class="fa fa-clock-o mr-1"></i>今天到期</span>';
+            if (diff === 1) return '<span class="text-xs text-blue-600">明天到期 · ' + formatDate(todo.dueDate) + '</span>';
+            return '<span class="text-xs text-gray-500">' + diff + '天后 · ' + formatDate(todo.dueDate) + '</span>';
+        }
+
+        // 加载待办事项（兼容旧数据：补齐 category/dueDate/completedAt 字段）
         function loadTodos() {
             try {
-                const savedTodos = localStorage.getItem('todos');
-                todos = savedTodos ? JSON.parse(savedTodos) : [];
+                var savedTodos = localStorage.getItem('todos');
+                var parsed = savedTodos ? JSON.parse(savedTodos) : [];
+                todos = (Array.isArray(parsed) ? parsed : []).map(function(t) {
+                    return {
+                        id: t.id || generateId(),
+                        text: t.text || '',
+                        priority: TODO_PRIORITY[t.priority] ? t.priority : 'medium',
+                        category: TODO_CATEGORIES[t.category] ? t.category : 'general',
+                        dueDate: t.dueDate || '',
+                        completed: !!t.completed,
+                        createdAt: t.createdAt || new Date().toISOString(),
+                        completedAt: t.completedAt || ''
+                    };
+                });
                 displayTodos();
             } catch (error) {
                 console.error('加载待办事项失败:', error);
@@ -1068,152 +1319,214 @@
                 displayTodos();
             }
         }
-        
-        // 显示待办事项列表
+
+        function persistTodos() {
+            localStorage.setItem('todos', JSON.stringify(todos));
+        }
+
+        // 显示待办事项列表与统计
         function displayTodos() {
-            const todosContainer = document.getElementById('todos-container');
-            const emptyTodos = document.getElementById('empty-todos');
-            
-            // 清空容器
-            while (todosContainer.firstChild) {
-                if (todosContainer.firstChild.id !== 'empty-todos') {
-                    todosContainer.removeChild(todosContainer.firstChild);
-                } else {
-                    break;
+            var container = document.getElementById('todos-container');
+            if (!container) return;
+            var empty = document.getElementById('empty-todos');
+
+            // 统计（基于全部待办，不受筛选影响）
+            var openCount = 0, todayCount = 0, overdueCount = 0, doneCount = 0;
+            todos.forEach(function(t) {
+                var st = todoStatus(t);
+                if (st === 'done') doneCount++;
+                else {
+                    openCount++;
+                    if (st === 'today') todayCount++;
+                    if (st === 'overdue') overdueCount++;
                 }
-            }
-            
-            // 检查是否有待办事项
-            if (todos.length === 0) {
-                emptyTodos.classList.remove('hidden');
-                return;
-            } else {
-                emptyTodos.classList.add('hidden');
-            }
-            
-            // 按优先级和创建时间排序
-            todos.sort((a, b) => {
-                const priorityOrder = { high: 0, medium: 1, low: 2 };
-                if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
-                    return priorityOrder[a.priority] - priorityOrder[b.priority];
-                }
-                return new Date(b.createdAt) - new Date(a.createdAt);
             });
-            
-            // 创建并添加待办事项
-            todos.forEach(todo => {
-                const todoElement = document.createElement('div');
-                todoElement.className = `flex items-center p-3 rounded-lg border ${todo.completed ? 'bg-gray-100 border-gray-200' : 'bg-white border-gray-300'}`;
-                todoElement.dataset.id = todo.id;
-                
-                // 优先级标记
-                const priorityColor = {
-                    high: 'bg-red-500',
-                    medium: 'bg-yellow-500',
-                    low: 'bg-green-500'
-                };
-                
-                todoElement.innerHTML = `
-                    <div class="mr-3">
-                        <div class="w-2 h-2 rounded-full ${priorityColor[todo.priority]}"></div>
-                    </div>
-                    <div class="flex-grow">
-                        <p class="${todo.completed ? 'line-through text-gray-500' : 'text-gray-800'}" title="${todo.text}">${todo.text}</p>
-                        <p class="text-xs text-gray-500">${formatDate(todo.createdAt.split('T')[0])}</p>
-                    </div>
-                    <div class="flex items-center space-x-2">
-                        <button class="complete-todo p-1.5 rounded-md hover:bg-gray-200 transition-colors" title="${todo.completed ? '标记为未完成' : '标记为已完成'}">
-                            <i class="fa fa-check-circle ${todo.completed ? 'text-secondary' : 'text-gray-400'}"></i>
-                        </button>
-                        <button class="edit-todo p-1.5 rounded-md hover:bg-gray-200 transition-colors" title="编辑待办事项">
-                            <i class="fa fa-pencil text-gray-400 hover:text-gray-600"></i>
-                        </button>
-                        <button class="delete-todo p-1.5 rounded-md hover:bg-gray-200 transition-colors" title="删除待办事项">
-                            <i class="fa fa-trash text-gray-400 hover:text-danger"></i>
-                        </button>
-                    </div>
-                `;
-                
-                todosContainer.insertBefore(todoElement, emptyTodos);
+            var total = todos.length;
+            var rate = total ? Math.round(doneCount / total * 100) : 0;
+            var setText = function(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; };
+            setText('todo-stat-open', openCount);
+            setText('todo-stat-today', todayCount);
+            setText('todo-stat-overdue', overdueCount);
+            setText('todo-stat-rate', rate + '%');
+            setText('todo-progress-text', doneCount + ' / ' + total);
+            var bar = document.getElementById('todo-progress-bar');
+            if (bar) bar.style.width = rate + '%';
+            var badge = document.getElementById('todo-tab-badge');
+            if (badge) {
+                badge.textContent = overdueCount;
+                badge.classList.toggle('hidden', overdueCount === 0);
+            }
+
+            // 筛选条件
+            var statusVal = (document.getElementById('todo-filter-status') || {}).value || 'open';
+            var catVal = (document.getElementById('todo-filter-category') || {}).value || 'all';
+            var sortVal = (document.getElementById('todo-sort') || {}).value || 'due';
+            var kw = ((document.getElementById('todo-search') || {}).value || '').trim().toLowerCase();
+
+            var list = todos.filter(function(t) {
+                var st = todoStatus(t);
+                if (statusVal === 'open' && st === 'done') return false;
+                if (statusVal === 'done' && st !== 'done') return false;
+                if (statusVal === 'overdue' && st !== 'overdue') return false;
+                if (statusVal === 'today' && st !== 'today') return false;
+                if (catVal !== 'all' && t.category !== catVal) return false;
+                if (kw && t.text.toLowerCase().indexOf(kw) === -1) return false;
+                return true;
+            });
+
+            var prOrder = { high: 0, medium: 1, low: 2 };
+            list.sort(function(a, b) {
+                // 未完成始终排在已完成之前
+                if (a.completed !== b.completed) return a.completed ? 1 : -1;
+                if (sortVal === 'priority') {
+                    if (prOrder[a.priority] !== prOrder[b.priority]) return prOrder[a.priority] - prOrder[b.priority];
+                    return new Date(b.createdAt) - new Date(a.createdAt);
+                }
+                if (sortVal === 'created') return new Date(b.createdAt) - new Date(a.createdAt);
+                // 默认按截止日期：有日期的在前，逾期/临期优先
+                var ra = a.dueDate ? new Date(a.dueDate + 'T00:00:00').getTime() : Infinity;
+                var rb = b.dueDate ? new Date(b.dueDate + 'T00:00:00').getTime() : Infinity;
+                if (ra !== rb) return ra - rb;
+                return prOrder[a.priority] - prOrder[b.priority];
+            });
+
+            container.innerHTML = '';
+            if (list.length === 0) {
+                var emptyEl = document.createElement('div');
+                emptyEl.className = 'text-center text-gray-500 py-10';
+                emptyEl.id = 'empty-todos';
+                emptyEl.innerHTML = '<i class="fa fa-inbox text-4xl text-gray-300 block mb-3"></i>' +
+                    (total === 0 ? '暂无待办事项，点击"新建待办"开始安排工作' : '当前筛选条件下没有待办事项');
+                container.appendChild(emptyEl);
+                return;
+            }
+
+            list.forEach(function(todo) {
+                var cat = TODO_CATEGORIES[todo.category] || TODO_CATEGORIES.general;
+                var pri = TODO_PRIORITY[todo.priority] || TODO_PRIORITY.medium;
+                var st = todoStatus(todo);
+                var el = document.createElement('div');
+                var borderCls = todo.completed ? 'bg-gray-50 border-gray-200'
+                    : (st === 'overdue' ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200');
+                el.className = 'flex items-start p-3 rounded-lg border ' + borderCls;
+                el.dataset.id = todo.id;
+                el.innerHTML =
+                    '<button class="complete-todo mt-0.5 mr-3 flex-shrink-0" title="' + (todo.completed ? '标记为未完成' : '标记为已完成') + '">' +
+                        '<i class="fa ' + (todo.completed ? 'fa-check-circle text-secondary' : 'fa-circle-o text-gray-300 hover:text-secondary') + ' text-xl"></i>' +
+                    '</button>' +
+                    '<div class="flex-grow min-w-0">' +
+                        '<p class="text-sm ' + (todo.completed ? 'line-through text-gray-400' : 'text-gray-800') + ' break-words">' + todoEscapeHtml(todo.text) + '</p>' +
+                        '<div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">' +
+                            todoDueLabel(todo) +
+                            '<span class="text-xs px-2 py-0.5 rounded-full text-white" style="background-color:' + cat.color + '"><i class="fa ' + cat.icon + ' mr-1"></i>' + cat.name + '</span>' +
+                            '<span class="text-xs px-2 py-0.5 rounded-full text-white" style="background-color:' + pri.color + '">优先级：' + pri.name + '</span>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="flex items-center space-x-1 ml-2 flex-shrink-0">' +
+                        '<button class="edit-todo p-1.5 rounded-md hover:bg-gray-200" title="编辑"><i class="fa fa-pencil text-gray-400 hover:text-gray-600"></i></button>' +
+                        '<button class="delete-todo p-1.5 rounded-md hover:bg-gray-200" title="删除"><i class="fa fa-trash text-gray-400 hover:text-danger"></i></button>' +
+                    '</div>';
+                container.appendChild(el);
             });
         }
-        
+
         // 保存待办事项
         function saveTodo() {
-            const todoId = document.getElementById('todo-id').value;
-            const todoText = document.getElementById('todo-text').value.trim();
-            const todoPriority = document.getElementById('todo-priority').value;
-            
-            const todo = {
-                id: todoId || generateId(),
+            var todoId = document.getElementById('todo-id').value;
+            var todoText = document.getElementById('todo-text').value.trim();
+            if (!todoText) {
+                showNotification('提示', '请输入待办内容', 'error');
+                return;
+            }
+            var data = {
                 text: todoText,
-                priority: todoPriority,
-                completed: false,
-                createdAt: new Date().toISOString()
+                priority: document.getElementById('todo-priority').value,
+                category: document.getElementById('todo-category').value,
+                dueDate: document.getElementById('todo-due-date').value || ''
             };
-            
-            // 如果是编辑现有待办事项，保留completed状态
+
             if (todoId) {
-                const existingTodo = todos.find(t => t.id === todoId);
-                if (existingTodo) {
-                    todo.completed = existingTodo.completed;
+                var existing = todos.find(function(t) { return t.id === todoId; });
+                if (existing) {
+                    existing.text = data.text;
+                    existing.priority = data.priority;
+                    existing.category = data.category;
+                    existing.dueDate = data.dueDate;
                 }
-            }
-            
-            // 更新或添加待办事项
-            const existingIndex = todos.findIndex(t => t.id === todoId);
-            if (existingIndex >= 0) {
-                todos[existingIndex] = todo;
             } else {
-                todos.push(todo);
+                todos.push({
+                    id: generateId(),
+                    text: data.text,
+                    priority: data.priority,
+                    category: data.category,
+                    dueDate: data.dueDate,
+                    completed: false,
+                    createdAt: new Date().toISOString(),
+                    completedAt: ''
+                });
             }
-            
-            // 保存到localStorage
-            localStorage.setItem('todos', JSON.stringify(todos));
-            
-            // 更新显示
+            persistTodos();
             displayTodos();
-            
-            // 关闭模态框
             document.getElementById('todo-modal').classList.add('hidden');
         }
-        
+
         // 切换待办事项完成状态
         function toggleTodoComplete(todoId) {
-            const todo = todos.find(t => t.id === todoId);
+            var todo = todos.find(function(t) { return t.id === todoId; });
             if (todo) {
                 todo.completed = !todo.completed;
-                localStorage.setItem('todos', JSON.stringify(todos));
+                todo.completedAt = todo.completed ? new Date().toISOString() : '';
+                persistTodos();
                 displayTodos();
             }
         }
-        
+
         // 删除待办事项
         function deleteTodo(todoId) {
             if (confirm('确定要删除这条待办事项吗？')) {
-                todos = todos.filter(t => t.id !== todoId);
-                localStorage.setItem('todos', JSON.stringify(todos));
+                todos = todos.filter(function(t) { return t.id !== todoId; });
+                persistTodos();
                 displayTodos();
             }
         }
-        
+
         // 打开添加待办事项模态框
         function openAddTodoModal() {
-            document.getElementById('todo-modal-title').textContent = '添加待办事项';
+            document.getElementById('todo-modal-title').textContent = '新建待办事项';
             document.getElementById('todo-id').value = '';
             document.getElementById('todo-form').reset();
+            document.getElementById('todo-category').value = 'general';
+            document.getElementById('todo-priority').value = 'medium';
+            document.getElementById('todo-due-date').value = '';
             document.getElementById('todo-modal').classList.remove('hidden');
         }
-        
+
         // 打开编辑待办事项模态框
         function openEditTodoModal(todoId) {
-            const todo = todos.find(t => t.id === todoId);
+            var todo = todos.find(function(t) { return t.id === todoId; });
             if (todo) {
                 document.getElementById('todo-modal-title').textContent = '编辑待办事项';
                 document.getElementById('todo-id').value = todo.id;
                 document.getElementById('todo-text').value = todo.text;
                 document.getElementById('todo-priority').value = todo.priority;
+                document.getElementById('todo-category').value = todo.category;
+                document.getElementById('todo-due-date').value = todo.dueDate || '';
                 document.getElementById('todo-modal').classList.remove('hidden');
+            }
+        }
+
+        // 清除所有已完成待办
+        function clearCompletedTodos() {
+            var doneCount = todos.filter(function(t) { return t.completed; }).length;
+            if (doneCount === 0) {
+                showNotification('提示', '没有已完成的待办', 'info');
+                return;
+            }
+            if (confirm('确定清除 ' + doneCount + ' 条已完成的待办吗？')) {
+                todos = todos.filter(function(t) { return !t.completed; });
+                persistTodos();
+                displayTodos();
+                showNotification('清除成功', '已清除 ' + doneCount + ' 条完成记录', 'success');
             }
         }
         
@@ -1221,8 +1534,8 @@
         function clearAllTransactions() {
             // 获取当前公司
             const company = getCurrentCompany();
-            const companyName = document.getElementById(`${company}-btn`).textContent.trim();
-            
+            const companyName = getCompanyName(company);
+
             // 显示确认对话框
             if (confirm(`警告：此操作将永久删除${companyName}的所有交易记录！\n删除后将无法恢复，是否继续？`)) {
                 try {
@@ -1289,9 +1602,9 @@
             document.getElementById('todos-container').addEventListener('click', function(e) {
                 const todoElement = e.target.closest('[data-id]');
                 if (!todoElement) return;
-                
+
                 const todoId = todoElement.dataset.id;
-                
+
                 // 检查点击的是哪个按钮
                 if (e.target.closest('.complete-todo')) {
                     toggleTodoComplete(todoId);
@@ -1301,7 +1614,25 @@
                     deleteTodo(todoId);
                 }
             });
-            
+
+            // 待办工具栏：填充分类筛选选项
+            var todoCatFilter = document.getElementById('todo-filter-category');
+            if (todoCatFilter) {
+                Object.keys(TODO_CATEGORIES).forEach(function(key) {
+                    var opt = document.createElement('option');
+                    opt.value = key;
+                    opt.textContent = TODO_CATEGORIES[key].name;
+                    todoCatFilter.appendChild(opt);
+                });
+            }
+            ['todo-search', 'todo-filter-status', 'todo-filter-category', 'todo-sort'].forEach(function(id) {
+                var el = document.getElementById(id);
+                if (el) el.addEventListener('input', displayTodos);
+                if (el && el.tagName === 'SELECT') el.addEventListener('change', displayTodos);
+            });
+            var clearDoneBtn = document.getElementById('todo-clear-done');
+            if (clearDoneBtn) clearDoneBtn.addEventListener('click', clearCompletedTodos);
+
             // 点击页面其他地方关闭下拉菜单
             document.addEventListener('click', function(event) {
                 const accountMenu = document.getElementById('account-menu');
@@ -1465,6 +1796,8 @@
 
         // 初始化图表
         function initializeCharts() {
+            // Chart.js 走 CDN，离线/加载失败时跳过图表，避免中断后续初始化
+            if (typeof Chart === 'undefined') return;
             // 初始化分布图表
             const distributionCtx = document.getElementById('distribution-chart').getContext('2d');
             window.distributionChart = new Chart(distributionCtx, {
@@ -3373,519 +3706,600 @@
         
 
         
-        // 初始化财务对账单位下拉框
+        // ============================================================
+        // 财务对账（独立标签页）
+        // 功能：往来对账单（期初/期末/逐笔余额/勾对）、往来余额表（账龄）、银行存款余额调节表
+        // ============================================================
+        var reconState = { panel: 'unit', lastResult: null, inited: false, balancesRendered: false };
+
+        function getCompanyTransactions() {
+            try {
+                var list = JSON.parse(localStorage.getItem('transactions_' + getCurrentCompany())) || [];
+                return Array.isArray(list) ? list : [];
+            } catch (e) { return []; }
+        }
+        function saveCompanyTransactions(list) {
+            localStorage.setItem('transactions_' + getCurrentCompany(), JSON.stringify(list));
+        }
+        function reconFmtDate(d) {
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        }
+        function reconParseDate(str) {
+            if (!str) return null;
+            var d = new Date(str + 'T00:00:00');
+            return isNaN(d.getTime()) ? null : d;
+        }
+        function reconNum(v) { var n = parseFloat(v); return isNaN(n) ? 0 : n; }
+        function reconMoney(v) { return formatAmount(v); }
+        function reconMoneyPlain(v) { return formatAmount(v).replace('¥', ''); }
+        function reconEsc(s) { return todoEscapeHtml(s); }
+
+        // ---------- 二级面板切换 ----------
+        function switchReconPanel(panel) {
+            reconState.panel = panel;
+            ['unit', 'balances', 'bank'].forEach(function(p) {
+                var el = document.getElementById('recon-panel-' + p);
+                if (el) el.classList.toggle('hidden', p !== panel);
+            });
+            document.querySelectorAll('.recon-tab').forEach(function(btn) {
+                var active = btn.dataset.panel === panel;
+                btn.classList.toggle('bg-primary', active);
+                btn.classList.toggle('text-white', active);
+                btn.classList.toggle('text-gray-600', !active);
+                btn.classList.toggle('hover:bg-gray-100', !active);
+            });
+            if (panel === 'balances') renderBalanceTable();
+            if (panel === 'bank') loadBankReco();
+        }
+        // 数据变化/公司切换时的无感刷新
+        function refreshReconOnDataChange() {
+            if (reconState.panel === 'balances') renderBalanceTable();
+            else if (reconState.panel === 'unit' && reconState.lastResult) performReconciliation();
+        }
+        function onReconCompanyChanged() {
+            loadBankReco();
+            if (currentMainTab === 'recon') refreshReconOnDataChange();
+        }
+
+        // ---------- 初始化（仅绑定一次）----------
         function initReconciliationUnits() {
-            // 初始化自动完成功能
+            if (reconState.inited) return;
+            reconState.inited = true;
+
+            // 默认区间：本月1日 至 今天
+            var now = new Date();
+            document.getElementById('reconciliation-start-date').value = reconFmtDate(new Date(now.getFullYear(), now.getMonth(), 1));
+            document.getElementById('reconciliation-end-date').value = reconFmtDate(now);
+            document.getElementById('balance-asof-date').value = reconFmtDate(now);
+            document.getElementById('br-date').value = reconFmtDate(now);
+
             initReconciliationUnitAutocomplete();
-            
-            // 设置默认日期范围为当前月份
-            const today = new Date();
-            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-            const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-            
-            const startDateInput = document.getElementById('reconciliation-start-date');
-            const endDateInput = document.getElementById('reconciliation-end-date');
-            
-            if (startDateInput) startDateInput.valueAsDate = firstDay;
-            if (endDateInput) endDateInput.valueAsDate = today;
-        }
-        
-        // 初始化财务对账单位自动完成功能
-        function initReconciliationUnitAutocomplete() {
-            const unitInput = document.getElementById('reconciliation-unit');
-            const unitValueInput = document.getElementById('reconciliation-unit-value');
-            const suggestionsContainer = document.getElementById('reconciliation-unit-suggestions');
-            
-            if (!unitInput || !unitValueInput || !suggestionsContainer) {
-                return;
-            }
-            
-            // 监听输入事件
-            unitInput.addEventListener('input', function() {
-                const inputValue = this.value.toLowerCase().trim();
-                unitValueInput.value = ''; // 清除隐藏值
-                
-                if (inputValue.length < 1) {
-                    suggestionsContainer.classList.add('hidden');
-                    return;
-                }
-                
-                // 获取所有交易记录中的单位名称
-                const company = getCurrentCompany();
-                const transactions = JSON.parse(localStorage.getItem(`transactions_${company}`)) || [];
-                
-                // 收集所有唯一单位
-                const uniqueUnits = new Set();
-                transactions.forEach(transaction => {
-                    if (transaction.unit && transaction.unit.trim()) {
-                        uniqueUnits.add(transaction.unit.trim());
-                    }
+
+            // 快捷区间
+            document.querySelectorAll('.recon-quick').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    applyQuickRange(this.dataset.range);
+                    performReconciliation();
                 });
-                
-                // 过滤匹配的单位
-                const suggestions = Array.from(uniqueUnits)
-                    .filter(unit => unit.toLowerCase().includes(inputValue))
-                    .sort();
-                
-                if (suggestions.length > 0) {
-                    // 显示建议列表
-                    suggestionsContainer.innerHTML = '';
-                    suggestions.forEach(suggestion => {
-                        const suggestionItem = document.createElement('div');
-                        suggestionItem.className = 'px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm';
-                        suggestionItem.textContent = suggestion;
-                        
-                        // 单击选择功能
-                        suggestionItem.addEventListener('click', function() {
-                            unitInput.value = this.textContent;
-                            unitValueInput.value = this.textContent;
-                            // 调整输入框宽度以适应内容
-                            adjustInputWidth(unitInput);
-                            suggestionsContainer.classList.add('hidden');
-                            unitInput.focus();
-                        });
-                        
-                        suggestionsContainer.appendChild(suggestionItem);
-                    });
-                    
-                    suggestionsContainer.classList.remove('hidden');
-                } else {
-                    suggestionsContainer.classList.add('hidden');
-                }
             });
-            
-            // 点击外部关闭建议列表
-            document.addEventListener('click', function(event) {
-                if (!unitInput.contains(event.target) && !suggestionsContainer.contains(event.target)) {
-                    suggestionsContainer.classList.add('hidden');
-                }
+            document.getElementById('reconciliation-btn').addEventListener('click', performReconciliation);
+            document.getElementById('reset-reconciliation-btn').addEventListener('click', resetReconciliation);
+            document.getElementById('recon-check-all-btn').addEventListener('click', checkAllReconciled);
+            document.getElementById('recon-export-btn').addEventListener('click', exportReconciliationExcel);
+            document.getElementById('generate-reconciliation-btn').addEventListener('click', generateReconciliationReport);
+            document.getElementById('recon-print-btn').addEventListener('click', function() { window.print(); });
+
+            // 余额表
+            document.getElementById('balance-refresh-btn').addEventListener('click', renderBalanceTable);
+            document.getElementById('balance-export-btn').addEventListener('click', exportBalanceExcel);
+            document.getElementById('balance-details').addEventListener('click', function(e) {
+                var row = e.target.closest('tr[data-unit]');
+                if (row) openUnitStatement(row.dataset.unit);
+            });
+
+            // 银行余额调节表
+            ['br-book-balance', 'br-bank-balance', 'br-bank-add', 'br-bank-sub', 'br-book-add', 'br-book-sub'].forEach(function(id) {
+                document.getElementById(id).addEventListener('input', calcBankReco);
+            });
+            document.getElementById('br-save-btn').addEventListener('click', saveBankReco);
+            document.getElementById('br-print-btn').addEventListener('click', function() { window.print(); });
+
+            loadBankReco();
+        }
+
+        function applyQuickRange(range) {
+            var now = new Date();
+            var startInput = document.getElementById('reconciliation-start-date');
+            var endInput = document.getElementById('reconciliation-end-date');
+            var s, e = reconFmtDate(now);
+            if (range === 'month') {
+                s = reconFmtDate(new Date(now.getFullYear(), now.getMonth(), 1));
+            } else if (range === 'lastmonth') {
+                s = reconFmtDate(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+                e = reconFmtDate(new Date(now.getFullYear(), now.getMonth(), 0));
+            } else if (range === 'quarter') {
+                var q = Math.floor(now.getMonth() / 3);
+                s = reconFmtDate(new Date(now.getFullYear(), q * 3, 1));
+            } else if (range === 'year') {
+                s = reconFmtDate(new Date(now.getFullYear(), 0, 1));
+            } else {
+                // 全部：取当前公司最早一笔交易日期
+                var earliest = null;
+                getCompanyTransactions().forEach(function(t) {
+                    var d = t.date ? new Date(t.date + 'T00:00:00') : null;
+                    if (d && !isNaN(d.getTime()) && (!earliest || d < earliest)) earliest = d;
+                });
+                s = earliest ? reconFmtDate(earliest) : reconFmtDate(now);
+            }
+            startInput.value = s;
+            endInput.value = e;
+        }
+
+        // ---------- 单位自动完成 ----------
+        function initReconciliationUnitAutocomplete() {
+            var input = document.getElementById('reconciliation-unit');
+            var hidden = document.getElementById('reconciliation-unit-value');
+            var box = document.getElementById('reconciliation-unit-suggestions');
+            if (!input || !box) return;
+
+            function renderList() {
+                var kw = input.value.trim().toLowerCase();
+                hidden.value = '';
+                var units = {};
+                getCompanyTransactions().forEach(function(t) {
+                    if (t.unit && t.unit.trim()) units[t.unit.trim()] = true;
+                });
+                var list = Object.keys(units).filter(function(u) {
+                    return !kw || u.toLowerCase().indexOf(kw) !== -1;
+                }).sort();
+                box.innerHTML = '';
+                if (!list.length) { box.classList.add('hidden'); return; }
+                list.forEach(function(u) {
+                    var item = document.createElement('div');
+                    item.className = 'px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm';
+                    item.textContent = u;
+                    item.addEventListener('click', function() {
+                        input.value = u;
+                        hidden.value = u;
+                        box.classList.add('hidden');
+                    });
+                    box.appendChild(item);
+                });
+                box.classList.remove('hidden');
+            }
+            input.addEventListener('focus', renderList);
+            input.addEventListener('input', renderList);
+            document.addEventListener('click', function(e) {
+                if (!input.contains(e.target) && !box.contains(e.target)) box.classList.add('hidden');
             });
         }
-        
-        // 执行财务对账
+
+        // ---------- 读取对账条件 ----------
+        function getReconFilter() {
+            var hidden = document.getElementById('reconciliation-unit-value');
+            var input = document.getElementById('reconciliation-unit');
+            var unit = (hidden && hidden.value) || (input && input.value.trim()) || '';
+            var start = reconParseDate(document.getElementById('reconciliation-start-date').value);
+            var end = reconParseDate(document.getElementById('reconciliation-end-date').value);
+            var checked = document.getElementById('reconciliation-checked').value;
+            return { unit: unit, start: start, end: end, checked: checked };
+        }
+        function unitMatch(tx, unit) {
+            if (!unit) return true;
+            return tx.unit && tx.unit.trim() === unit;
+        }
+
+        // ---------- 往来对账 ----------
         function performReconciliation() {
-            const company = getCurrentCompany();
-            const transactions = JSON.parse(localStorage.getItem(`transactions_${company}`)) || [];
-            
-            // 设置公司抬头
-            const companyNames = {
-                'company1': '普利美（常州）环境工程科技有限公司',
-                'company2': '无锡龙力印铁设备制造有限公司'
-            };
-            const displayName = companyNames[company] || company;
-            document.getElementById('company-header').querySelector('h2').textContent = displayName;
-            
-            // 获取筛选条件
-            const unitValueInput = document.getElementById('reconciliation-unit-value');
-            const unitInput = document.getElementById('reconciliation-unit');
-            // 使用隐藏字段的值，如果没有，则使用输入框的值（用户手动输入的情况）
-            const selectedUnit = unitValueInput ? unitValueInput.value : (unitInput ? unitInput.value : '');
-            const startDateInput = document.getElementById('reconciliation-start-date');
-            const endDateInput = document.getElementById('reconciliation-end-date');
-            
-            if (!startDateInput || !endDateInput) {
-                showNotification('错误', '页面元素未找到', 'error');
+            var f = getReconFilter();
+            if (!f.start || !f.end) {
+                showNotification('日期错误', '请选择有效的开始与结束日期', 'error');
                 return;
             }
-            
-            const startDate = new Date(startDateInput.value);
-            const endDate = new Date(endDateInput.value);
-            
-            // 验证日期
-            if (isNaN(startDate.getTime())) {
-                showNotification('日期错误', '请选择有效的开始日期', 'error');
-                return;
-            }
-            
-            if (isNaN(endDate.getTime())) {
-                showNotification('日期错误', '请选择有效的结束日期', 'error');
-                return;
-            }
-            
-            if (startDate > endDate) {
+            if (f.start > f.end) {
                 showNotification('日期错误', '开始日期不能晚于结束日期', 'error');
                 return;
             }
-            
-            // 筛选交易
-            const filteredTransactions = transactions.filter(transaction => {
-                const transactionDate = new Date(transaction.date);
-                
-                // 日期筛选
-                const dateMatch = transactionDate >= startDate && transactionDate <= endDate;
-                
-                // 单位筛选
-                const unitMatch = !selectedUnit || transaction.unit === selectedUnit;
-                
-                return dateMatch && unitMatch;
-            });
-            
-            // 计算汇总数据
-            let totalIncome = 0;
-            let totalExpense = 0;
-            
-            filteredTransactions.forEach(transaction => {
-                if (transaction.type === 'income') {
-                    totalIncome += transaction.amount;
-                } else {
-                    totalExpense += transaction.amount;
+
+            var all = getCompanyTransactions();
+            // 期初：开始日期之前、同单位的累计净余额
+            var opening = 0;
+            all.forEach(function(t) {
+                var d = reconParseDate(t.date);
+                if (d && d < f.start && unitMatch(t, f.unit)) {
+                    opening += (t.type === 'income' ? 1 : -1) * reconNum(t.amount);
                 }
             });
-            
-            const balance = totalIncome - totalExpense;
-            
-            // 更新结果显示
-            const incomeElement = document.getElementById('reconciliation-income');
-            const expenseElement = document.getElementById('reconciliation-expense');
-            const balanceElement = document.getElementById('reconciliation-balance');
-            const countElement = document.getElementById('reconciliation-count');
-            const detailsContainer = document.getElementById('reconciliation-details');
-            const resultsContainer = document.getElementById('reconciliation-results');
-            
-            if (incomeElement) incomeElement.textContent = formatAmount(totalIncome);
-            if (expenseElement) expenseElement.textContent = formatAmount(totalExpense);
-            
-            if (balanceElement) {
-                balanceElement.textContent = formatAmount(balance);
-                balanceElement.className = balance >= 0 ? 'text-xl font-bold text-secondary' : 'text-xl font-bold text-danger';
-            }
-            
-            if (countElement) countElement.textContent = filteredTransactions.length;
-            
-            // 显示交易明细
-            if (detailsContainer) {
-                detailsContainer.innerHTML = '';
-                
-                // 按日期降序排序，如果日期相同则按创建时间降序排序
-                filteredTransactions.sort((a, b) => {
-                    const dateDiff = new Date(b.date) - new Date(a.date);
-                    return dateDiff !== 0 ? dateDiff : new Date(b.createdAt) - new Date(a.createdAt);
+
+            // 本期明细
+            var rows = [];
+            all.forEach(function(t) {
+                var d = reconParseDate(t.date);
+                if (!d || d < f.start || d > f.end) return;
+                if (!unitMatch(t, f.unit)) return;
+                if (f.checked === 'checked' && !t.reconciled) return;
+                if (f.checked === 'unchecked' && t.reconciled) return;
+                rows.push(t);
+            });
+            rows.sort(function(a, b) {
+                var da = reconParseDate(a.date).getTime(), db = reconParseDate(b.date).getTime();
+                if (da !== db) return da - db;
+                return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+            });
+
+            var periodIncome = 0, periodExpense = 0, running = opening;
+            var uncheckedCount = 0, uncheckedAmount = 0;
+            rows.forEach(function(t) {
+                var signed = (t.type === 'income' ? 1 : -1) * reconNum(t.amount);
+                if (t.type === 'income') periodIncome += reconNum(t.amount);
+                else periodExpense += reconNum(t.amount);
+                running += signed;
+                t._running = running;
+                if (!t.reconciled) { uncheckedCount++; uncheckedAmount += Math.abs(reconNum(t.amount)); }
+            });
+            var closing = opening + periodIncome - periodExpense;
+
+            // 抬头
+            document.getElementById('company-header').querySelector('h2').textContent = getCompanyName(getCurrentCompany());
+            document.getElementById('recon-period-text').textContent =
+                document.getElementById('reconciliation-start-date').value + ' 至 ' + document.getElementById('reconciliation-end-date').value;
+            document.getElementById('recon-unit-text').textContent = f.unit || '全部单位';
+
+            // 汇总卡片
+            document.getElementById('reconciliation-opening').textContent = reconMoney(opening);
+            document.getElementById('reconciliation-income').textContent = reconMoney(periodIncome);
+            document.getElementById('reconciliation-expense').textContent = reconMoney(periodExpense);
+            var balanceEl = document.getElementById('reconciliation-balance');
+            balanceEl.textContent = reconMoney(closing);
+            balanceEl.className = 'text-lg font-bold ' + (closing >= 0 ? 'text-secondary' : 'text-danger');
+            document.getElementById('reconciliation-unchecked-count').textContent = uncheckedCount;
+            document.getElementById('reconciliation-unchecked-amount').textContent = reconMoney(uncheckedAmount);
+
+            // 明细表
+            var tbody = document.getElementById('reconciliation-details');
+            tbody.innerHTML = '';
+            var tr;
+            // 期初行
+            tr = document.createElement('tr');
+            tr.className = 'bg-gray-50 font-medium';
+            tr.innerHTML = '<td class="px-3 py-2" colspan="4">期初余额</td>' +
+                '<td class="px-3 py-2"></td><td class="px-3 py-2"></td>' +
+                '<td class="px-3 py-2 text-right text-gray-800">' + reconMoneyPlain(opening) + '</td>' +
+                '<td class="px-3 py-2 no-print"></td>';
+            tbody.appendChild(tr);
+
+            if (rows.length === 0) {
+                tr = document.createElement('tr');
+                tr.innerHTML = '<td colspan="8" class="px-3 py-6 text-center text-gray-400">该期间内没有符合条件的交易记录</td>';
+                tbody.appendChild(tr);
+            } else {
+                rows.forEach(function(t) {
+                    var cat = getCategoryById(t.type, t.categoryId) || { name: t.categoryName || '未分类', icon: 'fa-question-circle', color: '#9ca3af' };
+                    var isIncome = t.type === 'income';
+                    var typeBadge = isIncome
+                        ? '<span class="income-tag">收入</span>'
+                        : '<span class="expense-tag">支出</span>';
+                    var r = document.createElement('tr');
+                    r.dataset.txid = t.id || '';
+                    r.innerHTML =
+                        '<td class="px-3 py-2 whitespace-nowrap text-gray-700">' + reconEsc(formatDate(t.date)) + '</td>' +
+                        '<td class="px-3 py-2 whitespace-nowrap">' + typeBadge + '</td>' +
+                        '<td class="px-3 py-2 whitespace-nowrap text-gray-700">' +
+                            '<span class="inline-flex items-center"><span class="inline-flex items-center justify-center w-5 h-5 rounded-full text-white mr-2" style="background-color:' + cat.color + '"><i class="fa ' + cat.icon + ' text-[10px]"></i></span>' + reconEsc(cat.name) + '</span></td>' +
+                        '<td class="px-3 py-2 text-gray-700">' + reconEsc(t.description || '') +
+                            (t.unit ? '<div class="text-xs text-gray-400">' + (isIncome ? '付款单位' : '收款单位') + '：' + reconEsc(t.unit) + '</div>' : '') + '</td>' +
+                        '<td class="px-3 py-2 text-right whitespace-nowrap ' + (isIncome ? 'text-secondary font-medium' : 'text-gray-300') + '">' + (isIncome ? reconMoneyPlain(t.amount) : '—') + '</td>' +
+                        '<td class="px-3 py-2 text-right whitespace-nowrap ' + (!isIncome ? 'text-danger font-medium' : 'text-gray-300') + '">' + (!isIncome ? reconMoneyPlain(t.amount) : '—') + '</td>' +
+                        '<td class="px-3 py-2 text-right whitespace-nowrap text-gray-800 font-medium">' + reconMoneyPlain(t._running) + '</td>' +
+                        '<td class="px-3 py-2 text-center no-print"><input type="checkbox" class="recon-check w-4 h-4 accent-blue-600 cursor-pointer" ' + (t.reconciled ? 'checked' : '') + ' title="勾对核对"></td>';
+                    tbody.appendChild(r);
                 });
-                
-                if (filteredTransactions.length === 0) {
-                    const emptyRow = document.createElement('tr');
-                    emptyRow.innerHTML = `
-                        <td colspan="5" class="px-4 py-4 text-center text-gray-500">
-                            该时间段内没有符合条件的交易记录
-                        </td>
-                    `;
-                    detailsContainer.appendChild(emptyRow);
-                } else {
-                    filteredTransactions.forEach(transaction => {
-                        const category = getCategoryById(transaction.type, transaction.categoryId);
-                        const row = document.createElement('tr');
-                        
-                        const typeClass = transaction.type === 'income' ? 'text-secondary' : 'text-danger';
-                        const typeText = transaction.type === 'income' ? '收入' : '支出';
-                        const amountSign = transaction.type === 'income' ? '+' : '-';
-                        
-                        row.innerHTML = `
-                            <td class="px-3 py-2 whitespace-nowrap">
-                                <div class="text-sm text-gray-700">${formatDate(transaction.date)}</div>
-                            </td>
-                            <td class="px-3 py-2 whitespace-nowrap">
-                                <div class="text-sm ${typeClass}">${typeText}</div>
-                            </td>
-                            <td class="px-3 py-2 whitespace-nowrap">
-                                <div class="flex items-center">
-                                    <div class="category-icon" style="background-color: ${category.color}; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 8px;">
-                                        <i class="fa ${category.icon} text-white text-xs"></i>
-                                    </div>
-                                    <div class="text-sm text-gray-700">${category.name}</div>
-                                </div>
-                            </td>
-                            <td class="px-3 py-2">
-                                <div class="text-sm text-gray-700">${transaction.description}</div>
-                                ${transaction.unit ? `<div class="text-xs text-gray-500">${transaction.type === 'income' ? '付款单位' : '收款单位'}: ${transaction.unit}</div>` : ''}
-                            </td>
-                            <td class="px-3 py-2 whitespace-nowrap text-right">
-                                <div class="text-sm font-medium ${typeClass}">${amountSign}${formatAmount(transaction.amount).replace('¥', '')}</div>
-                            </td>
-                        `;
-                        
-                        detailsContainer.appendChild(row);
-                    });
-                }
             }
-            
-            // 显示结果区域和打印按钮
-            if (resultsContainer) {
-                resultsContainer.classList.remove('hidden');
-                
-                // 滚动到结果区域
-                resultsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-            
-            // 不再清空收款/付款单位输入框，保留用户输入内容
-            // if (unitInput) {
-            //     unitInput.value = '';
-            // }
-            // if (unitValueInput) {
-            //     unitValueInput.value = '';
-            // }
+            // 期末行
+            tr = document.createElement('tr');
+            tr.className = 'bg-gray-50 font-bold';
+            tr.innerHTML = '<td class="px-3 py-2" colspan="4">期末余额（本期间共 ' + rows.length + ' 笔）</td>' +
+                '<td class="px-3 py-2 text-right text-secondary">' + reconMoneyPlain(periodIncome) + '</td>' +
+                '<td class="px-3 py-2 text-right text-danger">' + reconMoneyPlain(periodExpense) + '</td>' +
+                '<td class="px-3 py-2 text-right ' + (closing >= 0 ? 'text-secondary' : 'text-danger') + '">' + reconMoneyPlain(closing) + '</td>' +
+                '<td class="px-3 py-2 no-print"></td>';
+            tbody.appendChild(tr);
+
+            reconState.lastResult = { filter: f, rows: rows, opening: opening, periodIncome: periodIncome, periodExpense: periodExpense, closing: closing };
+            document.getElementById('reconciliation-results').classList.remove('hidden');
         }
-        
-        // 重置财务对账筛选条件
+
+        // 勾选/取消单条核对
+        function setTxReconciled(txId, flag) {
+            var list = getCompanyTransactions();
+            var changed = false;
+            list.forEach(function(t) {
+                if (t.id === txId) { t.reconciled = flag; changed = true; }
+            });
+            if (changed) {
+                saveCompanyTransactions(list);
+                performReconciliation();
+            }
+        }
+        // 当前结果批量标记已核对
+        function checkAllReconciled() {
+            if (!reconState.lastResult) {
+                showNotification('提示', '请先执行对账查询', 'info');
+                return;
+            }
+            var list = getCompanyTransactions();
+            var ids = {};
+            reconState.lastResult.rows.forEach(function(t) { if (!t.reconciled) ids[t.id] = true; });
+            var n = 0;
+            list.forEach(function(t) {
+                if (ids[t.id]) { t.reconciled = true; n++; }
+            });
+            if (n === 0) { showNotification('提示', '当前结果已全部核对', 'info'); return; }
+            saveCompanyTransactions(list);
+            performReconciliation();
+            showNotification('核对完成', '已标记 ' + n + ' 笔记录为已核对', 'success');
+        }
+
+        // 在 tbody 上委托勾选事件（performReconciliation 重绘后仍生效）
+        document.addEventListener('change', function(e) {
+            if (e.target && e.target.classList && e.target.classList.contains('recon-check')) {
+                var row = e.target.closest('tr[data-txid]');
+                if (row && row.dataset.txid) setTxReconciled(row.dataset.txid, e.target.checked);
+            }
+        });
+
+        // 重置
         function resetReconciliation() {
-            // 清空收/付款单位输入框
-            const unitValueInput = document.getElementById('reconciliation-unit-value');
-            const unitInput = document.getElementById('reconciliation-unit');
-            if (unitValueInput) unitValueInput.value = '';
-            if (unitInput) {
-                unitInput.value = '';
-                // 隐藏单位建议列表
-                const suggestionsContainer = document.getElementById('reconciliation-unit-suggestions');
-                if (suggestionsContainer) suggestionsContainer.classList.add('hidden');
-            }
-            
-            // 清空日期下拉框
-            const startDateInput = document.getElementById('reconciliation-start-date');
-            const endDateInput = document.getElementById('reconciliation-end-date');
-            if (startDateInput) startDateInput.value = '';
-            if (endDateInput) endDateInput.value = '';
-            
-            // 显示所有交易记录
-            const company = getCurrentCompany();
-            const transactions = JSON.parse(localStorage.getItem(`transactions_${company}`)) || [];
-            
-            // 设置公司抬头
-            const companyNames = {
-                'company1': '普利美（常州）环境工程科技有限公司',
-                'company2': '无锡龙力印铁设备制造有限公司'
-            };
-            const displayName = companyNames[company] || company;
-            document.getElementById('company-header').querySelector('h2').textContent = displayName;
-            
-            // 计算汇总数据（所有记录）
-            let totalIncome = 0;
-            let totalExpense = 0;
-            
-            transactions.forEach(transaction => {
-                if (transaction.type === 'income') {
-                    totalIncome += transaction.amount;
-                } else {
-                    totalExpense += transaction.amount;
-                }
-            });
-            
-            const balance = totalIncome - totalExpense;
-            
-            // 更新结果显示
-            const incomeElement = document.getElementById('reconciliation-income');
-            const expenseElement = document.getElementById('reconciliation-expense');
-            const balanceElement = document.getElementById('reconciliation-balance');
-            const countElement = document.getElementById('reconciliation-count');
-            const detailsContainer = document.getElementById('reconciliation-details');
-            const resultsContainer = document.getElementById('reconciliation-results');
-            
-            if (incomeElement) incomeElement.textContent = formatAmount(totalIncome);
-            if (expenseElement) expenseElement.textContent = formatAmount(totalExpense);
-            
-            if (balanceElement) {
-                balanceElement.textContent = formatAmount(balance);
-                balanceElement.className = balance >= 0 ? 'text-xl font-bold text-secondary' : 'text-xl font-bold text-danger';
-            }
-            
-            if (countElement) countElement.textContent = transactions.length;
-            
-            // 显示所有交易明细
-            if (detailsContainer) {
-                detailsContainer.innerHTML = '';
-                
-                // 按日期降序排序，如果日期相同则按创建时间降序排序
-                const sortedTransactions = [...transactions].sort((a, b) => {
-                    const dateDiff = new Date(b.date) - new Date(a.date);
-                    return dateDiff !== 0 ? dateDiff : new Date(b.createdAt) - new Date(a.createdAt);
-                });
-                
-                if (sortedTransactions.length === 0) {
-                    const emptyRow = document.createElement('tr');
-                    emptyRow.innerHTML = `
-                        <td colspan="5" class="px-4 py-4 text-center text-gray-500">
-                            没有交易记录
-                        </td>
-                    `;
-                    detailsContainer.appendChild(emptyRow);
-                } else {
-                    sortedTransactions.forEach(transaction => {
-                        const category = getCategoryById(transaction.type, transaction.categoryId);
-                        const row = document.createElement('tr');
-                        
-                        const typeClass = transaction.type === 'income' ? 'text-secondary' : 'text-danger';
-                        const typeText = transaction.type === 'income' ? '收入' : '支出';
-                        const amountSign = transaction.type === 'income' ? '+' : '-';
-                        
-                        row.innerHTML = `
-                            <td class="px-3 py-2 whitespace-nowrap">
-                                <div class="text-sm text-gray-700">${formatDate(transaction.date)}</div>
-                            </td>
-                            <td class="px-3 py-2 whitespace-nowrap">
-                                <div class="text-sm ${typeClass}">${typeText}</div>
-                            </td>
-                            <td class="px-3 py-2 whitespace-nowrap">
-                                <div class="flex items-center">
-                                    <div class="category-icon" style="background-color: ${category.color}; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 8px;">
-                                        <i class="fa ${category.icon} text-white text-xs"></i>
-                                    </div>
-                                    <div class="text-sm text-gray-700">${category.name}</div>
-                                </div>
-                            </td>
-                            <td class="px-3 py-2">
-                                <div class="text-sm text-gray-700">${transaction.description}</div>
-                                ${transaction.unit ? `<div class="text-xs text-gray-500">${transaction.type === 'income' ? '付款单位' : '收款单位'}: ${transaction.unit}</div>` : ''}
-                            </td>
-                            <td class="px-3 py-2 whitespace-nowrap text-right">
-                                <div class="text-sm font-medium ${typeClass}">${amountSign}${formatAmount(transaction.amount).replace('¥', '')}</div>
-                            </td>
-                        `;
-                        
-                        detailsContainer.appendChild(row);
-                    });
-                }
-            }
-            
-            // 显示结果区域
-            if (resultsContainer) {
-                resultsContainer.classList.remove('hidden');
-                
-                // 滚动到结果区域
-                resultsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-            
-            // 显示重置成功提示
-            showNotification('重置成功', '筛选条件已清空，列表已恢复所有记录', 'success');
+            document.getElementById('reconciliation-unit').value = '';
+            document.getElementById('reconciliation-unit-value').value = '';
+            document.getElementById('reconciliation-unit-suggestions').classList.add('hidden');
+            applyQuickRange('month');
+            document.getElementById('reconciliation-checked').value = 'all';
+            reconState.lastResult = null;
+            document.getElementById('reconciliation-results').classList.add('hidden');
+            showNotification('已重置', '对账条件已恢复为本月', 'success');
         }
-        
-        // 生成对账单报告并跳转到对账单页面
+
+        // 导出 Excel 对账单
+        function exportReconciliationExcel() {
+            if (!reconState.lastResult) {
+                showNotification('提示', '请先执行对账查询', 'info');
+                return;
+            }
+            var res = reconState.lastResult;
+            var f = res.filter;
+            var aoa = [['往来对账单']];
+            aoa.push([getCompanyName(getCurrentCompany())]);
+            aoa.push(['往来单位', f.unit || '全部单位', '', '期间', document.getElementById('reconciliation-start-date').value, '至', document.getElementById('reconciliation-end-date').value]);
+            aoa.push([]);
+            aoa.push(['日期', '类型', '分类', '说明', '单位', '收入', '支出', '余额', '核对状态']);
+            aoa.push(['期初余额', '', '', '', '', '', '', res.opening, '']);
+            res.rows.forEach(function(t) {
+                var cat = getCategoryById(t.type, t.categoryId) || { name: t.categoryName || '未分类' };
+                aoa.push([
+                    t.date,
+                    t.type === 'income' ? '收入' : '支出',
+                    cat.name || '',
+                    t.description || '',
+                    t.unit || '',
+                    t.type === 'income' ? reconNum(t.amount) : '',
+                    t.type === 'expense' ? reconNum(t.amount) : '',
+                    t._running,
+                    t.reconciled ? '已核对' : '未核对'
+                ]);
+            });
+            aoa.push(['期末余额', '', '', '', '', res.periodIncome, res.periodExpense, res.closing, '']);
+            var wb = XLSX.utils.book_new();
+            var ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!cols'] = [{ wch: 12 }, { wch: 6 }, { wch: 12 }, { wch: 24 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 9 }];
+            XLSX.utils.book_append_sheet(wb, ws, '往来对账单');
+            var fname = '往来对账单_' + (f.unit || '全部单位') + '_' + document.getElementById('reconciliation-start-date').value + '_' + document.getElementById('reconciliation-end-date').value + '.xlsx';
+            XLSX.writeFile(wb, fname);
+        }
+
+        // 生成对账单（跳转独立打印页 对账单.html）
         function generateReconciliationReport() {
-            const company = getCurrentCompany();
-            
-            // 获取筛选条件
-            const unitValueInput = document.getElementById('reconciliation-unit-value');
-            const unitInput = document.getElementById('reconciliation-unit');
-            const selectedUnit = unitValueInput ? unitValueInput.value : (unitInput ? unitInput.value : '');
-            const startDateInput = document.getElementById('reconciliation-start-date');
-            const endDateInput = document.getElementById('reconciliation-end-date');
-            
-            // 验证日期
-            if (!startDateInput || !endDateInput || !startDateInput.value || !endDateInput.value) {
+            var company = getCurrentCompany();
+            var f = getReconFilter();
+            if (!f.start || !f.end) {
                 showNotification('日期错误', '请选择完整的日期范围', 'error');
                 return;
             }
-            
-            const startDate = new Date(startDateInput.value);
-            const endDate = new Date(endDateInput.value);
-            
-            if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-                showNotification('日期错误', '请选择有效的日期', 'error');
-                return;
-            }
-            
-            if (startDate > endDate) {
-                showNotification('日期错误', '开始日期不能晚于结束日期', 'error');
-                return;
-            }
-            
-            // 构建URL参数
-            const params = new URLSearchParams();
+            var params = new URLSearchParams();
             params.append('company', company);
-            params.append('unit', selectedUnit);
-            params.append('startDate', startDateInput.value);
-            params.append('endDate', endDateInput.value);
-            
-            // 获取当前公司的交易数据并筛选
-            const transactions = JSON.parse(localStorage.getItem(`transactions_${company}`)) || [];
-            const filteredTransactions = transactions.filter(transaction => {
-                const transactionDate = new Date(transaction.date);
-                const dateMatch = transactionDate >= startDate && transactionDate <= endDate;
-                const unitMatch = !selectedUnit || 
-                                  (transaction.unit && transaction.unit.includes(selectedUnit)) ||
-                                  (transaction.description && transaction.description.includes(selectedUnit));
-                return dateMatch && unitMatch;
-            });
-            
-            // 准备对账单页面所需的数据格式
-            const preparedTransactions = filteredTransactions.map(transaction => {
-                // 获取分类名称（尝试多种方式）
-                let categoryName = transaction.categoryName || '未分类';
-                
-                // 如果没有直接的categoryName，尝试通过categoryId获取
-                if (categoryName === '未分类' && transaction.categoryId) {
-                    try {
-                        // 尝试不同格式的分类数据存储
-                        const categoriesKeys = [
-                            `categories_${company}`,
-                            `${company}-categories`,
-                            'categories'
-                        ];
-                        
-                        let categories = [];
-                        for (const key of categoriesKeys) {
-                            const catData = localStorage.getItem(key);
-                            if (catData) {
-                                categories = JSON.parse(catData);
-                                break;
-                            }
-                        }
-                        
-                        if (Array.isArray(categories)) {
-                            // 尝试直接查找
-                            let category = categories.find(cat => cat.id === transaction.categoryId);
-                            
-                            // 如果找不到，尝试在收入/支出分类中查找
-                            if (!category && categories.income && Array.isArray(categories.income)) {
-                                category = categories.income.find(cat => cat.id === transaction.categoryId);
-                            }
-                            if (!category && categories.expense && Array.isArray(categories.expense)) {
-                                category = categories.expense.find(cat => cat.id === transaction.categoryId);
-                            }
-                            
-                            if (category) {
-                                categoryName = category.name || '未分类';
-                            }
-                        }
-                    } catch (e) {
-                        console.error('获取分类名称失败:', e);
+            params.append('unit', f.unit);
+            params.append('startDate', document.getElementById('reconciliation-start-date').value);
+            params.append('endDate', document.getElementById('reconciliation-end-date').value);
+
+            var prepared = getCompanyTransactions()
+                .filter(function(t) {
+                    var d = reconParseDate(t.date);
+                    if (!d || d < f.start || d > f.end) return false;
+                    if (f.unit) {
+                        return (t.unit && t.unit.indexOf(f.unit) !== -1) ||
+                               (t.description && t.description.indexOf(f.unit) !== -1);
                     }
-                }
-                
-                // 为了兼容可能的原始交易数据中的分类名称字段
-                if (categoryName === '未分类') {
-                    // 检查交易数据中可能存在的其他分类相关字段
-                    if (transaction.category) {
-                        categoryName = transaction.category;
-                    } else if (transaction.type === 'income' && transaction.incomeCategory) {
-                        categoryName = transaction.incomeCategory;
-                    } else if (transaction.type === 'expense' && transaction.expenseCategory) {
-                        categoryName = transaction.expenseCategory;
-                    }
-                }
-                
-                const preparedTransaction = {
-                    date: transaction.date,
-                    type: transaction.type,
-                    amount: transaction.amount,
-                    categoryName: categoryName,
-                    description: transaction.description || '',
-                    unit: transaction.unit || ''
-                };
-                
-                return preparedTransaction;
-            });
-            
-            // 保存筛选后的交易到localStorage，供对账单页面使用
-            localStorage.setItem('reconciliation_transactions', JSON.stringify(preparedTransactions));
+                    return true;
+                })
+                .sort(function(a, b) {
+                    return reconParseDate(a.date) - reconParseDate(b.date) ||
+                           new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+                })
+                .map(function(t) {
+                    var cat = getCategoryById(t.type, t.categoryId);
+                    return {
+                        date: t.date,
+                        type: t.type,
+                        amount: t.amount,
+                        categoryName: cat ? cat.name : (t.categoryName || '未分类'),
+                        description: t.description || '',
+                        unit: t.unit || ''
+                    };
+                });
+
+            localStorage.setItem('reconciliation_transactions', JSON.stringify(prepared));
             localStorage.setItem('reconciliation_params', params.toString());
-            
-            // 跳转到对账单页面
-            window.open(`对账单.html`, '_blank');
+            window.open('对账单.html', '_blank');
+        }
+
+        // ---------- 往来余额表（含账龄） ----------
+        function aggregateBalances(asof) {
+            var map = {};
+            getCompanyTransactions().forEach(function(t) {
+                var d = reconParseDate(t.date);
+                if (!d || d > asof) return;
+                var u = t.unit && t.unit.trim();
+                if (!u) return;
+                if (!map[u]) map[u] = { unit: u, income: 0, expense: 0, count: 0, last: null };
+                var rec = map[u];
+                if (t.type === 'income') rec.income += reconNum(t.amount);
+                else rec.expense += reconNum(t.amount);
+                rec.count++;
+                if (!rec.last || d > rec.last) rec.last = d;
+            });
+            return Object.keys(map).map(function(k) {
+                var rec = map[k];
+                rec.net = rec.income - rec.expense;
+                rec.ageDays = rec.last ? Math.round((asof - rec.last) / 86400000) : null;
+                return rec;
+            }).sort(function(a, b) {
+                return Math.abs(b.net) - Math.abs(a.net);
+            });
+        }
+        function agingTag(days) {
+            if (days === null) return '<span class="text-gray-400 text-xs">—</span>';
+            if (days <= 30) return '<span class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">30天内</span>';
+            if (days <= 90) return '<span class="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">31-90天</span>';
+            if (days <= 180) return '<span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">91-180天</span>';
+            return '<span class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">180天以上</span>';
+        }
+        function renderBalanceTable() {
+            var asof = reconParseDate(document.getElementById('balance-asof-date').value) || new Date();
+            var list = aggregateBalances(asof);
+            var receivable = 0, payable = 0;
+            list.forEach(function(r) {
+                if (r.net > 0) receivable += r.net;
+                else payable += -r.net;
+            });
+            document.getElementById('bal-stat-units').textContent = list.length;
+            document.getElementById('bal-stat-receivable').textContent = reconMoney(receivable);
+            document.getElementById('bal-stat-payable').textContent = reconMoney(payable);
+            var netEl = document.getElementById('bal-stat-net');
+            var netTotal = receivable - payable;
+            netEl.textContent = reconMoney(netTotal);
+            netEl.className = 'text-lg font-bold ' + (netTotal >= 0 ? 'text-secondary' : 'text-danger');
+
+            var tbody = document.getElementById('balance-details');
+            tbody.innerHTML = '';
+            if (!list.length) {
+                tbody.innerHTML = '<tr><td colspan="7" class="px-3 py-6 text-center text-gray-400">截止日期前没有往来单位数据</td></tr>';
+            } else {
+                list.forEach(function(r) {
+                    var netCls = r.net > 0 ? 'text-secondary' : (r.net < 0 ? 'text-danger' : 'text-gray-500');
+                    var tr = document.createElement('tr');
+                    tr.className = 'hover:bg-blue-50 cursor-pointer';
+                    tr.dataset.unit = r.unit;
+                    tr.title = '点击查看 ' + r.unit + ' 的往来对账单';
+                    tr.innerHTML =
+                        '<td class="px-3 py-2 font-medium text-gray-800"><i class="fa fa-building-o text-gray-400 mr-2"></i>' + reconEsc(r.unit) + '</td>' +
+                        '<td class="px-3 py-2 text-right text-secondary">' + reconMoneyPlain(r.income) + '</td>' +
+                        '<td class="px-3 py-2 text-right text-danger">' + reconMoneyPlain(r.expense) + '</td>' +
+                        '<td class="px-3 py-2 text-right font-medium ' + netCls + '">' + reconMoneyPlain(r.net) + '</td>' +
+                        '<td class="px-3 py-2 text-gray-600 whitespace-nowrap">' + (r.last ? reconEsc(formatDate(reconFmtDate(r.last))) : '—') + '</td>' +
+                        '<td class="px-3 py-2">' + agingTag(r.ageDays) + '</td>' +
+                        '<td class="px-3 py-2 text-right text-gray-500">' + r.count + '</td>';
+                    tbody.appendChild(tr);
+                });
+            }
+            reconState.balancesRendered = true;
+        }
+        function exportBalanceExcel() {
+            var asof = reconParseDate(document.getElementById('balance-asof-date').value) || new Date();
+            var list = aggregateBalances(asof);
+            var aoa = [['往来余额表（截止 ' + reconFmtDate(asof) + '）']];
+            aoa.push([getCompanyName(getCurrentCompany())]);
+            aoa.push([]);
+            aoa.push(['往来单位', '收入累计', '支出累计', '净余额', '余额方向', '最近往来日期', '账龄(天)', '笔数']);
+            list.forEach(function(r) {
+                aoa.push([
+                    r.unit, r.income, r.expense, r.net,
+                    r.net > 0 ? '应收(人欠我)' : (r.net < 0 ? '应付(我欠人)' : '平'),
+                    r.last ? reconFmtDate(r.last) : '',
+                    r.ageDays === null ? '' : r.ageDays,
+                    r.count
+                ]);
+            });
+            var wb = XLSX.utils.book_new();
+            var ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!cols'] = [{ wch: 26 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 6 }];
+            XLSX.utils.book_append_sheet(wb, ws, '往来余额表');
+            XLSX.writeFile(wb, '往来余额表_' + reconFmtDate(asof) + '.xlsx');
+        }
+        // 从余额表行跳转单位对账单
+        function openUnitStatement(unit) {
+            var asof = reconParseDate(document.getElementById('balance-asof-date').value) || new Date();
+            var earliest = null;
+            getCompanyTransactions().forEach(function(t) {
+                if (t.unit && t.unit.trim() === unit) {
+                    var d = reconParseDate(t.date);
+                    if (d && (!earliest || d < earliest)) earliest = d;
+                }
+            });
+            document.getElementById('reconciliation-unit').value = unit;
+            document.getElementById('reconciliation-unit-value').value = unit;
+            document.getElementById('reconciliation-start-date').value = reconFmtDate(earliest || asof);
+            document.getElementById('reconciliation-end-date').value = reconFmtDate(asof);
+            document.getElementById('reconciliation-checked').value = 'all';
+            switchReconPanel('unit');
+            performReconciliation();
+        }
+
+        // ---------- 银行存款余额调节表 ----------
+        function bankRecoKey() { return 'bankReco_' + getCurrentCompany(); }
+        function calcBankReco() {
+            var v = function(id) { return reconNum(document.getElementById(id).value); };
+            var adjBook = v('br-book-balance') + v('br-bank-add') - v('br-bank-sub');
+            var adjBank = v('br-bank-balance') + v('br-book-add') - v('br-book-sub');
+            document.getElementById('br-book-adjusted').textContent = reconMoney(adjBook);
+            document.getElementById('br-bank-adjusted').textContent = reconMoney(adjBank);
+            var status = document.getElementById('br-status');
+            var diff = Math.round((adjBook - adjBank) * 100) / 100;
+            if (diff === 0) {
+                status.textContent = '✓ 调节后余额相等，账实相符';
+                status.className = 'text-sm font-medium mt-4 text-secondary';
+            } else {
+                status.textContent = '× 调节后余额不平，差额：' + reconMoney(Math.abs(diff)) + (diff > 0 ? '（日记账侧偏大）' : '（对账单侧偏大）');
+                status.className = 'text-sm font-medium mt-4 text-danger';
+            }
+            return { adjBook: adjBook, adjBank: adjBank, diff: diff };
+        }
+        function loadBankReco() {
+            var data;
+            try { data = JSON.parse(localStorage.getItem(bankRecoKey())) || {}; } catch (e) { data = {}; }
+            ['br-book-balance', 'br-bank-balance', 'br-bank-add', 'br-bank-sub', 'br-book-add', 'br-book-sub'].forEach(function(id) {
+                var key = id.replace('br-', '');
+                if (data[key] !== undefined && data[key] !== null && data[key] !== '') document.getElementById(id).value = data[key];
+            });
+            if (data.date) document.getElementById('br-date').value = data.date;
+            calcBankReco();
+        }
+        function saveBankReco() {
+            var calc = calcBankReco();
+            var data = { date: document.getElementById('br-date').value };
+            ['br-book-balance', 'br-bank-balance', 'br-bank-add', 'br-bank-sub', 'br-book-add', 'br-book-sub'].forEach(function(id) {
+                data[id.replace('br-', '')] = document.getElementById(id).value;
+            });
+            data.adjBook = calc.adjBook;
+            data.adjBank = calc.adjBank;
+            localStorage.setItem(bankRecoKey(), JSON.stringify(data));
+            showNotification('已保存', '银行存款余额调节表已按当前公司保存', 'success');
         }
         
         // 导出Excel功能
         function exportToExcel() {
             // 获取当前公司
             const company = getCurrentCompany();
-            const companyName = document.getElementById(`${company}-btn`).textContent.trim();
+            const companyName = getCompanyName(company);
             
             // 获取当前公司的交易数据
             const transactions = JSON.parse(localStorage.getItem(`transactions_${company}`)) || [];
@@ -4012,7 +4426,7 @@
             
             // 确认是否覆盖现有数据
             const company = getCurrentCompany();
-            const companyName = document.getElementById(`${company}-btn`).textContent.trim();
+            const companyName = getCompanyName(company);
             const currentTransactions = JSON.parse(localStorage.getItem(`transactions_${company}`) || '[]');
             if (currentTransactions.length > 0) {
                 if (!confirm(`导入Excel会覆盖${companyName}的现有数据，是否继续？`)) {
