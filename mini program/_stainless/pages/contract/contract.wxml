@@ -1,0 +1,113 @@
+<view class="page">
+  <view class="brand">
+    <view class="brand-logo"><text class="brand-logo-text">📄</text></view>
+    <view class="brand-text">
+      <view class="brand-name">合同生成</view>
+      <view class="brand-name-en">带红色印章 PDF · 可转发微信好友</view>
+    </view>
+  </view>
+
+  <!-- 合同类型 -->
+  <view class="seg">
+    <view class="seg-item {{type === 'sales' ? 'on' : ''}}" data-type="sales" bindtap="switchType">销售合同</view>
+    <view class="seg-item {{type === 'purchase' ? 'on' : ''}}" data-type="purchase" bindtap="switchType">采购合同</view>
+  </view>
+
+  <!-- 选择单位 -->
+  <view class="card">
+    <view class="sec-title">选择{{partyLabel}}</view>
+    <picker mode="selector" range="{{partyNames}}" value="{{partyIndex}}" bindchange="onPartyChange">
+      <view class="picker-box {{partyNames.length ? '' : 'ph'}}">
+        {{partyNames.length ? partyNames[partyIndex] : '当前抬头下还没有' + (type === 'sales' ? '销售订单' : '采购订单')}}
+        <text class="picker-arrow">▾</text>
+      </view>
+    </picker>
+
+    <view class="sec-title" style="margin-top: 20rpx;">
+      选择订单（{{checkedCount}}/{{orders.length}}）
+      <text class="sel-all" bindtap="toggleAll">{{allChecked ? '取消全选' : '全选'}}</text>
+    </view>
+    <view class="empty" wx:if="{{!orders.length}}" style="padding: 40rpx 0;">
+      <view>该{{partyLabel}}名下暂无订单</view>
+    </view>
+    <view class="order-row {{item.checked ? 'on' : ''}}" wx:for="{{orders}}" wx:key="id"
+          data-id="{{item.id}}" bindtap="toggleOrder">
+      <view class="cb">{{item.checked ? '✓' : ''}}</view>
+      <view class="order-mid">
+        <view class="order-no">{{item.no}}</view>
+        <view class="order-text" wx:if="{{item.text}}">{{item.text}}</view>
+      </view>
+      <view class="order-amt" wx:if="{{item.amount}}">¥{{item.amount}}</view>
+    </view>
+  </view>
+
+  <!-- 合同信息 -->
+  <view class="card">
+    <view class="sec-title">合同信息</view>
+    <view class="form-item">
+      <text class="f-label f-req">合同号</text>
+      <view class="no-row">
+        <input class="f-input" style="flex:1;" value="{{form.no}}" placeholder="合同编号"
+               placeholder-class="ph" data-f="no" bindinput="onInput" />
+        <view class="no-btn" bindtap="regenNo">自动生成</view>
+      </view>
+    </view>
+    <view class="form-row2">
+      <view class="form-item">
+        <text class="f-label f-req">合同日期</text>
+        <picker class="f-input" mode="date" value="{{form.date}}" data-f="date" bindchange="onDate">
+          <view wx:if="{{form.date}}">{{form.date}}</view>
+          <view class="ph" wx:else>选择日期</view>
+        </picker>
+      </view>
+      <view class="form-item">
+        <text class="f-label">交货日期</text>
+        <picker class="f-input" mode="date" value="{{form.deliveryDate}}" data-f="deliveryDate" bindchange="onDate">
+          <view wx:if="{{form.deliveryDate}}">{{form.deliveryDate}}</view>
+          <view class="ph" wx:else>选择日期</view>
+        </picker>
+      </view>
+    </view>
+    <view class="form-item">
+      <text class="f-label">付款方式（留空默认电汇）</text>
+      <input class="f-input" value="{{form.paymentTerms}}" placeholder="如：电汇 / 承兑汇票"
+             placeholder-class="ph" data-f="paymentTerms" bindinput="onInput" />
+    </view>
+    <view class="form-item" wx:if="{{type === 'sales'}}">
+      <text class="f-label">执行标准（质量标准条款附加，可留空）</text>
+      <input class="f-input" value="{{form.standards}}" placeholder="如：GB/T 14976、GB/T 13296"
+             placeholder-class="ph" data-f="standards" bindinput="onInput" />
+    </view>
+    <view class="form-item">
+      <text class="f-label">{{type === 'sales' ? '买方' : '卖方'}}联系人（取自通讯录，可留空）</text>
+      <picker mode="selector" range="{{contactNames}}" value="{{contactIndex}}" bindchange="onContactChange">
+        <view class="picker-box {{contactNames.length ? '' : 'ph'}}">
+          {{contactNames.length ? contactNames[contactIndex] : '通讯录中暂无匹配联系人'}}
+          <text class="picker-arrow">▾</text>
+        </view>
+      </picker>
+    </view>
+  </view>
+
+  <!-- 合同条款 -->
+  <view class="card">
+    <view class="sec-title">
+      合同条款（每行一条）
+      <text class="sel-all" bindtap="resetTerms">恢复默认</text>
+    </view>
+    <textarea class="terms-box" value="{{termsText}}" bindinput="onTermsInput"
+              maxlength="-1" auto-height placeholder="合同条款" placeholder-class="ph" />
+  </view>
+
+  <block wx:if="{{fileReady}}">
+    <button class="gen-btn gen-btn-send" bindtap="onShareFile">
+      📨 发送{{typeLabel}}PDF 给微信好友
+    </button>
+    <view class="gen-regen" bindtap="onGenerate">内容有改动？重新生成 PDF</view>
+  </block>
+  <button wx:else class="gen-btn" loading="{{generating}}" bindtap="onGenerate">
+    生成{{typeLabel}}PDF
+  </button>
+  <view class="gen-tip">第一步生成 PDF 文件，第二步在微信中选择好友/群聊发送（分两次点击）</view>
+  <view class="page-foot"></view>
+</view>

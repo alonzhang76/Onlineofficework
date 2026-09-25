@@ -1367,7 +1367,12 @@ function renderApps(apps) {
 
   let html = '';
 
-  // 小分类并排显示
+  // 大分类独占整行（第一排）
+  bigCats.forEach(({ cat, catApps }) => {
+    html += buildCategoryHtml(cat, catApps);
+  });
+
+  // 小分类并排显示（第二排）
   if (smallCats.length >= 2) {
     html += '<div class="categories-grid">';
     smallCats.forEach(({ cat, catApps }) => {
@@ -1378,11 +1383,6 @@ function renderApps(apps) {
     // 只有一个小分类，直接显示
     html += buildCategoryHtml(smallCats[0].cat, smallCats[0].catApps);
   }
-
-  // 大分类独占整行
-  bigCats.forEach(({ cat, catApps }) => {
-    html += buildCategoryHtml(cat, catApps);
-  });
 
   appsContainer.innerHTML = html || `
     <div class="empty-state">

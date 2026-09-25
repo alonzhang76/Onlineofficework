@@ -40,7 +40,7 @@ const CONFIG = {
     password: 'LoriSync2026!'
   },
   // 本应用同步的数据键（构建脚本注入）
-  namespaces: {"app":["purchaseOrders","salesOrders","inquiries","returnRecords","salesReturnRecords","contacts","memoRecords"]},
+  namespaces: {"app":["memos","contacts","favoriteContacts","industryTypes","industryApplications","gradeComparisons","vocabularies","hscodes","hscodeData","calculationParams","plateCalcData","certificateData","paymentTerms","customColumns","products","productCategories","companyList","currentCompanyId","isLoggedIn","username","userPhone","dataCleared","contractTerms","default-1__inquiries","default-1__quotations","default-1__purchaseOrders","default-1__returnRecords","default-1__salesOrders","default-1__salesReturnRecords","default-1__inventoryRecords","default-1__warehouses","default-1__warehouseHistory","default-1__warehouseSales","default-1__warehouseSalePayments","default-1__warehouseSaleInvoices","default-1__transactions","default-1__transactionCategories","default-1__initialBalanceData","default-1__invoices","default-1__purchaseContractTerms","default-1__salesContractTerms","default-1__calendarEvents","default-1__companyName1","default-1__companyName2","default-2__inquiries","default-2__quotations","default-2__purchaseOrders","default-2__returnRecords","default-2__salesOrders","default-2__salesReturnRecords","default-2__inventoryRecords","default-2__warehouses","default-2__warehouseHistory","default-2__warehouseSales","default-2__warehouseSalePayments","default-2__warehouseSaleInvoices","default-2__transactions","default-2__transactionCategories","default-2__initialBalanceData","default-2__invoices","default-2__purchaseContractTerms","default-2__salesContractTerms","default-2__calendarEvents","default-2__companyName1","default-2__companyName2","default-3__inquiries","default-3__quotations","default-3__purchaseOrders","default-3__returnRecords","default-3__salesOrders","default-3__salesReturnRecords","default-3__inventoryRecords","default-3__warehouses","default-3__warehouseHistory","default-3__warehouseSales","default-3__warehouseSalePayments","default-3__warehouseSaleInvoices","default-3__transactions","default-3__transactionCategories","default-3__initialBalanceData","default-3__invoices","default-3__purchaseContractTerms","default-3__salesContractTerms","default-3__calendarEvents","default-3__companyName1","default-3__companyName2"]},
   // 云端 store_key 前缀（saintysys 裸键无前缀；stainlessbusiness 带前缀）
   cloudPrefix: {"app":"stainlessbusiness__"}
 };
@@ -62,8 +62,8 @@ function toCloudKey(key) {
   return prefix + key;
 }
 
-/** 兼容旧调用：默认工资命名空间 */
-CONFIG.syncKeys = CONFIG.namespaces.wage;
+/** 兼容旧调用：默认业务命名空间 */
+CONFIG.syncKeys = CONFIG.namespaces.app || CONFIG.namespaces.wage;
 
 /* ============ 会话管理 ============
  * 两类会话独立缓存：

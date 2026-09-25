@@ -4,13 +4,23 @@
 
 ## 功能模块
 
-- 🛒 **采购订单**（purchaseOrders）
 - 💼 **销售订单**（salesOrders）
+- 🛒 **采购订单**（purchaseOrders）
 - 📨 **询价单**（inquiries）
+- 💰 **报价单**（quotations）
 - 📥 **采购收退货**（returnRecords）
-- 📤 **销售退货**（salesReturnRecords）
+- 📤 **销售发退货**（salesReturnRecords）
+- 🏬 **库存记录**（inventoryRecords）
+- 🗄️ **仓库设置**（warehouses）
+- 💴 **收付款**（transactions）
+- 🧾 **发票登记**（invoices）
+- 📅 **日历记事**（calendarEvents）
 - 👥 **通讯录**（contacts）
-- 📝 **备忘录**（memoRecords）
+- 📝 **备忘录**（memos）
+- 🔩 **材质对照**（gradeComparisons）
+- 🔤 **钢材英语**（vocabularies）
+- 📚 **HS编码/标准**（hscodes）
+- 🧮 **理算参数**（calculationParams）
 - ☁️ **云存储**：文件上传/预览/下载（CloudBase 云存储，云端路径 `stainlessbusiness`）
 - 💾 **数据备份**：导出 JSON / 导入恢复 / 手动云同步
 - 🔐 **统一登录**：CloudBase 邮箱/用户名 + 密码（与网页版同一账号体系）

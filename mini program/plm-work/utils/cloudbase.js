@@ -50,7 +50,11 @@ const CONFIG = {
     trade: [
       'orderRecords', 'customerRecords', 'exportRecords', 'invoiceRecords',
       'receiptRecords', 'indexPaymentRecords', 'memoRecords', 'businessRecords',
-      'orderLabelsData'
+      'orderLabelsData',
+      // 报价系统（与网页版 报价系统.html 共用，键名与 localStorage 完全一致）
+      'quotationRecords', 'libraryProducts',
+      'quotationSystemUnits', 'quotationSystemPaymentRatios',
+      'quotationSystemPaymentMethods', 'quotationSystemTerms'
     ],
     schedule: ['production_orders_data', 'calendarNotes', 'memos'],
     purchase: ['purchaseOrders_companyA', 'purchaseOrders_companyB', 'companyA-invoices', 'companyB-invoices', 'companyA-payments', 'companyB-payments', 'contracts_companyA', 'contracts_companyB', 'receipts_companyA', 'receipts_companyB', 'returns_companyA', 'returns_companyB', 'suppliers', 'companyNames', 'units'],

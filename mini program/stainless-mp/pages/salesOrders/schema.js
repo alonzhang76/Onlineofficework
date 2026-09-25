@@ -22,23 +22,34 @@ module.exports = {
   "searchKeys": [
     "orderNo",
     "customer",
+    "product",
     "material",
-    "specification"
+    "specification",
+    "contractNo"
   ],
+  "titleFn": r => r.orderNo || r.id,
+  "subFn": r => [r.customer, r.contractNo ? '合同:' + r.contractNo : ''].filter(Boolean).join(' · '),
   "kvFields": [
     "product",
     "material",
     "specification",
     "quantity",
     "weight",
+    "weightAdjustment",
     "totalAmount",
     "deliveryDate"
   ],
   "autoSum": {
     "qtyField": "weight",
+    "adjustField": "weightAdjustment",
     "priceField": "price",
     "target": "totalAmount",
     "money": true
+  },
+  "action": {
+    "label": "生成销售合同",
+    "url": "/pages/contract/contract",
+    "query": "type=sales"
   },
   "fields": [
     {
@@ -65,6 +76,22 @@ module.exports = {
       "required": true
     },
     {
+      "k": "status",
+      "label": "状态",
+      "type": "select",
+      "options": [
+        "待发货",
+        "已发货",
+        "已完成"
+      ],
+      "defaultValue": "待发货"
+    },
+    {
+      "k": "contractNo",
+      "label": "合同号",
+      "type": "text"
+    },
+    {
       "k": "product",
       "label": "产品",
       "type": "text"
@@ -85,9 +112,19 @@ module.exports = {
       "type": "text"
     },
     {
-      "k": "otherRequirements",
-      "label": "其它要求",
-      "type": "textarea"
+      "k": "heatNo",
+      "label": "炉号",
+      "type": "text"
+    },
+    {
+      "k": "warrantyNo",
+      "label": "质保书号码",
+      "type": "text"
+    },
+    {
+      "k": "inventoryNo",
+      "label": "坯料产地",
+      "type": "text"
     },
     {
       "k": "quantity",
@@ -112,6 +149,11 @@ module.exports = {
       "type": "number"
     },
     {
+      "k": "weightAdjustment",
+      "label": "损/溢重量(±)",
+      "type": "number"
+    },
+    {
       "k": "weightUnit",
       "label": "重量单位",
       "type": "select",
@@ -123,29 +165,28 @@ module.exports = {
     },
     {
       "k": "price",
-      "label": "单价",
+      "label": "单价(元)",
       "type": "number",
       "money": true
     },
     {
       "k": "totalAmount",
-      "label": "总金额",
+      "label": "总金额(元)",
       "type": "number",
       "money": true
     },
     {
-      "k": "status",
-      "label": "状态",
-      "type": "select",
-      "options": [
-        "待发货",
-        "已发货",
-        "已完成"
-      ],
-      "defaultValue": "待发货"
+      "k": "paymentTerms",
+      "label": "付款方式",
+      "type": "text"
     },
     {
-      "k": "remarks",
+      "k": "otherRequirements",
+      "label": "其它要求",
+      "type": "textarea"
+    },
+    {
+      "k": "description",
       "label": "备注",
       "type": "textarea"
     }

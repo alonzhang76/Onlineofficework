@@ -28,6 +28,8 @@ module.exports = {
     "supplier",
     "accessoryCode"
   ],
+  "titleFn": r => r.accessoryName || r.id,
+  "subFn": r => [r.styleNo, r.supplier].filter(Boolean).join(' · '),
   "kvFields": [
     "accessoryCode",
     "spec",
@@ -63,8 +65,8 @@ module.exports = {
       "type": "text"
     },
     {
-      "k": "spec",
-      "label": "规格",
+      "k": "composition",
+      "label": "成分",
       "type": "text"
     },
     {

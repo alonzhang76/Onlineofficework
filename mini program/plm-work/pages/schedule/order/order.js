@@ -1,6 +1,19 @@
 const db = require('../../../utils/schedule-db');
 const fmt = require('../../../utils/format');
 
+// LOGO 选项：仅 K&B 显示图案（kba.png），其余（含 KBA）均为纯文字
+const LOGO_NAMES = ['无', 'LONGLI', 'KBA', 'K&B', 'PERM', 'EPCCS', 'INGHOR', 'CC', 'J', 'HS'];
+const LOGO_IMAGE_FILES = { 'K&B': 'kba.png' };
+const LOGO_OPTS = LOGO_NAMES.map(n => ({
+  name: n,
+  img: LOGO_IMAGE_FILES[n] ? '../../../assets/logos/' + LOGO_IMAGE_FILES[n] : ''
+}));
+function logoImgOf(name) {
+  if (!name) return '';
+  const file = LOGO_IMAGE_FILES[name];
+  return file ? '../../../assets/logos/' + file : '';
+}
+
 const STATUS_CLASS = {
   '已出货': 'badge-green', '已交货': 'badge-green', '结束': 'badge-green',
   '生产中': 'badge-orange'
@@ -9,7 +22,7 @@ const STATUS_CLASS = {
 function blankForm() {
   return {
     id: '', date: '', customer: '', orderNo: '', drawing: '', product: '', spec: '',
-    plating: '', logo: '', remark: '', currencyIdx: 0, quantity: '', price: '', moldFee: '',
+    plating: '', logo: '', logoImg: '', logoMenu: false, remark: '', currencyIdx: 0, quantity: '', price: '', moldFee: '',
     deadline: '', shipDate: '', month1: '', output1: '', month2: '', output2: '',
     packDate: '', boxSize: '', packaging: '',
     invoiceDate: '', invoiceAmount: '', invoiceTitle: '',
@@ -50,7 +63,8 @@ Page({
     list: [],
     sumText: '0.00',
     showForm: false,
-    form: blankForm()
+    form: blankForm(),
+    logoOpts: LOGO_OPTS, logoErr: {}
   },
 
   onShow() { this.search(); },
@@ -89,12 +103,34 @@ Page({
     const form = Object.assign(blankForm(), o, {
       currencyIdx: Math.max(0, db.CURRENCIES.indexOf(o.currency || 'CNY'))
     });
+    form.logoImg = logoImgOf(form.logo);
+    form.logoMenu = false;
     form.orderAmount = db.r2(db.num(o.quantity) * db.num(o.price) + db.num(o.moldFee)).toFixed(2);
     this.setData({ showForm: true, form });
   },
 
   closeForm() { this.setData({ showForm: false }); },
   noop() {},
+
+  // 展开/收起 LOGO 菜单
+  toggleLogoMenu() {
+    this.setData({ 'form.logoMenu': !this.data.form.logoMenu });
+  },
+  pickLogo(e) {
+    const name = e.currentTarget.dataset.ln;
+    this.setData({
+      'form.logo': name,
+      'form.logoImg': logoImgOf(name),
+      'form.logoMenu': false
+    });
+  },
+  closeLogoMenu() { this.setData({ 'form.logoMenu': false }); },
+  // 点击弹层空白处关闭 LOGO 菜单（trigger/菜单项用 catchtap 阻止冒泡到此处）
+  onSheetTap() { this.closeLogoMenu(); },
+  // LOGO 图片加载失败（未放入对应文件）→ 只显示名称文字
+  onLogoErr(e) {
+    this.setData({ ['logoErr.' + e.currentTarget.dataset.ln]: true });
+  },
 
   onInput(e) {
     const k = e.currentTarget.dataset.k;

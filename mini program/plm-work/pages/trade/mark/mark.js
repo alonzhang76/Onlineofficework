@@ -16,7 +16,9 @@ function emptyForm() {
 Page({
   data: {
     form: emptyForm(),
-    labels: []
+    labels: [],
+    pdfReady: false,
+    pdfPath: ''
   },
 
   onLoad(query) {
@@ -40,7 +42,7 @@ Page({
 
   onField(e) {
     const k = e.currentTarget.dataset.k;
-    this.setData({ ['form.' + k]: e.detail.value });
+    this.setData({ ['form.' + k]: e.detail.value, pdfReady: false });
   },
 
   onQtyInput(e) {
@@ -53,7 +55,7 @@ Page({
     if (totalQty > 0 && qtyPerBox > 0) {
       form.totalBoxes = String(Math.ceil(totalQty / qtyPerBox));
     }
-    this.setData({ form });
+    this.setData({ form, pdfReady: false });
   },
 
   generate() {
@@ -79,7 +81,7 @@ Page({
       }
       labels.push({ no: i, qty: qty, last: i === totalBoxes });
     }
-    this.setData({ labels });
+    this.setData({ labels, pdfReady: false });
     wx.showToast({ title: '已生成 ' + totalBoxes + ' 箱', icon: 'success' });
   },
 
@@ -88,12 +90,12 @@ Page({
       title: '清空',
       content: '确定清空当前唛头信息吗？',
       success: res => {
-        if (res.confirm) this.setData({ form: emptyForm(), labels: [] });
+        if (res.confirm) this.setData({ form: emptyForm(), labels: [], pdfReady: false });
       }
     });
   },
 
-  generatePDF() {
+  buildPDF() {
     const f = this.data.form;
     const labels = this.data.labels;
     if (!labels.length) {
@@ -101,28 +103,39 @@ Page({
       return;
     }
     const total = labels.length;
-    // 为每箱生成一个 canvas 页面
-    const pages = labels.map(label => {
-      return docRenderers.renderBoxMark({
-        company: f.company,
-        po: f.po,
-        artNo: f.artNo,
-        maschinenNr: f.maschinenNr,
-        projektNr: f.projektNr,
-        unit: f.unit,
-        totalQty: f.totalQty,
-        perBoxQty: String(label.qty),
-        totalBoxes: String(total),
-        remark: label.last ? f.remarks : ''
-      }, label.no, total);
-    });
 
-    pdfShare.generateAndShare(
-      function () { return pages; },
+    pdfShare.buildFile(
+      function () {
+        // 为每箱生成一个 canvas 页面
+        return labels.map(label => {
+          return docRenderers.renderBoxMark({
+            company: f.company,
+            po: f.po,
+            artNo: f.artNo,
+            maschinenNr: f.maschinenNr,
+            projektNr: f.projektNr,
+            unit: f.unit,
+            totalQty: f.totalQty,
+            perBoxQty: String(label.qty),
+            totalBoxes: String(total),
+            remark: label.last ? f.remarks : ''
+          }, label.no, total);
+        });
+      },
       null,
       '箱唛_' + (f.po || ''),
       'portrait',
-      null
+      (ok, filePath) => {
+        if (ok) {
+          this.setData({ pdfReady: true, pdfPath: filePath });
+          wx.showToast({ title: 'PDF已生成，请发送', icon: 'success' });
+        }
+      }
     );
+  },
+
+  // 必须由“发送给微信好友”按钮直接 tap 触发
+  onShareFile() {
+    pdfShare.sharePrepared(this.data.pdfPath, null);
   }
 });

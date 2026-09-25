@@ -8,8 +8,8 @@
 		// 用户只能通过手动点击"同步云端"按钮拉取云端数据
 		window.__NO_AUTO_CLOUD_LOAD__ = true;
 	</script>
-	<script src="../cloudbase-sync.js?v=20260918f"></script>
-	<script src="../cloudbase-admin.js?v=20260916d"></script>
+	<script src="../cloudbase-sync.js?v=20260924f"></script>
+	<script src="../cloudbase-admin.js?v=20260924a"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ProcurePay - 采购付款发票管理系统</title>
@@ -580,11 +580,6 @@
             .table tr {
                 @apply h-8 hover:bg-gray-50;
             }
-            /* 为供应商列设置固定宽度 */
-            .purchase-order-table th:nth-child(4),
-            .purchase-order-table td:nth-child(4) {
-                @apply min-w-[300px] max-w-[400px] whitespace-nowrap;
-            }
             /* 采购订单列表冻结列样式 */
             /* 设置每列的冻结位置和宽度 */
             .purchase-order-table th:nth-child(1),
@@ -599,9 +594,15 @@
             .purchase-order-table td:nth-child(3) {
                 @apply sticky left-[160px] bg-white z-30 w-[100px];
             }
+            /* 状态列（第4列）：宽度仅够容纳状态标签，避免占用过多横向空间 */
             .purchase-order-table th:nth-child(4),
             .purchase-order-table td:nth-child(4) {
-                @apply sticky left-[260px] bg-white z-40 min-w-[300px] max-w-[400px] whitespace-nowrap;
+                @apply sticky left-[260px] bg-white z-40 whitespace-nowrap;
+                width: 180px !important;
+                min-width: 180px !important;
+                max-width: 180px !important;
+                padding-left: 0.5rem !important;
+                padding-right: 0.5rem !important;
             }
             /* 表头垂直冻结（原生 CSS，z-index 高于所有表体冻结列）：
                表格在 .table-container 内垂直滚动时表头始终可见。
@@ -747,10 +748,12 @@
 
         /* 模态框必须高于冻结表头（thead th z-index 60~73），否则表头会穿透显示在表单上 */
         #newPurchaseOrderModal,
-        #create-invoice-from-order-modal { z-index: 1000 !important; }
+        #create-invoice-from-order-modal,
+        #viewPurchaseOrderModal { z-index: 1000 !important; }
         /* 模态框内部滚动到边界时不把滚动链传给背后页面（鼠标滚轮/触摸均生效） */
         #newPurchaseOrderModal > div,
-        #create-invoice-from-order-modal .modal-content { overscroll-behavior: contain; }
+        #create-invoice-from-order-modal .modal-content,
+        #viewPurchaseOrderModal > div { overscroll-behavior: contain; }
 
         /* 修复 iOS Safari 的 sticky 定位 */
         .purchase-order-table thead th {
@@ -849,7 +852,7 @@
             .backdrop-blur { background-color: rgba(255,255,255,0.95) !important; }
         }
     </style>
-    <link rel="stylesheet" href="../tablet-compat.css?v=20260915a">
+    <link rel="stylesheet" href="../tablet-compat.css?v=20260924a">
     <link rel="stylesheet" href="simple-theme.css?v=20260917c">
 </head>
 <body class="bg-gray-50 font-sans">
@@ -1430,15 +1433,15 @@
                         <div class="relative">
                             <button id="backup-dropdown-btn" class="flex items-center gap-1 px-4 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
                                 <i class="fa fa-database"></i>
-                                备份数据
+                                备份到电脑
                                 <i class="fa fa-chevron-down text-xs"></i>
                             </button>
                             <div id="backup-dropdown-menu" class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-20 hidden">
                                 <button id="export-data-btn" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                    <i class="fa fa-download mr-2"></i>导出数据
+                                    <i class="fa fa-download mr-2"></i>备份到电脑
                                 </button>
                                 <label for="import-data-input" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
-                                    <i class="fa fa-upload mr-2"></i>恢复数据
+                                    <i class="fa fa-upload mr-2"></i>从电脑恢复
                                 </label>
                                 <input type="file" id="import-data-input" accept=".json" class="hidden" />
                             </div>
@@ -1925,6 +1928,7 @@
                                         <th style="width: 140px !important; min-width: 140px !important; max-width: 140px !important;">总金额（含税）</th>
                                         <th>成本类别</th>
                                         <th>说明</th>
+                                        <th style="width: 160px; min-width: 160px; max-width: 160px;">备注</th>
                                     </tr>
                                 </thead>
                                 <tbody id="purchaseOrderTableBody">
@@ -1932,7 +1936,7 @@
                                 </tbody>
                                 <tfoot class="font-bold">
                                     <tr>
-                                        <td colspan="10" class="text-right">合计：</td>
+                                        <td colspan="11" class="text-right">合计：</td>
                                         <td id="totalQuantitySum" class="text-center">0</td>
                                         <td></td> <!-- 单位列 -->
                                         <td id="totalAmountSum" class="text-left" style="width: 140px !important; min-width: 140px !important; max-width: 140px !important;">¥0.00</td>
@@ -5546,7 +5550,7 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
             
             if (purchaseOrders.length === 0) {
                 const emptyRow = document.createElement('tr');
-                emptyRow.innerHTML = `<td colspan="10" class="text-center py-4 text-gray-500">暂无采购订单数据</td>`;
+                emptyRow.innerHTML = `<td colspan="17" class="text-center py-4 text-gray-500">暂无采购订单数据</td>`;
                 tableBody.appendChild(emptyRow);
                 
                 // 更新统计信息
@@ -5639,6 +5643,7 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
                         <td style="width: 140px !important; min-width: 140px !important; max-width: 140px !important;">${isFirstProduct ? formatCurrency(order.totalAmount) : ''}</td>
                         <td>${isFirstProduct ? (order.costCategory || '-') : ''}</td>
                         <td>${product.remark || '-'}</td>
+                        <td style="white-space: normal; word-break: break-all; vertical-align: top;">${isFirstProduct ? (order.remarks || '-') : ''}</td>
                     `;
                         
                         tableBody.appendChild(row);
@@ -10069,16 +10074,6 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
             noteContent.addEventListener('input', function() {
                 clearTimeout(autoSaveTimer);
                 autoSaveTimer = setTimeout(saveNote, 3000);
-            });
-            
-            // 页面关闭前提示保存
-            window.addEventListener('beforeunload', function(e) {
-                // 检查是否有未保存的更改（这里简单判断内容不为空即可）
-                if (noteContent.value.trim() !== (localStorage.getItem(LOCAL_STORAGE_KEY) || '').trim()) {
-                    const confirmationMessage = '您的笔记可能尚未保存，确定要离开吗？';
-                    e.returnValue = confirmationMessage;
-                    return confirmationMessage;
-                }
             });
 
             // 暴露全局刷新函数：云端数据同步到达后可刷新记事本内容

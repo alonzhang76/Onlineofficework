@@ -1,0 +1,120 @@
+/* ===== 勾选列表 ===== */
+.sec-title .sel-all { float: right; color: #1a56db; font-size: 24rpx; font-weight: 400; }
+
+.chk-row {
+  display: flex; align-items: center;
+  border: 1rpx solid #E5E5EA;
+  border-radius: 10rpx;
+  padding: 16rpx;
+  margin-top: 14rpx;
+}
+.chk-row.on { border-color: #1a56db; background: #EFF5FF; }
+.cb {
+  width: 40rpx; height: 40rpx;
+  border: 2rpx solid #C7C7CC; border-radius: 8rpx;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 26rpx;
+  margin-right: 16rpx; flex-shrink: 0;
+}
+.chk-row.on .cb { background: #1a56db; border-color: #1a56db; }
+.chk-mid { flex: 1; min-width: 0; }
+.chk-line1 { display: flex; align-items: center; gap: 12rpx; }
+.chk-no { font-size: 26rpx; font-weight: 700; color: #1C1C1E; }
+.chk-txt { font-size: 22rpx; color: #3A3A3C; margin-top: 4rpx; }
+.chk-txt.dim { color: #8E8E93; }
+
+/* ===== 单据纸张（对齐桌面版蓝色主题） ===== */
+.doc {
+  background: #fff;
+  border-radius: 12rpx;
+  padding: 32rpx 28rpx;
+  margin-top: 20rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+}
+.doc-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 2rpx solid #1a56db;
+  padding-bottom: 20rpx;
+  margin-bottom: 20rpx;
+}
+.doc-company { flex-shrink: 0; }
+.doc-brand { display: flex; align-items: baseline; gap: 12rpx; }
+.doc-brand-cn { font-size: 40rpx; font-weight: 700; color: #1a56db; }
+.doc-brand-en { font-size: 20rpx; color: #1a56db; font-weight: 600; }
+.doc-title-cn { font-size: 34rpx; font-weight: 700; color: #1a56db; margin-top: 8rpx; }
+.doc-title-en { font-size: 18rpx; color: #6B7280; margin-top: 2rpx; }
+
+.doc-info-grid {
+  display: flex; flex-wrap: wrap;
+  width: 420rpx; flex-shrink: 0;
+}
+.di { width: 50%; display: flex; flex-direction: column; padding: 6rpx 0; }
+.di-label { font-size: 20rpx; color: #8E8E93; }
+.di-val { font-size: 24rpx; color: #1C1C1E; margin-top: 2rpx; word-break: break-all; }
+.di-val.strong { font-weight: 700; }
+
+/* 交货期提醒四色 */
+.doc-alert {
+  border-radius: 8rpx; padding: 12rpx 16rpx;
+  font-size: 22rpx; margin-bottom: 16rpx;
+  border: 1rpx solid transparent;
+}
+.alert-red { background: #FEF2F2; border-color: #FECACA; color: #B91C1C; font-weight: 600; }
+.alert-yellow { background: #FFFBEB; border-color: #FDE68A; color: #92400E; }
+.alert-green { background: #F0FDF4; border-color: #BBF7D0; color: #15803D; }
+.alert-gray { background: #F9FAFB; border-color: #E5E7EB; color: #6B7280; }
+
+/* 产品表 */
+.doc-table {
+  border: 1rpx solid #CBD5E1;
+  border-radius: 4rpx;
+  overflow: hidden;
+}
+.dt-row {
+  display: flex; align-items: stretch;
+  border-bottom: 1rpx solid #E2E8F0;
+}
+.dt-row:last-child { border-bottom: none; }
+.dt-head {
+  background: #1a56db;
+  font-size: 22rpx; font-weight: 600; color: #fff;
+}
+.dt-row text {
+  display: flex; align-items: center;
+  padding: 12rpx 8rpx;
+  font-size: 22rpx; color: #1C1C1E;
+  word-break: break-all;
+  border-right: 1rpx solid #E2E8F0;
+}
+.dt-row text:last-child { border-right: none; }
+.dt-head text { color: #fff; border-right-color: rgba(255,255,255,0.25); }
+.dt-name { width: 22%; }
+.dt-spec { width: 18%; }
+.dt-draw { width: 15%; }
+.dt-plat { width: 13%; }
+.dt-logo { width: 12%; }
+.dt-qty { width: 20%; justify-content: flex-end; text-align: right; }
+.dt-total { background: #F8FAFC; font-weight: 700; }
+
+/* 红底白字备注条 */
+.doc-remark {
+  margin-top: 16rpx;
+  background: #DC2626;
+  border-radius: 8rpx;
+  padding: 14rpx 18rpx;
+  display: flex; align-items: flex-start;
+}
+.dr-label { font-size: 24rpx; color: #fff; font-weight: 700; flex-shrink: 0; margin-right: 12rpx; }
+.dr-content { font-size: 24rpx; color: #fff; flex: 1; white-space: pre-wrap; }
+
+/* 签字栏 */
+.doc-sign {
+  display: flex; gap: 24rpx;
+  margin-top: 48rpx;
+}
+.ds-item { flex: 1; text-align: center; }
+.ds-label { font-size: 24rpx; color: #3A3A3C; font-weight: 600; }
+.ds-line { height: 48rpx; border-bottom: 1rpx solid #9CA3AF; margin-top: 8rpx; }
+.ds-name { display: block; font-size: 20rpx; color: #6B7280; margin-top: 6rpx; }

@@ -276,7 +276,34 @@
             
             return params;
         }
-        
+
+        // 根据 LOGO 名称查找对应图片：优先用户上传的 dataURL，回退到 apps/logos/{name}.png
+        function getLogoImageByName(name) {
+            if (!name) return null;
+            try {
+                const raw = localStorage.getItem('logoOptions');
+                if (raw) {
+                    const arr = JSON.parse(raw);
+                    if (Array.isArray(arr)) {
+                        const opt = arr.find(x => x && x.name === name);
+                        if (opt && opt.image) return opt.image;
+                    }
+                }
+            } catch (e) { /* 解析失败则走文件夹回退 */ }
+            return '../logos/' + String(name).toLowerCase() + '.png';
+        }
+
+        // 渲染 LOGO 单元格：有图显示图片（名称作 alt/title，onerror 回退文字），无图显示名称
+        function renderLogoCell(name) {
+            if (!name) return '';
+            const img = getLogoImageByName(name);
+            if (img) {
+                const safe = String(name).replace(/'/g, "\\'");
+                return `<img src="${img}" alt="${String(name).replace(/"/g, '&quot;')}" title="${String(name).replace(/"/g, '&quot;')}" style="max-height:48px;max-width:160px;object-fit:contain;vertical-align:middle;" onerror="this.replaceWith(document.createTextNode('${safe}'))">`;
+            }
+            return String(name);
+        }
+
         // 渲染生产通知单
         function renderProductionNotice(params) {
             // 设置客户信息
@@ -335,7 +362,7 @@
                     <td class="table-cell">${spec || ''}</td>
                     <td class="table-cell">${drawing || ''}</td>
                     <td class="table-cell">${plated || ''}</td>
-                    <td class="table-cell">${bow}</td>
+                    <td class="table-cell">${renderLogoCell(bow)}</td>
                     <td class="table-cell text-right">${quantity ? formatNumberWithCommas(quantity) : ''}</td>
                 `;
                 
@@ -365,13 +392,15 @@
             document.getElementById('remarkInput').classList.remove('hidden');
             
             editableElements.forEach(el => {
-                // 保存原始值
-                el.dataset.originalValue = el.textContent;
-                
+                // 保存原始值（含 img 的 LOGO 单元格取 img.alt 作为名称）
+                var imgEl = el.querySelector('img');
+                var cellText = imgEl ? (imgEl.getAttribute('alt') || '') : el.textContent;
+                el.dataset.originalValue = cellText;
+
                 // 创建输入框
                 const input = document.createElement('input');
                 input.type = 'text';
-                input.value = el.textContent;
+                input.value = cellText;
                 input.className = 'w-full p-1 border border-gray-300 rounded text-sm';
                 
                 // 替换内容

@@ -23,6 +23,8 @@ module.exports = {
     "factory",
     "washMethod"
   ],
+  "titleFn": r => r.styleNo || r.id,
+  "subFn": r => [r.factory, r.washMethod].filter(Boolean).join(' · '),
   "kvFields": [
     "round",
     "washDate",
@@ -96,11 +98,6 @@ module.exports = {
       "k": "confirmedDate",
       "label": "确认日期",
       "type": "date"
-    },
-    {
-      "k": "remark",
-      "label": "备注",
-      "type": "textarea"
     }
   ]
 };

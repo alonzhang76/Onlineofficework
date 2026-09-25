@@ -1,0 +1,166 @@
+/* ===== 类型分段切换 ===== */
+.seg {
+  display: flex;
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 8rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.04);
+}
+.seg-item {
+  flex: 1;
+  text-align: center;
+  height: 72rpx;
+  line-height: 72rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #6b7280;
+  border-radius: 12rpx;
+}
+.seg-item.on {
+  background: linear-gradient(135deg, #0EA5E9, #0369A1);
+  color: #fff;
+}
+
+/* ===== picker 展示盒 ===== */
+.picker-box {
+  position: relative;
+  min-height: 72rpx;
+  line-height: 68rpx;
+  background: #f4f5f7;
+  border: 1rpx solid #e5e7eb;
+  border-radius: 12rpx;
+  padding: 0 60rpx 0 20rpx;
+  font-size: 28rpx;
+  box-sizing: border-box;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.picker-box.ph { color: #b0b4bb; }
+.picker-arrow {
+  position: absolute;
+  right: 20rpx;
+  top: 0;
+  color: #9ca3af;
+  font-size: 28rpx;
+}
+
+/* ===== 小节标题右侧操作 ===== */
+.sec-title { display: flex; align-items: center; justify-content: space-between; }
+.sel-all {
+  font-size: 24rpx;
+  font-weight: 400;
+  color: #0EA5E9;
+  padding: 4rpx 8rpx;
+}
+
+/* ===== 订单勾选行 ===== */
+.order-row {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  padding: 20rpx 16rpx;
+  border-bottom: 1rpx solid #f0f0f2;
+}
+.order-row:last-child { border-bottom: none; }
+.order-row.on .cb {
+  background: #0EA5E9;
+  border-color: #0EA5E9;
+  color: #fff;
+}
+.cb {
+  width: 40rpx;
+  height: 40rpx;
+  border-radius: 8rpx;
+  border: 2rpx solid #d1d5db;
+  background: #fff;
+  color: #fff;
+  font-size: 26rpx;
+  text-align: center;
+  line-height: 38rpx;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+.order-mid { flex: 1; min-width: 0; }
+.order-no {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #1c1c1e;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.order-text {
+  font-size: 22rpx;
+  color: #9ca3af;
+  margin-top: 6rpx;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.order-amt {
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #c2410c;
+  flex-shrink: 0;
+}
+
+/* ===== 合同号行 ===== */
+.no-row { display: flex; gap: 12rpx; align-items: center; }
+.no-btn {
+  height: 72rpx;
+  line-height: 72rpx;
+  padding: 0 28rpx;
+  border-radius: 12rpx;
+  background: #e0f2fe;
+  color: #0369A1;
+  font-size: 26rpx;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* ===== 条款编辑框 ===== */
+.terms-box {
+  width: 100%;
+  min-height: 360rpx;
+  line-height: 48rpx;
+  background: #f4f5f7;
+  border: 1rpx solid #e5e7eb;
+  border-radius: 12rpx;
+  padding: 18rpx 20rpx;
+  font-size: 27rpx;
+  box-sizing: border-box;
+}
+
+/* ===== 生成按钮 ===== */
+.gen-btn {
+  margin-top: 8rpx;
+  height: 96rpx;
+  line-height: 96rpx;
+  border-radius: 18rpx;
+  background: linear-gradient(135deg, #DC2626, #B91C1C);
+  color: #fff;
+  font-size: 32rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+  box-shadow: 0 10rpx 26rpx rgba(220, 38, 38, 0.28);
+}
+.gen-btn::after { border: none; }
+.gen-btn-send {
+  background: linear-gradient(135deg, #16A34A, #15803D);
+  box-shadow: 0 10rpx 26rpx rgba(22, 163, 74, 0.28);
+}
+.gen-regen {
+  text-align: center;
+  font-size: 24rpx;
+  color: #2563EB;
+  margin-top: 18rpx;
+  text-decoration: underline;
+}
+.gen-tip {
+  text-align: center;
+  font-size: 22rpx;
+  color: #9ca3af;
+  margin-top: 16rpx;
+}

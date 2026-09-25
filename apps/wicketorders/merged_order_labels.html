@@ -1,8 +1,8 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 	<script>window.SUPABASE_APP_ID='wicketorders';</script>
-	<script src="../cloudbase-sync.js?v=20260918f"></script>
+	<script src="../cloudbase-sync.js?v=20260924c"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Order Label Generator & Records</title>
@@ -764,10 +764,10 @@
             <script>
                 lucide.createIcons();
             </script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-    
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+        <script src="../vendor/papaparse.min.js"></script>
+        <script src="../vendor/FileSaver.min.js"></script>
+
+        <script src="../vendor/qrcode.min.js"></script>
 
         <script>
             // 页面切换逻辑
@@ -1244,9 +1244,8 @@
                     
                     // 创建打印窗口
                     const printWindow = window.open('', '_blank');
-                    printWindow.document.write('<html><head>
-	<script>window.SUPABASE_APP_ID='wicketorders';</script>
-	<script src="../cloudbase-sync.js?v=20260918f"></script><title>Print Label</title>');
+                    printWindow.document.write('<html><head>' +
+                        '<title>Print Label</title>');
                     
                     // 添加样式
                     printWindow.document.write('<style>');
@@ -1268,12 +1267,30 @@
                     printWindow.document.write('</style>');
                     
                     printWindow.document.write('</head><body>');
-                    printWindow.document.write(previewArea.innerHTML);
+                    // 将预览内容中的相对图片路径转为绝对路径，避免在 about:blank 的打印窗口里加载失败
+                    let printHtml = previewArea.innerHTML.replace(
+                        /\ssrc=(["'])(?!(?:https?:|data:|blob:|\/))([^"']+)\1/gi,
+                        (m, q, p) => ` src=${q}${new URL(p, location.href).href}${q}`
+                    );
+                    printWindow.document.write(printHtml);
                     printWindow.document.write('</body></html>');
                     printWindow.document.close();
-                    
-                    // 打印
-                    printWindow.print();
+
+                    // 等待文档和资源（图片、SVG二维码等）加载完成后再打印，
+                    // 避免打印预览因尚未渲染完成而显示空白
+                    function doPrint() {
+                        try {
+                            printWindow.focus();
+                            printWindow.print();
+                        } catch (e) {}
+                    }
+                    if (printWindow.document.readyState === 'complete') {
+                        setTimeout(doPrint, 300);
+                    } else {
+                        printWindow.onload = function () {
+                            setTimeout(doPrint, 300);
+                        };
+                    }
                 }
                 
                 // 初始化所有复选框的状态
@@ -1545,17 +1562,22 @@
                                     if (confirm('确定要恢复数据吗？这将覆盖当前所有订单记录！')) {
                                         // 更新数据
                                         mockData = restoredData.mockData;
-                                        
+
                                         // 保存到localStorage
                                         saveDataToLocalStorage();
-                                        
+
+                                        // 设置导入保护期：10 分钟内云端旧数据不会覆盖刚导入的本地数据
+                                        if (window.CloudbaseSync && typeof window.CloudbaseSync.setImportProtection === 'function') {
+                                            window.CloudbaseSync.setImportProtection(600000);
+                                        }
+
                                         // 重新初始化数据表格
                                         initDataTable();
-                                        
+
                                         // 更新统计信息
                                         updateStatistics();
-                                        
-                                        alert('Data recovery successful!');
+
+                                        alert('Data recovery successful!\n\n⚠️ 请尽快点击"上传云端"按钮，将导入的数据推送到云端。\n（10 分钟内云端旧数据不会覆盖本地新数据）');
                                     }
                                 } catch (error) {
                                     console.error('解析备份文件失败:', error);

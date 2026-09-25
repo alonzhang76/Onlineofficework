@@ -62,8 +62,8 @@ function toCloudKey(key) {
   return prefix + key;
 }
 
-/** 兼容旧调用：默认工资命名空间 */
-CONFIG.syncKeys = CONFIG.namespaces.wage;
+/** 兼容旧调用：默认业务命名空间 */
+CONFIG.syncKeys = CONFIG.namespaces.app || CONFIG.namespaces.wage;
 
 /* ============ 会话管理 ============
  * 两类会话独立缓存：

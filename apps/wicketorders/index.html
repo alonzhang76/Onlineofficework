@@ -3,8 +3,8 @@
 <head>
     <script src="../auto-scale.js?v=20260917a"></script>
 	<script>window.SUPABASE_APP_ID='wicketorders';</script>
-        <script src="../cloudbase-sync.js?v=20260918f"></script>
-        <script src="../cloudbase-admin.js?v=20260916d"></script>
+        <script src="../cloudbase-sync.js?v=20260924f"></script>
+        <script src="../cloudbase-admin.js?v=20260924a"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>外贸出口管理系统</title>
@@ -36,50 +36,6 @@
             --border-color: #dee2e6;
             --table-header-bg: #f8f9fa;
             --table-hover-bg: #f1f3f5;
-        }
-
-        /* 登录窗口样式 */
-        #loginOverlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, #1e3a5f 0%, #0d1b2a 100%);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-        }
-        
-        #loginOverlay.hidden {
-            display: none;
-        }
-
-        .login-container {
-            background: white;
-            padding: 2.5rem;
-            border-radius: 12px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            width: 380px;
-            max-width: 90%;
-        }
-
-        .login-logo {
-            text-align: center;
-            margin-bottom: 1.5rem;
-        }
-
-        .login-logo h2 {
-            color: var(--primary);
-            font-size: 1.5rem;
-            margin: 0.5rem 0 0;
-        }
-
-        .login-logo p {
-            color: var(--text-secondary);
-            font-size: 0.875rem;
-            margin: 0.25rem 0 0;
         }
 
         .form-group {
@@ -129,20 +85,6 @@
             font-size: 0.875rem;
             cursor: pointer;
             user-select: none;
-        }
-
-        /* 登录按钮样式 */
-        #loginForm .btn-primary {
-            width: 100%;
-            padding: 0.875rem;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background-color 0.2s, transform 0.1s;
         }
 
         .btn-primary:hover {
@@ -510,25 +452,6 @@
             position: relative;
         }
         
-        /* 确保登录覆盖层不会影响滚动 */
-        #loginOverlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, #1e3a5f 0%, #0d1b2a 100%);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-        }
-        
-        #loginOverlay.hidden {
-            display: none;
-            z-index: -1;
-        }
-        
         /* 顶部导航栏内容容器 */
         .top-nav-content {
             width: 100%;
@@ -588,6 +511,29 @@
             outline: none;
             border-color: var(--primary);
             box-shadow: 0 0 0 2px rgba(0, 86, 179, 0.25);
+        }
+
+        /* 新增/编辑订单表单：需人工输入的控件统一浅蓝底色
+           （自动计算的只读「金额」框不加色，保持毛玻璃浅色以作区分） */
+        #orderModal input.form-input:not([readonly]):not([type="hidden"]),
+        #orderModal select.form-input,
+        #orderModal textarea.form-input,
+        #orderModal .logo-picker-btn,
+        #editOrderModal input.form-input:not([readonly]):not([type="hidden"]),
+        #editOrderModal select.form-input,
+        #editOrderModal textarea.form-input,
+        #editOrderModal .logo-picker-btn {
+            background-color: #e8f2ff;
+        }
+        #orderModal input.form-input:not([readonly]):focus,
+        #orderModal select.form-input:focus,
+        #orderModal textarea.form-input:focus,
+        #orderModal .logo-picker-btn:focus,
+        #editOrderModal input.form-input:not([readonly]):focus,
+        #editOrderModal select.form-input:focus,
+        #editOrderModal textarea.form-input:focus,
+        #editOrderModal .logo-picker-btn:focus {
+            background-color: #d6e9ff;
         }
 
         /* 按钮样式 */
@@ -955,6 +901,193 @@
             max-width: 2000px;
             width: 98%;
         }
+
+        /* ===== 订单表单：iOS 毛玻璃效果 ===== */
+        .modal-overlay.glass-modal {
+            background: rgba(35, 40, 58, 0.25);
+            -webkit-backdrop-filter: blur(10px) saturate(140%);
+            backdrop-filter: blur(10px) saturate(140%);
+        }
+        .glass-modal .order-modal-content {
+            background: rgba(255, 255, 255, 0.5);
+            -webkit-backdrop-filter: blur(30px) saturate(180%);
+            backdrop-filter: blur(30px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.65);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+        }
+        .glass-modal input.form-input,
+        .glass-modal select.form-input,
+        .glass-modal textarea.form-input {
+            background: rgba(255, 255, 255, 0.42);
+            border-color: rgba(255, 255, 255, 0.55);
+        }
+        .glass-modal input.form-input:focus,
+        .glass-modal select.form-input:focus,
+        .glass-modal textarea.form-input:focus {
+            background: rgba(255, 255, 255, 0.62);
+        }
+        .glass-modal .product-row {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.45);
+        }
+        .glass-modal .divider-line {
+            background: rgba(50, 55, 75, 0.18);
+        }
+        .glass-modal input:-webkit-autofill,
+        .glass-modal select:-webkit-autofill {
+            -webkit-box-shadow: 0 0 0 1000px rgba(255, 255, 255, 0.55) inset;
+            -webkit-text-fill-color: #1f2937;
+            transition: background-color 9999s ease-in-out 0s;
+        }
+
+        /* ===== LOGO 自定义选择器（支持图片选项）===== */
+        .logo-picker {
+            position: relative;
+            width: 100%;
+        }
+        .logo-picker-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            width: 100%;
+            text-align: left;
+            padding: 0 8px;
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.42);
+        }
+        .logo-picker-btn .lp-label {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 0.875rem;
+        }
+        .lp-thumb {
+            width: 24px;
+            height: 24px;
+            object-fit: contain;
+            flex: 0 0 24px;
+        }
+        .logo-picker-menu {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            min-width: 180px;
+            max-height: 250px;
+            overflow-y: auto;
+            z-index: 60;
+            background: rgba(255, 255, 255, 0.88);
+            -webkit-backdrop-filter: blur(20px);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.7);
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+            padding: 4px;
+        }
+        .logo-picker-menu[hidden] {
+            display: none;
+        }
+        .lp-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .lp-item:hover {
+            background: rgba(0, 86, 179, 0.12);
+        }
+        .lp-item-thumb {
+            width: 22px;
+            height: 22px;
+            object-fit: contain;
+        }
+        .lp-manage-btn {
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-size: 0.72rem;
+            padding: 0 0 0 3px;
+            color: #6b7280;
+            line-height: 1;
+        }
+        .lp-manage-btn:hover {
+            color: var(--primary);
+        }
+
+        /* ===== LOGO 选项管理弹窗 ===== */
+        .lp-mgr {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.42);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100000;
+        }
+        .lp-mgr.hidden {
+            display: none;
+        }
+        .lp-mgr-panel {
+            width: 580px;
+            max-width: 94%;
+            max-height: 86vh;
+            overflow-y: auto;
+            background: rgba(255, 255, 255, 0.94);
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        .lp-mgr-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px;
+            border-radius: 10px;
+            background: rgba(245, 247, 252, 0.8);
+            margin-bottom: 8px;
+        }
+        .lp-mgr-row img {
+            width: 34px;
+            height: 34px;
+            object-fit: contain;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            background: #fff;
+        }
+        .lp-mgr-row .lp-mgr-name {
+            flex: 1;
+            min-width: 0;
+        }
+        .lp-mgr-row input.lp-mgr-name-input {
+            flex: 1;
+            min-width: 0;
+            height: 32px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 0 8px;
+            font-size: 0.85rem;
+        }
+        .lp-icon-btn {
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-size: 0.95rem;
+            padding: 4px 6px;
+            border-radius: 6px;
+            line-height: 1;
+        }
+        .lp-icon-btn:hover {
+            background: rgba(0, 0, 0, 0.07);
+        }
+        .lp-add-box {
+            border: 1px dashed #b9c2d4;
+            border-radius: 12px;
+            padding: 12px;
+            margin-top: 12px;
+            background: rgba(245, 247, 252, 0.6);
+        }
         
         /* 产品行样式 */
         .product-row {
@@ -1081,82 +1214,7 @@
         }
     </style>
 
-    <!-- 登录窗口 -->
-    <div id="loginOverlay" class="hidden">
-        <div class="login-container">
-            <div class="login-logo">
-                <h2>🚢 外贸出口管理系统</h2>
-                <p>Foreign Trade Export Management System</p>
-            </div>
-            
-            <div id="loginError" class="error-message"></div>
-            <div id="loginSuccess" class="success-message"></div>
-            
-            <form id="loginForm">
-                <div class="form-group">
-                    <label for="username">用户名</label>
-                    <input type="text" id="username" placeholder="请输入用户名" required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="password">密码</label>
-                    <input type="password" id="password" placeholder="请输入密码" required>
-                </div>
-                
-                <div class="remember-section">
-                    <input type="checkbox" id="rememberUsername">
-                    <label for="rememberUsername">记住用户名</label>
-                </div>
-                
-                <div class="remember-section">
-                    <input type="checkbox" id="rememberPassword">
-                    <label for="rememberPassword">记住密码（自动登录）</label>
-                </div>
-                
-                <button type="submit" class="btn-primary">登录系统</button>
-            </form>
-            
-            <div class="login-footer">
-                <a onclick="showChangePasswordModal()">修改密码</a>
-            </div>
-        </div>
-    </div>
-
-    <!-- 修改密码模态框 -->
-    <div id="changePasswordModal" class="modal-overlay hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>修改密码</h3>
-                <button class="modal-close" onclick="closeChangePasswordModal()">&times;</button>
-            </div>
-            
-            <div id="cpError" class="error-message"></div>
-            <div id="cpSuccess" class="success-message"></div>
-            
-            <form id="changePasswordForm">
-                <div class="form-group">
-                    <label for="currentPassword">当前密码</label>
-                    <input type="password" id="currentPassword" placeholder="请输入当前密码" required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="newPassword">新密码</label>
-                    <input type="password" id="newPassword" placeholder="请输入新密码（至少6位）" required minlength="6">
-                </div>
-                
-                <div class="form-group">
-                    <label for="confirmNewPassword">确认新密码</label>
-                    <input type="password" id="confirmNewPassword" placeholder="请再次输入新密码" required>
-                </div>
-                
-                <div class="modal-actions">
-                    <button type="button" class="btn-secondary" onclick="closeChangePasswordModal()">取消</button>
-                    <button type="submit" class="btn-primary">确认修改</button>
-                </div>
-            </form>
-        </div>
-    </div>
-    <link rel="stylesheet" href="../tablet-compat.css?v=20260915a">
+    <link rel="stylesheet" href="../tablet-compat.css?v=20260924a">
 </head>
 <body>
     <!-- 顶部导航栏 -->
@@ -1167,6 +1225,10 @@
                 <button class="nav-tab" data-tab="memo">
                     <span class="mr-2">📝</span>
                     备忘录
+                </button>
+                <button class="nav-tab" data-tab="calendar">
+                    <span class="mr-2">📅</span>
+                    日历记事
                 </button>
                 <button class="nav-tab" data-tab="business">
                     <span class="mr-2">📈</span>
@@ -1214,11 +1276,11 @@
                 <div id="dataManagementMenu" class="absolute mt-1 w-48 bg-indigo-50 border border-indigo-200 rounded shadow-lg z-[1000] hidden">
                     <button class="block w-full text-left px-4 py-2 text-indigo-700 hover:bg-indigo-100" onclick="backupData()">
                         <span class="mr-2">📥</span>
-                        备份数据
+                        备份到电脑
                     </button>
                     <button class="block w-full text-left px-4 py-2 text-indigo-700 hover:bg-indigo-100" onclick="restoreData()">
                         <span class="mr-2">📤</span>
-                        恢复数据
+                        从电脑恢复
                     </button>
                     <button class="block w-full text-left px-4 py-2 text-blue-700 hover:bg-blue-100" onclick="CloudAdmin.pullFromCloud()">
                         <span class="mr-2">⬇️</span>
@@ -1233,10 +1295,6 @@
                         清空云端数据
                     </button>
                     <div class="border-t border-indigo-200 my-1"></div>
-                    <button class="block w-full text-left px-4 py-2 text-red-600 hover:bg-red-100" onclick="handleLogout()">
-                        <span class="mr-2">🚪</span>
-                        退出登录
-                    </button>
                 </div>
             </div>
         </div>
@@ -1799,6 +1857,62 @@
                 </div>
             </div>
 
+            <!-- 日历记事模块 -->
+            <div id="calendarTab" class="tab-content hidden">
+                <div class="flex justify-between items-center mb-4" style="position: relative; z-index: 20;">
+                    <h2 class="text-xl font-semibold text-gray-800">📅 日历记事</h2>
+                </div>
+                <div class="cal-three-column">
+                    <!-- 左侧：日历 -->
+                    <div class="cal-column">
+                        <div class="calendar-header">
+                            <button type="button" class="calendar-nav-btn" onclick="CalendarNotes.prevMonth()">◀</button>
+                            <span id="calendar-title"></span>
+                            <button type="button" class="calendar-nav-btn" onclick="CalendarNotes.nextMonth()">▶</button>
+                        </div>
+                        <div class="calendar-grid">
+                            <div class="calendar-weekday">日</div>
+                            <div class="calendar-weekday">一</div>
+                            <div class="calendar-weekday">二</div>
+                            <div class="calendar-weekday">三</div>
+                            <div class="calendar-weekday">四</div>
+                            <div class="calendar-weekday">五</div>
+                            <div class="calendar-weekday">六</div>
+                        </div>
+                        <div id="calendar-days" class="calendar-days"></div>
+                    </div>
+
+                    <!-- 中间：输入区域 -->
+                    <div class="cal-input-column">
+                        <h3 id="note-date-title">选择日期查看/添加记事</h3>
+                        <div class="note-help-text">
+                            <p><strong>操作说明：</strong></p>
+                            <ul>
+                                <li>🖱️ <strong>单击</strong>：标记任务完成（显示删除线）</li>
+                                <li>🔄 <strong>再次单击</strong>：取消完成状态</li>
+                                <li>👆 <strong>双击</strong>：选中记事（黄色高亮）</li>
+                                <li>🗑️ <strong>删除</strong>：选中后点击“删除记事”按钮</li>
+                                <li>📦 新建订单后，交货日期会自动同步到日历</li>
+                            </ul>
+                        </div>
+                        <div class="note-input-area">
+                            <textarea id="calendar-note-input" placeholder="输入记事内容..." rows="4"></textarea>
+                            <button type="button" class="cal-btn cal-btn-save" onclick="CalendarNotes.saveNote()">保存记事</button>
+                            <button type="button" class="cal-btn cal-btn-del" onclick="CalendarNotes.deleteNote()">删除记事</button>
+                        </div>
+                    </div>
+
+                    <!-- 右侧：记事列表 -->
+                    <div class="cal-list-column">
+                        <h3>📝 记事列表</h3>
+                        <div class="search-box-container">
+                            <input type="text" id="calendar-note-search" placeholder="搜索记事..." onkeyup="CalendarNotes.filterNotes()" class="search-input">
+                        </div>
+                        <div id="calendar-notes-list" class="notes-list"></div>
+                    </div>
+                </div>
+            </div>
+
             <!-- 业务跟踪模块 -->
             <div id="businessTab" class="tab-content hidden">
                 <!-- 操作按钮区 -->
@@ -2188,6 +2302,7 @@
                                     <th onclick="pageController.handleSort('logo')" class="cursor-pointer">LOGO</th>
                                     <th onclick="pageController.handleSort('unit')" class="cursor-pointer">单位</th>
                                     <th onclick="pageController.handleSort('unitPrice')" class="cursor-pointer">单价</th>
+                                    <th onclick="pageController.handleSort('packPrice')" class="cursor-pointer">包装单价</th>
                                     <th onclick="pageController.handleSort('quantity')" class="cursor-pointer">数量</th>
                                     <th onclick="pageController.handleSort('amount')" class="cursor-pointer">金额</th>
                                     <th onclick="pageController.handleSort('currency')" class="cursor-pointer">货币</th>
@@ -3255,7 +3370,11 @@
                     cdg_details: JSON.parse(localStorage.getItem('cdg_details') || '[]'),
                     cdg_shipments: JSON.parse(localStorage.getItem('cdg_shipments') || '[]'),
                     cdg_products: JSON.parse(localStorage.getItem('cdg_products') || '[]'),
-                    shipmentDetailData: JSON.parse(localStorage.getItem('shipmentDetailData') || '[]')
+                    shipmentDetailData: JSON.parse(localStorage.getItem('shipmentDetailData') || '[]'),
+                    shipmentDetailConsignee: JSON.parse(localStorage.getItem('shipmentDetailConsignee') || 'null'),
+                    customs_terms_options: JSON.parse(localStorage.getItem('customs_terms_options') || '[]'),
+                    cdg_shipment_page_size: localStorage.getItem('cdg_shipment_page_size'),
+                    cdg_records_page_size: localStorage.getItem('cdg_records_page_size')
                 }
             };
             
@@ -3263,7 +3382,8 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            const dateStr = new Date().toISOString().slice(0, 10);
+            const _d = new Date();
+            const dateStr = `${_d.getFullYear()}${String(_d.getMonth()+1).padStart(2,'0')}${String(_d.getDate()).padStart(2,'0')}_${String(_d.getHours()).padStart(2,'0')}${String(_d.getMinutes()).padStart(2,'0')}${String(_d.getSeconds()).padStart(2,'0')}`;
             a.download = `外贸数据备份_${dateStr}.json`;
             document.body.appendChild(a);
             a.click();
@@ -3290,6 +3410,18 @@
                         if (!data.data || !data.backupTime) {
                             throw new Error('无效的备份文件格式');
                         }
+
+                        // 版本对比：备份时间 vs 当前本地最新修改时间
+                        var backupTime = new Date(data.backupTime).getTime();
+                        var localNewest = 0;
+                        try {
+                            var lv = window.CloudbaseSync && window.CloudbaseSync.getLocalVersions ? window.CloudbaseSync.getLocalVersions() : {};
+                            Object.keys(lv).forEach(function(k){ if(lv[k]>localNewest) localNewest=lv[k]; });
+                        } catch(e2) {}
+                        var verHint = backupTime > localNewest ? '\n⚠️ 备份文件比当前数据新' : '\n⚠️ 当前数据比备份文件新';
+                        if (!confirm('确认恢复数据？\n\n备份时间：' + new Date(data.backupTime).toLocaleString() +
+                            '\n当前数据最后修改：' + (localNewest ? new Date(localNewest).toLocaleString() : '未知') + verHint +
+                            '\n\n此操作将覆盖当前数据！')) return;
 
                         // 只恢复备份中实际存在的数据集（条件写入），
                         // 避免导入不含某些数据的备份（如小程序备份）时把网页端独有数据清空
@@ -3318,7 +3450,8 @@
                             cdg_details: dd.cdg_details,
                             cdg_shipments: dd.cdg_shipments,
                             cdg_products: dd.cdg_products,
-                            shipmentDetailData: dd.shipmentDetailData
+                            shipmentDetailData: dd.shipmentDetailData,
+                            customs_terms_options: dd.customs_terms_options
                         };
                         const restored = [];
                         Object.keys(restorePairs).forEach(key => {
@@ -3328,8 +3461,28 @@
                                 restored.push(key);
                             }
                         });
-                        
-                        alert(`数据恢复成功！\n已恢复 ${restored.length} 类数据\n备份时间：${new Date(data.backupTime).toLocaleString()}\n\n请刷新页面查看恢复的数据。`);
+
+                        // 非数组类型的设置项单独条件恢复
+                        if (dd.shipmentDetailConsignee && typeof dd.shipmentDetailConsignee === 'object') {
+                            localStorage.setItem('shipmentDetailConsignee', JSON.stringify(dd.shipmentDetailConsignee));
+                            restored.push('shipmentDetailConsignee');
+                        }
+                        if (dd.cdg_shipment_page_size) {
+                            localStorage.setItem('cdg_shipment_page_size', String(dd.cdg_shipment_page_size));
+                            restored.push('cdg_shipment_page_size');
+                        }
+                        if (dd.cdg_records_page_size) {
+                            localStorage.setItem('cdg_records_page_size', String(dd.cdg_records_page_size));
+                            restored.push('cdg_records_page_size');
+                        }
+
+                        // 设置导入保护期：10 分钟内云端旧数据不会覆盖刚导入的本地数据
+                        // reload 后 sessionStorage 仍保留保护期，用户需手动点击"上传云端"推送新数据
+                        if (window.CloudbaseSync && typeof window.CloudbaseSync.setImportProtection === 'function') {
+                            window.CloudbaseSync.setImportProtection(600000);
+                        }
+
+                        alert(`数据恢复成功！\n已恢复 ${restored.length} 类数据\n备份时间：${new Date(data.backupTime).toLocaleString()}\n\n⚠️ 请刷新后点击页面上方的"上传云端"按钮，将导入的数据推送到云端。\n（10 分钟内云端旧数据不会覆盖本地新数据）`);
                         location.reload();
                     } catch (err) {
                         alert('恢复数据失败：' + err.message);
@@ -4253,7 +4406,7 @@
     </div>
 
     <!-- 新增订单记录模态框 -->
-    <div id="orderModal" class="modal-overlay hidden">
+    <div id="orderModal" class="modal-overlay glass-modal hidden">
         <div class="modal-content order-modal-content">
             <div class="p-6">
                 <div class="flex justify-between items-center mb-4">
@@ -4352,7 +4505,7 @@
                                                oninput="filterProducts(this.value, this)" onclick="showProductSuggestions(this)" placeholder="输入产品名称">
                                         <div class="absolute bg-white border border-gray-300 rounded shadow-lg mt-1 z-10 hidden w-full"></div>
                                     </div>
-                                    <div class="form-group relative" style="flex: 1 1 150px; min-width: 150px;">
+                                    <div class="form-group relative" style="flex: 1 1 105px; min-width: 105px;">
                                         <label class="form-label">规格</label>
                                         <input type="text" name="spec" class="form-input product-spec" 
                                                oninput="filterSpecs(this.value, this)" onclick="showSpecSuggestions(this)" placeholder="输入产品规格">
@@ -4371,21 +4524,15 @@
                                             <option value="否">否</option>
                                         </select>
                                     </div>
-                                    <div class="form-group" style="flex: 0 0 105px;">
-                                        <label class="form-label">LOGO</label>
-                                        <select name="logo" class="form-input product-logo">
-                                            <option value="LONGLI" selected>LONGLI</option>
-                                            <option value="KBA">KBA</option>
-                                            <option value="PERM">PERM</option>
-                                            <option value="EPCCS">EPCCS</option>
-                                            <option value="INGHOR">INGHOR</option>
-                                            <option value="CC">CC</option>
-                                            <option value="J">J</option>
-                                            <option value="HS">HS</option>
-                                            <option value="无">无</option>
-                                        </select>
+                                    <div class="form-group" style="flex: 0 0 130px;">
+                                        <label class="form-label">LOGO<button type="button" class="lp-manage-btn" onclick="openLogoManager()" title="管理LOGO选项">⚙</button></label>
+                                        <div class="logo-picker product-logo">
+                                            <button type="button" class="form-input logo-picker-btn"><span class="lp-label">LONGLI</span></button>
+                                            <input type="hidden" name="logo" value="LONGLI">
+                                            <div class="logo-picker-menu" hidden></div>
+                                        </div>
                                     </div>
-                                    <div class="form-group" style="flex: 0 0 75px;">
+                                    <div class="form-group" style="flex: 0 0 110px;">
                                         <label class="form-label">单位</label>
                                         <input type="text" name="unit" class="form-input product-unit" list="unitOptions" placeholder="选择或输入" onchange="saveCustomUnit(this)">
                                         <datalist id="unitOptions">
@@ -4406,6 +4553,11 @@
                                     <div class="form-group" style="flex: 0 0 115px;">
                                         <label class="form-label">单价 <span class="text-red-500">*</span></label>
                                         <input type="number" name="unitPrice" class="form-input product-unit-price" required min="0" step="0.01" placeholder="输入单价" 
+                                               oninput="calculateAmount(this)">
+                                    </div>
+                                    <div class="form-group" style="flex: 0 0 115px;">
+                                        <label class="form-label">包装单价</label>
+                                        <input type="number" name="packPrice" class="form-input product-pack-price" min="0" step="0.01" placeholder="包装单价" value="0"
                                                oninput="calculateAmount(this)">
                                     </div>
                                     <div class="form-group" style="flex: 0 0 130px;">
@@ -4440,7 +4592,7 @@
     </div>
 
     <!-- 编辑订单记录模态框 -->
-    <div id="editOrderModal" class="modal-overlay hidden">
+    <div id="editOrderModal" class="modal-overlay glass-modal hidden">
         <div class="modal-content order-modal-content">
             <div class="p-6">
                 <div class="flex justify-between items-center mb-4">
@@ -4542,7 +4694,7 @@
                                                oninput="filterProducts(this.value, this)" onclick="showProductSuggestions(this)" placeholder="输入产品名称">
                                         <div class="absolute bg-white border border-gray-300 rounded shadow-lg mt-1 z-10 hidden w-full"></div>
                                     </div>
-                                    <div class="form-group relative" style="flex: 1 1 150px; min-width: 150px;">
+                                    <div class="form-group relative" style="flex: 1 1 105px; min-width: 105px;">
                                         <label class="form-label">规格</label>
                                         <input type="text" name="spec" class="form-input product-spec" 
                                                oninput="filterSpecs(this.value, this)" onclick="showSpecSuggestions(this)" placeholder="输入产品规格">
@@ -4561,21 +4713,15 @@
                                             <option value="否">否</option>
                                         </select>
                                     </div>
-                                    <div class="form-group" style="flex: 0 0 105px;">
-                                        <label class="form-label">LOGO</label>
-                                        <select name="logo" class="form-input product-logo">
-                                            <option value="LONGLI" selected>LONGLI</option>
-                                            <option value="KBA">KBA</option>
-                                            <option value="PERM">PERM</option>
-                                            <option value="EPCCS">EPCCS</option>
-                                            <option value="INGHOR">INGHOR</option>
-                                            <option value="CC">CC</option>
-                                            <option value="J">J</option>
-                                            <option value="HS">HS</option>
-                                            <option value="无">无</option>
-                                        </select>
+                                    <div class="form-group" style="flex: 0 0 130px;">
+                                        <label class="form-label">LOGO<button type="button" class="lp-manage-btn" onclick="openLogoManager()" title="管理LOGO选项">⚙</button></label>
+                                        <div class="logo-picker product-logo">
+                                            <button type="button" class="form-input logo-picker-btn"><span class="lp-label">LONGLI</span></button>
+                                            <input type="hidden" name="logo" value="LONGLI">
+                                            <div class="logo-picker-menu" hidden></div>
+                                        </div>
                                     </div>
-                                    <div class="form-group" style="flex: 0 0 75px;">
+                                    <div class="form-group" style="flex: 0 0 110px;">
                                         <label class="form-label">单位</label>
                                         <input type="text" name="unit" class="form-input product-unit" list="unitOptions" placeholder="选择或输入" onchange="saveCustomUnit(this)">
                                         <datalist id="unitOptions">
@@ -4596,6 +4742,11 @@
                                     <div class="form-group" style="flex: 0 0 115px;">
                                         <label class="form-label">单价 <span class="text-red-500">*</span></label>
                                         <input type="number" name="unitPrice" class="form-input product-unit-price" required min="0" step="0.01" placeholder="输入单价" 
+                                               oninput="calculateAmount(this)">
+                                    </div>
+                                    <div class="form-group" style="flex: 0 0 115px;">
+                                        <label class="form-label">包装单价</label>
+                                        <input type="number" name="packPrice" class="form-input product-pack-price" min="0" step="0.01" placeholder="包装单价" value="0"
                                                oninput="calculateAmount(this)">
                                     </div>
                                     <div class="form-group" style="flex: 0 0 130px;">
@@ -4922,8 +5073,9 @@
     </div>
 
     <!-- JavaScript文件 -->
-    <script src="login.js"></script>
-    <script src="app.js?v=20260915j"></script>
+    <script src="app.js?v=20260924b"></script>
+    <!-- 日历记事功能（交货日期同步） -->
+    <script src="calendar-notes.js?v=20260923a"></script>
     <!-- Enhanced Payment Functionality -->
     <script src="./enhanced-payment.js"></script>
     <!-- 云存储文件中心（共享模块，三应用通用）：全局搜索 + 跨应用同步 -->
@@ -5391,7 +5543,7 @@
     <script>
         // ===== 手机端：在内容区左右滑动切换标签页 =====
         (function initMobileTabSwipe() {
-            var order = ['memo', 'business', 'payment', 'invoice', 'export', 'receipt', 'order', 'customer', 'report'];
+            var order = ['memo', 'calendar', 'business', 'payment', 'invoice', 'export', 'receipt', 'order', 'customer', 'report'];
             var startX = 0, startY = 0, tracking = false;
 
             // 触点位于横向滚动容器（表格等）内时不触发切换手势，避免与表格横滑冲突

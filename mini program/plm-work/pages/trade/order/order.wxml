@@ -72,7 +72,7 @@
       <view class="og"><text class="og-label">规格</text><text class="og-val">{{o.spec || '-'}}</text></view>
       <view class="og"><text class="og-label">图号</text><text class="og-val">{{o.drawingNo || '-'}}</text></view>
       <view class="og"><text class="og-label">电镀</text><text class="og-val">{{o.plating || '-'}}</text></view>
-      <view class="og"><text class="og-label">LOGO</text><text class="og-val">{{o.logo || '-'}}</text></view>
+      <view class="og"><text class="og-label">LOGO</text><view class="og-val logo-cell"><image wx:if="{{o.logoImg && !logoErr[o.logo]}}" class="logo-mini" src="{{o.logoImg}}" mode="aspectFit" data-ln="{{o.logo}}" binderror="onLogoErr" /><text>{{o.logo || '-'}}</text></view></view>
       <view class="og"><text class="og-label">单位</text><text class="og-val">{{o.unit || '-'}}</text></view>
       <view class="og"><text class="og-label">单价</text><text class="og-val">{{o.unitPrice}}</text></view>
       <view class="og"><text class="og-label">数量</text><text class="og-val">{{o.quantity}}</text></view>
@@ -96,7 +96,7 @@
 
   <!-- 新增/编辑弹层 -->
   <view catchtouchmove="noop" class="mask" wx:if="{{modal}}" bindtap="closeModal">
-    <view class="sheet" catchtap="noop">
+    <view class="sheet" catchtap="onSheetTap">
       <view class="sheet-title">{{editId ? '编辑订单' : '新增订单'}}<text class="sheet-close" bindtap="closeModal">×</text></view>
         <scroll-view scroll-y class="sheet-body">
 
@@ -161,9 +161,22 @@
           </picker>
         </view>
         <view class="form-row2">
-          <picker range="{{logoOptions}}" value="{{p.logoIdx}}" data-idx="{{pi}}" bindchange="onProductLogo">
-            <view class="form-item"><text class="f-label">LOGO</text><text class="f-value">{{logoOptions[p.logoIdx]}}</text></view>
-          </picker>
+          <view class="form-item lp-wrap">
+            <text class="f-label">LOGO</text>
+            <view class="lp">
+              <view class="lp-trigger" data-idx="{{pi}}" catchtap="toggleLogoMenu">
+                <image wx:if="{{p.logoImg && !logoErr[p.logo]}}" class="lp-thumb" src="{{p.logoImg}}" mode="aspectFit" data-ln="{{p.logo}}" binderror="onLogoErr" />
+                <text class="lp-text">{{p.logo}}</text>
+                <text class="lp-caret">▾</text>
+              </view>
+              <view class="lp-menu" wx:if="{{p.logoMenu}}">
+                <view class="lp-opt" wx:for="{{logoOpts}}" wx:key="name" wx:for-item="lo" data-idx="{{pi}}" data-ln="{{lo.name}}" catchtap="pickLogo">
+                  <image wx:if="{{lo.img && !logoErr[lo.name]}}" class="lp-opt-thumb" src="{{lo.img}}" mode="aspectFit" data-ln="{{lo.name}}" binderror="onLogoErr" />
+                  <text>{{lo.name}}</text>
+                </view>
+              </view>
+            </view>
+          </view>
           <picker range="{{unitOptions}}" value="{{p.unitIdx}}" data-idx="{{pi}}" bindchange="onProductUnit">
             <view class="form-item"><text class="f-label">单位</text><text class="f-value">{{unitOptions[p.unitIdx]}}</text></view>
           </picker>

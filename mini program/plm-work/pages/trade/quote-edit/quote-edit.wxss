@@ -1,0 +1,76 @@
+/* 报价编辑页局部样式（全局类见 app.wxss） */
+.sec-title { font-size: 28rpx; font-weight: 700; color: #0d47a1; margin-bottom: 16rpx; }
+.company-tip { margin-top: 14rpx; font-size: 24rpx; color: #8E8E93; text-align: center; }
+
+.mini-btn {
+  flex-shrink: 0; margin-left: 16rpx; padding: 8rpx 22rpx;
+  font-size: 24rpx; color: #007AFF; background: rgba(0, 122, 255, 0.1);
+  border-radius: 12rpx;
+}
+.mini-btn:active { opacity: 0.7; }
+.mini-danger { color: #e64340; background: rgba(230, 67, 64, 0.1); }
+
+.ta-wrap { margin-top: 18rpx; }
+.ta-label { display: block; font-size: 26rpx; color: #8E8E93; margin-bottom: 10rpx; }
+.form-ta {
+  width: 100%; box-sizing: border-box; min-height: 120rpx; padding: 18rpx;
+  border: 1rpx solid #E5E5EA; border-radius: 16rpx;
+  font-size: 26rpx; color: #1C1C1E; background: #fff;
+}
+
+.line-card {
+  background: #fff; border-radius: 24rpx; padding: 24rpx;
+  margin: 0 24rpx 20rpx; box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
+}
+.line-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8rpx; }
+.line-no { font-size: 28rpx; font-weight: 700; color: #0d47a1; }
+.qty-row .form-item { min-width: 0; }
+.currency-item .f-value { color: #007AFF; }
+.line-amount {
+  margin: 12rpx 0; text-align: right;
+  font-size: 30rpx; font-weight: 700; color: #10b981;
+}
+.add-line { margin: 0 24rpx 20rpx; }
+
+.total-row {
+  display: flex; justify-content: space-between;
+  font-size: 28rpx; color: #444; padding: 14rpx 4rpx;
+}
+.total-grand {
+  border-top: 2rpx solid #0d47a1; margin-top: 8rpx; padding-top: 18rpx;
+  font-size: 32rpx; font-weight: 700;
+  background: linear-gradient(90deg, #2563eb, #10b981);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+
+/* 速填入口与搜索弹层 */
+.pick-fill { background: rgba(0, 122, 255, 0.05); border-radius: 14rpx; }
+.pick-arrow { flex-shrink: 0; margin-left: 12rpx; color: #007AFF; font-size: 36rpx; line-height: 1; }
+
+.pick-sheet { max-height: 78vh; }
+.pick-search { padding: 0 32rpx 16rpx; flex-shrink: 0; }
+.pick-input {
+  background: #fff; border: 1rpx solid #E5E5EA; border-radius: 16rpx;
+  padding: 20rpx 24rpx; font-size: 28rpx; color: #1C1C1E;
+}
+.pick-count { padding: 0 36rpx 12rpx; font-size: 22rpx; color: #8E8E93; flex-shrink: 0; }
+.pick-list { max-height: calc(78vh - 260rpx); }
+.pick-empty { padding: 60rpx 24rpx; text-align: center; font-size: 26rpx; color: #8E8E93; }
+.pick-item {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16rpx; background: #fff; border-radius: 16rpx;
+  padding: 22rpx 24rpx; margin-bottom: 14rpx;
+}
+.pick-item:active { background: #E9F1FF; }
+.pick-main { flex: 1; min-width: 0; }
+.pick-name { font-size: 28rpx; font-weight: 600; color: #1C1C1E; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pick-name2 { font-weight: 400; color: #3A3A3C; }
+.pick-sub { margin-top: 6rpx; font-size: 24rpx; color: #8E8E93; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+.footer-space { height: 140rpx; }
+.footer-bar {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  display: flex; gap: 16rpx; padding: 16rpx 24rpx calc(16rpx + env(safe-area-inset-bottom));
+  background: #fff; box-shadow: 0 -2rpx 12rpx rgba(0, 0, 0, 0.06);
+}
+.foot-btn { flex: 1; margin: 0; }

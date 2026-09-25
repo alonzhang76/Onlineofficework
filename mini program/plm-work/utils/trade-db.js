@@ -26,7 +26,14 @@ const KEYS = {
   indexPaymentRecords: 'indexPaymentRecords',
   memoRecords: 'memoRecords',
   businessRecords: 'businessRecords',
-  customsRecords: 'customsRecords'
+  customsRecords: 'customsRecords',
+  // 报价系统（与网页版 报价系统.html 同名键）
+  quotationRecords: 'quotationRecords',
+  libraryProducts: 'libraryProducts',
+  quotationSystemUnits: 'quotationSystemUnits',
+  quotationSystemPaymentRatios: 'quotationSystemPaymentRatios',
+  quotationSystemPaymentMethods: 'quotationSystemPaymentMethods',
+  quotationSystemTerms: 'quotationSystemTerms'
 };
 
 /** 固定汇率表（与网页版 displayDebtStatistics 保持一致） */
@@ -60,7 +67,10 @@ const TRADE_TERMS = ['FOB', 'CIF', 'CFR', 'EXW', 'DDP', 'DAP', 'FCA'];
 const TRANSPORT_METHODS = ['海运', '空运', '快递', '陆运'];
 
 /** LOGO 选项（与网页版 addProductRow 一致） */
-const LOGO_OPTIONS = ['无', 'LONGLI', 'KBA', 'PERM', 'EPCCS', 'INGHOR', 'CC', 'J', 'HS'];
+const LOGO_OPTIONS = ['无', 'LONGLI', 'KBA', 'K&B', 'PERM', 'EPCCS', 'INGHOR', 'CC', 'J', 'HS'];
+
+/** 仅这些 LOGO 名称对应图案图片（key=选项名, value=assets/logos 下的文件名）；其余均为纯文字 */
+const LOGO_IMAGE_FILES = { 'K&B': 'kba.png' };
 
 /** 单位选项 */
 const UNIT_OPTIONS = ['只', '个', '套', '箱', '公斤', '吨', '袋'];
@@ -74,8 +84,96 @@ const data = {
   indexPaymentRecords: [],
   memoRecords: [],
   businessRecords: [],
-  customsRecords: []
+  customsRecords: [],
+  quotationRecords: [],
+  libraryProducts: [],
+  quotationSystemUnits: [],
+  quotationSystemPaymentRatios: [],
+  quotationSystemPaymentMethods: [],
+  quotationSystemTerms: []
 };
+
+/* ============ 报价系统（与网页版 报价系统.html 同构） ============ */
+
+/** 报价单号前缀 */
+const QUOTE_NO_PREFIX = 'QT-';
+
+/** 默认下拉选项（与网页版 defaultXxx 完全一致，首次使用时写入云端键） */
+const DEFAULT_QUOTE_OPTIONS = {
+  quotationSystemUnits: [
+    '只 | Piece', '个 | Unit', '件 | Item', '包 | Package',
+    '箱 | Case', '工时 | Man-hour', '米 | Meter'
+  ],
+  quotationSystemPaymentRatios: [
+    '预付20%/出货前80% | 20%Deposit 80%B.Shipment',
+    '预付30%/出货前70% |30%Deposit 70%B.shipment',
+    '预付40%/出货前60% |40%Deposit 60%B.shipment',
+    '发货前100% | Full Payment Before Shipment',
+    '货到付全款 | Payment on Delivery',
+    '月结30天 | Monthly Payment (30 days)'
+  ],
+  quotationSystemPaymentMethods: [
+    '电汇 | T/T', '信用证 | L/C', '承兑汇票 | Acceptance', '现金 | Cash'
+  ],
+  quotationSystemTerms: ['EXW', 'FOB', 'CFR', 'CIF', 'DDU', 'DDP', 'DAP']
+};
+
+/** 交货方式 / 港口 / 税率（网页版固定选项） */
+const QUOTE_DELIVERY_METHODS = [
+  '快递 | Express', '空运 | Air Freight', '海运 | Sea Freight',
+  '陆运 | Land Transport', '自提 | Self Pickup'
+];
+const QUOTE_DELIVERY_LOCATIONS = [
+  '上海 | Shanghai', "买家仓库 | Buyer's Warehouse",
+  "卖家工厂 | Seller's Factory", '目的港 | Destination Port'
+];
+const QUOTE_TAX_RATES = ['13% (增值税)', '0% (免税)'];
+
+/**
+ * 报价抬头公司（与网页版公司切换 switch 完全一致：中英文名/地址/电话/邮箱/银行/默认税率）
+ */
+const QUOTE_COMPANIES = [
+  {
+    name: '无锡龙力印铁设备制造有限公司',
+    nameEn: 'Wuxi Longli Iron-Printing Equipment Manufacturing Co., Ltd',
+    address: '6-1, zhongnan gaoke industrial park, #8 zhounan road, xueyan town, wujin district, Changzhou City, Jiangsu Province, China',
+    phone: '+86 139 5158 9291',
+    email: 'anny@rhssjx.com',
+    bank: '江苏银行无锡新区支行 | 807010188600012106',
+    tax: '13% (增值税)'
+  },
+  {
+    name: '普利美(常州)环境工程科技有限公司',
+    nameEn: 'Purimate (Changzhou) Environmental Engineering Technology Co., Ltd',
+    address: '6-1, zhongnan gaoke industrial park, #8 zhounan road, xueyan town, wujin district, Changzhou City, Jiangsu Province, China',
+    phone: '+86 139 5158 9291',
+    email: 'anny@rhssjx.com',
+    bank: '中国银行常州潘家支行 | 463776505380',
+    tax: '13% (增值税)'
+  },
+  {
+    name: '无锡市天梁对外贸易有限公司',
+    nameEn: 'WUXI TIANLIANG FOREIGN TRADE CO.,LTD',
+    address: 'Room#605, XingSheng Building No.900 JieFang East Street, WuXi City,JiangSu Province,China',
+    phone: '+86 186 2632 7266',
+    email: 'alonzhang76@outlook.com',
+    bank: 'Bank Name: BANK OF CHINA,WUXI BR\nBank Addr: 258 ZHONGSHAN ROAD, WUXI, 214001 P.R.CHINA\nAccount:　510558218196\nSwift No.: BKCHCNBJ95C\nTelex No.: 362021 WXBOC CN',
+    tax: '0% (免税)'
+  }
+];
+
+/** 成交条款联动交货方式/港口（与网页版 terms select change 一致） */
+function deliveryForTerms(term) {
+  switch (term) {
+    case 'EXW': return { method: '自提 | Self Pickup', location: null };
+    case 'FOB': return { method: '海运 | Sea Freight', location: '上海 | Shanghai' };
+    case 'CFR':
+    case 'CIF': return { method: null, location: '目的港 | Destination Port' };
+    case 'DDU':
+    case 'DDP': return { method: null, location: "买家仓库 | Buyer's Warehouse" };
+    default: return { method: null, location: null };
+  }
+}
 
 function uid(prefix) {
   return (prefix || '') + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -900,6 +998,227 @@ function deleteCustoms(id) {
   save('customsRecords');
 }
 
+/* ============ 报价系统 ============ */
+
+/** 生成报价单号：QT-YYYYMM + 三位随机数（与网页版一致） */
+function nextQuoteNo() {
+  var d = new Date();
+  var ym = d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0');
+  return QUOTE_NO_PREFIX + ym + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+}
+
+/** 首次进入报价模块：默认下拉选项落库（与网页版 initXxx 后写 localStorage 对齐） */
+function ensureQuoteOptions() {
+  Object.keys(DEFAULT_QUOTE_OPTIONS).forEach(function (k) {
+    if (!Array.isArray(data[k]) || !data[k].length) {
+      data[k] = DEFAULT_QUOTE_OPTIONS[k].slice();
+      save(k);
+    }
+  });
+}
+
+function getQuoteOptions(k) {
+  var list = data[k];
+  return Array.isArray(list) && list.length ? list : (DEFAULT_QUOTE_OPTIONS[k] || []).slice();
+}
+
+/** 一条产品行 → 一条报价记录（字段与网页版 saveQuotationRecord 逐字对齐，附加完整单据头） */
+function flattenQuoteRecord(header, p) {
+  return {
+    quoteNo: header.quoteNo,
+    quoteDate: header.quoteDate,
+    customerCompany: header.customerCompany,
+    terms: header.terms,
+    paymentMethod: header.paymentMethod,
+    productNo: p.productNo,
+    productName: p.productName,
+    drawingNumber: p.drawingNumber,
+    specification: p.specification,
+    unit: p.unit,
+    quantity: num(p.quantity),
+    unitPrice: r2(p.unitPrice),
+    amount: r2(num(p.quantity) * num(p.unitPrice)),
+    currency: p.currency,
+    remark: p.remark || '',
+    deliveryRemarks: header.deliveryRemarks || '',
+    // 与网页版同一规则：毫秒时间戳 + 9 位随机串
+    recordId: Date.now() + Math.random().toString(36).substr(2, 9),
+    // —— 小程序扩展的完整单据头（网页版忽略不认识的字段，不影响其列表/回填）——
+    validUntil: header.validUntil || '',
+    customerContact: header.customerContact || '',
+    customerTel: header.customerTel || '',
+    customerEmail: header.customerEmail || '',
+    customerAddress: header.customerAddress || '',
+    deliveryMethod: header.deliveryMethod || '',
+    deliveryLocation: header.deliveryLocation || '',
+    deliveryDate: header.deliveryDate || '',
+    paymentRatio: header.paymentRatio || '',
+    taxRate: header.taxRate || '',
+    bankAccountInfo: header.bankAccountInfo || '',
+    companyName: header.companyName || ''
+  };
+}
+
+/**
+ * 保存报价单（多产品行拍平为多条 quotationRecords）
+ * 同一报价号整单覆盖；编辑改号时同时清除旧号记录
+ * @returns {Array} 新写入的行记录
+ */
+function saveQuotation(header, products, oldQuoteNo) {
+  if (oldQuoteNo && oldQuoteNo !== header.quoteNo) {
+    data.quotationRecords = data.quotationRecords.filter(function (r) { return r.quoteNo !== oldQuoteNo; });
+  }
+  data.quotationRecords = data.quotationRecords.filter(function (r) { return r.quoteNo !== header.quoteNo; });
+  var rows = (products || []).map(function (p) { return flattenQuoteRecord(header, p); });
+  data.quotationRecords = data.quotationRecords.concat(rows);
+  save('quotationRecords');
+  return rows;
+}
+
+/** 按报价号聚合为完整单据（头信息取组内第一条；兼容网页版生成的缺头字段记录） */
+function getQuotation(quoteNo) {
+  var rows = data.quotationRecords.filter(function (r) { return r.quoteNo === quoteNo; });
+  if (!rows.length) return null;
+  var f = rows[0];
+  return {
+    header: {
+      quoteNo: f.quoteNo,
+      quoteDate: f.quoteDate || '',
+      validUntil: f.validUntil || '',
+      customerCompany: f.customerCompany || '',
+      customerContact: f.customerContact || '',
+      customerTel: f.customerTel || '',
+      customerEmail: f.customerEmail || '',
+      customerAddress: f.customerAddress || '',
+      deliveryMethod: f.deliveryMethod || '',
+      deliveryLocation: f.deliveryLocation || '',
+      deliveryDate: f.deliveryDate || '',
+      deliveryRemarks: f.deliveryRemarks || '',
+      terms: f.terms || '',
+      paymentMethod: f.paymentMethod || '',
+      paymentRatio: f.paymentRatio || '',
+      taxRate: f.taxRate || '',
+      bankAccountInfo: f.bankAccountInfo || '',
+      companyName: f.companyName || ''
+    },
+    products: rows.map(function (r) {
+      return {
+        productNo: r.productNo || '', productName: r.productName || '',
+        drawingNumber: r.drawingNumber || '', specification: r.specification || '',
+        unit: r.unit || '', quantity: num(r.quantity), unitPrice: r2(r.unitPrice),
+        amount: r2(r.amount), currency: r.currency || 'USD', remark: r.remark || ''
+      };
+    })
+  };
+}
+
+/** 报价单列表（按报价号聚合，关键词过滤，日期/号倒序） */
+function listQuotations(kw) {
+  var map = {};
+  var order = [];
+  data.quotationRecords.forEach(function (r) {
+    var no = r.quoteNo || '(无编号)';
+    if (!map[no]) {
+      map[no] = { quoteNo: no, quoteDate: r.quoteDate || '', customerCompany: r.customerCompany || '',
+        currency: r.currency || 'USD', qty: 0, amount: 0, rows: 0, keys: [] };
+      order.push(no);
+    }
+    var g = map[no];
+    g.amount += num(r.amount);
+    g.qty += num(r.quantity);
+    g.rows += 1;
+    g.keys.push([r.productNo, r.productName, r.drawingNumber, r.specification].join(' '));
+    if (!g.quoteDate && r.quoteDate) g.quoteDate = r.quoteDate;
+    if (!g.customerCompany && r.customerCompany) g.customerCompany = r.customerCompany;
+  });
+  var list = order.map(function (no) {
+    var g = map[no];
+    return {
+      quoteNo: g.quoteNo, quoteDate: g.quoteDate, customerCompany: g.customerCompany,
+      currency: g.currency, qty: g.qty, amount: r2(g.amount), rows: g.rows,
+      _hay: [g.quoteNo, g.customerCompany].concat(g.keys).join(' ').toLowerCase()
+    };
+  });
+  var k = String(kw || '').trim().toLowerCase();
+  if (k) list = list.filter(function (g) { return g._hay.indexOf(k) > -1; });
+  list.sort(function (a, b) {
+    return (b.quoteDate || '').localeCompare(a.quoteDate || '') || b.quoteNo.localeCompare(a.quoteNo);
+  });
+  return list;
+}
+
+function deleteQuotation(quoteNo) {
+  data.quotationRecords = data.quotationRecords.filter(function (r) { return r.quoteNo !== quoteNo; });
+  save('quotationRecords');
+}
+
+/** 复制报价单为新单号（日期更新为今天，有效期/交货日顺延保持原值由调用方处理） */
+function duplicateQuotation(quoteNo) {
+  var q = getQuotation(quoteNo);
+  if (!q) return null;
+  q.header.quoteNo = nextQuoteNo();
+  q.header.quoteDate = fmt.today();
+  saveQuotation(q.header, q.products);
+  return q.header.quoteNo;
+}
+
+/* ---- 产品库 ---- */
+
+function upsertLibraryProduct(p) {
+  var no = String(p.no || '').trim();
+  if (!no) return null;
+  var rec = {
+    no: no,
+    category: p.category || '',
+    name: p.name || '',
+    drawingNumber: p.drawingNumber || '',
+    specification: p.specification || '',
+    unit: p.unit || '',
+    unitPrice: r2(p.unitPrice),
+    currency: p.currency || 'USD',
+    remarks: p.remarks || ''
+  };
+  var i = data.libraryProducts.findIndex(function (x) { return x.no === no; });
+  if (i > -1) data.libraryProducts[i] = rec; else data.libraryProducts.push(rec);
+  save('libraryProducts');
+  return rec;
+}
+
+function removeLibraryProduct(no) {
+  data.libraryProducts = data.libraryProducts.filter(function (x) { return x.no !== no; });
+  save('libraryProducts');
+}
+
+/** 产品速填候选：产品库优先，合并历史报价（按编号去重，历史取最新一条） */
+function quoteProductCandidates() {
+  var seen = {};
+  var out = [];
+  function push(c) {
+    var key = String(c.productNo || '').trim();
+    if (!key || seen[key]) return;
+    seen[key] = 1;
+    out.push(c);
+  }
+  data.libraryProducts.forEach(function (p) {
+    push({
+      productNo: p.no, productName: p.name, drawingNumber: p.drawingNumber,
+      specification: p.specification, unit: p.unit,
+      quantity: '', unitPrice: p.unitPrice, currency: p.currency || 'USD', remark: p.remarks || '',
+      fromLib: true
+    });
+  });
+  data.quotationRecords.slice().reverse().forEach(function (r) {
+    if (!r.productNo) return;
+    push({
+      productNo: r.productNo, productName: r.productName || '',
+      drawingNumber: r.drawingNumber || '', specification: r.specification || '',
+      unit: r.unit || '', quantity: '', unitPrice: r2(r.unitPrice),
+      currency: r.currency || 'USD', remark: r.remark || '', fromLib: false
+    });
+  });
+  return out;
+}
+
 /* ============ 备份 / 恢复 ============ */
 
 function exportBackup() {
@@ -947,6 +1266,7 @@ module.exports = {
   TRADE_TERMS: TRADE_TERMS,
   TRANSPORT_METHODS: TRANSPORT_METHODS,
   LOGO_OPTIONS: LOGO_OPTIONS,
+  LOGO_IMAGE_FILES: LOGO_IMAGE_FILES,
   UNIT_OPTIONS: UNIT_OPTIONS,
   uid: uid,
   num: num,
@@ -976,6 +1296,12 @@ module.exports = {
   getCustomerStats,
   // 出货与报关
   nextShipmentNo, saveCustoms, deleteCustoms,
+  // 报价系统
+  QUOTE_COMPANIES, QUOTE_DELIVERY_METHODS, QUOTE_DELIVERY_LOCATIONS, QUOTE_TAX_RATES,
+  deliveryForTerms,
+  nextQuoteNo, ensureQuoteOptions, getQuoteOptions,
+  saveQuotation, getQuotation, listQuotations, deleteQuotation, duplicateQuotation,
+  upsertLibraryProduct, removeLibraryProduct, quoteProductCandidates,
   // 备份
   exportBackup, importBackup
 };

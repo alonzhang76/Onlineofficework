@@ -13,6 +13,8 @@ module.exports = {
     "phone",
     "type"
   ],
+  "titleFn": r => r.name || r.id,
+  "subFn": r => [r.type, r.contactPerson].filter(Boolean).join(' · '),
   "kvFields": [
     "contactPerson",
     "phone",

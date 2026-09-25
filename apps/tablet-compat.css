@@ -72,8 +72,14 @@ pre { white-space: pre-wrap; word-break: break-word; }
   #app-container .content-section { padding: 14px; overflow-x: auto; }
 
   /* ---- wicketorders ---- */
-  .top-nav-content { flex-wrap: wrap; gap: 8px; }
-  .nav-tabs { flex-wrap: wrap; }
+  /* 顶部蓝色固定栏高 80px 且只设了 overflow-x:auto，栏内换行会让第二行标签
+     溢出到蓝色栏外，出现"标签上半截蓝底、下半截白底"。改为隐藏标题 +
+     单行横向滑动。（≤768px 时页面自身已改为底部 60px 标签栏，这里的
+     nowrap 必须带 !important，否则本规则的 wrap 会破坏底栏单行滚动） */
+  .top-nav-content { flex-wrap: nowrap !important; gap: 8px; }
+  .top-nav-content > h1 { display: none !important; }
+  .top-nav .nav-tabs { flex-wrap: nowrap !important; overflow-x: auto !important; overflow-y: hidden !important; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .top-nav .nav-tabs::-webkit-scrollbar { display: none; }
   main { width: 100%; min-width: 0; }
 
   /* ---- wage（≤1024 已有 60px 窄侧栏，补齐其余布局） ---- */

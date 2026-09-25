@@ -22,7 +22,7 @@
   'use strict';
 
   // ===== 版本守卫：防止旧版 cloudbase-sync.js 在新版之后重新初始化 =====
-  var SYNC_VERSION = '20260918f';
+  var SYNC_VERSION = '20260924f';
   if (window.__CLOUDBASE_SYNC_VERSION__) {
     console.warn('[CloudbaseSync] 检测到已加载版本 ' + window.__CLOUDBASE_SYNC_VERSION__ +
       '，当前版本 ' + SYNC_VERSION + ' 跳过初始化');
@@ -79,6 +79,24 @@
   var recentWrites = {}; // 记录本地写入时间，防止云端旧数据覆盖
   var authedUser = null;   // 当前认证用户（共享账号或匿名）
   var authFailReason = ''; // 认证失败原因（用于手机端可见提示）
+
+  // ===== 版本号机制（Excel 保存模式：本地编辑不自动上传，只更新本地版本号）=====
+  // localVersions[key] = 本地最后修改时间戳(ms)
+  // 云端行的 updated_at = 云端最后修改时间戳
+  // LWW：打开应用时比较两者，取较新者；手动下载时提示用户选择
+  var localVersions = {};
+  var LOCAL_VERSIONS_KEY = '__cb_local_versions__';
+  function loadLocalVersions() {
+    try {
+      var raw = _origGetItem.call(_lsInstance, LOCAL_VERSIONS_KEY);
+      localVersions = raw ? JSON.parse(raw) : {};
+    } catch (e) { localVersions = {}; }
+  }
+  function saveLocalVersions() {
+    try {
+      _origSetItem.call(_lsInstance, LOCAL_VERSIONS_KEY, JSON.stringify(localVersions));
+    } catch (e) {}
+  }
 
   // ===== 手机端可见的云端同步状态徽标 =====
   var badgeEl = null;
@@ -169,43 +187,96 @@
       'highlightedFollowupNos', 'deliveryNoticeRecords', 'orderLabelsData',
       'deliveryNoticePhotos', 'cdg_companies', 'cdg_records', 'cdg_details',
       'cdg_shipments', 'cdg_shipment_page_size', 'cdg_products', 'cdg_records_page_size',
-      'shipmentDetailData', 'shipmentDetailConsignee'],
+      'shipmentDetailData', 'shipmentDetailConsignee',
+      // 报价系统（与 plm-work 小程序 trade 模块共用）
+      'quotationRecords', 'libraryProducts', 'quotationSystemUnits',
+      'quotationSystemPaymentRatios', 'quotationSystemPaymentMethods', 'quotationSystemTerms',
+      'calendarNotes',
+      // 报关文件系统：成交条款自定义选项
+      'customs_terms_options'],
     wage: ['wage_records', 'wage_employees', 'wage_processes', 'wage_orders',
       'wage_adjustments', 'wage_calendarEvents', 'wage_calendarEventTypes',
       'wage_dropdownOptions'],
-    purchase: ['currentCompany', 'companyNames', 'todos',
+    purchase: ['currentCompany', 'currentCompany_index', 'lastActivePage',
+      'companyNames', 'todos',
       'reconciliation_transactions', 'reconciliation_params',
       'invoice_management_invoices', 'invoiceData', 'invoiceExportData',
-      'woodenBoxCalculatorResults'],
+      'woodenBoxCalculatorResults',
+      // 供应商管理 / 普票登记 / 发票页待办、记事本、筛选等辅助数据
+      'suppliers', 'invoices', 'units',
+      'todoList', 'todoIdCounter', 'notepadContent', 'advancedFilters'],
     incomeexpense: ['currentCompany', 'todos',
       'reconciliation_transactions', 'reconciliation_params'],
     stainlessbusiness: ['certificateData', 'calculationParams', 'gradeComparisons',
       'plateCalculatorSavedResults', 'plateCalcData', 'plateCalcResult',
       'quotationRemarksUpdated', 'hs_label_load', 'hs_label_prefill_batch',
-      'hs_label_prefill'],
+      'hs_label_prefill',
+      // 共享键（React 包 Sle 集合：不分公司、全应用共用。
+      // contacts/favoriteContacts 经 LOCAL_KEY_REMAP 本地存为 sb_*，云端仍用原名）
+      'contacts', 'favoriteContacts', 'industryTypes', 'industryApplications',
+      'vocabularies', 'hscodes', 'hscodeData', 'customColumns',
+      'products', 'productCategories', 'companyList', 'paymentTerms',
+      'contractTerms', 'memos',
+      // 当前公司（切公司视图需要；公司名是公司级键，由下方正则覆盖）
+      'currentCompanyId',
+      // 裸业务键兜底（React V9 列表）：实测应用内大量旧组件绕过 US 作用域
+      // 直接读写裸键，且裸键数据比公司级键更新更全（如裸 invoices 17KB vs
+      // 公司级为空）。不注册这些裸键，泰坦福等公司页面可见的数据就无法上云。
+      'inquiries', 'quotations', 'purchaseOrders', 'returnRecords',
+      'salesOrders', 'salesReturnRecords', 'inventoryRecords',
+      'warehouses', 'warehouseHistory', 'warehouseSales',
+      'warehouseSalePayments', 'warehouseSaleInvoices',
+      'transactions', 'transactionCategories', 'initialBalanceData',
+      'invoices', 'purchaseContractTerms', 'salesContractTerms',
+      'calendarEvents', 'companyName1', 'companyName2', 'payments'],
     saintysys: ['sht_sample_data_v2', 'sampleReviewRecords', 'consumptions',
       'clothing_cost_styles_v3', 'clothing_cost_categories_v3',
       'nas_folder_perms', 'styleImages', 'orders', 'draft',
       'permissions', 'dataVersion', 'nas_config']
   };
+  // 注册表条目：字符串 = 前缀匹配；正则字面量 = 完全匹配。
+  // 注意：purchase 用 companyA/companyB，收支表（incomeexpense）用 company1/company2，
+  // 两边都有 transactions_<公司> 键，单纯前缀匹配会把另一应用公司的历史串味行算进来，
+  // 因此用正则按真实公司 id 收窄。
   var _DEFAULT_APP_KEY_PREFIXES = {
-    purchase: ['transactions_', 'lastUpdated_', 'contracts_', 'receipts_', 'returns_', 'purchaseOrders_'],
-    incomeexpense: ['transactions_', 'lastUpdated_'],
-    wicketorders: ['quotation_products_', 'invoice_products_', 'contract_products_'],
-    saintysys: ['currentCompany']
+    purchase: [
+      /^transactions_(companyA|companyB)$/,
+      /^lastUpdated_(companyA|companyB)$/,
+      /^(contracts|receipts|returns|purchaseOrders)_(companyA|companyB)$/,
+      // 发票管理 / 付款管理（页面主表使用「公司-类型」连字符键）
+      /^(companyA|companyB)-(invoices|payments)$/,
+      // 采购待办、采购记事本（公司级）
+      /^procurementTodos_(companyA|companyB)$/,
+      /^procurement-notepad-content_(companyA|companyB)$/
+    ],
+    incomeexpense: [
+      /^transactions_(company1|company2)$/,
+      /^lastUpdated_(company1|company2)$/
+    ],
+    // 不锈钢业务：公司级隔离键「公司id__业务键」（React US 函数：非共享键一律
+    // 存为 `${currentCompanyId}__${key}`）。公司 id 形如 default-1/default-2/default-3
+    // 或随机串，用通配 [^_]+ 匹配；业务键限界 $ 防串味。
+    stainlessbusiness: [
+      /^[^_]+__(inquiries|quotations|purchaseOrders|returnRecords|salesOrders|salesReturnRecords|inventoryRecords|warehouses|warehouseHistory|warehouseSales|warehouseSalePayments|warehouseSaleInvoices|transactions|transactionCategories|initialBalanceData|invoices|purchaseContractTerms|salesContractTerms|calendarEvents|companyName1|companyName2|products|productCategories|paymentTerms|contractTerms)$/,
+      // 历史/双写兜底：公司级 contacts、memos（若 React 版本将其按公司隔离）
+      /^[^_]+__(contacts|favoriteContacts|memos|industryTypes|industryApplications|vocabularies|hscodes|hscodeData|customColumns|gradeComparisons|calculationParams|certificateData|plateCalcData|dataCleared|userPhone)$/
+    ],
+    wicketorders: ['quotation_products_', 'invoice_products_', 'contract_products_']
   };
   var APP_KEYS = window.CLOUDBASE_APP_KEYS || _DEFAULT_APP_KEYS[APP_ID] || [];
   var APP_KEY_PREFIXES = window.CLOUDBASE_APP_KEY_PREFIXES || _DEFAULT_APP_KEY_PREFIXES[APP_ID] || [];
 
   // 判断一个未带其他应用前缀的 localStorage 键是否属于当前应用
   function isAppKey(key) {
-    // 已有当前应用前缀的键直接通过
+    // 已有当前应用前缀的键直接通过（双前缀垃圾由 cloudKeyToOurs 另行拦截）
     if (key.indexOf(APP_ID + '__') === 0) return true;
     // 精确匹配
     if (APP_KEYS.indexOf(key) >= 0) return true;
-    // 前缀匹配（动态键如 transactions_company1）
+    // 动态键：字符串前缀匹配 或 正则完全匹配
     for (var i = 0; i < APP_KEY_PREFIXES.length; i++) {
-      if (key.indexOf(APP_KEY_PREFIXES[i]) === 0) return true;
+      var p = APP_KEY_PREFIXES[i];
+      if (p instanceof RegExp) { if (p.test(key)) return true; }
+      else if (key.indexOf(p) === 0) return true;
     }
     return false;
   }
@@ -292,9 +363,25 @@
   // ===== 动态加载共享 CloudBase 兼容层 =====
   // 兼容层相对路径固定为 apps/cloudbase/cloudbase.js，
   // 依据本脚本自身 URL 推导，避免不同目录深度引用时路径出错。
+  // 关键：document.currentScript 只在脚本同步执行期间有效；兼容层改为懒加载后，
+  // loadClient 可能在用户点击按钮时才执行，那时 currentScript 已为 null。
+  // 因此在 IIFE 同步阶段就把自身 URL 捕获下来。
+  var _selfSrc = '';
+  try {
+    _selfSrc = (document.currentScript && document.currentScript.src) || '';
+    if (!_selfSrc) {
+      // 兜底：按文件名在 <script> 标签里找（currentScript 失效场景）
+      var _ss = document.querySelectorAll('script[src]');
+      for (var _si = 0; _si < _ss.length; _si++) {
+        var _u = _ss[_si].src || '';
+        if (/cloudbase-sync\.js(\?|$)/.test(_u)) { _selfSrc = _u; break; }
+      }
+    }
+  } catch (e) {}
+
   function resolveModuleUrl() {
     try {
-      var src = (document.currentScript && document.currentScript.src) || '';
+      var src = _selfSrc;
       if (src) {
         // 本文件位于 apps/cloudbase-sync.js，兼容层位于 apps/cloudbase/cloudbase.js
         // 沿用本文件 ?v= 版本号，避免兼容层更新后浏览器仍用旧缓存
@@ -305,19 +392,33 @@
     return 'cloudbase/cloudbase.js';
   }
 
-  async function loadClient() {
-    // 必须在 import 前设置共享账号，兼容层初始化（bootstrapAuth）时读取
-    window.CLOUDBASE_SYNC = SYNC_ACCOUNT;
-    try {
-      var mod = await import(/* @vite-ignore */ resolveModuleUrl());
-      sb = (mod && mod.supabase) || window.supabase || null;
-      clientReady = !!sb;
-      return sb;
-    } catch (e) {
-      console.error('[CloudbaseSync] 兼容层加载失败:', e && e.message ? e.message : e);
-      authFailReason = 'CloudBase 模块加载失败';
-      return null;
-    }
+  // 懒加载单例：兼容层（含重量级 CloudBase SDK + 登录引导）只在首次需要时加载一次。
+  // 打开页面/切换标签时不阻塞本地渲染，等浏览器空闲时再后台预取。
+  var _clientPromise = null;
+  function loadClient() {
+    if (_clientPromise) return _clientPromise;
+    _clientPromise = (async function () {
+      // 必须在 import 前设置共享账号，兼容层初始化（bootstrapAuth）时读取
+      window.CLOUDBASE_SYNC = SYNC_ACCOUNT;
+      try {
+        var mod = await import(/* @vite-ignore */ resolveModuleUrl());
+        sb = (mod && mod.supabase) || window.supabase || null;
+        clientReady = !!sb;
+        return sb;
+      } catch (e) {
+        console.error('[CloudbaseSync] 兼容层加载失败:', e && e.message ? e.message : e);
+        authFailReason = 'CloudBase 模块加载失败';
+        _clientPromise = null; // 允许重试
+        return null;
+      }
+    })();
+    return _clientPromise;
+  }
+
+  // 供手动按钮（上传/下载/清空）await：确保兼容层已加载完成
+  async function ensureClient() {
+    if (sb) return sb;
+    return loadClient();
   }
 
   // 等待认证态稳定（共享账号登录或匿名登录完成）
@@ -367,14 +468,12 @@
       return null;
     }
     var env = window.CLOUDBASE_ENV;
+    // 取有效 token：登录未完成则等待；refresh token 失效导致凭证被清空时主动重登。
+    // 整段加 20s 上限，避免重登网络异常时无限等待。
     var token = null;
-    // 短重试取 token（最多 5 次 × 500ms = 2.5s），等 SDK 登录完成
-    if (typeof window.CloudbaseGetAccessToken === 'function') {
-      for (var t = 0; t < 5 && !token; t++) {
-        try { token = await window.CloudbaseGetAccessToken(); } catch (e) {}
-        if (!token) await new Promise(function (r) { setTimeout(r, 500); });
-      }
-    }
+    try {
+      token = await withTimeout(ensureFreshToken(), 20000);
+    } catch (e) { token = null; }
     if (!env || !token) return null; // 信号：REST 不可用，调用方回退兼容层
 
     var base = 'https://' + env + '.api.tcloudbasegateway.com/v1/rdb/rest/' + TABLE;
@@ -384,8 +483,9 @@
     var PAGE = 100;
     while (true) {
       // select=id,data（物理列），jsonb 过滤 data->>store_key
+      // SQL LIKE 通配符是 %（encodeURIComponent → %25），不能用 *（实测本网关虽兼容，但非标准）
       var url = base + '?select=id,data' +
-        '&data-%3E%3Estore_key=like.' + encodeURIComponent(prefix + '*') +
+        '&data-%3E%3Estore_key=like.' + encodeURIComponent(prefix + '%') +
         '&offset=' + offset + '&limit=' + PAGE;
       // 每页请求 30 秒超时（慢网络下 10s 太紧，大 jsonb 分页必被 abort）；
       // 超时中止自动重试 1 次再判失败
@@ -397,7 +497,8 @@
           res = await fetch(url, {
             method: 'GET',
             headers: { 'Authorization': 'Bearer ' + token },
-            signal: ctrl.signal
+            signal: ctrl.signal,
+            cache: 'no-store' // 不用浏览器缓存：上传/清理后必须读到最新物理行
           });
           break;
         } catch (e) {
@@ -457,6 +558,98 @@
     try { _origSetItem.call(_lsInstance, toLocalKey('__cb_import_protect_until__'), ''); } catch (e) {}
   }
 
+  // ===== 本地 / 云端记录条数统计（供页面徽标显示，便于用户对比）=====
+  // cloudCounts 为 null 表示云端尚未加载；加载后为 { 原始key: 条数 }
+  var cloudCounts = null;
+
+  // 计算一个数据集的"记录条数"：数组取长度，记录映射取键数，其它按 0
+  function countValue(val) {
+    if (val === null || val === undefined) return 0;
+    if (Array.isArray(val)) return val.length;
+    if (typeof val === 'object') {
+      try { return Object.keys(val).length; } catch (e) { return 0; }
+    }
+    return 0;
+  }
+
+  // 云端 store_key → 本机键名；只认真正属于当前应用的键。
+  // 历史污染：旧版无差别上传曾把其它应用数据（wage_records/orderRecords/cdg_* 等）、
+  // 内部会话键（credentials_/lang_/tcb_auth_session）、双前缀垃圾键
+  // （incomeexpense__incomeexpense__todos）都写到当前应用前缀下。
+  // 这些行绝不能参与计数、下载覆盖或对比，否则右下角条数虚高、旧数据还会"复活"。
+  function cloudKeyToOurs(sk) {
+    if (!sk || sk.indexOf(APP_ID + '__') !== 0) return null;
+    var origKey = sk.substring((APP_ID + '__').length);
+    if (!origKey || origKey.indexOf(APP_ID + '__') === 0) return null; // 双前缀垃圾
+    if (!isAppKey(origKey)) return null;    // 非本应用注册键（其它应用串味数据）
+    if (shouldSkip(origKey)) return null;   // 内部/凭据/语言等
+    return origKey;
+  }
+
+  // 用云端原始行刷新云端条数快照（同一 store_key 取最新行，独立于 LWW 合并结果）
+  function ingestCloudCounts(rows) {
+    var newest = {};
+    try {
+      for (var i = 0; i < rows.length; i++) {
+        var rw = rows[i];
+        if (!rw || !rw.store_key) continue;
+        if (!cloudKeyToOurs(rw.store_key)) continue; // 只统计本应用真实业务键
+        var prev = newest[rw.store_key];
+        if (!prev || new Date(rw.updated_at).getTime() > new Date(prev.updated_at).getTime()) {
+          newest[rw.store_key] = rw;
+        }
+      }
+    } catch (e) { return; }
+    var counts = {};
+    Object.keys(newest).forEach(function (sk) {
+      var origKey = cloudKeyToOurs(sk);
+      if (origKey) counts[origKey] = countValue(newest[sk].payload);
+    });
+    cloudCounts = counts;
+  }
+
+  // 返回 { cloudLoaded, localTotal, cloudTotal, perKey:[{key,label,local,cloud}] }
+  function getRecordCounts() {
+    var local = {};
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var nk = localStorage.key(i);
+        if (!nk || isReservedKey(nk)) continue;
+        var ok;
+        if (REMAP_REVERSE[nk] !== undefined) ok = REMAP_REVERSE[nk];
+        else if (REMAP_ORIGINALS[nk]) continue;
+        else ok = nk;
+        if (!isAppKey(ok) || shouldSkip(ok)) continue;
+        var raw = nativeGet(toLocalKey(ok));
+        if (raw === null || raw === undefined || raw === '') { local[ok] = 0; continue; }
+        try { local[ok] = countValue(JSON.parse(raw)); }
+        catch (e) { local[ok] = 0; }
+      }
+    } catch (e) {}
+
+    var union = {};
+    Object.keys(local).forEach(function (k) { union[k] = true; });
+    if (cloudCounts) Object.keys(cloudCounts).forEach(function (k) { union[k] = true; });
+
+    var perKey = [];
+    var localTotal = 0, cloudTotal = 0;
+    Object.keys(union).sort().forEach(function (k) {
+      var lc = local[k] || 0;
+      var cc = cloudCounts ? (cloudCounts[k] || 0) : null;
+      localTotal += lc;
+      if (cc !== null) cloudTotal += cc;
+      perKey.push({ key: k, local: lc, cloud: cc });
+    });
+
+    return {
+      appId: APP_ID,
+      cloudLoaded: !!cloudCounts,
+      localTotal: localTotal,
+      cloudTotal: cloudCounts ? cloudTotal : null,
+      perKey: perKey
+    };
+  }
+
   // ===== 拉取全量数据到缓存 =====
   // 处理云端行数据：去重 → LWW → 写入缓存。供 loadAllFromCloud 和 refreshFromCloud 共用。
   function processCloudRows(rows) {
@@ -478,6 +671,7 @@
         newest[rw.store_key] = rw;
       }
     }
+    ingestCloudCounts(rows); // 刷新云端条数快照（独立于下方 LWW 合并）
     var n = 0;
     var importProtected = isImportProtected();
     if (importProtected) {
@@ -485,8 +679,8 @@
     }
     Object.keys(newest).forEach(function (sk) {
       var row = newest[sk];
-      var origKey = unprefixKey(sk);
-      if (!origKey) return;
+      var origKey = cloudKeyToOurs(sk);
+      if (!origKey) return; // 非本应用键（跨应用串味/凭据/双前缀垃圾）一律不落地
       // 导入保护期内：本地已有数据时完全跳过（不覆盖 cache 也不覆盖 localStorage）
       if (importProtected) {
         var localRaw0 = nativeGet(toLocalKey(origKey));
@@ -539,14 +733,16 @@
         }
         return;
       }
-      // LWW：只有云端 updated_at 严格新于本地已知同步时间才覆盖。
-      // cacheTs 未设置（首次加载）时直接采用云端，避免本地旧数据（如 60 条）
-      // 抢先入缓存后把云端新数据（740 条）挡在外面。
-      var localTs = cacheTs[origKey];
-      if (localTs) {
-        try {
-          if (new Date(row.updated_at).getTime() <= new Date(localTs).getTime()) return;
-        } catch (e) {}
+      // ===== LWW 版本比较：本地版本号 vs 云端 updated_at，取较新者 =====
+      var cloudTime = 0, localTime = localVersions[origKey] || 0;
+      try { cloudTime = new Date(row.updated_at).getTime(); } catch (e) {}
+      // 本地比云端新 → 保留本地，不用云端覆盖
+      if (localTime > cloudTime) {
+        var lv = nativeGet(toLocalKey(origKey));
+        if (lv !== null && lv !== undefined && lv !== '') {
+          try { cache[origKey] = JSON.parse(lv); } catch (e2) { cache[origKey] = lv; }
+        }
+        return;
       }
       var val = row.payload;
       // 云端值为空而本机非空时，用本机值兜底（防止云端空行清空本机数据）
@@ -728,119 +924,166 @@
   }
 
   // ===== 初始化 =====
-  async function init() {
-    if (initialized) return true;
+  // Excel 保存模式下，首屏渲染只依赖 localStorage（Storage 补丁在脚本加载时已同步安装），
+  // 因此初始化分两段：
+  //   ① 本地段（同步、即时）：版本号 + 键名迁移 + initialized=true，页面立刻可用
+  //   ② 云端段（浏览器空闲后才执行）：懒加载重量级 SDK + 登录，再做一次后台版本对比
+  function init() {
+    if (initialized) return Promise.resolve(true);
     if (initPromise) return initPromise;
 
-    initPromise = (async function () {
-      console.log('[CloudbaseSync] 初始化，应用前缀:', APP_ID);
+    console.log('[CloudbaseSync] 初始化（本地即时就绪），应用前缀:', APP_ID);
 
-      await loadClient();
+    // ---- ① 本地段：纯 localStorage，无任何网络 ----
+    loadLocalVersions();
+    try { migrateLocalStorage(); } catch (e) {}
 
-      // 先做本地键名迁移（纯本地操作，不阻塞）
-      try { await migrateLocalStorage(); } catch (e) {}
+    // 从 sessionStorage/cookie/localStorage 恢复导入保护期（跨 reload 存活）
+    if (isImportProtected()) {
+      pauseCloudWrites(600000); // 恢复 10 分钟暂停
+      console.log('[CloudbaseSync] ✅ 检测到导入保护期，已恢复暂停');
+    }
 
-      // 从 sessionStorage/cookie/localStorage 恢复导入保护期（跨 reload 存活）
-      if (isImportProtected()) {
-        pauseCloudWrites(600000); // 恢复 10 分钟暂停
-        console.log('[CloudbaseSync] ✅ 检测到导入保护期（sessionStorage/cookie/localStorage），已恢复暂停，_cloudWritePausedUntil =', new Date(_cloudWritePausedUntil).toLocaleTimeString());
-      } else {
-        // 诊断：显示三个存储中的值
-        var _ssVal = 'null', _ckVal = 'null', _lsVal = 'null';
-        try { _ssVal = sessionStorage.getItem(IMPORT_PROTECT_KEY) || 'null'; } catch (e) {}
-        try { var _m = document.cookie.match(/__cb_import_protect_until__=(\d+)/); _ckVal = _m ? _m[1] : 'null'; } catch (e) {}
-        try { _lsVal = _origGetItem.call(_lsInstance, toLocalKey('__cb_import_protect_until__')) || 'null'; } catch (e) {}
-        console.log('[CloudbaseSync] 无导入保护期。sessionStorage=' + _ssVal + ' cookie=' + _ckVal + ' localStorage=' + _lsVal);
+    initialized = true; // 页面 getItem 立即可用本地数据
+
+    // 注册定时器和事件监听（refreshFromCloud 在 sb 未就绪时直接 return，安全空转）
+    setInterval(refreshFromCloud, REFRESH_INTERVAL);
+    setInterval(flushPending, 10000);
+    setInterval(refreshLegacyBadge, 3000);
+    window.addEventListener('online', function () { if (!sb) scheduleCloudBoot(); flushPending(); if (!window.__NO_AUTO_CLOUD_LOAD__) refreshFromCloud(); });
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) {
+        // 后台标签切回前台：若云端栈尚未引导，立即补引导（无需等空闲）
+        if (!sb) scheduleCloudBoot(0);
+        flushPending();
+        if (!window.__NO_AUTO_CLOUD_LOAD__) refreshFromCloud();
       }
+    });
+    window.addEventListener('beforeunload', flushPending);
+    window.addEventListener('offline', function () { notifyStatus('offline'); });
+    bindBadgeWhenReady();
 
-      // 立即标记 initialized，让页面 getItem 可以用本地数据渲染，
-      // 不必等云端加载完成。云端数据后台到达后再触发更新事件。
-      initialized = true;
-      console.log('[CloudbaseSync] 本地就绪（initialized=true），后台加载云端数据...');
-
-      // 注册定时器和事件监听
-      setInterval(refreshFromCloud, REFRESH_INTERVAL);
-      setInterval(flushPending, 10000);
-      setInterval(refreshLegacyBadge, 3000); // 旧版黄条自愈：认证完成/断线恢复后自动变色，不靠一次性渲染
-      window.addEventListener('online', function () { flushPending(); if (!window.__NO_AUTO_CLOUD_LOAD__) refreshFromCloud(); });
-      document.addEventListener('visibilitychange', function () { if (!document.hidden) { flushPending(); if (!window.__NO_AUTO_CLOUD_LOAD__) refreshFromCloud(); } });
-      window.addEventListener('beforeunload', flushPending);
-      window.addEventListener('offline', function () { notifyStatus('offline'); });
-      bindBadgeWhenReady();
-
-      // 后台异步：等认证 → 拉取云端数据 → 更新缓存 → 触发页面刷新
-      (async function () {
-        // 直接尝试拉取云端数据——fetchAppRows 内部通过 CloudbaseGetAccessToken
-        // 自取 Bearer token，不需要等 waitAuth / CloudbaseWhenReady。
-        // 跳过 waitAuth（30 次轮询 × 网络延迟）可从 10 分钟降到秒级。
-        if (sb) {
-          await loadAllFromCloud();
-        } else {
-          cloudLoadDenied = true;
-        }
-        initialLoadDone = true;
-        refreshLegacyBadge();
-
-        if (cloudLoadDenied) {
-          notifyStatus('offline');
-          // 指数退避重试：30s → 60s → 120s → 120s（上限）
-          var retryDelay = 30000;
-          var retryMaxDelay = 120000;
-          function scheduleRetry() {
-            setTimeout(function () {
-              retryAuthAndReload().then(function (ok) {
-                if (ok && !cloudLoadDenied) return;
-                retryDelay = Math.min(retryDelay * 2, retryMaxDelay);
-                scheduleRetry();
-              }).catch(function () {
-                retryDelay = Math.min(retryDelay * 2, retryMaxDelay);
-                scheduleRetry();
-              });
-            }, retryDelay);
-          }
-          scheduleRetry();
-        } else {
-          notifyStatus('idle');
-          console.log('[CloudbaseSync] 云端数据加载完成。应用:', APP_ID);
-        }
-
-        // 后台异步获取用户信息（不阻塞数据加载）
-        if (sb) {
-          try {
-            var result = await Promise.race([
-              sb.auth.getUser(),
-              new Promise(function (_, rej) { setTimeout(function () { rej(new Error('getUser 超时')); }, 5000); })
-            ]);
-            if (result && result.data && result.data.user) {
-              authedUser = result.data.user;
-              authFailReason = '';
-              console.log('[CloudbaseSync] 用户:', authedUser.email || authedUser.id || 'authed');
-            }
-            refreshLegacyBadge();
-          } catch (e) {}
-        }
-
-        // 云端缺失但本地存在的键自动补传
-        try { await autoUploadLocalOnlyKeys(); } catch (e) {}
-
-        try {
-          var allKeys = Object.keys(cache);
-          if (allKeys.length > 0) {
-            window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { keys: allKeys, initial: true } }));
-          }
-        } catch (e) {}
-      })().catch(function (e) {
-        console.warn('[CloudbaseSync] 后台云端加载异常:', e && e.message ? e.message : e);
-        cloudLoadDenied = true;
-        initialLoadDone = true;
-        notifyStatus('offline');
-        refreshLegacyBadge();
-      });
-
-      return true;
-    })();
-
+    // ---- ② 云端段：等首帧渲染完、浏览器空闲后再加载，不抢占打开/切标签的响应 ----
+    initPromise = scheduleCloudBoot().then(function () { return true; });
     return initPromise;
+  }
+
+  // 云端引导：空闲时加载 SDK → 登录就绪后做一次后台 LWW 版本对比
+  var _cloudBootStarted = false;
+  function scheduleCloudBoot(delayMs) {
+    if (_cloudBootStarted) return Promise.resolve();
+    _cloudBootStarted = true;
+    return new Promise(function (resolve) {
+      var started = false;
+      function begin() {
+        if (started) return;
+        started = true;
+        cloudBoot().then(resolve, resolve);
+      }
+      var idle = (typeof window.requestIdleCallback === 'function')
+        ? function (cb) { return window.requestIdleCallback(cb, { timeout: 3000 }); }
+        : null;
+      // 首帧后再延迟，确保点击/切标签的交互优先
+      setTimeout(function () {
+        if (idle) idle(begin); else begin();
+      }, typeof delayMs === 'number' ? delayMs : 1200);
+    });
+  }
+
+  async function cloudBoot() {
+    // 标签页隐藏时（后台标签）延后引导，切回前台再加载，进一步省电省流量
+    if (typeof document !== 'undefined' && document.hidden) {
+      _cloudBootStarted = false;
+      return; // visibilitychange → refreshFromCloud 路径会在切回时触发
+    }
+    var client = await loadClient();
+    if (!client) {
+      // SDK 加载失败：稍后允许重试
+      _cloudBootStarted = false;
+      return;
+    }
+    bindBadgeWhenReady();
+
+    // 关键：等兼容层完成登录引导（共享账号/匿名），再拉数据。
+    // 懒加载后本函数在首帧约 1.2s 才执行，而 bootstrapAuth 的登录是网络调用，
+    // 若不等待，CloudbaseGetAccessToken 此刻返回 null → REST 放弃 → 兼容层回退也未登录，
+    // 结果云端行永远拉不到，右下角云端条数一直是"…"。
+    try {
+      if (typeof window.CloudbaseWhenReady === 'function') {
+        await Promise.race([
+          window.CloudbaseWhenReady(),
+          new Promise(function (resolve) { setTimeout(resolve, 20000); })
+        ]);
+      }
+    } catch (e) {}
+
+    // 后台做一次版本对比拉取（仅在无本地编辑时才采用云端更新值，符合 Excel 模式）
+    try {
+      await loadAllFromCloud();
+    } catch (e) {
+      console.warn('[CloudbaseSync] 后台云端加载异常:', e && e.message ? e.message : e);
+    }
+    initialLoadDone = true;
+
+    if (cloudLoadDenied) {
+      notifyStatus('offline');
+      scheduleCloudRetry();
+    } else {
+      notifyStatus('idle');
+      console.log('[CloudbaseSync] 云端版本对比完成。应用:', APP_ID);
+    }
+
+    // 后台获取用户信息（仅用于展示）。
+    // 关键：不要调用 client.auth.getUser() —— 它内部会走 getLoginState → 刷新 refresh token，
+    // 当 refresh token 已被吊销（/auth/v1/token 400）时，SDK 会顺手清空整个会话凭证，
+    // 导致一次纯展示调用把刚才能正常读写的登录态毁掉。
+    // 改为直接从现有 access token 的 JWT 载荷里读邮箱/名字，完全不触发网络刷新。
+    try {
+      var infoToken = (typeof window.CloudbaseGetAccessToken === 'function')
+        ? await window.CloudbaseGetAccessToken() : null;
+      if (infoToken) {
+        var payload = null;
+        try {
+          payload = JSON.parse(decodeURIComponent(escape(
+            atob(infoToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))));
+        } catch (eJ) { payload = null; }
+        if (payload && (payload.email || payload.name || payload.sub)) {
+          authedUser = {
+            id: payload.sub,
+            email: payload.email || '',
+            name: payload.name || ''
+          };
+          authFailReason = '';
+          console.log('[CloudbaseSync] 用户:', authedUser.email || authedUser.name || authedUser.id);
+        }
+      }
+    } catch (e) {}
+    refreshLegacyBadge();
+
+    try {
+      var allKeys = Object.keys(cache);
+      if (allKeys.length > 0) {
+        window.dispatchEvent(new CustomEvent('cloud-data-updated', { detail: { keys: allKeys, initial: true } }));
+      }
+    } catch (e) {}
+  }
+
+  function scheduleCloudRetry() {
+    var retryDelay = 30000;
+    var retryMaxDelay = 120000;
+    function tick() {
+      setTimeout(function () {
+        retryAuthAndReload().then(function (ok) {
+          if (ok && !cloudLoadDenied) { refreshLegacyBadge(); return; }
+          retryDelay = Math.min(retryDelay * 2, retryMaxDelay);
+          tick();
+        }).catch(function () {
+          retryDelay = Math.min(retryDelay * 2, retryMaxDelay);
+          tick();
+        });
+      }, retryDelay);
+    }
+    tick();
   }
 
   // ===== 迁移（仅本地键名重映射，不自动上传云端） =====
@@ -917,6 +1160,51 @@
     });
   }
 
+  // ===== 主动确保有可用 access token =====
+  // 会话中途 access token 过期、SDK 用 refresh token 刷新若返回 400（refresh token 被吊销），
+  // SDK 会直接清空凭证且不会自动重登，此后 getAccessToken 永远为空 → 上传/下载全败。
+  // 这里：先取 → 短重试等登录 → 仍为空则用共享账号强制重登（forceReauth 会 signOut + 密码重登）再取。
+  // 全局合并并发调用 + 30s 冷却，避免多个调用点/定时刷新同时重登。
+  var _ensureTokenInflight = null;
+  var _lastEnsureReauthAt = 0;
+  async function ensureFreshToken(opts) {
+    opts = opts || {};
+    var get = (typeof window !== 'undefined') ? window.CloudbaseGetAccessToken : null;
+    if (typeof get !== 'function') return null;
+
+    function tryGet() {
+      return Promise.resolve().then(function () { return get(); }).catch(function () { return null; });
+    }
+
+    // 1) 直接取
+    var t0 = await tryGet();
+    if (t0) return t0;
+    // 2) 短重试（兼容层首次登录可能仍在进行）
+    for (var i = 0; i < 3; i++) {
+      await new Promise(function (r) { setTimeout(r, 500); });
+      var t1 = await tryGet();
+      if (t1) return t1;
+    }
+    // 3) 仍无 token → 强制重登（30s 冷却）
+    if (typeof window.CloudbaseForceReauth !== 'function') return null;
+    if (!opts.force && (Date.now() - _lastEnsureReauthAt) < 30000) return null;
+    _lastEnsureReauthAt = Date.now();
+
+    if (!_ensureTokenInflight) {
+      _ensureTokenInflight = Promise.resolve()
+        .then(function () {
+          console.warn('[CloudbaseSync] 无有效访问令牌（可能 refresh token 已失效），强制重登...');
+          return window.CloudbaseForceReauth();
+        })
+        .catch(function () {})
+        .then(function () {
+          _ensureTokenInflight = null;
+        });
+    }
+    await _ensureTokenInflight;
+    return await tryGet();
+  }
+
   var refreshFailCount = 0;
   var REFRESH_FAIL_THRESHOLD = 3;
   var refreshNetFailCount = 0;      // 网络类失败（超时/中止）单独计数
@@ -990,13 +1278,14 @@
     });
   }
 
-  /** 实际执行单次 upsert */
-  function doUpload(key, value) {
+  /** 实际执行单次 upsert。timestampMs 可选，用本地版本号作为 updated_at */
+  function doUpload(key, value, timestampMs) {
     return new Promise(function (resolve, reject) {
+      var ts = timestampMs ? new Date(timestampMs).toISOString() : new Date().toISOString();
       var p = sb.from(TABLE).upsert({
         store_key: prefixKey(key),
         payload: value,
-        updated_at: new Date().toISOString()
+        updated_at: ts
       }, { onConflict: 'store_key' });
       // TcbQueryBuilder 是 thenable，用 .then() 执行
       p.then(function (upResult) {
@@ -1063,6 +1352,19 @@
     // 网络慢冷却期：暂停定时刷新，冷却结束后由下一个定时周期自动恢复（无需人工干预）
     if (_netPauseUntil && Date.now() < _netPauseUntil) return false;
 
+    // Excel 保存模式：编辑期间（30s 内有本地写入）不自动加载云端数据，
+    // 避免本地编辑被云端旧数据覆盖。用户可手动点"下载"获取最新。
+    var EDIT_GUARD_MS = 30000;
+    var nowMs = Date.now();
+    var hasRecentEdit = false;
+    try {
+      var rwKeys = Object.keys(recentWrites);
+      for (var ri = 0; ri < rwKeys.length; ri++) {
+        if (nowMs - recentWrites[rwKeys[ri]] < EDIT_GUARD_MS) { hasRecentEdit = true; break; }
+      }
+    } catch (e) {}
+    if (hasRecentEdit) return false;
+
     try {
       // 优先 REST 直连（只拉当前应用行），失败回退兼容层全表
       var rows = null;
@@ -1124,10 +1426,11 @@
           newestRows[rowRaw.store_key] = rowRaw;
         }
       }
+      ingestCloudCounts(rows); // 刷新云端条数快照
 
       Object.keys(newestRows).forEach(function (sk) {
         var row = newestRows[sk];
-        var origKey = unprefixKey(row.store_key);
+        var origKey = cloudKeyToOurs(row.store_key);
         if (!origKey) return;
         // 导入保护期内：本地已有数据时跳过云端覆盖（保护刚导入的数据）
         if (isImportProtected()) {
@@ -1153,15 +1456,34 @@
         var newVal = row.payload;
         var oldVal = cache[origKey];
         var cloudTs = row.updated_at;
-        var localTs = cacheTs[origKey];
 
-        // ========== 时序比较：只有云端更新时间 >= 本地才覆盖 ==========
-        // 这是多端同步的关键：避免旧数据覆盖新数据
-        if (localTs && cloudTs) {
-          var localTime = new Date(localTs).getTime();
-          var cloudTime = new Date(cloudTs).getTime();
-          if (cloudTime <= localTime) {
-            // 云端不比本地新，跳过（包含同一时刻写入）
+        // ===== LWW：本地版本号 vs 云端 updated_at，取较新者 =====
+        var cloudTime = 0, localVer = localVersions[origKey] || 0;
+        try { cloudTime = new Date(cloudTs).getTime(); } catch (e) {}
+        if (localVer > cloudTime) {
+          // 本地比云端新 → 保留本地
+          return;
+        }
+
+        // 空值兜底：云端 payload 为空数组/空对象，但本地（缓存或 localStorage）有数据时，
+        // 保留本地，绝不用云端空值清空。典型场景：某台设备 storage.init 初始空数组被误上传
+        // （旧版本缺陷）后，15 秒定时刷新会把所有设备的完整数据清空。
+        // 与 processCloudRows 首次加载的空值兜底保持一致。
+        if (isEmptyValue(newVal)) {
+          var _localExisting = oldVal;
+          if (_localExisting === undefined || isEmptyValue(_localExisting)) {
+            try {
+              var _lrRaw = nativeGet(toLocalKey(origKey));
+              if (_lrRaw !== null && _lrRaw !== undefined && _lrRaw !== '') {
+                _localExisting = JSON.parse(_lrRaw);
+              }
+            } catch (e2) {}
+          }
+          if (_localExisting !== undefined && !isEmptyValue(_localExisting)) {
+            console.warn('[CloudbaseSync] ⚠️ 云端值为空，保留本地数据 key=' + origKey +
+              ' cloudTs=' + cloudTs + ' 本地条数=' +
+              (Array.isArray(_localExisting) ? _localExisting.length : '非空'));
+            cache[origKey] = _localExisting;
             return;
           }
         }
@@ -1227,23 +1549,19 @@
     if (this === _lsInstance) {
       try { _origSetItem.call(this, toLocalKey(key), value); } catch (e) {}
 
+      var _prevCacheVal = cache[key];
+      var _prevHadData = _prevCacheVal !== undefined && !isEmptyValue(_prevCacheVal);
       try { cache[key] = JSON.parse(value); } catch (e) { cache[key] = value; }
-      // 注意：不在此设置 cacheTs[key] = now。
-      // 若把本地写入时间当作"数据更新时间"，会导致 refreshFromCloud 的 LWW 比较
-      // 中 localTime 永远 >= cloudTime，云端新数据永远无法覆盖本地旧数据
-      // （典型：A 机上传 740 条，B 机本地有 60 条旧数据，下载后仍显示 60 条）。
-      // 本地写入的防覆盖保护由 recentWrites（10s 窗口）+ pendingWrites 承担。
-      // cacheTs 只在「从云端加载」或「上传成功」后更新，代表真实云端同步时间。
+      var _newIsEmpty = isEmptyValue(cache[key]);
       recentWrites[key] = Date.now();
-      // 不再设置全局暂停 pauseCloudWrites——这会阻止 processCloudRows 加载正确的云端数据。
-      // per-key 保护由 recentWrites（10s）+ pendingWrites + _debounceTimers + _uploadQueue 承担。
 
-      // 自动同步到云端（防抖 + 串行上传，避免并发堆积）。
-      // LWW 时序比较 + upsert(store_key) 保证不会用旧数据覆盖云端新数据，
-      // 也不会产生重复行。
-      // 内部键（auth 会话 / 语言 / 凭据等设备本地状态）不上云，避免污染云端表。
-      if (!shouldSkip(key)) {
-        syncToCloud(key, cache[key]);
+      // ===== Excel 保存模式：本地编辑只更新本地版本号，不自动上传 =====
+      // 用户编辑记录时数据只存 localStorage，直到点击"上传云端"才推送。
+      // 这样避免了编辑过程中本地/云端互相覆盖的问题。
+      // 空值保护：首次写入空值（如新设备初始化）不更新版本号，避免空库覆盖云端。
+      if (!shouldSkip(key) && !(_newIsEmpty && !_prevHadData)) {
+        localVersions[key] = Date.now();
+        saveLocalVersions();
       }
       return;
     }
@@ -1256,11 +1574,9 @@
       delete cache[key];
       delete cacheTs[key];
       recentWrites[key] = Date.now();
-
-      // 自动删除云端对应行（异步，不阻塞）
-      if (sb && initialized) {
-        sb.from(TABLE).delete().eq('store_key', prefixKey(key)).then(function () {}, function () {});
-      }
+      // Excel 保存模式：不自动删除云端，等用户手动"上传云端"时清理
+      delete localVersions[key];
+      saveLocalVersions();
       return;
     }
     try { return _origRemoveItem.call(this, key); } catch (e) {}
@@ -1269,7 +1585,9 @@
   // ===== 手动上传：把本地所有数据推送到云端（覆盖云端） =====
   // onProgress 可选：onProgress({phase:'start'|'progress'|'reauth'|'cleanup', current, total, key, ok})
   async function pushAll(alsoDelete, onProgress) {
-    if (!sb) return { ok: false, msg: '同步层未就绪' };
+    // 懒加载：首次点击"上传"时若云端栈尚未引导，先加载
+    if (!sb) { await ensureClient(); }
+    if (!sb) return { ok: false, msg: '同步层未就绪（云端模块加载失败）' };
     function emit(p) { if (typeof onProgress === 'function') { try { onProgress(p); } catch (e) {} } }
 
     // 空库保护：本地一个非 skip key 都没有时禁止上传
@@ -1302,12 +1620,13 @@
     }
     emit({ phase: 'start', total: keysToUpload.length });
 
-    // 等认证就绪后再开始上传（避免无 token 时所有 upsert 挂起或必败）
-    if (window.CloudbaseWhenReady) {
-      try { await Promise.race([
-        window.CloudbaseWhenReady(),
-        new Promise(function (_, rej) { setTimeout(function () { rej(new Error('认证等待超时(15s)')); }, 15000); })
-      ]); } catch (e) { console.warn('[CloudbaseSync] 上传前认证未就绪:', e && e.message ? e.message : e); }
+    // 上传前主动确保有有效令牌：会话过期/refresh token 被吊销时先重登，
+    // 避免第一条记录白等一个 15s 超时、且整个批量必败。
+    try {
+      var preToken = await withTimeout(ensureFreshToken(), 25000);
+      if (!preToken) console.warn('[CloudbaseSync] 上传前未能取得有效令牌，将继续尝试（兼容层可能自行恢复）');
+    } catch (e) {
+      console.warn('[CloudbaseSync] 上传前令牌准备异常:', e && e.message ? e.message : e);
     }
 
     notifyStatus('pending');
@@ -1323,11 +1642,13 @@
       // 手动上传路径原来没有，导致 token 过期时点一次按钮就是几百个必败请求。
       for (var attempt = 0; attempt < 2 && !uploaded; attempt++) {
         try {
-          var res = await withTimeout(doUpload(item.key, value), _uploadTimeoutMs);
+          // 用本地版本号作为云端 updated_at，保证 LWW 一致性
+          var localVer = localVersions[item.key] || Date.now();
+          var res = await withTimeout(doUpload(item.key, value, localVer), _uploadTimeoutMs);
           uploaded = true;
           okCount++;
           cache[item.key] = value;
-          cacheTs[item.key] = new Date().toISOString();
+          cacheTs[item.key] = new Date(localVer).toISOString();
         } catch (e) {
           // 超时/网络中止类失败重登无济于事（JWT 仍有效），直接重试或入待重试队列
           if (attempt === 0 && !pushReauthed && !isNetAbort(e) &&
@@ -1390,6 +1711,30 @@
             try { await withTimeout(sb.from(TABLE).delete().eq('store_key', stale[d]), _uploadTimeoutMs); } catch (e) {}
             emit({ phase: 'cleanup', current: d + 1, total: stale.length });
           }
+
+          // 清理同一 store_key 的历史重复行：
+          // 旧版同步层每次写入都生成随机 UUID 物理行（id≠store_key），同键多行长期堆积。
+          // 下载/初始加载按 updated_at 取最新行，一旦某个残留行时间戳更新（旧代码自动上传、
+          // 其它设备晚写入等），其中的旧数据就会"复活"，覆盖刚上传/导入的新数据。
+          // 规范行物理 id == store_key（doUpload upsert 保证）；其余物理行全部删除。
+          var dupIds = [];
+          for (var q = 0; q < cloudKeys.length; q++) {
+            var rowK = cloudKeys[q];
+            var sk2 = rowK.store_key;
+            if (!sk2 || sk2.indexOf(APP_PREFIX) !== 0) continue;
+            if (rowK.id !== undefined && rowK.id !== null && String(rowK.id) !== String(sk2)) {
+              dupIds.push(String(rowK.id));
+            }
+          }
+          // 去重后逐个按物理主键删除（id 等值走服务端，精确不误删）
+          var uniqDupIds = Array.prototype.filter.call(dupIds, function (v, i, a) { return a.indexOf(v) === i; });
+          for (var dd = 0; dd < uniqDupIds.length; dd++) {
+            try { await withTimeout(sb.from(TABLE).delete().eq('id', uniqDupIds[dd]), _uploadTimeoutMs); } catch (e) {}
+            emit({ phase: 'cleanup', current: dd + 1, total: uniqDupIds.length });
+          }
+          if (uniqDupIds.length > 0) {
+            console.log('[CloudbaseSync] 已清理历史重复行', uniqDupIds.length, '个（应用:', APP_ID + '）');
+          }
         }
       } catch (e) {}
     }
@@ -1405,22 +1750,140 @@
     return { ok: false, uploaded: okCount, failed: failCount };
   }
 
-  // ===== 手动下载：强制从云端拉取全量数据并更新本地 =====
+  // ===== 手动下载：对比本地与云端版本，返回对比结果供 UI 提示用户选择 =====
+  // 返回 { ok, comparison: { cloudNewer, localNewer, same, cloudNewerCount, localNewerCount, sameCount } }
+  // 注意：pullAll 只做对比+返回，不自动覆盖本地。覆盖由 UI 根据用户选择决定。
   async function pullAll() {
-    if (!sb) return { ok: false, msg: '同步层未就绪' };
-    // 手动拉取：临时解除 __NO_AUTO_CLOUD_LOAD__ 和写入暂停
+    // 懒加载：首次点击"下载"时若云端栈尚未引导，先加载（按钮已显示进度条）
+    if (!sb) { await ensureClient(); }
+    if (!sb) return { ok: false, msg: '同步层未就绪（云端模块加载失败）' };
     var savedNoLoad = window.__NO_AUTO_CLOUD_LOAD__;
     var savedPause = _cloudWritePausedUntil;
     window.__NO_AUTO_CLOUD_LOAD__ = false;
     _cloudWritePausedUntil = 0;
-    var before = JSON.stringify(cache);
-    var ok = await refreshFromCloud();
-    var after = JSON.stringify(cache);
-    var changed = before !== after;
-    // 恢复
-    window.__NO_AUTO_CLOUD_LOAD__ = savedNoLoad;
-    _cloudWritePausedUntil = savedPause;
-    return { ok: true, changed: changed };
+    try {
+      var rows = await fetchAppRows();
+      if (!rows) {
+        // REST 失败回退兼容层
+        try {
+          var fb = await withTimeout(sb.from(TABLE).select('store_key, payload, updated_at'), 30000);
+          rows = (fb && fb.data) ? fb.data : [];
+        } catch (e) { rows = []; }
+      }
+
+      // 去重：同一 store_key 只保留最新行
+      var newest = {};
+      for (var i = 0; i < rows.length; i++) {
+        var rw = rows[i];
+        if (!rw.store_key) continue;
+        var prev = newest[rw.store_key];
+        if (!prev || new Date(rw.updated_at).getTime() > new Date(prev.updated_at).getTime()) {
+          newest[rw.store_key] = rw;
+        }
+      }
+      ingestCloudCounts(rows); // 手动下载时也刷新云端条数快照
+
+      // 版本对比
+      var cloudNewer = [], localNewer = [], same = [];
+      Object.keys(newest).forEach(function (sk) {
+        var row = newest[sk];
+        var origKey = cloudKeyToOurs(sk);
+        if (!origKey) return;
+        var cloudTime = 0;
+        try { cloudTime = new Date(row.updated_at).getTime(); } catch (e) {}
+        var localTime = localVersions[origKey] || 0;
+        if (localTime > cloudTime) localNewer.push({ key: origKey, localTime: localTime, cloudTime: cloudTime });
+        else if (cloudTime > localTime) cloudNewer.push({ key: origKey, localTime: localTime, cloudTime: cloudTime, row: row });
+        else same.push({ key: origKey, time: cloudTime });
+      });
+
+      // 本地有但云端没有的 key → 本地更新
+      try {
+        for (var j = 0; j < localStorage.length; j++) {
+          var nk = localStorage.key(j);
+          if (!nk || isReservedKey(nk)) continue;
+          var ok2;
+          if (REMAP_REVERSE[nk] !== undefined) ok2 = REMAP_REVERSE[nk];
+          else if (REMAP_ORIGINALS[nk]) continue;
+          else ok2 = nk;
+          if (!isAppKey(ok2) || shouldSkip(ok2)) continue;
+          var cloudHas = false;
+          Object.keys(newest).forEach(function (sk) {
+            if (cloudKeyToOurs(sk) === ok2) cloudHas = true;
+          });
+          if (!cloudHas) {
+            var lt = localVersions[ok2] || 0;
+            if (lt > 0) localNewer.push({ key: ok2, localTime: lt, cloudTime: 0 });
+          }
+        }
+      } catch (e) {}
+
+      return {
+        ok: true,
+        changed: cloudNewer.length > 0,
+        comparison: {
+          cloudNewer: cloudNewer,
+          localNewer: localNewer,
+          same: same,
+          cloudNewerCount: cloudNewer.length,
+          localNewerCount: localNewer.length,
+          sameCount: same.length
+        }
+      };
+    } finally {
+      window.__NO_AUTO_CLOUD_LOAD__ = savedNoLoad;
+      _cloudWritePausedUntil = savedPause;
+    }
+  }
+
+  // ===== 应用云端数据到本地（用户确认下载后调用）=====
+  // rows: pullAll 返回的 comparison.cloudNewer 中的 row 数组
+  function applyCloudRows(cloudNewerItems) {
+    var changed = 0;
+    (cloudNewerItems || []).forEach(function (item) {
+      if (!item || !item.row) return;
+      var origKey = item.key;
+      var val = item.row.payload;
+      if (isEmptyValue(val)) {
+        var nv = nativeGet(toLocalKey(origKey));
+        if (nv !== null && nv !== undefined && nv !== '') {
+          try { val = JSON.parse(nv); } catch (e) { val = nv; }
+        }
+      }
+      cache[origKey] = val;
+      cacheTs[origKey] = item.row.updated_at;
+      // 同步本地版本号为云端时间，避免下次刷新又被判定为本地新
+      var ct = 0;
+      try { ct = new Date(item.row.updated_at).getTime(); } catch (e) {}
+      localVersions[origKey] = ct;
+      try {
+        var raw = typeof val === 'string' ? val : JSON.stringify(val);
+        nativeSet(toLocalKey(origKey), raw);
+      } catch (e) {}
+      changed++;
+    });
+    saveLocalVersions();
+    if (changed > 0) {
+      try {
+        window.dispatchEvent(new CustomEvent('cloud-data-updated', {
+          detail: { keys: (cloudNewerItems || []).map(function (i) { return i.key; }) }
+        }));
+      } catch (e) {}
+    }
+    return changed;
+  }
+
+  // ===== 获取版本对比信息（供 UI 显示）=====
+  function getVersionInfo() {
+    var info = { appId: APP_ID, localKeys: 0, localNewest: 0 };
+    try {
+      var keys = Object.keys(localVersions);
+      info.localKeys = keys.length;
+      keys.forEach(function (k) {
+        if (localVersions[k] > info.localNewest) info.localNewest = localVersions[k];
+      });
+    } catch (e) {}
+    return info;
   }
 
   // "清空云端"前调用：立即清空在途/待发上传队列，避免删除间隙把数据重新 upsert 回去
@@ -1445,6 +1908,7 @@
     reload: retryAuthAndReload,
     pullAll: pullAll,
     pushAll: pushAll,
+    ensureClient: ensureClient,
     prepareForCloudClear: prepareForCloudClear,
     // 导入保护期：导入/恢复 JSON 后调用，防止 reload 后云端旧数据覆盖本地
     setImportProtection: function (ms) {
@@ -1464,7 +1928,13 @@
     // 全局写入暂停
     pauseCloudWrites: pauseCloudWrites,
     resumeCloudWrites: resumeCloudWrites,
-    isCloudWritePaused: isCloudWritePaused
+    isCloudWritePaused: isCloudWritePaused,
+    // Excel 保存模式：版本对比与应用
+    applyCloudRows: applyCloudRows,
+    getVersionInfo: getVersionInfo,
+    getLocalVersions: function () { return localVersions; },
+    // 本地/云端记录条数（供页面徽标显示）
+    getRecordCounts: getRecordCounts
   };
 
   // ===== 启动 =====

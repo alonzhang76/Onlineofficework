@@ -16,6 +16,7 @@ Page({
   data: {
     modules: [
       { key: 'order', icon: '📋', name: '订单管理', color: '#007AFF', url: '/pages/schedule/order/order' },
+      { key: 'notice', icon: '📄', name: '生产通知单', color: '#1A56DB', url: '/pages/schedule/notice/notice' },
       { key: 'production', icon: '🏭', name: '生产跟踪', color: '#FF9500', url: '/pages/schedule/production/production' },
       { key: 'finance', icon: '💰', name: '财务收款', color: '#34C759', url: '/pages/schedule/finance/finance' },
       { key: 'summary', icon: '📈', name: '汇总统计', color: '#5856D6', url: '/pages/schedule/summary/summary' },

@@ -12,11 +12,12 @@
     <view class="sec-title">本地数据</view>
     <view class="cloud-sub" style="margin-bottom:20rpx;">共 {{keyCount}} 个数据集，{{recordCount}} 条记录</view>
     <view style="display:flex;gap:16rpx;">
-      <button class="btn btn-primary" bindtap="exportBackup">导出备份</button>
-      <button class="btn btn-plain" bindtap="importBackup">导入恢复</button>
+      <button class="btn btn-primary" bindtap="exportBackup">备份到电脑</button>
+      <button class="btn btn-plain" bindtap="importBackup">从电脑恢复</button>
     </view>
     <view style="font-size:22rpx;color:#9ca3af;margin-top:16rpx;">
-      导出的备份文件可通过微信发送给同事，在「导入恢复」中选择即可整包恢复并同步云端。
+      电脑微信/开发者工具：备份文件直接保存到磁盘，并可直接选择磁盘文件恢复；
+      手机：在微信里选择「文件传输助手」即可把备份发到电脑，恢复时从聊天记录中选取备份文件。
     </view>
   </view>
   <view class="page-foot"></view>

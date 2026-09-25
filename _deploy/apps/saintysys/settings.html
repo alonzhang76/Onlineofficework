@@ -1,6 +1,7 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+    <script src="../auto-scale.js?v=20260917a"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>设置 - AA服装外贸系统</title>
@@ -53,18 +54,20 @@
   </div>
 </div>
 
-<script src="js/common.js?v=20260912c"></script>
+<script src="js/common.js?v=20260916a"></script>
 <!-- Supabase 登录守卫 -->
-<script src="js/auth-guard.js?v=20260912a"></script>
+<script src="js/auth-guard.js?v=20260916a"></script>
 <!-- Supabase 存储层：localStorage → Supabase -->
-<script type="module" src="js/cloudbase.js?v=20260912g"></script>
-<script src="js/cloudbase-store.js?v=20260914b"></script>
-<script src="js/localstorage-patch.js?v=20260823a"></script>
-<script src="js/cloudbase-bridge.js?v=20260822f"></script>
-<script type="module" src="js/admin-config.js?v=20260813"></script>
-<script type="module" src="js/form-submit.js?v=20260912a"></script>
-<script type="module" src="js/logout.js?v=20260813"></script>
-<script src="js/init-page.js?v=20260825b"></script>
+<script type="module" src="js/cloudbase.js?v=20260916a"></script>
+<script src="js/cloudbase-store.js?v=20260916c"></script>
+<script src="js/localstorage-patch.js?v=20260916a"></script>
+<script src="js/cloudbase-bridge.js?v=20260916a"></script>
+<script type="module" src="js/admin-config.js?v=20260916a"></script>
+<script type="module" src="js/form-submit.js?v=20260916a"></script>
+<script type="module" src="js/logout.js?v=20260916a"></script>
+<script src="js/init-page.js?v=20260919a"></script>
+<!-- 云端数据管理工具（页首冻结工具条：保存 / 云端下载 / 备份到电脑 / 从电脑恢复） -->
+<script src="../cloudbase-admin.js?v=20260924a"></script>
 <script>
 // ===== 关键：全局共享键（权限、用户、NAS 配置）仅管理员可写 =====
 // 防止非管理员在自动备份时把本地旧值覆盖管理员发布的全局权限
@@ -663,8 +666,8 @@ function renderAdvanced() {
       <div style="border:1px solid var(--border-light);border-radius:8px;padding:16px;background:#f9fafb;">
         <div style="font-weight:600;margin-bottom:8px;">📦 数据管理</div>
         <div style="display:flex;flex-direction:column;gap:8px;">
-          <button class="btn btn-sm" onclick="exportData()">📤 导出所有数据</button>
-          <button class="btn btn-sm" onclick="importData()">📥 导入数据</button>
+          <button class="btn btn-sm" onclick="exportData()">📥 备份到电脑</button>
+          <button class="btn btn-sm" onclick="importData()">📤 从电脑恢复</button>
           <button class="btn btn-sm" onclick="clearAllData()" style="color:#dc2626;">🗑️ 清空所有数据</button>
         </div>
       </div>
@@ -846,57 +849,6 @@ function renderNas() {
     </div>
   `;
   document.getElementById('tab-nas').innerHTML = html;
-}
-
-function exportData() {
-  const keys = ['styles', 'orders', 'fabrics', 'accessories', 'samples', 'feedbacks', 'consumptions', 'consumption_categories', 'productions', 'invoices', 'payments', 'collections', 'contacts', 'customers', 'suppliers', 'favoriteContacts', 'washes', 'shippings', 'users', 'permissions', 'nas_config', 'nas_folder_perms'];
-  const backup = { exportTime: new Date().toISOString(), version: localStorage.getItem('dataVersion') };
-  keys.forEach(key => {
-    const data = localStorage.getItem(key);
-    if (data) backup[key] = data;
-  });
-  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `sainty-hantang-export-${App.utils.formatDate(new Date())}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  App.toast('数据导出成功', 'success');
-}
-
-function importData() {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.json';
-  input.onchange = function(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = function(evt) {
-      try {
-        const data = JSON.parse(evt.target.result);
-        if (data.users && data.permissions) {
-          App.confirm('导入将覆盖现有所有数据，确定继续？', () => {
-            Object.keys(data).forEach(key => {
-              if (key === 'exportTime' || key === 'version') return;
-              localStorage.setItem(key, data[key]);
-            });
-            App.toast('数据导入成功，请刷新页面', 'success');
-            setTimeout(() => location.reload(), 1500);
-          });
-        } else {
-          App.toast('文件格式不正确', 'error');
-        }
-      } catch (err) {
-        App.toast('文件解析失败', 'error');
-      }
-    };
-    reader.readAsText(file);
-  };
-  input.click();
 }
 
 function clearAllData() {

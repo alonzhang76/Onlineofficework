@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <script src="../auto-scale.js?v=20260917a"></script>
 	<script>window.SUPABASE_APP_ID='purchase';</script>
-	<script src="../cloudbase-sync.js?v=20260918f"></script>
+	<script src="../cloudbase-sync.js?v=20260924c"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>发票管理系统</title>
@@ -14,7 +14,7 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
     <!-- PDF.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="../vendor/pdf.min.js"></script>
     <!-- Tailwind 配置 -->
     <script>
         tailwind.config = {
@@ -167,10 +167,10 @@
                         <!-- 下拉菜单 -->
                         <div id="data-management-dropdown" class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-20 hidden">
                             <a href="#" class="block px-4 py-2 text-gray-700 hover:bg-gray-100" id="backup-data-btn">
-                                <i class="fa fa-download mr-2"></i>备份数据
+                                <i class="fa fa-download mr-2"></i>备份到电脑
                             </a>
                             <a href="#" class="block px-4 py-2 text-gray-700 hover:bg-gray-100" id="restore-data-btn">
-                                <i class="fa fa-upload mr-2"></i>恢复数据
+                                <i class="fa fa-upload mr-2"></i>从电脑恢复
                             </a>
                         </div>
                     </div>
@@ -5972,8 +5972,8 @@
                             // 如果仍然无法获取，尝试直接使用import()动态加载
                             console.log('尝试动态加载PDF.js...');
                             try {
-                                // 动态加载cdnjs版本的PDF.js
-                                await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+                                // 动态加载本地 vendor 版本的 PDF.js
+                                await import('../vendor/pdf.min.js');
                                 // 动态加载后，PDF.js对象应该在window.pdfjsLib上可用
                                 pdfjs = window.pdfjsLib;
                                 
@@ -6014,7 +6014,7 @@
             
             // 确保设置workerSrc
             if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-                pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                pdfjs.GlobalWorkerOptions.workerSrc = '../vendor/pdf.worker.min.js';
                 console.log('已设置workerSrc:', pdfjs.GlobalWorkerOptions.workerSrc);
             }
             
@@ -8843,7 +8843,14 @@
                                 if (backupData.companyName2) {
                                     localStorage.setItem('companyName2', backupData.companyName2);
                                 }
-                                
+
+                                // 设置导入保护期：10 分钟内云端旧数据不会覆盖刚导入的本地数据
+                                // reload 后 sessionStorage 仍保留保护期，用户需手动点击"上传云端"推送新数据
+                                if (window.CloudbaseSync && typeof window.CloudbaseSync.setImportProtection === 'function') {
+                                    window.CloudbaseSync.setImportProtection(600000);
+                                }
+
+                                alert('数据恢复成功！\n\n⚠️ 请刷新后点击页面上方的"上传云端"按钮，将导入的数据推送到云端。\n（10 分钟内云端旧数据不会覆盖本地新数据）');
                                 // 重新加载页面以显示恢复后的数据
                                 location.reload();
                             }

@@ -1,4 +1,4 @@
-﻿/* ===== CloudBase 客户端 + Supabase 兼容层 cloudbase.js（门户共享版）=====
+/* ===== CloudBase 客户端 + Supabase 兼容层 cloudbase.js（门户共享版）=====
  *
  * 全部门户应用（门户首页 / saintysys / wage / wicketorders / purchase /
  * orderschedule / incomeexpense / stainlessbusiness）共用的 CloudBase 接入层。
@@ -66,10 +66,19 @@ if (!CLOUDBASE_ENV || CLOUDBASE_ENV === "your-env-id") {
   );
 }
 
-/* ---------- SDK 加载（UMD 动态注入 + CDN 容错） ---------- */
+/* ---------- SDK 加载（UMD 动态注入 + 本地优先 + CDN 容错） ---------- */
 // CloudBase JS SDK v3（webv3，与新版 CloudBase 环境认证 v2 兼容）
 const SDK_VERSION = "3.9.3";
+// 本地副本（随站点部署，车机/内网等无法访问腾讯 CDN 的环境优先使用）
+// 用 import.meta.url 基于本模块位置构造绝对路径，不受引用页面的目录深度影响
+var LOCAL_SDK_URL;
+try {
+  LOCAL_SDK_URL = new URL("./cloudbase.full.js", import.meta.url).href;
+} catch (_e) {
+  LOCAL_SDK_URL = "cloudbase.full.js";
+}
 const CDN_LIST = [
+  LOCAL_SDK_URL,
   "https://static.cloudbase.net/cloudbase-js-sdk/" + SDK_VERSION + "/cloudbase.full.js",
   "https://imgcache.qq.com/qcloud/cloudbase-js-sdk/" + SDK_VERSION + "/cloudbase.full.js",
 ];
@@ -230,7 +239,11 @@ function setupCaptchaAdapter(cb) {
         },
       },
     };
-    cb.useAdapters(adapter, {});
+    try {
+      cb.useAdapters(adapter);
+    } catch (e1) {
+      try { cb.useAdapters([adapter]); } catch (e2) { throw e1; }
+    }
   } catch (e) {
     console.warn("[cloudbase.js] 验证码 adapter 注册失败:", e && e.message ? e.message : e);
   }
@@ -254,7 +267,7 @@ var _appPromise = loadSdk()
     // 保存 auth 引用给验证码弹窗使用
     _authRefForCaptcha = getAuthInstance(app);
     // 按页面预设选择登录策略：共享账号静默登录 / 禁止匿名 / 默认匿名
-    bootstrapAuth(app);
+    startAuth(app);
     return app;
   })
   .catch(function (err) {
@@ -415,8 +428,8 @@ async function ensureLogin(app) {
       } catch (e) {}
     }
     if (hasLogin) return;
-    var cached = readSessionCache();
-    if (cached && cached.user && cached.user.id) return; // 已有本地会话，等 getUser 校验
+    // 注意：不再以本地缓存判断"已登录"——缓存可能指向已失效会话，
+    // SDK 实际无 token 时必须真正发起匿名登录，否则整页请求都会 FetchError
     if (typeof auth.signInAnonymously !== "function") return;
     // 再次校验：等待 hasLoginState 可能与邮箱登录存在竞争，
     // 真正发起匿名登录前再确认一次，避免覆盖刚完成的邮箱登录会话
@@ -458,13 +471,33 @@ async function bootstrapAuth(app) {
   if (syncCfg && syncCfg.email && syncCfg.password) {
     try {
       var authS = getAuthInstance(app);
-      if (!authS) return;
-      // 已有有效登录态（共享账号/真实用户）则不重复登录
+      if (!authS) { console.warn("[cloudbase.js] auth 实例不可用，跳过共享账号登录"); return; }
+      // 已有有效登录态（共享账号/真实用户）则不重复登录（以 SDK 实际会话为准，
+      // 不再信任本地缓存 —— 缓存可能指向已过期/已清除的会话，导致整页无 token）
       if (typeof authS.hasLoginState === "function") {
-        try { if (await authS.hasLoginState()) return; } catch (_e) {}
+        try {
+          if (await authS.hasLoginState()) {
+            // 探活1：能否取到用户对象
+            var alive = await fetchUser(app);
+            // 探活2：JWT 是否有效（有 role claim 且未过期）
+            // 缓存会话里的 token 可能已过期，/auth/v1/token 返回 400，
+            // 此时 fetchUser 仍返回缓存用户，但所有请求都会 FetchError
+            var tokenValid = false;
+            try {
+              var tk = await fetchAccessToken(app);
+              if (tk) {
+                var p = _decodeJwtPayload(tk);
+                if (p && p.role && (!p.exp || p.exp * 1000 > Date.now() + 60000)) {
+                  tokenValid = true;
+                }
+              }
+            } catch (_t) {}
+            if (alive && tokenValid) { console.log("[cloudbase.js] 已有登录态，跳过登录"); return; }
+            console.warn("[cloudbase.js] 登录态已失效（token 无效或无 role），重新登录");
+            try { if (typeof authS.signOut === "function") await authS.signOut(); } catch (_e) {}
+          }
+        } catch (_e) {}
       }
-      var cachedS = readSessionCache();
-      if (cachedS && cachedS.user && cachedS.user.id && !cachedS.user.is_anonymous) return;
 
       // 走兼容层的登录方法（内部会先 signOut/清会话，避免复用匿名 JWT）
       var resS = await supabase.auth.signInWithPassword({
@@ -488,6 +521,46 @@ async function bootstrapAuth(app) {
 
   // 3) 默认：匿名登录
   await ensureLogin(app);
+}
+
+/* ===== 登录就绪门闩 + 强制重登 =====
+ * 数据/存储操作必须等 bootstrapAuth 结束后再发（否则无 token → FetchError）。
+ * bootstrapAuth 曾因信任过期的本地缓存而静默早退，导致整页无 token；
+ * 现以 SDK 实际会话（hasLoginState）为唯一判据，并暴露 forceReauth 兜底。
+ */
+var _authReadyResolve = null;
+var _authReadyPromise = new Promise(function (r) { _authReadyResolve = r; });
+
+function startAuth(app) {
+  return Promise.resolve()
+    .then(function () { return bootstrapAuth(app); })
+    .catch(function (e) {
+      console.warn("[cloudbase.js] 登录引导异常:", e && e.message ? e.message : e);
+    })
+    .then(function () { _authReadyResolve(); });
+}
+
+function whenAuthReady() { return _authReadyPromise; }
+
+var _reauthPromise = null;
+async function forceReauth() {
+  if (_reauthPromise) return _reauthPromise;
+  _reauthPromise = (async function () {
+    try {
+      var app = await getApp();
+      var auth = getAuthInstance(app);
+      if (auth && typeof auth.signOut === "function") {
+        try { await auth.signOut(); } catch (_e) {}
+      }
+      clearSessionCache();
+      await bootstrapAuth(app);
+    } catch (e) {
+      console.warn("[cloudbase.js] 强制重登失败:", e && e.message ? e.message : e);
+    } finally {
+      setTimeout(function () { _reauthPromise = null; }, 1500);
+    }
+  })();
+  return _reauthPromise;
 }
 
 /* ===== JWT 写权限诊断 =====
@@ -616,7 +689,25 @@ class TcbQueryBuilder {
     this._isDelete = false;
   }
 
-  select(cols) { this._selectCols = cols || "*"; return this; }
+  // PG 行形态为 { id text, data jsonb }：store_key / payload / updated_at
+  // 并不是真实列，而是 data 内的字段（取回后由 _expand() 展平到行上）。
+  // 直接 select 这些列名会被 PostgREST 拒绝（42703 column does not exist），
+  // 导致整表加载失败、页面无数据；遇到时改写为真实列 id,data。
+  select(cols) {
+    var c = cols || "*";
+    if (this._table === "app_data_store" && c !== "*") {
+      var VIRTUAL = { store_key: 1, payload: 1, updated_at: 1 };
+      var parts = String(c).split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+      if (parts.some(function (p) { return VIRTUAL[p]; })) {
+        var keep = parts.filter(function (p) { return !VIRTUAL[p]; });
+        if (keep.indexOf("data") < 0) keep.push("data");
+        if (keep.indexOf("id") < 0) keep.push("id");
+        c = keep.join(",");
+      }
+    }
+    this._selectCols = c;
+    return this;
+  }
   eq(f, v) { this._wheres.push({ op: "eq", f: f, v: v }); return this; }
   neq(f, v) { this._wheres.push({ op: "neq", f: f, v: v }); return this; }
   gt(f, v) { this._wheres.push({ op: "gt", f: f, v: v }); return this; }
@@ -630,7 +721,12 @@ class TcbQueryBuilder {
   update(data) { this._updateVal = data; return this; }
   upsert(data, opts) {
     this._upsertVal = data;
-    this._onConflict = (opts && opts.onConflict) || null;
+    var oc = (opts && opts.onConflict) || null;
+    // 记录调用方原始冲突字段（store_key 存于 data 内部，物理主键是 id）
+    this._conflictRaw = oc || null;
+    // on_conflict 只支持真实列（主键 id），store_key 是 data 内字段
+    if (oc === "store_key") oc = "id";
+    this._onConflict = oc;
     return this;
   }
   upsertOnDocKey() { /* 兼容占位 */ return this; }
@@ -687,7 +783,7 @@ class TcbQueryBuilder {
       if (errG) throw errG;
       stored = (g && g.data) || [];
     } else {
-      var PAGE = 1000, MAX_ROWS = 5000, skip = 0;
+      var PAGE = 100, MAX_ROWS = 5000, skip = 0;
       while (true) {
         var page = await db.from(this._table).select("*").range(skip, skip + PAGE - 1);
         var errP = rdbErr(page);
@@ -706,6 +802,8 @@ class TcbQueryBuilder {
 
   async _execute() {
     try {
+      // 等登录引导结束（无 token 时发请求只会 FetchError）
+      await whenAuthReady();
       var app = await this._getDb();
       if (!app || typeof app.rdb !== "function") {
         return { data: null, error: mapError("CloudBase rdb(PG) 未就绪，请检查 js/cloudbase.js 配置与网络") };
@@ -732,11 +830,16 @@ class TcbQueryBuilder {
 
       /* ---- UPSERT（onConflict 字段 → 用该字段值作为主键 id） ---- */
       if (this._upsertVal !== undefined) {
-        var rowsU = Array.isArray(this._upsertVal) ? this._upsertVal : [this._upsertVal];
         var outU = [];
+        var rowsU = Array.isArray(this._upsertVal) ? this._upsertVal : [this._upsertVal];
         for (var j = 0; j < rowsU.length; j++) {
           var rowU = JSON.parse(JSON.stringify(rowsU[j] || {}));
-          var conflictVal = this._onConflict ? rowU[this._onConflict] : null;
+          // 冲突值优先取调用方原始冲突字段（如 store_key，存于 data 内部）；
+          // 若只查物理主键 id（row 上通常没有），conflictVal 会是 undefined，
+          // 导致每次 upsert 都生成新 UUID 行 → 同一 store_key 重复行大量堆积
+          var conflictVal = null;
+          if (this._conflictRaw && rowU[this._conflictRaw] !== undefined) conflictVal = rowU[this._conflictRaw];
+          else if (this._onConflict) conflictVal = rowU[this._onConflict];
           var docId = (conflictVal !== null && conflictVal !== undefined && conflictVal !== "")
             ? String(conflictVal)
             : ((rowU.id !== undefined && rowU.id !== null && rowU.id !== "") ? String(rowU.id) : genRowId());
@@ -1048,6 +1151,8 @@ function makeStorageRef(bucketName) {
   // PG 桶 API 的对象名不允许前导 "/"（经典 API 会自动剥离，新版不会），统一在边界归一化
   function normKey(p) { return String(p == null ? "" : p).replace(/^\/+/, ""); }
   async function getFromRef() {
+    // 等登录引导结束（无 token 时 listBuckets/上传都会失败）
+    await whenAuthReady();
     var app = await getApp();
     if (!app || !app.storage) throw new Error("CloudBase Storage 未初始化");
     var st = app.storage;
@@ -1111,8 +1216,24 @@ function makeStorageRef(bucketName) {
         }
         if (ref && typeof ref.list === "function") {
           // SDK 签名为 list(prefix: string, options)：首参必须是字符串 prefix
-          var lr = await ref.list(String(prefix || ""), options || {});
-          if (lr && !lr.error) return { data: normalizeStorageList(lr, prefix || ""), error: null };
+          var effPrefix = String(prefix || "");
+          var lr = await ref.list(effPrefix, options || {});
+          // PG 桶 API 对带尾斜杠的 prefix 可能"成功但返回空"（实测 orderschedule/ → 空，
+          // orderschedule → 有内容）→ 去掉尾斜杠再试一次
+          if (lr && !lr.error && /\/$/.test(effPrefix)) {
+            try {
+              var norm0 = normalizeStorageList(lr, effPrefix);
+              if (!norm0.length) {
+                var p2 = effPrefix.replace(/\/+$/, "");
+                var lr2 = await ref.list(p2, options || {});
+                if (lr2 && !lr2.error && normalizeStorageList(lr2, p2).length) {
+                  lr = lr2;
+                  effPrefix = p2;
+                }
+              }
+            } catch (_e) {}
+          }
+          if (lr && !lr.error) return { data: normalizeStorageList(lr, effPrefix), error: null };
           sdkErr = (lr && lr.error) || mapError("SDK list 失败");
           console.warn("[cloudbase.js] SDK list 失败，回退云函数 " + FILE_LIST_FUNCTION + ":",
             sdkErr && sdkErr.message ? sdkErr.message : sdkErr);
@@ -1391,6 +1512,18 @@ export const supabase = {
 // 注意：window.cloudbase 是 SDK 本身的全局名，不要覆盖
 window.supabase = supabase;
 window.CloudbaseClient = supabase;
+// 登录就绪/强制重登钩子（三应用通用；cfb.js / cloudbase-sync.js 使用）
+window.CloudbaseWhenReady = function () {
+  return Promise.all([_appPromise, whenAuthReady()]).then(function () {});
+};
+window.CloudbaseForceReauth = function () { return forceReauth(); };
+// 供 cloudbase-admin 直接走 rdb REST（如整表 DELETE），绕过 SDK delete 在部分网关下静默失败的问题
+window.CloudbaseGetAccessToken = async function () {
+  try {
+    var app = await getApp();
+    return (await fetchAccessToken(app)) || null;
+  } catch (e) { return null; }
+};
 window.CLOUDBASE_ENV = CLOUDBASE_ENV;
 window.CLOUDBASE_REGION = CLOUDBASE_REGION;
 window.STORAGE_BUCKET = STORAGE_BUCKET;

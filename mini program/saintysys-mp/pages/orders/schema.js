@@ -28,6 +28,8 @@ module.exports = {
     "styleNo",
     "remark"
   ],
+  "titleFn": r => r.orderNo || r.id,
+  "subFn": r => [r.styleNo, r.customerId__name].filter(Boolean).join(' · '),
   "kvFields": [
     "styleNo",
     "quantity",

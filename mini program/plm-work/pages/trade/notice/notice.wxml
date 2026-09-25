@@ -84,7 +84,8 @@
   </view>
 
   <view class="btn-row" wx:if="{{doc}}">
-    <view class="btn btn-primary" bindtap="generatePDF">生成PDF并发送</view>
+    <view class="btn btn-plain" bindtap="buildPDF">生成PDF</view>
+    <view class="btn btn-primary" wx:if="{{pdfReady}}" bindtap="onShareFile">📨 发送给微信好友</view>
   </view>
 
   <view class="page-foot"></view>

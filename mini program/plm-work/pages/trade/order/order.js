@@ -8,11 +8,22 @@ const DATE_TYPE = ['订单日期', '交货日期'];
 
 let ridCounter = 0;
 
+// LOGO 选项：仅 LOGO_IMAGE_FILES 中登记的名称才显示图片，其余（含 KBA）均为纯文字
+const LOGO_OPTS = db.LOGO_OPTIONS.map(n => ({
+  name: n,
+  img: db.LOGO_IMAGE_FILES[n] ? '../../../assets/logos/' + db.LOGO_IMAGE_FILES[n] : ''
+}));
+function logoImgOf(name) {
+  if (!name) return '';
+  const file = db.LOGO_IMAGE_FILES[name];
+  return file ? '../../../assets/logos/' + file : '';
+}
+
 function newProduct() {
   return {
     rid: 'p' + (++ridCounter),
     productName: '', spec: '', drawingNo: '',
-    platingIdx: 0, logoIdx: 0, unitIdx: 0,
+    platingIdx: 0, logo: '无', logoImg: '', logoMenu: false, logoIdx: 0, unitIdx: 0,
     unitPrice: '', quantity: '', amount: '0.00'
   };
 }
@@ -47,7 +58,8 @@ Page({
     currencies: db.CURRENCIES, curIdx: 0,
     statusList: db.ORDER_STATUS, statusIdx2: 0,
     platingList: PLATING_LIST,
-    logoOptions: db.LOGO_OPTIONS, unitOptions: db.UNIT_OPTIONS
+    logoOptions: db.LOGO_OPTIONS, logoOpts: LOGO_OPTS, unitOptions: db.UNIT_OPTIONS,
+    logoErr: {}, logoMenuAny: false
   },
 
   onShow() { this.render(); },
@@ -80,7 +92,7 @@ Page({
         customer: o.customer, orderNo: o.orderNo,
         orderDate: fmt.fmtDate(o.orderDate), deliveryDate: fmt.fmtDate(o.deliveryDate),
         productName: o.productName, spec: o.spec, drawingNo: o.drawingNo,
-        plating: o.plating, logo: o.logo, unit: o.unit,
+        plating: o.plating, logo: o.logo, logoImg: logoImgOf(o.logo), unit: o.unit,
         unitPrice: fmt.fmtMoney(o.unitPrice), quantity: o.quantity, amount: fmt.fmtMoney(o.amount),
         currency: o.currency || 'USD', tradeTerms: o.tradeTerms, paymentMethod: o.paymentMethod,
         transportMethod: o.transportMethod, packing: o.packing, remark: o.remark,
@@ -117,7 +129,7 @@ Page({
   openAdd() {
     this.setData({
       modal: true, editId: '', form: emptyForm(),
-      products: [newProduct()], totalAmount: '0.00',
+      products: [newProduct()], totalAmount: '0.00', logoMenuAny: false,
       ttIdx: 0, pmIdx: 0, tmIdx: 0, curIdx: 0, statusIdx2: 0
     });
   },
@@ -137,7 +149,9 @@ Page({
     p.spec = o.spec || '';
     p.drawingNo = o.drawingNo || '';
     p.platingIdx = Math.max(0, PLATING_LIST.indexOf(o.plating || ''));
-    p.logoIdx = Math.max(0, db.LOGO_OPTIONS.indexOf(o.logo || '无'));
+    p.logo = o.logo || '无';
+    p.logoImg = logoImgOf(p.logo);
+    p.logoIdx = Math.max(0, db.LOGO_OPTIONS.indexOf(p.logo));
     p.unitIdx = Math.max(0, db.UNIT_OPTIONS.indexOf(o.unit || ''));
     p.unitPrice = o.unitPrice === undefined ? '' : String(o.unitPrice);
     p.quantity = o.quantity === undefined ? '' : String(o.quantity);
@@ -180,6 +194,36 @@ Page({
     const i = +e.currentTarget.dataset.idx;
     this.setData({ ['products[' + i + '].logoIdx']: +e.detail.value });
   },
+
+  // 展开/收起某产品行的 LOGO 自定义菜单（同时只保留一个菜单打开）
+  toggleLogoMenu(e) {
+    const i = +e.currentTarget.dataset.idx;
+    const products = this.data.products;
+    const willOpen = !products[i].logoMenu;
+    products.forEach((p, k) => { p.logoMenu = willOpen && k === i; });
+    this.setData({ products: products, logoMenuAny: willOpen });
+  },
+  pickLogo(e) {
+    const i = +e.currentTarget.dataset.idx;
+    const name = e.currentTarget.dataset.ln;
+    const products = this.data.products;
+    products[i].logo = name;
+    products[i].logoImg = logoImgOf(name);
+    products[i].logoIdx = Math.max(0, db.LOGO_OPTIONS.indexOf(name));
+    products[i].logoMenu = false;
+    this.setData({ products: products, logoMenuAny: false });
+  },
+  closeLogoMenus() {
+    const products = this.data.products;
+    products.forEach(p => { p.logoMenu = false; });
+    this.setData({ products: products, logoMenuAny: false });
+  },
+  // 点击弹层空白处关闭 LOGO 菜单（trigger/菜单项用 catchtap 阻止冒泡到此处）
+  onSheetTap() { this.closeLogoMenus(); },
+  // LOGO 图片加载失败（未放入对应文件）→ 记录后只显示名称文字
+  onLogoErr(e) {
+    this.setData({ ['logoErr.' + e.currentTarget.dataset.ln]: true });
+  },
   onProductUnit(e) {
     const i = +e.currentTarget.dataset.idx;
     this.setData({ ['products[' + i + '].unitIdx']: +e.detail.value });
@@ -214,7 +258,7 @@ Page({
       spec: String(p.spec || '').trim(),
       drawingNo: String(p.drawingNo || '').trim(),
       plating: PLATING_LIST[p.platingIdx] || '',
-      logo: db.LOGO_OPTIONS[p.logoIdx] || '',
+      logo: p.logo || '无',
       unit: db.UNIT_OPTIONS[p.unitIdx] || '',
       unitPrice: p.unitPrice,
       quantity: p.quantity

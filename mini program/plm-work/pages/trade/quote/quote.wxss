@@ -1,0 +1,12 @@
+/* 报价列表页局部样式（全局类 page/card/brand/btn/fab/badge 见 app.wxss） */
+.stat-line { font-size: 24rpx; color: #8E8E93; padding: 16rpx 4rpx 4rpx; }
+.stat-num { color: #007AFF; font-weight: 700; }
+.q-card { position: relative; }
+.q-top { display: flex; align-items: center; justify-content: space-between; }
+.q-no { font-size: 30rpx; font-weight: 700; color: #0d47a1; letter-spacing: 1rpx; }
+.q-amount { font-size: 30rpx; font-weight: 700; color: #10b981; }
+.q-customer { margin-top: 10rpx; font-size: 28rpx; color: #222; }
+.q-meta { margin-top: 10rpx; display: flex; align-items: center; gap: 16rpx; }
+.q-date { font-size: 24rpx; color: #888; }
+.q-actions { margin-top: 18rpx; display: flex; gap: 20rpx; }
+.q-del { color: #e64340; }

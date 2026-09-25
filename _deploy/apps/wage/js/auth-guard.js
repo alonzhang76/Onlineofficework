@@ -1,8 +1,8 @@
-/* ===== 登录守卫 auth-guard.js（CloudBase 版） =====
- * 1. 同步检查 CloudBase 兼容层会话缓存 tcb_auth_session，无会话/匿名会话 → login.html
- * 2. 动态 import cloudbase.js 后用 auth.getUser() 做权威校验
- * 3. 提供 window.currentSupabaseUser（页面内显示当前用户用，保持旧命名）
- * 4. window.logoutSupabase() 退出并跳转登录页
+/* ===== 用户信息展示（原登录守卫，已停用跳转） =====
+ * wage 现与 orderschedule / wicketorders 一致：页面预设 window.CLOUDBASE_SYNC，
+ * 由共享兼容层（js/cloudbase.js → apps/cloudbase/cloudbase.js）用共享账号静默登录，
+ * 不再弹出登录窗口、不再跳转 login.html。
+ * 本文件仅负责把当前用户挂到 window.currentSupabaseUser 并更新 #userInfo 展示。
  */
 
 (function () {
@@ -20,68 +20,57 @@
     return null;
   }
 
-  function clearAllAuthState() {
-    try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
-    window.currentSupabaseUser = null;
-  }
-
-  function isLoginPage() {
-    return window.location.href.indexOf("login") >= 0;
-  }
-
-  // 同步检查：先依据本地会话缓存决定是否立即跳转，避免页面闪烁
-  var session = readSession();
-  if (!session || !session.user || session.user.is_anonymous) {
-    if (!isLoginPage()) {
-      window.location.replace("login.html");
-      return;
+  // 把当前登录用户渲染到页首工具条（cloudbase-admin.js 注入的 #cbTopBar）
+  // "更多"按钮左侧；工具条尚未注入时轮询等待（最长约 20s）
+  function renderUserIntoTopBar(u) {
+    var text = u ? (u.email || "已登录") : "";
+    function place() {
+      var right = document.getElementById("cbRight");
+      if (!right) return false;
+      var el = document.getElementById("cbUserInfo");
+      if (!el) {
+        el = document.createElement("span");
+        el.id = "cbUserInfo";
+        el.style.cssText = "font-size:12px;color:#e5e7eb;white-space:nowrap;" +
+          "max-width:180px;overflow:hidden;text-overflow:ellipsis;" +
+          "display:inline-flex;align-items:center;height:28px;";
+        var moreBtn = document.getElementById("cbMoreBtn");
+        right.insertBefore(el, moreBtn || null);
+      }
+      el.textContent = text ? ("👤 " + text) : "";
+      el.title = text ? ("当前用户：" + text) : "";
+      return true;
     }
-  } else {
-    window.currentSupabaseUser = session.user;
+    if (!place()) {
+      var tries = 0;
+      var timer = setInterval(function () {
+        if (place() || ++tries > 40) clearInterval(timer);
+      }, 500);
+    }
   }
 
-  // 异步权威校验：加载兼容层 → getUser
+  // 同步先用本地缓存展示（异步校验后会刷新）
+  var session = readSession();
+  if (session && session.user) {
+    window.currentSupabaseUser = session.user;
+    renderUserIntoTopBar(session.user);
+  }
+
+  // 异步权威刷新：等兼容层登录就绪 → getUser → 更新展示（不跳转、不清会话）
   (async function () {
     try {
+      if (typeof window.CloudbaseWhenReady === "function") {
+        await window.CloudbaseWhenReady();
+      }
       var sb = window.supabase;
-      if (!sb) {
-        try {
-          var mod = await import("./cloudbase.js");
-          sb = (mod && mod.supabase) || window.supabase;
-        } catch (e) {}
-      }
-      var tries = 0;
-      while (!sb && tries < 50) {
-        await new Promise(function (r) { setTimeout(r, 100); });
-        sb = window.supabase;
-        tries++;
-      }
       if (!sb || !sb.auth) return;
 
       var result = await sb.auth.getUser();
-      if (!result.data || !result.data.user || result.data.user.is_anonymous) {
-        clearAllAuthState();
-        if (!isLoginPage()) {
-          window.location.replace("login.html");
-        }
-      } else {
-        window.currentSupabaseUser = result.data.user;
-        // 更新用户信息展示
-        var el = document.getElementById("userInfo");
-        if (el) el.textContent = "当前用户：" + (result.data.user.email || "");
-      }
+      var u = result && result.data && result.data.user ? result.data.user : null;
+      if (u) window.currentSupabaseUser = u;
+      renderUserIntoTopBar(u);
     } catch (e) {
-      // 网络异常时保留本地会话，不强制跳转
+      // 网络异常时保留本地会话展示，不做任何跳转
     }
   })();
-
-  // 退出登录
-  window.logoutSupabase = async function () {
-    try {
-      var sb = window.supabase;
-      if (sb && sb.auth) await sb.auth.signOut();
-    } catch (e) {}
-    clearAllAuthState();
-    window.location.replace("login.html");
-  };
 })();

@@ -6,9 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>生产订单管理系统</title>
     <script>window.SUPABASE_APP_ID='orderschedule';</script>
-    <script src="../cloudbase-sync.js?v=20260918f"></script>
-    <script src="../cloudbase-admin.js?v=20260916d"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="../cloudbase-sync.js?v=20260924f"></script>
+    <script src="../cloudbase-admin.js?v=20260924a"></script>
+    <script src="../vendor/xlsx.full.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body {
@@ -759,6 +759,22 @@
             border: none;
         }
 
+        /* ===== 表格"操作"列图标按钮：只显示符号，紧凑居中 ===== */
+        td .btn.btn-sm[title],
+        .memo-item-actions .btn-complete,
+        .memo-item-actions .btn-edit,
+        .memo-item-actions .btn-delete {
+            padding: 4px 6px;
+            min-width: 30px;
+            font-size: 15px;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            vertical-align: middle;
+        }
+        td .btn.btn-sm[title] + .btn.btn-sm[title] { margin-left: 4px; }
+
         /* 状态标签 */
         .badge {
             padding: 4px 10px;
@@ -1173,9 +1189,81 @@
         /* ==================== 云存储（CloudBase 文件中心，与 saintysys 同款）==================== */
         .toast.warning { background: #d9883a; }
         /* 云存储样式已移至共享模块 ../cloudbase/cfb.css */
+
+        /* ===== LOGO 自定义选择器（支持图片选项）===== */
+        .logo-picker { position: relative; width: 100%; }
+        .logo-picker-btn {
+            display: flex; align-items: center; gap: 6px;
+            width: 100%; text-align: left;
+            padding: 10px 14px; cursor: pointer;
+            background: #fff;
+            border: 1px solid #ddd; border-radius: 8px;
+            font-size: 14px; transition: border-color 0.3s;
+        }
+        .logo-picker-btn:hover, .logo-picker-btn:focus { border-color: #2e86ab; }
+        .logo-picker-btn .lp-label {
+            flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .lp-thumb { width: 24px; height: 24px; object-fit: contain; flex: 0 0 24px; }
+        .logo-picker-menu {
+            position: absolute; top: calc(100% + 4px); left: 0;
+            min-width: 180px; max-height: 250px; overflow-y: auto;
+            z-index: 1100; background: #fff;
+            border: 1px solid #ddd; border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.18); padding: 4px;
+        }
+        .logo-picker-menu[hidden] { display: none; }
+        .lp-item {
+            display: flex; align-items: center; gap: 8px;
+            padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 14px;
+        }
+        .lp-item:hover { background: rgba(46,134,171,0.12); }
+        .lp-item-thumb { width: 22px; height: 22px; object-fit: contain; }
+        .lp-manage-btn {
+            border: none; background: transparent; cursor: pointer;
+            font-size: 12px; padding: 0 0 0 4px; color: #6b7280; line-height: 1;
+        }
+        .lp-manage-btn:hover { color: #2e86ab; }
+
+        /* ===== LOGO 选项管理弹窗 ===== */
+        .lp-mgr {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.42);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 100000;
+        }
+        .lp-mgr.hidden { display: none; }
+        .lp-mgr-panel {
+            width: 580px; max-width: 94%; max-height: 86vh; overflow-y: auto;
+            background: #fff; border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .lp-mgr-row {
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px; border-radius: 10px; background: #f5f7fc;
+            margin-bottom: 8px;
+        }
+        .lp-mgr-row img {
+            width: 34px; height: 34px; object-fit: contain;
+            border: 1px solid #e5e7eb; border-radius: 6px; background: #fff;
+        }
+        .lp-mgr-row .lp-mgr-name { flex: 1; min-width: 0; font-size: 14px; }
+        .lp-mgr-row input.lp-mgr-name-input {
+            flex: 1; min-width: 0; height: 32px;
+            border: 1px solid #d1d5db; border-radius: 6px;
+            padding: 0 8px; font-size: 14px;
+        }
+        .lp-icon-btn {
+            border: none; background: transparent; cursor: pointer;
+            font-size: 15px; padding: 4px 6px; border-radius: 6px; line-height: 1;
+        }
+        .lp-icon-btn:hover { background: rgba(0,0,0,0.07); }
+        .lp-add-box {
+            margin-top: 12px; padding: 12px;
+            border: 1px dashed #d1d5db; border-radius: 10px; background: #fafbff;
+        }
     </style>
     <link rel="stylesheet" href="../cloudbase/cfb.css?v=20260914b">
-    <link rel="stylesheet" href="../tablet-compat.css?v=20260915a">
+    <link rel="stylesheet" href="../tablet-compat.css?v=20260924a">
 </head>
 <body>
     <div id="app-container" class="container">
@@ -1190,8 +1278,8 @@
                 <div id="data-management-dropdown" class="dropdown-content">
                     <a href="#" onclick="protectedOpenImportModal(); closeDropdown()">📥 导入表格</a>
                     <a href="#" onclick="exportAllData(); closeDropdown()">📤 导出表格</a>
-                    <a href="#" onclick="backupData(); closeDropdown()">💾 数据备份</a>
-                    <a href="#" onclick="restoreData(); closeDropdown()">🔄 数据恢复</a>
+                    <a href="#" onclick="backupData(); closeDropdown()">📥 备份到电脑</a>
+                    <a href="#" onclick="restoreData(); closeDropdown()">📤 从电脑恢复</a>
                     <a href="#" onclick="protectedClearAllData(); closeDropdown()">🗑️ 清空数据</a>
                     <a href="#" onclick="CloudAdmin.pullFromCloud(); closeDropdown()">⬇️ 下载云端数据</a>
                     <a href="#" onclick="CloudAdmin.pushToCloud(); closeDropdown()">⬆️ 上传本地到云端</a>
@@ -1764,10 +1852,13 @@
                         <input type="text" id="order-plating" placeholder="如：不电镀" oninput="showAutocomplete('plating', this.value)">
                         <div class="autocomplete-list" id="autocomplete-plating"></div>
                     </div>
-                    <div class="form-group autocomplete-wrapper">
-                        <label>LOGO</label>
-                        <input type="text" id="order-logo" placeholder="如：KBA" oninput="showAutocomplete('logo', this.value)">
-                        <div class="autocomplete-list" id="autocomplete-logo"></div>
+                    <div class="form-group">
+                        <label>LOGO<button type="button" class="lp-manage-btn" onclick="openLogoManager()" title="管理LOGO选项">⚙</button></label>
+                        <div class="logo-picker">
+                            <button type="button" class="logo-picker-btn"><span class="lp-label">LONGLI</span></button>
+                            <input type="hidden" id="order-logo" name="logo" value="LONGLI">
+                            <div class="logo-picker-menu" hidden></div>
+                        </div>
                     </div>
                 </div>
 
@@ -2284,8 +2375,8 @@
                         <td>${o.remark || '-'}</td>
                         <td class="${statusClass}">${deliveryStatus}</td>
                         <td>
-                            <button class="btn btn-sm btn-primary" onclick="editOrder('${o.id}')">编辑</button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteOrder('${o.id}')">删除</button>
+                            <button class="btn btn-sm btn-primary" onclick="editOrder('${o.id}')" title="编辑">✏️</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteOrder('${o.id}')" title="删除">🗑️</button>
                         </td>
                     </tr>
                 `}).join('');
@@ -2448,7 +2539,7 @@
                         <td>${o.packaging || '-'}</td>
                         <td class="${statusClass}">${getStatusBadge(deliveryStatus)}</td>
                         <td>
-                            <button class="btn btn-sm btn-primary" onclick="editOrder('${o.id}')">编辑</button>
+                            <button class="btn btn-sm btn-primary" onclick="editOrder('${o.id}')" title="编辑">✏️</button>
                         </td>
                     </tr>
                 `;
@@ -2584,7 +2675,7 @@
                         <td>${o.invoiceTitle || '-'}</td>
                         <td>${getStatusBadge(deliveryStatus)}</td>
                         <td>
-                            <button class="btn btn-sm btn-primary" onclick="editOrder('${o.id}')">编辑</button>
+                            <button class="btn btn-sm btn-primary" onclick="editOrder('${o.id}')" title="编辑">✏️</button>
                         </td>
                     </tr>
                 `;
@@ -2902,6 +2993,9 @@
             // 开票日期默认留空，不预填今日（未开票订单）
             document.getElementById('order-invoice-date').value = '';
             document.getElementById('order-currency').value = 'EUR';
+            // LOGO 下拉重置为默认 LONGLI（选项可能被管理弹窗改动，重渲染菜单）
+            initLogoPickers(document.getElementById('order-modal'));
+            setLogoPickerValue(document.querySelector('#order-modal .logo-picker'), 'LONGLI');
             document.getElementById('order-modal').classList.add('active');
         }
 
@@ -2960,6 +3054,341 @@
             }
         });
 
+        // ==================== LOGO 选项管理（动态选项，支持文字 + 图片）====================
+        const LogoOptionStore = {
+            KEY: 'logoOptions',
+            defaults: [
+                { id: 'lo-longli', name: 'LONGLI', image: null },
+                { id: 'lo-kba', name: 'KBA', image: null },
+                { id: 'lo-perm', name: 'PERM', image: null },
+                { id: 'lo-epccs', name: 'EPCCS', image: null },
+                { id: 'lo-inghor', name: 'INGHOR', image: null },
+                { id: 'lo-cc', name: 'CC', image: null },
+                { id: 'lo-j', name: 'J', image: null },
+                { id: 'lo-hs', name: 'HS', image: null },
+                { id: 'lo-none', name: '无', image: null }
+            ],
+            getAll() {
+                try {
+                    const raw = localStorage.getItem(this.KEY);
+                    if (!raw) return this.defaults.slice();
+                    const arr = JSON.parse(raw);
+                    return Array.isArray(arr) ? arr : this.defaults.slice();
+                } catch (e) {
+                    return this.defaults.slice();
+                }
+            },
+            save(list) {
+                localStorage.setItem(this.KEY, JSON.stringify(list));
+            },
+            add(name, image) {
+                const list = this.getAll();
+                const item = {
+                    id: 'lo-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+                    name: name,
+                    image: image || null
+                };
+                list.push(item);
+                this.save(list);
+                return item;
+            },
+            update(id, patch) {
+                const list = this.getAll();
+                const it = list.find(x => x.id === id);
+                if (it) Object.assign(it, patch);
+                this.save(list);
+            },
+            remove(id) {
+                this.save(this.getAll().filter(x => x.id !== id));
+            },
+            findByName(name) {
+                return this.getAll().find(x => x.name === name) || null;
+            },
+            getImageByName(name) {
+                const opt = this.findByName(name);
+                if (opt && opt.image) return opt.image;
+                // 无用户上传图时，按名称约定回退到 apps/logos/{name}.png；文件不存在由 <img onerror> 显示文字
+                return name ? '../logos/' + String(name).toLowerCase() + '.png' : null;
+            }
+        };
+
+        // 图片文件 → 等比缩小（maxSize 像素内）→ PNG dataURL，控制 localStorage 体积
+        function logoImageToDataUrl(file, maxSize, cb) {
+            const reader = new FileReader();
+            reader.onload = function () {
+                const img = new Image();
+                img.onload = function () {
+                    let w = img.width, h = img.height;
+                    const scale = Math.min(1, maxSize / Math.max(w, h));
+                    w = Math.max(1, Math.round(w * scale));
+                    h = Math.max(1, Math.round(h * scale));
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w;
+                    canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    cb(canvas.toDataURL('image/png'));
+                };
+                img.src = reader.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function setLogoPickerValue(root, value) {
+            const opt = LogoOptionStore.findByName(value) || { name: value, image: null };
+            const hidden = root.querySelector('input[name="logo"]');
+            if (hidden) hidden.value = value || '';
+            const btn = root.querySelector('.logo-picker-btn');
+            if (!btn) return;
+            btn.innerHTML = '';
+            if (opt.image) {
+                const im = document.createElement('img');
+                im.src = opt.image;
+                im.className = 'lp-thumb';
+                btn.appendChild(im);
+            }
+            const sp = document.createElement('span');
+            sp.className = 'lp-label';
+            sp.textContent = opt.name || '';
+            btn.appendChild(sp);
+        }
+
+        function renderLogoPickerMenu(root) {
+            const menu = root.querySelector('.logo-picker-menu');
+            if (!menu) return;
+            menu.innerHTML = '';
+            LogoOptionStore.getAll().forEach(function (opt) {
+                const item = document.createElement('div');
+                item.className = 'lp-item';
+                if (opt.image) {
+                    const im = document.createElement('img');
+                    im.src = opt.image;
+                    im.className = 'lp-item-thumb';
+                    item.appendChild(im);
+                }
+                const sp = document.createElement('span');
+                sp.textContent = opt.name;
+                item.appendChild(sp);
+                item.addEventListener('click', function () {
+                    setLogoPickerValue(root, opt.name);
+                    menu.hidden = true;
+                });
+                menu.appendChild(item);
+            });
+        }
+
+        function initLogoPickers(scope) {
+            (scope || document).querySelectorAll('.logo-picker').forEach(function (root) {
+                const menu = root.querySelector('.logo-picker-menu');
+                const btn = root.querySelector('.logo-picker-btn');
+                renderLogoPickerMenu(root); // 选项可能刚在管理弹窗里改过，每次重渲染
+                if (root.__lpReady) return;
+                root.__lpReady = true;
+                btn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    const willOpen = menu.hidden;
+                    document.querySelectorAll('.logo-picker-menu:not([hidden])').forEach(function (m) {
+                        if (m !== menu) m.hidden = true;
+                    });
+                    renderLogoPickerMenu(root);
+                    menu.hidden = !willOpen;
+                });
+                menu.addEventListener('click', function (e) { e.stopPropagation(); });
+                const current = root.querySelector('input[name="logo"]').value;
+                setLogoPickerValue(root, current || 'LONGLI');
+            });
+        }
+
+        // 点击页面空白处关闭所有已展开的 LOGO 菜单
+        document.addEventListener('click', function () {
+            document.querySelectorAll('.logo-picker-menu:not([hidden])').forEach(function (m) {
+                m.hidden = true;
+            });
+        });
+
+        // 表单 HTML 已在 DOM 中（模态框静态结构），直接初始化
+        initLogoPickers(document);
+
+        // ===== LOGO 选项管理弹窗 =====
+        function openLogoManager() {
+            const existing = document.getElementById('logoManagerModal');
+            if (existing) existing.remove();
+
+            const modal = document.createElement('div');
+            modal.id = 'logoManagerModal';
+            modal.className = 'lp-mgr';
+            modal.innerHTML = `
+                <div class="lp-mgr-panel">
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #e5e7eb;">
+                        <h3 style="font-size:16px;font-weight:600;color:#374151;margin:0;">LOGO 选项管理</h3>
+                        <button type="button" class="lp-icon-btn" id="lpMgrClose" title="关闭">✕</button>
+                    </div>
+                    <div style="padding:16px 20px;">
+                        <div id="lpMgrList"></div>
+                        <div class="lp-add-box">
+                            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
+                                <input type="text" id="lpNewName" placeholder="新选项名称（如：ES-LOGO）" style="flex:1 1 140px;height:34px;padding:0 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
+                                <label class="btn btn-secondary btn-sm" style="cursor:pointer;">
+                                    🖼 选择图片
+                                    <input type="file" id="lpNewImage" accept="image/*" style="display:none;">
+                                </label>
+                                <button type="button" class="btn btn-primary btn-sm" id="lpAddBtn">➕ 添加</button>
+                            </div>
+                            <div id="lpNewPreviewWrap" style="display:none;align-items:center;gap:8px;margin-top:10px;">
+                                <img id="lpNewPreview" style="width:40px;height:40px;object-fit:contain;border:1px solid #e5e7eb;border-radius:6px;background:#fff;">
+                                <span style="font-size:13px;color:#6b7280;" id="lpNewPreviewName"></span>
+                            </div>
+                            <p style="font-size:13px;color:#9ca3af;margin-top:8px;">提示：打不出的刺绣/图形符号，请用「选择图片」上传LOGO图片；图片仅用于表单内显示，订单记录仍保存名称文字，方便检索与打印。</p>
+                        </div>
+                    </div>
+                </div>`;
+            document.body.appendChild(modal);
+
+            let pendingImage = null;
+
+            function refreshList() {
+                const list = document.getElementById('lpMgrList');
+                list.innerHTML = '';
+                LogoOptionStore.getAll().forEach(function (opt) {
+                    const row = document.createElement('div');
+                    row.className = 'lp-mgr-row';
+                    if (opt.image) {
+                        const im = document.createElement('img');
+                        im.src = opt.image;
+                        row.appendChild(im);
+                    } else {
+                        const ph = document.createElement('span');
+                        ph.style.cssText = 'width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #e5e7eb;border-radius:6px;background:#fff;font-size:.75rem;color:#9ca3af;';
+                        ph.textContent = '文字';
+                        row.appendChild(ph);
+                    }
+                    const name = document.createElement('span');
+                    name.className = 'lp-mgr-name';
+                    name.textContent = opt.name;
+                    row.appendChild(name);
+
+                    // 编辑（名称 + 图片）
+                    const editBtn = document.createElement('button');
+                    editBtn.type = 'button';
+                    editBtn.className = 'lp-icon-btn';
+                    editBtn.title = '编辑名称/图片';
+                    editBtn.textContent = '✎';
+                    editBtn.addEventListener('click', function () { startEdit(opt.id); });
+                    row.appendChild(editBtn);
+
+                    // 删除
+                    const delBtn = document.createElement('button');
+                    delBtn.type = 'button';
+                    delBtn.className = 'lp-icon-btn';
+                    delBtn.title = '删除';
+                    delBtn.style.color = '#dc2626';
+                    delBtn.textContent = '🗑';
+                    delBtn.addEventListener('click', function () {
+                        if (confirm('确定删除选项「' + opt.name + '」？已有订单记录不受影响。')) {
+                            LogoOptionStore.remove(opt.id);
+                            refreshList();
+                            initLogoPickers(document);
+                        }
+                    });
+                    row.appendChild(delBtn);
+                    list.appendChild(row);
+                });
+            }
+
+            function startEdit(id) {
+                const opt = LogoOptionStore.getAll().find(x => x.id === id);
+                if (!opt) return;
+                const list = document.getElementById('lpMgrList');
+                const rows = list.querySelectorAll('.lp-mgr-row');
+                const idx = LogoOptionStore.getAll().findIndex(x => x.id === id);
+                const row = rows[idx];
+                if (!row) return;
+                row.innerHTML = '';
+
+                const thumb = document.createElement('img');
+                thumb.src = opt.image || '';
+                if (!opt.image) {
+                    thumb.style.visibility = 'hidden';
+                }
+                row.appendChild(thumb);
+
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'lp-mgr-name-input';
+                input.value = opt.name;
+                row.appendChild(input);
+
+                const imgLabel = document.createElement('label');
+                imgLabel.className = 'lp-icon-btn';
+                imgLabel.title = '更换图片';
+                imgLabel.style.cursor = 'pointer';
+                imgLabel.textContent = '🖼';
+                const imgFile = document.createElement('input');
+                imgFile.type = 'file';
+                imgFile.accept = 'image/*';
+                imgFile.style.display = 'none';
+                imgFile.addEventListener('change', function () {
+                    if (imgFile.files && imgFile.files[0]) {
+                        logoImageToDataUrl(imgFile.files[0], 120, function (dataUrl) {
+                            thumb.src = dataUrl;
+                            thumb.style.visibility = 'visible';
+                            thumb.dataset.pending = dataUrl;
+                        });
+                    }
+                });
+                imgLabel.appendChild(imgFile);
+                row.appendChild(imgLabel);
+
+                const saveBtn = document.createElement('button');
+                saveBtn.type = 'button';
+                saveBtn.className = 'lp-icon-btn';
+                saveBtn.title = '保存';
+                saveBtn.textContent = '✓';
+                saveBtn.addEventListener('click', function () {
+                    const newName = input.value.trim();
+                    if (!newName) { alert('名称不能为空'); return; }
+                    const patch = { name: newName };
+                    if (thumb.dataset.pending) patch.image = thumb.dataset.pending;
+                    LogoOptionStore.update(id, patch);
+                    refreshList();
+                    initLogoPickers(document);
+                });
+                row.appendChild(saveBtn);
+                input.focus();
+                input.select();
+            }
+
+            document.getElementById('lpMgrClose').addEventListener('click', function () { modal.remove(); });
+            modal.addEventListener('click', function (e) { if (e.target === modal) modal.remove(); });
+
+            const newImageInput = document.getElementById('lpNewImage');
+            newImageInput.addEventListener('change', function () {
+                if (newImageInput.files && newImageInput.files[0]) {
+                    const file = newImageInput.files[0];
+                    logoImageToDataUrl(file, 120, function (dataUrl) {
+                        pendingImage = dataUrl;
+                        document.getElementById('lpNewPreview').src = dataUrl;
+                        document.getElementById('lpNewPreviewName').textContent = file.name;
+                        document.getElementById('lpNewPreviewWrap').style.display = 'flex';
+                    });
+                }
+            });
+
+            document.getElementById('lpAddBtn').addEventListener('click', function () {
+                const nameInput = document.getElementById('lpNewName');
+                const name = nameInput.value.trim();
+                if (!name) { alert('请输入选项名称'); nameInput.focus(); return; }
+                LogoOptionStore.add(name, pendingImage);
+                nameInput.value = '';
+                pendingImage = null;
+                newImageInput.value = '';
+                document.getElementById('lpNewPreviewWrap').style.display = 'none';
+                refreshList();
+                initLogoPickers(document);
+            });
+
+            refreshList();
+        }
+
         // ==================== 自动计算功能 ====================
         function calculateOrderAmount() {
             const quantity = parseFloat(document.getElementById('order-quantity').value) || 0;
@@ -3017,7 +3446,6 @@
             document.getElementById('order-product').value = order.product || '';
             document.getElementById('order-spec').value = order.spec || '';
             document.getElementById('order-plating').value = order.plating || '';
-            document.getElementById('order-logo').value = order.logo || '';
             document.getElementById('order-remark').value = order.remark || '';
             document.getElementById('order-currency').value = order.currency || 'EUR';
             document.getElementById('order-quantity').value = order.quantity || '';
@@ -3045,6 +3473,10 @@
             document.getElementById('order-pay-date4').value = order.payDate4 || '';
             document.getElementById('order-pay-amount4').value = order.payAmount4 || '';
             document.getElementById('order-invoice-title').value = order.invoiceTitle || '';
+
+            // LOGO 由 logo-picker 管理（隐藏 input 仍保留 id=order-logo，saveOrder 按 id 取值）
+            initLogoPickers(document.getElementById('order-modal'));
+            setLogoPickerValue(document.querySelector('#order-modal .logo-picker'), order.logo || 'LONGLI');
 
             document.getElementById('order-modal').classList.add('active');
         }
@@ -3413,6 +3845,20 @@
                 reader.onload = function(e) {
                     try {
                         const data = JSON.parse(e.target.result);
+                        // 版本对比：备份时间 vs 当前本地最新修改时间
+                        var backupTime = data.backupTime ? new Date(data.backupTime).getTime() : 0;
+                        var localNewest = 0;
+                        try {
+                            var lv = window.CloudbaseSync && window.CloudbaseSync.getLocalVersions ? window.CloudbaseSync.getLocalVersions() : {};
+                            Object.keys(lv).forEach(function(k){ if(lv[k]>localNewest) localNewest=lv[k]; });
+                        } catch(e2) {}
+                        var verHint = '';
+                        if (backupTime && localNewest) {
+                            verHint = backupTime > localNewest ? '\n⚠️ 备份文件比当前数据新' : '\n⚠️ 当前数据比备份文件新';
+                        }
+                        if (!confirm('确认恢复数据？\n\n备份时间：' + (data.backupTime ? new Date(data.backupTime).toLocaleString() : '未知') +
+                            '\n当前数据最后修改：' + (localNewest ? new Date(localNewest).toLocaleString() : '未知') + verHint +
+                            '\n订单：' + (data.orders?data.orders.length:0) + ' 条\n日历备注：' + (data.calendarNotes?data.calendarNotes.length:0) + ' 条\n备忘录：' + (data.memos?data.memos.length:0) + ' 条\n\n此操作将覆盖当前数据！')) return;
                         if (data.orders) {
                             saveOrders(data.orders);
                         }
@@ -3422,7 +3868,12 @@
                         if (data.memos) {
                             saveMemos(data.memos);
                         }
-                        showToast('数据恢复成功！');
+                        // 设置导入保护期：10 分钟内云端旧数据不会覆盖刚导入的本地数据
+                        // 用户需手动点击"上传云端"按钮推送新数据，上传成功后保护期自动解除
+                        if (window.CloudbaseSync && typeof window.CloudbaseSync.setImportProtection === 'function') {
+                            window.CloudbaseSync.setImportProtection(600000);
+                        }
+                        showToast('数据恢复成功！请尽快点击"上传云端"推送数据');
                         renderDashboard();
                         renderOrders();
                     } catch (error) {
@@ -3469,7 +3920,11 @@
                     const data = JSON.parse(e.target.result);
                     if (Array.isArray(data)) {
                         saveOrders(data);
-                        showToast('数据导入成功！共导入 ' + data.length + ' 条记录');
+                        // 设置导入保护期：10 分钟内云端旧数据不会覆盖刚导入的本地数据
+                        if (window.CloudbaseSync && typeof window.CloudbaseSync.setImportProtection === 'function') {
+                            window.CloudbaseSync.setImportProtection(600000);
+                        }
+                        showToast('数据导入成功！共导入 ' + data.length + ' 条记录，请尽快点击"上传云端"');
                         renderDashboard();
                     } else {
                         showToast('数据格式错误！', 'error');
@@ -4152,11 +4607,11 @@
                             <div class="memo-item-meta">
                                 <span>${deadlineText} | ${statusText}</span>
                                 <div class="memo-item-actions">
-                                    <button class="btn-complete" onclick="toggleMemoStatus('${memo.id}')">
-                                        ${memo.status === 'completed' ? '撤销' : '完成'}
+                                    <button class="btn-complete" onclick="toggleMemoStatus('${memo.id}')" title="${memo.status === 'completed' ? '撤销' : '完成'}">
+                                        ${memo.status === 'completed' ? '↩️' : '✅'}
                                     </button>
-                                    <button class="btn-edit" onclick="editMemo('${memo.id}')">编辑</button>
-                                    <button class="btn-delete" onclick="deleteMemo('${memo.id}')">删除</button>
+                                    <button class="btn-edit" onclick="editMemo('${memo.id}')" title="编辑">✏️</button>
+                                    <button class="btn-delete" onclick="deleteMemo('${memo.id}')" title="删除">🗑️</button>
                                 </div>
                             </div>
                         </div>

@@ -190,7 +190,8 @@
 
     <view class="btn-row">
       <view class="btn btn-outline" data-id="{{doc.id}}" bindtap="editItem">编辑</view>
-      <view class="btn btn-primary" bindtap="generatePDF">生成PDF并发送</view>
+      <view class="btn btn-plain" bindtap="buildPDF">生成PDF</view>
+      <view class="btn btn-primary" wx:if="{{pdfReady}}" bindtap="onShareFile">📨 发送给微信好友</view>
     </view>
   </block>
 

@@ -81,44 +81,85 @@ function renderProductionNotice(data) {
     { title: 'LOGO', width: colWidths[4], align: 'left' },
     { title: '数量', width: colWidths[5], align: 'right' }
   ];
-  var rows = products.map(function (p) {
-    return [p.productName || '', p.specification || '', p.drawingNumber || '', p.plating || '', p.bowLogo || '', p.quantity || ''];
-  });
+  var headerH = 26, rowH = 22, fontSize = 10;
 
-  // 合计行
-  var totalQty = products.reduce(function (s, p) {
-    return s + (parseFloat(p.quantity) || 0);
-  }, 0);
-  rows.push(['合计', '', '', '', '', String(totalQty)]);
+  // 预加载 LOGO 图片：仅 LOGO_IMAGE_FILES 中登记的名称才加载图片，其余（含 KBA）显示文字
+  var LOGO_IMAGE_FILES = { 'K&B': 'kba.png' };
+  var logoImages = {};
+  var logoNames = {};
+  products.forEach(function (p) { if (p.bowLogo && LOGO_IMAGE_FILES[p.bowLogo]) logoNames[p.bowLogo] = 1; });
+  var fs = wx.getFileSystemManager();
 
-  var tableBottom = cv.drawTable({
-    ctx: ctx, x: margin, y: tableY,
-    columns: columns, rows: rows,
-    headerHeight: 26, rowHeight: 22, fontSize: 10
-  });
-
-  // --- 备注 ---
-  var remarkY = tableBottom + 16;
-  if (data.remark) {
-    cv.drawHLine(ctx, margin, remarkY, tableW, '#999999', 1);
-    cv.drawText({ ctx: ctx, text: '备注：', x: margin, y: remarkY + 6, size: 11, weight: 'bold', color: '#000000' });
-    cv.drawTextLines(ctx, data.remark, margin + 44, remarkY + 6, tableW - 44, 16, 11, '#000000');
-    remarkY += 30;
+  function loadLogo(name) {
+    return new Promise(function (resolve) {
+      var file = LOGO_IMAGE_FILES[name];
+      if (!file) { resolve(); return; }
+      var path = '/assets/logos/' + file;
+      var dataUrl = null;
+      try {
+        var buf = fs.readFileSync(path);
+        dataUrl = 'data:image/png;base64,' + wx.arrayBufferToBase64(buf);
+      } catch (e) { /* 文件不存在，回退文字 */ }
+      if (!dataUrl) { resolve(); return; }
+      var img = page.canvas.createImage();
+      img.onload = function () { logoImages[name] = img; resolve(); };
+      img.onerror = function () { resolve(); };
+      img.src = dataUrl;
+    });
   }
 
-  // --- 底部签字栏 ---
-  var signY = H - margin - 70;
-  var signColW = (W - margin * 2) / 4;
-  var signLabels = ['制单', '审核', '生产', '日期'];
-  var signValues = [data.createdBy || '', data.approvedBy || '', data.productionBy || '', data.signDate || ''];
-  for (var i = 0; i < 4; i++) {
-    var sx = margin + i * signColW;
-    cv.drawText({ ctx: ctx, text: signLabels[i], x: sx + signColW / 2, y: signY, size: 11, weight: 'bold', align: 'center' });
-    cv.drawHLine(ctx, sx + 20, signY + 40, signColW - 40, '#999999', 1);
-    cv.drawText({ ctx: ctx, text: signValues[i], x: sx + signColW / 2, y: signY + 44, size: 9, color: '#000000', align: 'center' });
-  }
+  return Promise.all(Object.keys(logoNames).map(loadLogo)).then(function () {
+    // 构造行：有图的 LOGO 单元格留空（图后画），无图显示名称
+    var rows = products.map(function (p) {
+      var logoCell = (p.bowLogo && logoImages[p.bowLogo]) ? '' : (p.bowLogo || '');
+      return [p.productName || '', p.specification || '', p.drawingNumber || '', p.plating || '', logoCell, p.quantity || ''];
+    });
 
-  return page;
+    // 合计行
+    var totalQty = products.reduce(function (s, p) {
+      return s + (parseFloat(p.quantity) || 0);
+    }, 0);
+    rows.push(['合计', '', '', '', '', String(totalQty)]);
+
+    var tableBottom = cv.drawTable({
+      ctx: ctx, x: margin, y: tableY,
+      columns: columns, rows: rows,
+      headerHeight: headerH, rowHeight: rowH, fontSize: fontSize
+    });
+
+    // 在有图的 LOGO 单元格画图片（等比缩放居中）
+    var logoColX = margin + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
+    var logoColW = colWidths[4];
+    products.forEach(function (p, idx) {
+      var im = p.bowLogo && logoImages[p.bowLogo];
+      if (im) {
+        var ry = tableY + headerH + idx * rowH;
+        cv.drawImage({ ctx: ctx, img: im, x: logoColX + 2, y: ry, maxW: logoColW - 4, maxH: rowH - 4 });
+      }
+    });
+
+    // --- 备注 ---
+    var remarkY = tableBottom + 16;
+    if (data.remark) {
+      cv.drawHLine(ctx, margin, remarkY, tableW, '#999999', 1);
+      cv.drawText({ ctx: ctx, text: '备注：', x: margin, y: remarkY + 6, size: 11, weight: 'bold', color: '#000000' });
+      cv.drawTextLines(ctx, data.remark, margin + 44, remarkY + 6, tableW - 44, 16, 11, '#000000');
+    }
+
+    // --- 底部签字栏 ---
+    var signY = H - margin - 70;
+    var signColW = (W - margin * 2) / 4;
+    var signLabels = ['制单', '审核', '生产', '日期'];
+    var signValues = [data.createdBy || '', data.approvedBy || '', data.productionBy || '', data.signDate || ''];
+    for (var s = 0; s < 4; s++) {
+      var sx = margin + s * signColW;
+      cv.drawText({ ctx: ctx, text: signLabels[s], x: sx + signColW / 2, y: signY, size: 11, weight: 'bold', align: 'center' });
+      cv.drawHLine(ctx, sx + 20, signY + 40, signColW - 40, '#999999', 1);
+      cv.drawText({ ctx: ctx, text: signValues[s], x: sx + signColW / 2, y: signY + 44, size: 9, color: '#000000', align: 'center' });
+    }
+
+    return page;
+  });
 }
 
 // ============================================================
@@ -408,10 +449,586 @@ function renderCustoms(doc) {
   return page;
 }
 
+// ============================================================
+// 正式报价单 — 纵向 A4（与桌面端 正式报价单模板.html 同版面）
+// ============================================================
+
+// 模板 populateQuotationData 内的专用抬头地址（注意：与报价系统页公司表地址不同）
+var QUOTE_FORMAL_ADDRESSES = {
+  '无锡龙力印铁设备制造有限公司': 'Room 606, Buliding C ,No.4 Longshan Road, Wangzhuang, New district , Wuxi City , Jiangsu Province, China',
+  '普利美(常州)环境工程科技有限公司': '6-1, zhongnan gaoke industrial park, #8 zhounan road, xueyan town, wujin district, Changzhou City, Jiangsu Province, China.P.C.213169',
+  '无锡市天梁对外贸易有限公司': 'ROOM605,XINGSHENG BUILDING, NO.900 JIEFANG EAST STREET,WUXI,JIANGSU,CHINA'
+};
+
+var QUOTE_TERMS_TEXT = [
+  '1. 价格如有变动，恕不另行通知。 Prices are subject to change without prior notice.',
+  '2. 交货时间为估算，需确认。 Delivery times are approximate and subject to confirmation.',
+  '3. 付款条款必须在订单确认前达成一致。 Payment terms must be agreed upon before order confirmation.',
+  '4. 所有产品均受我们的标准保修条件约束。 All products are subject to our standard warranty conditions.'
+];
+
+function qThousand(v) {
+  var n = Math.round((+v || 0) * 100) / 100;
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function qQty(v) {
+  var n = parseFloat(v);
+  if (isNaN(n)) return '0';
+  return (Math.round(n * 100) / 100).toString();
+}
+
+/** 蓝绿渐变（135deg,#2563eb→#10b981） */
+function qGradient(ctx, x0, y0, x1, y1) {
+  var g = ctx.createLinearGradient(x0, y0, x1, y1);
+  g.addColorStop(0, '#2563eb');
+  g.addColorStop(1, '#10b981');
+  return g;
+}
+
+/** 文字按宽度折行（中英混排逐字符断行） */
+function qWrap(ctx, text, maxWidth) {
+  var s = String(text == null ? '' : text);
+  if (!s) return [''];
+  var lines = [];
+  var line = '';
+  for (var i = 0; i < s.length; i++) {
+    var ch = s[i];
+    if (ch === '\n') { lines.push(line); line = ''; continue; }
+    var test = line + ch;
+    if (ctx.measureText(test).width > maxWidth && line) {
+      lines.push(line);
+      line = ch;
+    } else {
+      line = test;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function qRoundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/** 信息行：粗体中英标签 + 值 */
+function qInfoRow(ctx, x, y, label, value, labelW, valW, opts) {
+  opts = opts || {};
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.font = 'bold 9.5px sans-serif';
+  ctx.fillStyle = '#374151';
+  ctx.fillText(label, x, y);
+  ctx.font = 'normal 9.5px sans-serif';
+  ctx.fillStyle = opts.color || '#1f2937';
+  var vx = x + labelW;
+  var text = value || 'N/A';
+  if (opts.badge) {
+    // 红底白字圆角徽章（Terms）
+    ctx.font = 'bold 9.5px sans-serif';
+    var bw = Math.min(ctx.measureText(text).width + 16, valW);
+    qRoundRect(ctx, vx, y - 2, bw, 16, 4);
+    ctx.fillStyle = '#dc2626';
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, vx + 8, y + 6.5, bw - 12);
+    ctx.textBaseline = 'top';
+  } else {
+    var wrapped = qWrap(ctx, text, valW);
+    ctx.fillStyle = opts.color || '#1f2937';
+    ctx.fillText(wrapped[0], vx, y, valW);
+  }
+}
+
+function renderQuotation(doc) {
+  var pages = [];
+  function newPage() { var p = cv.createPage('portrait'); pages.push(p); return p; }
+
+  var page = newPage();
+  var ctx = page.ctx;
+  var W = page.width, H = page.height;
+  var M = 40;                    // 页边距
+  var tableW = W - M * 2;
+  var footerY = H - 38;
+  var contentBottom = footerY - 14;
+
+  var h = doc.header || {};
+  var company = doc.company || { name: '', nameEn: '' };
+  var products = doc.products || [];
+  var totals = doc.totals || { subtotal: 0, tax: 0, total: 0 };
+  var currency = products.length && products[0].currency ? products[0].currency : 'USD';
+
+  // 列宽（百分比与模板 colgroup 完全一致）
+  var colPct = [0.04, 0.07, 0.14, 0.11, 0.12, 0.05, 0.06, 0.08, 0.08, 0.17];
+  var cols = colPct.map(function (p) { return tableW * p; });
+  var headDef = [
+    ['序号', 'No.'], ['产品编号', 'Product No.'], ['产品名称', 'Product Name'],
+    ['图号', 'Drawing No.'], ['规格型号', 'Specifications'], ['单位', 'Unit'],
+    ['数量', 'Qty'], ['单价', 'Unit Price'], ['金额', 'Amount'], ['备注', 'Remark']
+  ];
+  var aligns = ['center', 'left', 'left', 'left', 'left', 'center', 'right', 'right', 'right', 'left'];
+  var padX = 5, lineH = 11, padY = 4, minRowH = 24, headH = 30;
+
+  /* ---------- 第一页抬头 ---------- */
+  var y = 42;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.font = 'bold 18px sans-serif';
+  ctx.fillStyle = '#111827';
+  ctx.fillText(company.name || 'N/A', W / 2, y);
+  y += 25;
+  ctx.font = 'normal 11.5px sans-serif';
+  ctx.fillStyle = '#374151';
+  ctx.fillText(company.nameEn || '', W / 2, y, W - M * 2);
+  y += 17;
+  var addr = QUOTE_FORMAL_ADDRESSES[company.name] || '';
+  if (addr) {
+    ctx.font = 'normal 8.5px sans-serif';
+    ctx.fillStyle = '#6b7280';
+    ctx.fillText(addr, W / 2, y, W - M * 2);
+    y += 13;
+  }
+
+  // 渐变标题
+  y += 6;
+  ctx.font = 'bold 20px sans-serif';
+  ctx.fillStyle = qGradient(ctx, W / 2 - 130, y, W / 2 + 130, y + 26);
+  ctx.fillText('报价单 QUOTATION', W / 2, y);
+  y += 30;
+  // 2px 渐变分隔线
+  ctx.fillStyle = qGradient(ctx, M, y, W - M, y + 2);
+  ctx.fillRect(M, y, tableW, 2);
+  y += 16;
+
+  /* ---------- 两列信息区 ---------- */
+  var colW = (tableW - 16) / 2;
+  var leftX = M, rightX = M + colW + 16;
+  var rowGap = 19;
+
+  var quoteRows = [
+    ['报价单号 Quote No:', h.quoteNo, 118],
+    ['报价日期 Quote Date:', h.quoteDate, 118],
+    ['有效期至 Valid Until:', h.validUntil, 118]
+  ];
+  var custRows = [
+    ['公司名称 Company:', h.customerCompany, 108],
+    ['联系人 Contact:', h.customerContact, 108],
+    ['电话 Phone:', h.customerTel, 108],
+    ['邮箱 Email:', h.customerEmail, 108]
+  ];
+  var topY = y;
+  quoteRows.forEach(function (r, i) { qInfoRow(ctx, leftX, topY + i * rowGap, r[0], r[1], r[2], colW - r[2]); });
+  custRows.forEach(function (r, i) { qInfoRow(ctx, rightX, topY + i * rowGap, r[0], r[1], r[2], colW - r[2]); });
+  y = topY + Math.max(quoteRows.length, custRows.length) * rowGap + 10;
+
+  var delRows = [
+    ['交货方式 Delivery Method:', h.deliveryMethod, 152],
+    ['交货港口/地点 Delivery Port:', h.deliveryLocation, 152],
+    ['交货日期 Delivery Date:', h.deliveryDate, 152]
+  ];
+  var payRows = [
+    ['成交条款 Terms:', h.terms, 96, { badge: true }],
+    ['付款方式 Payment Method:', h.paymentMethod, 152],
+    ['付款比例 Payment Ratio:', h.paymentRatio, 128],
+    ['税率 Tax Rate:', h.taxRate, 96]
+  ];
+  var payY = y;
+  delRows.forEach(function (r, i) { qInfoRow(ctx, leftX, payY + i * rowGap, r[0], r[1], r[2], colW - r[2]); });
+  payRows.forEach(function (r, i) { qInfoRow(ctx, rightX, payY + i * rowGap, r[0], r[1], r[2], colW - r[2], r[3]); });
+  y = payY + Math.max(delRows.length, payRows.length) * rowGap + 12;
+
+  // 产品明细标题（渐变字）
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 12px sans-serif';
+  ctx.fillStyle = qGradient(ctx, M, y, M + 260, y + 16);
+  ctx.fillText('产品明细 Product Details', M, y);
+  y += 20;
+
+  /* ---------- 产品表明细（支持跨页） ---------- */
+
+  function drawTableHead(x, ty) {
+    ctx.fillStyle = '#e3f2fd';
+    ctx.fillRect(x, ty, tableW, headH);
+    var cx = x;
+    for (var i = 0; i < cols.length; i++) {
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#0d47a1';
+      ctx.font = 'bold 9.5px sans-serif';
+      ctx.fillText(headDef[i][0], cx + cols[i] / 2, ty + 10, cols[i] - padX);
+      ctx.font = 'normal 8px sans-serif';
+      ctx.fillText(headDef[i][1], cx + cols[i] / 2, ty + 21, cols[i] - padX);
+      cx += cols[i];
+    }
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.lineWidth = 0.6;
+    ctx.strokeRect(x, ty, tableW, headH);
+    var lx = x;
+    for (var j = 0; j < cols.length - 1; j++) {
+      lx += cols[j];
+      ctx.beginPath(); ctx.moveTo(lx, ty); ctx.lineTo(lx, ty + headH); ctx.stroke();
+    }
+  }
+
+  // 预备每行的显示值与折行
+  var rowsData = products.map(function (p, i) {
+    return {
+      values: [
+        String(i + 1), p.productNo, p.productName, p.drawingNumber, p.specification,
+        p.unit, qQty(p.quantity), currency + ' ' + qThousand(p.unitPrice),
+        currency + ' ' + qThousand((+p.quantity || 0) * (+p.unitPrice || 0)),
+        p.remark
+      ]
+    };
+  });
+
+  ctx.font = 'normal 9px sans-serif';
+  rowsData.forEach(function (r) {
+    r.lines = r.values.map(function (v, ci) { return qWrap(ctx, v, cols[ci] - padX * 2); });
+    var maxLines = 1;
+    r.lines.forEach(function (ls) { if (ls.length > maxLines) maxLines = ls.length; });
+    r.h = Math.max(minRowH, maxLines * lineH + padY * 2);
+  });
+
+  var tableTop = y;
+  drawTableHead(M, tableTop);
+  var cy = tableTop + headH;
+
+  function drawRow(r, rowIdx) {
+    var ry = cy;
+    // 斑马纹
+    if (rowIdx % 2 === 1) { ctx.fillStyle = '#f9fafb'; ctx.fillRect(M, ry, tableW, r.h); }
+    // 文字
+    ctx.textBaseline = 'top';
+    var cx = M;
+    for (var ci = 0; ci < cols.length; ci++) {
+      var ls = r.lines[ci];
+      ctx.textAlign = aligns[ci];
+      ctx.fillStyle = '#1f2937';
+      ctx.font = ci === 8 ? 'bold 9px sans-serif' : 'normal 9px sans-serif';
+      var tx;
+      if (aligns[ci] === 'center') tx = cx + cols[ci] / 2;
+      else if (aligns[ci] === 'right') tx = cx + cols[ci] - padX;
+      else tx = cx + padX;
+      for (var li = 0; li < ls.length; li++) {
+        if (aligns[ci] === 'center') ctx.fillText(ls[li], tx, ry + padY + li * lineH, cols[ci] - padX * 2);
+        else ctx.fillText(ls[li], tx, ry + padY + li * lineH, cols[ci] - padX * 2);
+      }
+      cx += cols[ci];
+    }
+    // 单元格边框
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.lineWidth = 0.6;
+    ctx.strokeRect(M, ry, tableW, r.h);
+    var lx = M;
+    for (var j = 0; j < cols.length - 1; j++) {
+      lx += cols[j];
+      ctx.beginPath(); ctx.moveTo(lx, ry); ctx.lineTo(lx, ry + r.h); ctx.stroke();
+    }
+  }
+
+  rowsData.forEach(function (r, i) {
+    if (cy + r.h > contentBottom) {
+      page = newPage();
+      ctx = page.ctx;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.fillStyle = '#6b7280';
+      ctx.fillText(h.quoteNo + '（续 Continued）', M, 24);
+      tableTop = 36;
+      drawTableHead(M, tableTop);
+      cy = tableTop + headH;
+    }
+    drawRow(r, i);
+    cy += r.h;
+  });
+
+  var tableEnd = cy;
+
+  /* ---------- 尾部块（合计/备注/条款），空间不足则另起一页 ---------- */
+
+  // 预估尾部高度
+  ctx.font = 'normal 9px sans-serif';
+  var remarkLines = qWrap(ctx, h.deliveryRemarks || 'N/A', tableW - 120);
+  var tailH = 14 /*gap*/ + 86 /*totals*/ + 18 + Math.max(44, remarkLines.length * lineH + 20) + 22 + 18 + 110 /*terms*/;
+  if (tableEnd + tailH > contentBottom) {
+    page = newPage();
+    ctx = page.ctx;
+    tableEnd = 50;
+  }
+
+  var ty = tableEnd + 14;
+
+  // 合计框（右下 w-72≈260）
+  var boxW = 260, boxX = M + tableW - boxW;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.font = 'bold 10px sans-serif';
+  ctx.fillStyle = '#374151';
+  ctx.fillText('小计 Subtotal:', boxX, ty + 4);
+  ctx.fillText('税费 Tax:', boxX, ty + 26);
+  ctx.textAlign = 'right';
+  ctx.font = 'normal 10px sans-serif';
+  ctx.fillStyle = '#1f2937';
+  ctx.fillText(currency + ' ' + qThousand(totals.subtotal), boxX + boxW, ty + 4);
+  ctx.fillText(currency + ' ' + qThousand(totals.tax), boxX + boxW, ty + 26);
+  // 2px 上边框 + 渐变粗体 Total
+  cv.drawHLine(ctx, boxX, ty + 50, boxW, '#d1d5db', 1.5);
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 12px sans-serif';
+  ctx.fillStyle = qGradient(ctx, boxX, ty + 56, boxX + 120, ty + 72);
+  ctx.fillText('总计 Total:', boxX, ty + 56);
+  ctx.textAlign = 'right';
+  ctx.fillText(currency + ' ' + qThousand(totals.total), boxX + boxW, ty + 56);
+  ty += 86;
+
+  // 交货备注框（灰边框圆角）
+  ty += 4;
+  ctx.font = 'normal 9px sans-serif';
+  var remarkH = Math.max(44, remarkLines.length * lineH + 20);
+  qRoundRect(ctx, M, ty, tableW, remarkH, 8);
+  ctx.strokeStyle = '#e5e7eb';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 9.5px sans-serif';
+  ctx.fillStyle = '#374151';
+  ctx.fillText('交货备注', M + 12, ty + 10);
+  ctx.fillText('Delivery Remarks:', M + 12, ty + 23);
+  ctx.font = 'normal 9px sans-serif';
+  ctx.fillStyle = '#1f2937';
+  for (var ri = 0; ri < remarkLines.length; ri++) {
+    ctx.fillText(remarkLines[ri], M + 110, ty + 10 + ri * lineH, tableW - 124);
+  }
+  ty += remarkH + 22;
+
+  // 条款和条件标题
+  ctx.font = 'bold 12px sans-serif';
+  ctx.fillStyle = qGradient(ctx, M, ty, M + 260, ty + 16);
+  ctx.fillText('条款和条件 Terms & Conditions', M, ty);
+  var termsTop = ty;
+  ty += 20;
+
+  // 条款文字（先写，印章后盖在上层）
+  ctx.font = 'normal 9px sans-serif';
+  QUOTE_TERMS_TEXT.forEach(function (t) {
+    var ls = qWrap(ctx, t, tableW);
+    ls.forEach(function (l) {
+      ctx.fillStyle = '#6b7280';
+      ctx.textAlign = 'left';
+      ctx.fillText(l, M, ty);
+      ty += 13;
+    });
+    ty += 3;
+  });
+
+  // 居中旋转 10° 蓝色印章
+  var sealW = 378, sealH = 76; // 100mm × 20mm @96dpi
+  var sealCx = W / 2;
+  var sealCy = termsTop + (ty - termsTop) / 2;
+  ctx.save();
+  ctx.globalAlpha = 0.7;
+  ctx.translate(sealCx, sealCy);
+  ctx.rotate(10 * Math.PI / 180);
+  ctx.strokeStyle = '#2563eb';
+  ctx.lineWidth = 2;
+  qRoundRect(ctx, -sealW / 2, -sealH / 2, sealW, sealH, 4);
+  ctx.stroke();
+  ctx.fillStyle = '#2563eb';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = 'bold 17px sans-serif';
+  ctx.fillText(company.name || '', 0, -22, sealW - 20);
+  ctx.font = 'normal 10.5px sans-serif';
+  ctx.fillText(company.nameEn || '', 0, 0, sealW - 20);
+  ctx.font = 'italic bold 18px serif';
+  ctx.fillText('AlonZhang', 0, 22);
+  ctx.restore();
+
+  /* ---------- 页脚（全部页面） ---------- */
+  pages.forEach(function (p, pi) {
+    var c = p.ctx;
+    c.textBaseline = 'top';
+    c.font = 'normal 9px sans-serif';
+    c.fillStyle = '#999999';
+    c.textAlign = 'left';
+    c.fillText('Quoted By AlonZhang', M, footerY);
+    c.textAlign = 'center';
+    c.fillText('Page ' + (pi + 1) + ' / ' + pages.length, W / 2, footerY);
+    c.textAlign = 'right';
+    c.fillText(doc.today || fmt.today(), W - M, footerY);
+  });
+
+  return pages;
+}
+
+// ============================================================
+// 订单排程·生产通知单 — 横向 A4
+// 严格对齐桌面版 apps/orderschedule/生产通知单.html 版面：
+// 蓝色(#1a56db)抬头与表头、交货期四色提醒、红底白字备注条、签字栏默认人
+// ============================================================
+function renderScheduleNotice(data) {
+  var page = cv.createPage('landscape');
+  var ctx = page.ctx;
+  var W = page.width, H = page.height;
+  var margin = 38;
+  var PRIMARY = '#1a56db';
+
+  // --- 顶部：公司信息（左）+ 订单信息（右）---
+  var rightW = 420;
+  var rightX = W - margin - rightW;
+
+  // 左侧公司（蓝色大字）
+  cv.drawText({ ctx: ctx, text: '普利美', x: margin, y: margin - 4, size: 26, weight: 'bold', color: PRIMARY });
+  cv.drawText({ ctx: ctx, text: '生产通知单', x: margin + 96, y: margin - 2, size: 22, weight: 'bold', color: PRIMARY });
+  cv.drawText({ ctx: ctx, text: 'PRODUCTION ORDER', x: margin + 96, y: margin + 26, size: 10, color: '#6b7280' });
+  cv.drawText({ ctx: ctx, text: '普利美（常州）环境工程科技有限公司', x: margin, y: margin + 54, size: 10.5, color: '#111827' });
+  cv.drawText({ ctx: ctx, text: '地址：常州市武进区雪堰镇周南路8号6-1（中南高科常州雪堰智造产业园）', x: margin, y: margin + 71, size: 10, color: '#374151' });
+  cv.drawText({ ctx: ctx, text: '电话：139 5158 9291', x: margin, y: margin + 87, size: 10, color: '#374151' });
+
+  // 右侧订单信息（2×2 网格）
+  var colW = rightW / 2 - 10;
+  var rowH = 38;
+  var fields = [
+    { label: '下单日期', value: data.orderDate || '' },
+    { label: '订单号', value: data.orderNumber || '' },
+    { label: '客户', value: data.customer || '' },
+    { label: '交货日期', value: data.deliveryDate || '' }
+  ];
+  for (var fi = 0; fi < fields.length; fi++) {
+    var fcol = fi % 2, frow = Math.floor(fi / 2);
+    var fx = rightX + fcol * (colW + 20);
+    var fy = margin + frow * rowH;
+    cv.drawText({ ctx: ctx, text: fields[fi].label, x: fx, y: fy, size: 9, color: '#6b7280' });
+    cv.drawText({ ctx: ctx, text: fields[fi].value, x: fx, y: fy + 15, size: 12.5, color: '#111827', weight: 'bold', maxWidth: colW });
+  }
+
+  var cursorY = margin + 96;
+
+  // --- 交货期提醒（与桌面版同规则：无日期灰/逾期红/≤3天红紧急/≤7天黄/其余绿）---
+  var alert = null;
+  if (!data.deliveryDate) {
+    alert = { bg: '#f9fafb', border: '#e5e7eb', color: '#6b7280', text: '未设置交货期，请先填写交货日期。' };
+  } else {
+    var today0 = new Date();
+    today0.setHours(0, 0, 0, 0);
+    var dl = new Date(data.deliveryDate + 'T00:00:00');
+    var days = Math.ceil((dl - today0) / 86400000);
+    if (days < 0) {
+      alert = { bg: '#fef2f2', border: '#fecaca', color: '#b91c1c', text: '已逾期 ' + Math.abs(days) + ' 天！ 请立即处理此订单。', bold: true };
+    } else if (days <= 3) {
+      alert = { bg: '#fef2f2', border: '#fecaca', color: '#b91c1c', text: '紧急！距离交货期仅剩 ' + days + ' 天，请立即安排生产。', bold: true };
+    } else if (days <= 7) {
+      alert = { bg: '#fffbeb', border: '#fde68a', color: '#92400e', text: '距离交货期还有 ' + days + ' 天，请确保按时完成生产。' };
+    } else {
+      alert = { bg: '#f0fdf4', border: '#bbf7d0', color: '#15803d', text: '距离交货期还有 ' + days + ' 天，生产时间充裕。' };
+    }
+  }
+  var alertH = 34;
+  cv.fillRect(ctx, margin, cursorY, W - margin * 2, alertH, alert.bg);
+  cv.drawRect(ctx, margin, cursorY, W - margin * 2, alertH, alert.border, 1);
+  cv.drawText({ ctx: ctx, text: '⚠', x: margin + 10, y: cursorY + 9, size: 12, color: alert.color });
+  cv.drawText({
+    ctx: ctx, text: alert.text,
+    x: margin + 30, y: cursorY + 10, size: 11,
+    weight: alert.bold ? 'bold' : 'normal', color: alert.color
+  });
+  cursorY += alertH + 8;
+
+  // --- 备注条（红底白字，与桌面版一致）---
+  if (data.remark) {
+    var maxTextW = W - margin * 2 - 70;
+    ctx.font = 'normal 11px sans-serif';
+    var chars = String(data.remark).split('');
+    var lines = [];
+    var line = '';
+    for (var ci = 0; ci < chars.length; ci++) {
+      if (chars[ci] === '\n') { lines.push(line); line = ''; continue; }
+      var test = line + chars[ci];
+      if (ctx.measureText(test).width > maxTextW && line) {
+        lines.push(line);
+        line = chars[ci];
+      } else {
+        line = test;
+      }
+    }
+    if (line) lines.push(line);
+    if (lines.length > 4) lines = lines.slice(0, 4);
+    var barH = lines.length * 16 + 14;
+    cv.fillRect(ctx, margin, cursorY, W - margin * 2, barH, '#dc2626');
+    cv.drawText({ ctx: ctx, text: '备注', x: margin + 12, y: cursorY + 7, size: 11, weight: 'bold', color: '#ffffff' });
+    ctx.font = 'normal 11px sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    for (var li = 0; li < lines.length; li++) {
+      ctx.fillText(lines[li], margin + 56, cursorY + 7 + li * 16, maxTextW);
+    }
+    cursorY += barH + 10;
+  }
+
+  // --- 产品表格（蓝底白字表头）---
+  var tableW = W - margin * 2;
+  var products = data.products || [];
+  var colWidths = [tableW * 0.22, tableW * 0.18, tableW * 0.15, tableW * 0.13, tableW * 0.12, tableW * 0.20];
+  var columns = [
+    { title: '产品名称', width: colWidths[0], align: 'left' },
+    { title: '规格', width: colWidths[1], align: 'left' },
+    { title: '图号', width: colWidths[2], align: 'left' },
+    { title: '电镀', width: colWidths[3], align: 'left' },
+    { title: 'LOGO', width: colWidths[4], align: 'left' },
+    { title: '数量', width: colWidths[5], align: 'right' }
+  ];
+  var rows = products.map(function (p) {
+    return [p.productName || '', p.specification || '', p.drawingNumber || '', p.plating || '', p.bowLogo || '', p.quantity || ''];
+  });
+  var totalQty = products.reduce(function (s, p) {
+    return s + (parseFloat(p.quantity) || 0);
+  }, 0);
+  rows.push(['合计', '', '', '', '', String(totalQty)]);
+
+  cv.drawTable({
+    ctx: ctx, x: margin, y: cursorY,
+    columns: columns, rows: rows,
+    headerHeight: 28, rowHeight: 23, fontSize: 10.5,
+    headerColor: PRIMARY, headerTextColor: '#ffffff',
+    borderColor: '#cbd5e1'
+  });
+
+  // --- 底部签字栏（默认人与桌面版一致：吴小英/吴小英/许小成/当天）---
+  var signY = H - margin - 70;
+  var signColW = (W - margin * 2) / 4;
+  var signLabels = ['制单', '审核', '生产', '日期'];
+  var signValues = [
+    data.createdBy || '吴小英',
+    data.approvedBy || '吴小英',
+    data.productionBy || '许小成',
+    data.signDate || fmt.today()
+  ];
+  for (var si = 0; si < 4; si++) {
+    var sx = margin + si * signColW;
+    cv.drawText({ ctx: ctx, text: signLabels[si], x: sx + signColW / 2, y: signY, size: 11, weight: 'bold', align: 'center' });
+    cv.drawHLine(ctx, sx + 20, signY + 40, signColW - 40, '#9ca3af', 1);
+    cv.drawText({ ctx: ctx, text: signValues[si], x: sx + signColW / 2, y: signY + 44, size: 9, color: '#6b7280', align: 'center' });
+  }
+
+  return page;
+}
+
 module.exports = {
   renderProductionNotice: renderProductionNotice,
+  renderScheduleNotice: renderScheduleNotice,
   renderBoxMark: renderBoxMark,
   renderInvoice: renderInvoice,
   renderPackingList: renderPackingList,
-  renderCustoms: renderCustoms
+  renderCustoms: renderCustoms,
+  renderQuotation: renderQuotation
 };
