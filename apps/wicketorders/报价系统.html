@@ -93,18 +93,19 @@
 
       
       <!-- 公司选择下拉菜单 -->
-      <div class="relative">
+      <div class="relative flex items-center gap-2">
+        <button id="companyManageBtn" class="flex items-center bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg transition-all" title="公司信息管理">
+          <i class="fa fa-cog"></i>
+        </button>
         <button id="companySelectBtn" class="flex items-center space-x-2 bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition-all">
           <i class="fa fa-building"></i>
           <span id="selectedCompany">无锡龙力印铁设备制造有限公司</span>
           <i class="fa fa-chevron-down text-xs"></i>
         </button>
         
-        <div id="companyDropdown" class="absolute right-0 mt-2 w-64 bg-accent rounded-lg shadow-xl hidden">
-          <ul class="py-1">
-            <li><button class="w-full text-left px-4 py-2 hover:bg-white/20 text-white company-option" style="font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" data-value="无锡龙力印铁设备制造有限公司">无锡龙力印铁设备制造有限公司</button></li>
-            <li><button class="w-full text-left px-4 py-2 hover:bg-white/20 text-white company-option" style="font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" data-value="普利美(常州)环境工程科技有限公司">普利美(常州)环境工程科技有限公司</button></li>
-            <li><button class="w-full text-left px-4 py-2 hover:bg-white/20 text-white company-option" style="font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" data-value="无锡市天梁对外贸易有限公司">无锡市天梁对外贸易有限公司</button></li>
+        <div id="companyDropdown" class="absolute right-0 mt-2 w-72 bg-accent rounded-lg shadow-xl hidden" style="top:100%;">
+          <ul id="companyDropdownList" class="py-1">
+            <!-- 公司列表由 quotationCompanies 配置动态生成 -->
           </ul>
         </div>
       </div>
@@ -265,7 +266,10 @@
         
         <!-- 银行账户信息 -->
         <div class="mt-6">
-          <label class="block text-sm text-gray-500 mb-1">银行账户信息 | Bank Account Info</label>
+          <div class="flex items-center justify-between mb-1">
+            <label class="block text-sm text-gray-500">银行账户信息 | Bank Account Info</label>
+            <select id="bankAccountSelect" class="text-sm px-2 py-1 border border-gray-200 rounded-lg text-gray-600 hidden"></select>
+          </div>
           <textarea id="bankAccountInfo" rows="4" placeholder="请输入银行账户信息（如：开户行名称、账户名称、账号等）" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none resize-y"></textarea>
         </div>
       </div>
@@ -779,78 +783,448 @@
     </div>
   </footer>
 
+  <!-- 公司信息管理模态框 -->
+  <div id="companyManageModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] hidden">
+    <div class="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center p-6 border-b sticky top-0 bg-white z-10">
+        <h3 class="text-xl font-bold gradient-text">公司信息管理 | Company Profiles</h3>
+        <button id="closeCompanyMgrBtn" class="text-gray-500 hover:text-gray-700">
+          <i class="fa fa-times text-xl"></i>
+        </button>
+      </div>
+
+      <div class="p-6">
+        <!-- 选择公司 / 新增 -->
+        <div class="flex flex-wrap items-center gap-3 mb-5">
+          <label class="text-sm font-medium text-gray-600">选择公司</label>
+          <select id="mgrCompanySelect" class="flex-1 min-w-[240px] px-3 py-2 border border-gray-300 rounded-lg"></select>
+          <button type="button" id="mgrAddCompanyBtn" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm">
+            <i class="fa fa-plus mr-1"></i>新增公司
+          </button>
+          <button type="button" id="mgrDeleteCompanyBtn" class="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm">
+            <i class="fa fa-trash mr-1"></i>删除公司
+          </button>
+        </div>
+
+        <!-- 公司基本信息 -->
+        <div class="mb-6">
+          <h4 class="text-lg font-semibold mb-3 text-gray-700">抬头信息 | Profile</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-600 mb-1">公司名称（中文）</label>
+              <input type="text" id="mgrNameCn" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-600 mb-1">公司名称（英文）| Name (EN)</label>
+              <input type="text" id="mgrNameEn" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-sm font-medium text-gray-600 mb-1">地址 | Address</label>
+              <input type="text" id="mgrAddress" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-600 mb-1">电话 | Phone</label>
+              <input type="text" id="mgrPhone" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-600 mb-1">邮箱 | Email</label>
+              <input type="text" id="mgrEmail" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-600 mb-1">默认税率 | Default Tax Rate</label>
+              <select id="mgrTaxRate" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                <option>13% (增值税)</option>
+                <option>0% (免税)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- 银行账户（可多个，如人民币 + 外币） -->
+        <div class="mb-6">
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="text-lg font-semibold text-gray-700">银行账户 | Bank Accounts</h4>
+            <button type="button" id="mgrAddAccountBtn" class="px-3 py-1.5 border border-primary text-primary rounded-lg hover:bg-primary/10 transition-colors text-sm">
+              <i class="fa fa-plus mr-1"></i>添加账户（如外币账户）
+            </button>
+          </div>
+          <p class="text-xs text-gray-400 mb-3">每家公司可维护多个账户（例如普利美的人民币账户与外币账户），只填开户行和账号时将以"开户行 | 账号"显示。</p>
+          <div id="mgrAccounts" class="space-y-4"></div>
+        </div>
+
+        <div class="flex justify-end gap-3 pt-4 border-t">
+          <button type="button" id="mgrCancelBtn" class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">取消 | Cancel</button>
+          <button type="button" id="mgrSaveBtn" class="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">保存 | Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- JavaScript -->
   <script>
+    /* ========== 公司抬头配置（localStorage 可编辑，替代硬编码） ========== */
+    const COMPANY_STORAGE_KEY = 'quotationCompanies';
+    const DEFAULT_COMPANIES = [
+      {
+        id: 'longli',
+        nameCn: '无锡龙力印铁设备制造有限公司',
+        nameEn: 'Wuxi Longli Iron-Printing Equipment Manufacturing Co., Ltd',
+        address: '6-1, zhongnan gaoke industrial park, #8 zhounan road, xueyan town, wujin district, Changzhou City, Jiangsu Province, China',
+        phone: '+86 139 5158 9291',
+        email: 'anny@rhssjx.com',
+        taxRate: '13% (增值税)',
+        accounts: [
+          { label: '人民币账户', bankName: '江苏银行无锡新区支行', bankAddress: '', accountNo: '807010188600012106', swift: '', telex: '' }
+        ]
+      },
+      {
+        id: 'purimate',
+        nameCn: '普利美(常州)环境工程科技有限公司',
+        nameEn: 'Purimate (Changzhou) Environmental Engineering Technology Co., Ltd',
+        address: '6-1, zhongnan gaoke industrial park, #8 zhounan road, xueyan town, wujin district, Changzhou City, Jiangsu Province, China',
+        phone: '+86 139 5158 9291',
+        email: 'anny@rhssjx.com',
+        taxRate: '13% (增值税)',
+        accounts: [
+          // 外币账户由用户在"公司信息管理"中自行添加
+          { label: '人民币账户', bankName: '中国银行常州潘家支行', bankAddress: '', accountNo: '463776505380', swift: '', telex: '' }
+        ]
+      },
+      {
+        id: 'tianliang',
+        nameCn: '无锡市天梁对外贸易有限公司',
+        nameEn: 'WUXI TIANLIANG FOREIGN TRADE CO.,LTD',
+        address: "Room#605, XingSheng Building No.900 JieFang East Street, WuXi City,JiangSu Province,China",
+        phone: '+86 186 2632 7266',
+        email: 'alonzhang76@outlook.com',
+        taxRate: '0% (免税)',
+        accounts: [
+          { label: '外币账户', bankName: 'BANK OF CHINA,WUXI BR', bankAddress: '258 ZHONGSHAN ROAD, WUXI, 214001 P.R.CHINA', accountNo: '510558218196', swift: 'BKCHCNBJ95C', telex: '362021 WXBOC CN' }
+        ]
+      }
+    ];
+
+    // 深拷贝默认值，避免老版本浏览器 structuredClone 缺失
+    function cloneDefaultCompanies() {
+      return JSON.parse(JSON.stringify(DEFAULT_COMPANIES));
+    }
+
+    // 规范化单条公司数据（兼容历史/缺失字段）
+    function normalizeCompany(c) {
+      c.nameCn = c.nameCn || '';
+      c.nameEn = c.nameEn || '';
+      c.address = c.address || '';
+      c.phone = c.phone || '';
+      c.email = c.email || '';
+      c.taxRate = c.taxRate === '0% (免税)' ? '0% (免税)' : '13% (增值税)';
+      if (!Array.isArray(c.accounts)) c.accounts = [];
+      c.accounts = c.accounts.map(function (a) {
+        return {
+          label: a.label || '',
+          bankName: a.bankName || '',
+          bankAddress: a.bankAddress || '',
+          accountNo: a.accountNo || '',
+          swift: a.swift || '',
+          telex: a.telex || ''
+        };
+      });
+      return c;
+    }
+
+    function loadCompanies() {
+      var list = null;
+      try { list = JSON.parse(localStorage.getItem(COMPANY_STORAGE_KEY) || 'null'); } catch (e) { list = null; }
+      if (!Array.isArray(list) || list.length === 0) {
+        list = cloneDefaultCompanies();
+        saveCompanies(list);
+        return list;
+      }
+      return list.map(normalizeCompany);
+    }
+
+    function saveCompanies(list) {
+      localStorage.setItem(COMPANY_STORAGE_KEY, JSON.stringify(list));
+    }
+
+    // 单个账户渲染为银行账户文本
+    function renderAccountText(acc) {
+      if (!acc) return '';
+      var hasDetail = acc.bankAddress || acc.swift || acc.telex;
+      if (!hasDetail) {
+        var simple = [acc.bankName, acc.accountNo].filter(Boolean).join(' | ');
+        return simple;
+      }
+      var lines = [];
+      if (acc.bankName) lines.push('Bank Name: ' + acc.bankName);
+      if (acc.bankAddress) lines.push('Bank Addr: ' + acc.bankAddress);
+      if (acc.accountNo) lines.push('Account: ' + acc.accountNo);
+      if (acc.swift) lines.push('Swift No.: ' + acc.swift);
+      if (acc.telex) lines.push('Telex No.: ' + acc.telex);
+      return lines.join('\n');
+    }
+
     // 公司选择下拉菜单交互
     const companySelectBtn = document.getElementById('companySelectBtn');
     const companyDropdown = document.getElementById('companyDropdown');
+    const companyDropdownList = document.getElementById('companyDropdownList');
     const selectedCompany = document.getElementById('selectedCompany');
     const companyInfo = document.getElementById('companyInfo');
     const bankAccountInfo = document.getElementById('bankAccountInfo');
-    
-    // 初始化默认银行账户信息
-    bankAccountInfo.value = '江苏银行无锡新区支行 | 807010188600012106';
-    
-    companySelectBtn.addEventListener('click', () => {
+    const bankAccountSelect = document.getElementById('bankAccountSelect');
+
+    let companiesData = loadCompanies();
+    let currentCompanyName = companiesData[0] ? companiesData[0].nameCn : '';
+
+    // 渲染头部公司下拉列表
+    function renderCompanyDropdown() {
+      companyDropdownList.innerHTML = '';
+      companiesData.forEach(function (c) {
+        const li = document.createElement('li');
+        const btn = document.createElement('button');
+        btn.className = 'w-full text-left px-4 py-2 hover:bg-white/20 text-white company-option';
+        btn.style.cssText = 'font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
+        btn.dataset.value = c.nameCn;
+        btn.textContent = c.nameCn;
+        btn.addEventListener('click', function () {
+          applyCompany(c.nameCn);
+          companyDropdown.classList.add('hidden');
+        });
+        li.appendChild(btn);
+        companyDropdownList.appendChild(li);
+      });
+    }
+
+    // 应用选中公司：抬头信息 + 账户选择器 + 默认税率
+    function applyCompany(companyName) {
+      const c = companiesData.find(function (x) { return x.nameCn === companyName; });
+      if (!c) return;
+      currentCompanyName = c.nameCn;
+      selectedCompany.textContent = c.nameCn;
+
+      companyInfo.innerHTML =
+        '<p class="font-medium">' + c.nameCn + (c.nameEn ? ' | ' + c.nameEn : '') + '</p>' +
+        (c.address ? '<p><i class="fa fa-map-marker text-primary mr-2"></i>' + c.address + '</p>' : '') +
+        (c.phone ? '<p><i class="fa fa-phone text-primary mr-2"></i>' + c.phone + '</p>' : '') +
+        (c.email ? '<p><i class="fa fa-envelope text-primary mr-2"></i>' + c.email + '</p>' : '');
+
+      // 账户选择器：多个账户时显示
+      bankAccountSelect.innerHTML = '';
+      if (c.accounts.length > 1) {
+        c.accounts.forEach(function (acc, i) {
+          const opt = document.createElement('option');
+          opt.value = String(i);
+          opt.textContent = acc.label || ('账户' + (i + 1));
+          bankAccountSelect.appendChild(opt);
+        });
+        bankAccountSelect.classList.remove('hidden');
+      } else {
+        bankAccountSelect.classList.add('hidden');
+      }
+      bankAccountInfo.value = c.accounts.length ? renderAccountText(c.accounts[0]) : '';
+
+      const taxRateSelect = document.getElementById('taxRate');
+      if (taxRateSelect) {
+        taxRateSelect.value = c.taxRate || '0% (免税)';
+        taxRateSelect.dispatchEvent(new Event('change'));
+      }
+    }
+
+    bankAccountSelect.addEventListener('change', function () {
+      const c = companiesData.find(function (x) { return x.nameCn === currentCompanyName; });
+      if (!c) return;
+      const acc = c.accounts[parseInt(bankAccountSelect.value, 10)];
+      if (acc) bankAccountInfo.value = renderAccountText(acc);
+    });
+
+    companySelectBtn.addEventListener('click', function () {
       companyDropdown.classList.toggle('hidden');
     });
-    
-    // 选择公司
-    document.querySelectorAll('.company-option').forEach(option => {
-      option.addEventListener('click', () => {
-        const companyName = option.dataset.value;
-        selectedCompany.textContent = companyName;
-        
-        // 更新公司信息
-        let companyDetails = '';
-        let bankInfo = '';
-        switch(companyName) {
-          case '无锡龙力印铁设备制造有限公司':
-            companyDetails = `
-              <p class="font-medium">无锡龙力印铁设备制造有限公司 | Wuxi Longli Iron-Printing Equipment Manufacturing Co., Ltd</p>
-              <p><i class="fa fa-map-marker text-primary mr-2"></i>6-1, zhongnan gaoke industrial park, #8 zhounan road, xueyan town, wujin district, Changzhou City, Jiangsu Province, China</p>
-              <p><i class="fa fa-phone text-primary mr-2"></i>+86 139 5158 9291</p>
-              <p><i class="fa fa-envelope text-primary mr-2"></i>anny@rhssjx.com</p>
-            `;
-            bankInfo = '江苏银行无锡新区支行 | 807010188600012106';
-            break;
-          case '普利美(常州)环境工程科技有限公司':
-            companyDetails = `
-              <p class="font-medium">普利美(常州)环境工程科技有限公司 | Purimate (Changzhou) Environmental Engineering Technology Co., Ltd</p>
-              <p><i class="fa fa-map-marker text-primary mr-2"></i>6-1, zhongnan gaoke industrial park, #8 zhounan road, xueyan town, wujin district, Changzhou City, Jiangsu Province, China</p>
-              <p><i class="fa fa-phone text-primary mr-2"></i>+86 139 5158 9291</p>
-              <p><i class="fa fa-envelope text-primary mr-2"></i>anny@rhssjx.com</p>
-            `;
-            bankInfo = '中国银行常州潘家支行 | 463776505380';
-            break;
-          case '无锡市天梁对外贸易有限公司':
-            companyDetails = `
-              <p class="font-medium">无锡市天梁对外贸易有限公司 | WUXI TIANLIANG FOREIGN TRADE CO.,LTD</p>
-              <p><i class="fa fa-map-marker text-primary mr-2"></i>Room#605, XingSheng Building No.900 JieFang East Street, WuXi City,JiangSu Province,China</p>
-              <p><i class="fa fa-phone text-primary mr-2"></i>+86 186 2632 7266</p>
-              <p><i class="fa fa-envelope text-primary mr-2"></i>alonzhang76@outlook.com</p>
-            `;
-            bankInfo = 'Bank Name: BANK OF CHINA,WUXI BR\nBank Addr: 258 ZHONGSHAN ROAD, WUXI, 214001 P.R.CHINA\nAccount:　510558218196\nSwift No.: BKCHCNBJ95C\nTelex No.: 362021 WXBOC CN';
-            break;
-        }
-        companyInfo.innerHTML = companyDetails;
-        bankAccountInfo.value = bankInfo;
-        
-        // 根据公司抬头自动设置税率：普利美、龙力 选择13%（增值税），其他选择0%（免税）
-        const taxRateSelect = document.getElementById('taxRate');
-        if (taxRateSelect) {
-          if (companyName.includes('普利美') || companyName.includes('龙力')) {
-            taxRateSelect.value = '13% (增值税)';
-          } else {
-            taxRateSelect.value = '0% (免税)';
-          }
-          // 触发change事件以重新计算税费
-          taxRateSelect.dispatchEvent(new Event('change'));
-        }
-        
-        companyDropdown.classList.add('hidden');
+
+    /* ========== 公司信息管理弹窗 ========== */
+    const companyManageBtn = document.getElementById('companyManageBtn');
+    const companyManageModal = document.getElementById('companyManageModal');
+    const mgrCompanySelect = document.getElementById('mgrCompanySelect');
+    const mgrAccounts = document.getElementById('mgrAccounts');
+    let mgrEditingIndex = 0; // 弹窗中正在编辑的公司序号
+    let mgrAccountsDraft = [];
+
+    function openCompanyManager() {
+      renderMgrCompanyOptions();
+      mgrEditingIndex = companiesData.findIndex(function (c) { return c.nameCn === currentCompanyName; });
+      if (mgrEditingIndex < 0) mgrEditingIndex = 0;
+      mgrCompanySelect.value = String(mgrEditingIndex);
+      renderMgrCompanyForm();
+      companyManageModal.classList.remove('hidden');
+      document.body.classList.add('overflow-hidden');
+    }
+
+    function closeCompanyManager() {
+      companyManageModal.classList.add('hidden');
+      document.body.classList.remove('overflow-hidden');
+    }
+
+    function renderMgrCompanyOptions() {
+      mgrCompanySelect.innerHTML = '';
+      companiesData.forEach(function (c, i) {
+        const opt = document.createElement('option');
+        opt.value = String(i);
+        opt.textContent = c.nameCn || ('未命名公司 ' + (i + 1));
+        mgrCompanySelect.appendChild(opt);
       });
+    }
+
+    function accountFieldsHTML(acc) {
+      return [
+        '<div class="grid grid-cols-1 md:grid-cols-2 gap-3">',
+        '  <div><label class="block text-xs text-gray-500 mb-1">账户标签（如：人民币账户/外币账户）</label>',
+        '    <input type="text" data-acc="label" value="' + (acc.label || '').replace(/"/g, '&quot;') + '" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"></div>',
+        '  <div><label class="block text-xs text-gray-500 mb-1">开户行 | Bank Name</label>',
+        '    <input type="text" data-acc="bankName" value="' + (acc.bankName || '').replace(/"/g, '&quot;') + '" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"></div>',
+        '  <div class="md:col-span-2"><label class="block text-xs text-gray-500 mb-1">银行地址 | Bank Addr</label>',
+        '    <input type="text" data-acc="bankAddress" value="' + (acc.bankAddress || '').replace(/"/g, '&quot;') + '" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"></div>',
+        '  <div><label class="block text-xs text-gray-500 mb-1">账号 | Account</label>',
+        '    <input type="text" data-acc="accountNo" value="' + (acc.accountNo || '').replace(/"/g, '&quot;') + '" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"></div>',
+        '  <div><label class="block text-xs text-gray-500 mb-1">Swift No.</label>',
+        '    <input type="text" data-acc="swift" value="' + (acc.swift || '').replace(/"/g, '&quot;') + '" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"></div>',
+        '  <div class="md:col-span-2"><label class="block text-xs text-gray-500 mb-1">Telex No.</label>',
+        '    <input type="text" data-acc="telex" value="' + (acc.telex || '').replace(/"/g, '&quot;') + '" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"></div>',
+        '</div>'
+      ].join('');
+    }
+
+    function renderMgrAccounts() {
+      mgrAccounts.innerHTML = '';
+      mgrAccountsDraft.forEach(function (acc, i) {
+        const card = document.createElement('div');
+        card.className = 'border border-gray-200 rounded-lg p-4 bg-gray-50';
+        card.innerHTML =
+          '<div class="flex items-center justify-between mb-3">' +
+          '  <span class="text-sm font-medium text-gray-700">账户 ' + (i + 1) + '</span>' +
+          '  <button type="button" class="text-red-500 hover:text-red-700 text-sm" data-acc-del="' + i + '"><i class="fa fa-trash mr-1"></i>删除</button>' +
+          '</div>' +
+          accountFieldsHTML(acc);
+        mgrAccounts.appendChild(card);
+      });
+    }
+
+    // 从弹窗 DOM 收集账户草稿
+    function collectAccountsDraft() {
+      const cards = mgrAccounts.querySelectorAll(':scope > div');
+      mgrAccountsDraft = [];
+      cards.forEach(function (card) {
+        const acc = { label: '', bankName: '', bankAddress: '', accountNo: '', swift: '', telex: '' };
+        card.querySelectorAll('[data-acc]').forEach(function (inp) {
+          acc[inp.dataset.acc] = inp.value.trim();
+        });
+        mgrAccountsDraft.push(acc);
+      });
+    }
+
+    function renderMgrCompanyForm() {
+      const c = companiesData[mgrEditingIndex];
+      if (!c) return;
+      document.getElementById('mgrNameCn').value = c.nameCn || '';
+      document.getElementById('mgrNameEn').value = c.nameEn || '';
+      document.getElementById('mgrAddress').value = c.address || '';
+      document.getElementById('mgrPhone').value = c.phone || '';
+      document.getElementById('mgrEmail').value = c.email || '';
+      document.getElementById('mgrTaxRate').value = c.taxRate || '13% (增值税)';
+      mgrAccountsDraft = JSON.parse(JSON.stringify(c.accounts || []));
+      renderMgrAccounts();
+    }
+
+    mgrCompanySelect.addEventListener('change', function () {
+      collectAccountsDraft();
+      companiesData[mgrEditingIndex].accounts = mgrAccountsDraft;
+      mgrEditingIndex = parseInt(mgrCompanySelect.value, 10) || 0;
+      renderMgrCompanyForm();
     });
+
+    document.getElementById('mgrAddAccountBtn').addEventListener('click', function () {
+      collectAccountsDraft();
+      mgrAccountsDraft.push({ label: '', bankName: '', bankAddress: '', accountNo: '', swift: '', telex: '' });
+      renderMgrAccounts();
+    });
+
+    mgrAccounts.addEventListener('click', function (e) {
+      const delBtn = e.target.closest('[data-acc-del]');
+      if (!delBtn) return;
+      collectAccountsDraft();
+      mgrAccountsDraft.splice(parseInt(delBtn.dataset.accDel, 10), 1);
+      renderMgrAccounts();
+    });
+
+    document.getElementById('mgrAddCompanyBtn').addEventListener('click', function () {
+      collectAccountsDraft();
+      companiesData[mgrEditingIndex].accounts = mgrAccountsDraft;
+      const n = companiesData.length + 1;
+      companiesData.push(normalizeCompany({
+        id: 'custom_' + Date.now(),
+        nameCn: '新公司' + n,
+        nameEn: '', address: '', phone: '', email: '',
+        taxRate: '0% (免税)',
+        accounts: [{ label: '人民币账户', bankName: '', bankAddress: '', accountNo: '', swift: '', telex: '' }]
+      }));
+      renderMgrCompanyOptions();
+      mgrEditingIndex = companiesData.length - 1;
+      mgrCompanySelect.value = String(mgrEditingIndex);
+      renderMgrCompanyForm();
+    });
+
+    document.getElementById('mgrDeleteCompanyBtn').addEventListener('click', function () {
+      if (companiesData.length <= 1) {
+        alert('至少保留一家公司');
+        return;
+      }
+      const c = companiesData[mgrEditingIndex];
+      if (!confirm('确认删除公司"' + (c.nameCn || '') + '"？此操作不可恢复。')) return;
+      companiesData.splice(mgrEditingIndex, 1);
+      mgrEditingIndex = Math.max(0, mgrEditingIndex - 1);
+      renderMgrCompanyOptions();
+      mgrCompanySelect.value = String(mgrEditingIndex);
+      renderMgrCompanyForm();
+    });
+
+    document.getElementById('mgrSaveBtn').addEventListener('click', function () {
+      const nameCn = document.getElementById('mgrNameCn').value.trim();
+      if (!nameCn) { alert('请填写公司名称（中文）'); return; }
+      collectAccountsDraft();
+      const c = companiesData[mgrEditingIndex];
+      c.nameCn = nameCn;
+      c.nameEn = document.getElementById('mgrNameEn').value.trim();
+      c.address = document.getElementById('mgrAddress').value.trim();
+      c.phone = document.getElementById('mgrPhone').value.trim();
+      c.email = document.getElementById('mgrEmail').value.trim();
+      c.taxRate = document.getElementById('mgrTaxRate').value;
+      c.accounts = mgrAccountsDraft.filter(function (a) {
+        return a.label || a.bankName || a.bankAddress || a.accountNo || a.swift || a.telex;
+      });
+      normalizeCompany(c);
+      saveCompanies(companiesData);
+      renderCompanyDropdown();
+      // 保持当前抬头：若被改名则切换到该公司；若已删则第一家
+      if (!companiesData.some(function (x) { return x.nameCn === currentCompanyName; })) {
+        currentCompanyName = c.nameCn;
+      }
+      applyCompany(currentCompanyName === c.nameCn || !companiesData.some(function (x) { return x.nameCn === currentCompanyName; }) ? c.nameCn : currentCompanyName);
+      closeCompanyManager();
+    });
+
+    document.getElementById('mgrCancelBtn').addEventListener('click', function () {
+      companiesData = loadCompanies(); // 放弃未保存修改
+      renderCompanyDropdown();
+      closeCompanyManager();
+    });
+    document.getElementById('closeCompanyMgrBtn').addEventListener('click', function () {
+      companiesData = loadCompanies();
+      renderCompanyDropdown();
+      closeCompanyManager();
+    });
+    companyManageBtn.addEventListener('click', openCompanyManager);
+
+    // 初始化：渲染公司列表并应用默认（第一家）
+    renderCompanyDropdown();
+    applyCompany(currentCompanyName);
     
     // 点击外部关闭下拉菜单
     document.addEventListener('click', (e) => {
@@ -2182,182 +2556,56 @@
         document.body.classList.add('overflow-hidden');
       };
       
-      // 产品名称输入框自动完成功能
-      const productNameInput = document.getElementById('productName');
-      let productNameAutoCompleteList = null;
-      
-      // 创建产品名称自动完成列表
-      const createProductNameAutoComplete = () => {
-        if (!productNameAutoCompleteList) {
-          productNameAutoCompleteList = document.createElement('div');
-          productNameAutoCompleteList.className = 'absolute bg-white border border-gray-300 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto w-full';
-          productNameAutoCompleteList.style.display = 'none';
-          productNameInput.parentNode.style.position = 'relative';
-          productNameInput.parentNode.appendChild(productNameAutoCompleteList);
-        }
-      };
-      
-      // 显示产品名称自动完成列表
-      const showProductNameList = (searchTerm = '') => {
-        createProductNameAutoComplete();
-        const products = getLibraryProducts();
-        const uniqueProductNames = [...new Set(products.map(product => product.name))];
-        
-        // 根据搜索词筛选产品名称
-        const filteredNames = uniqueProductNames.filter(name => 
-          name.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-        
-        productNameAutoCompleteList.innerHTML = '';
-        
-        if (filteredNames.length > 0) {
-          productNameAutoCompleteList.style.display = 'block';
-          
-          filteredNames.forEach(name => {
-            const item = document.createElement('div');
-            item.className = 'px-4 py-2 hover:bg-gray-100 cursor-pointer';
-            item.textContent = name;
-            item.addEventListener('click', () => {
-              productNameInput.value = name;
-              productNameAutoCompleteList.style.display = 'none';
-              
-              // 填充所有字段
-              const selectedProduct = products.find(product => product.name === name);
-              if (selectedProduct) {
-                document.getElementById('productNo').value = selectedProduct.no || '';
-                document.getElementById('drawingNumber').value = selectedProduct.drawingNumber || '';
-                document.getElementById('specification').value = selectedProduct.specification || '';
-                document.getElementById('unit').value = selectedProduct.unit || '';
-                document.getElementById('unitPrice').value = selectedProduct.unitPrice || '';
-                document.getElementById('currency').value = selectedProduct.currency || 'CNY';
-                document.getElementById('remark').value = selectedProduct.remarks || '';
-              }
-            });
-            productNameAutoCompleteList.appendChild(item);
-          });
-        } else {
-          productNameAutoCompleteList.style.display = 'none';
-        }
-      };
-      
-      // 隐藏产品名称自动完成列表
-      const hideProductNameList = () => {
-        if (productNameAutoCompleteList) {
-          productNameAutoCompleteList.style.display = 'none';
-        }
-      };
-      
-      // 产品名称输入框输入事件
-      productNameInput.addEventListener('input', () => {
-        const searchTerm = productNameInput.value;
-        showProductNameList(searchTerm);
-      });
-      
-      // 产品名称输入框聚焦事件
-      productNameInput.addEventListener('focus', () => {
-        const searchTerm = productNameInput.value;
-        showProductNameList(searchTerm);
-      });
-      
-      // 点击页面其他地方隐藏自动完成列表
-      document.addEventListener('click', (e) => {
-        if (!productNameInput.contains(e.target) && !productNameAutoCompleteList?.contains(e.target)) {
-          hideProductNameList();
-        }
-      });
-      
-      // 自动完成功能实现
-      const createAutoComplete = (inputId, fieldName) => {
+      // 产品字段独立下拉（产品名称/图号/规格/单价 互不关联，选中只填本字段）
+      const bindIndependentDropdown = (inputId, optKey) => {
         const input = document.getElementById(inputId);
-        let autoCompleteList = null;
-        
-        // 创建自动完成下拉列表
-        const createList = () => {
-          if (!autoCompleteList) {
-            autoCompleteList = document.createElement('div');
-            autoCompleteList.className = 'absolute bg-white border border-gray-300 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto w-full';
-            autoCompleteList.style.display = 'none';
-            input.parentNode.style.position = 'relative';
-            input.parentNode.appendChild(autoCompleteList);
-          }
+        let listEl = null;
+
+        const ensureList = () => {
+          if (listEl) return;
+          listEl = document.createElement('div');
+          listEl.className = 'absolute bg-white border border-gray-300 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto w-full';
+          listEl.style.display = 'none';
+          input.parentNode.style.position = 'relative';
+          input.parentNode.appendChild(listEl);
         };
-        
-        // 显示自动完成列表
-        const showList = (values) => {
-          createList();
-          autoCompleteList.innerHTML = '';
-          autoCompleteList.style.display = 'block';
-          
-          values.forEach(value => {
+
+        const hideList = () => { if (listEl) listEl.style.display = 'none'; };
+
+        const showList = () => {
+          ensureList();
+          const keyword = input.value.trim().toLowerCase();
+          const values = getProductFieldOptions(optKey).filter(v =>
+            String(v).toLowerCase().includes(keyword)
+          );
+          listEl.innerHTML = '';
+          if (!values.length) { listEl.style.display = 'none'; return; }
+          values.forEach(v => {
             const item = document.createElement('div');
-            item.className = 'px-4 py-2 hover:bg-gray-100 cursor-pointer';
-            item.textContent = value;
+            item.className = 'px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm text-gray-700';
+            item.textContent = v;
             item.addEventListener('click', () => {
-              input.value = value;
-              
-              // 根据选中的字段自动填充产品所有相关字段
-              const products = getLibraryProducts();
-              let filteredProduct;
-              
-              if (fieldName === 'drawingNumber') {
-                filteredProduct = products.find(product => product.drawingNumber === value);
-              } else if (fieldName === 'productNo') {
-                filteredProduct = products.find(product => product.no === value);
-              } else if (fieldName === 'specification') {
-                const selectedName = productNameInput.value;
-                filteredProduct = products.find(product => 
-                  (product.name === selectedName || !selectedName) && product.specification === value
-                );
-              }
-              
-              // 如果找到匹配的产品，自动填充所有字段
-              if (filteredProduct) {
-                document.getElementById('productNo').value = filteredProduct.no || '';
-                document.getElementById('productName').value = filteredProduct.name || '';
-                document.getElementById('drawingNumber').value = filteredProduct.drawingNumber || '';
-                document.getElementById('specification').value = filteredProduct.specification || '';
-                document.getElementById('unit').value = filteredProduct.unit || '';
-                document.getElementById('unitPrice').value = filteredProduct.unitPrice || '';
-                document.getElementById('currency').value = filteredProduct.currency || 'CNY';
-                document.getElementById('remark').value = filteredProduct.remarks || '';
-              }
-              
-              autoCompleteList.style.display = 'none';
+              input.value = v; // 仅填充当前字段，不联动其他字段
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+              hideList();
+              input.focus();
             });
-            autoCompleteList.appendChild(item);
+            listEl.appendChild(item);
           });
+          listEl.style.display = 'block';
         };
-        
-        // 隐藏自动完成列表
-        const hideList = () => {
-          if (autoCompleteList) {
-            autoCompleteList.style.display = 'none';
-          }
-        };
-        
-        // 鼠标进入输入框时显示自动完成列表
-        input.addEventListener('mouseenter', () => {
-          const selectedName = productNameInput.value;
-          if (selectedName) {
-            const products = getLibraryProducts();
-            const filteredProducts = products.filter(product => product.name === selectedName);
-            const values = [...new Set(filteredProducts.map(product => product[fieldName]))];
-            showList(values);
-          }
-        });
-        
-        // 点击页面其他地方隐藏自动完成列表
+
+        input.addEventListener('focus', showList);
+        input.addEventListener('input', showList);
         document.addEventListener('click', (e) => {
-          if (!input.contains(e.target) && !autoCompleteList?.contains(e.target)) {
-            hideList();
-          }
+          if (!input.contains(e.target) && !(listEl && listEl.contains(e.target))) hideList();
         });
       };
-      
-      // 为产品编号、图号、规格型号输入框添加自动完成功能
-       createAutoComplete('productNo', 'no');
-       createAutoComplete('drawingNumber', 'drawingNumber');
-       createAutoComplete('specification', 'specification');
+
+      bindIndependentDropdown('productName', 'names');
+      bindIndependentDropdown('drawingNumber', 'drawings');
+      bindIndependentDropdown('specification', 'specs');
+      bindIndependentDropdown('unitPrice', 'prices');
       
       // 隐藏模态框
       const hideModal = () => {
@@ -2549,6 +2797,9 @@
         const currency = document.getElementById('currency').value || 'CNY';
         const remark = document.getElementById('remark').value;
         
+        // 积累下拉选项（产品名称/图号/规格/单价）
+        rememberProductFieldValues({ productName: productName, drawingNumber: drawingNumber, specification: specification, unitPrice: unitPrice });
+        
         // 计算金额
         const amount = quantity * unitPrice;
         
@@ -2703,7 +2954,10 @@
         const unitPrice = document.getElementById('unitPrice').value;
         const currency = document.getElementById('currency').value || 'CNY';
         const remark = document.getElementById('remark').value;
-        
+
+        // 积累下拉选项（产品名称/图号/规格/单价）
+        rememberProductFieldValues({ productName: productName, drawingNumber: drawingNumber, specification: specification, unitPrice: unitPrice });
+
         // 检查是否有数据需要保存（至少产品名称和数量不为空）
         if (productName && quantity && unitPrice) {
           // 转换为正确的数据类型
@@ -2789,54 +3043,7 @@
       // 注：已移除"点击模态框外部关闭"行为，避免误操作丢失表单数据
       // 仅保留显式关闭方式：关闭(X)按钮、取消按钮、保存按钮
       
-      // 根据产品库自动填充表单的辅助函数
-      const autoFillFromLibrary = (searchField, searchValue) => {
-        if (!searchValue) return;
-        const products = getLibraryProducts();
-        const product = products.find(p => p[searchField] === searchValue);
-        if (product) {
-          document.getElementById('productNo').value = product.no || '';
-          document.getElementById('productName').value = product.name || '';
-          document.getElementById('drawingNumber').value = product.drawingNumber || '';
-          document.getElementById('specification').value = product.specification || '';
-          document.getElementById('unit').value = product.unit || '';
-          document.getElementById('unitPrice').value = product.unitPrice || '';
-          document.getElementById('currency').value = product.currency || 'CNY';
-          document.getElementById('remark').value = product.remarks || '';
-        }
-      };
-      
-      // 产品编号失焦时自动填充
-      document.getElementById('productNo').addEventListener('blur', (e) => {
-        autoFillFromLibrary('no', e.target.value.trim());
-      });
-      
-      // 图号失焦时自动填充
-      document.getElementById('drawingNumber').addEventListener('blur', (e) => {
-        autoFillFromLibrary('drawingNumber', e.target.value.trim());
-      });
-      
-      // 规格型号失焦时自动填充（需配合产品名称）
-      document.getElementById('specification').addEventListener('blur', (e) => {
-        const specValue = e.target.value.trim();
-        if (!specValue) return;
-        const products = getLibraryProducts();
-        const productName = document.getElementById('productName').value.trim();
-        let product = products.find(p => p.specification === specValue);
-        if (!product && productName) {
-          product = products.find(p => p.name === productName && p.specification === specValue);
-        }
-        if (product) {
-          document.getElementById('productNo').value = product.no || '';
-          document.getElementById('productName').value = product.name || '';
-          document.getElementById('drawingNumber').value = product.drawingNumber || '';
-          document.getElementById('unit').value = product.unit || '';
-          document.getElementById('unitPrice').value = product.unitPrice || '';
-          document.getElementById('currency').value = product.currency || 'CNY';
-          document.getElementById('remark').value = product.remarks || '';
-        }
-      });
-      
+      // 注：产品名称/图号/规格/单价 已改为各自独立下拉，不再互相关联填充
       // 页面加载时加载产品明细数据
       loadProductDetails();
     });
@@ -3219,7 +3426,63 @@
         return defaultProducts;
       }
     };
-    
+
+    /* ========== 添加产品表单：四字段独立下拉选项（互不关联） ==========
+     * 选项来源 = 产品库 libraryProducts 现有值（实时合并） + 手工录入并保存过的值
+     */
+    const FIELD_OPTIONS_KEY = 'quotationProductFieldOptions';
+    const FIELD_OPTION_LIB_MAP = { names: 'name', drawings: 'drawingNumber', specs: 'specification', prices: 'unitPrice' };
+
+    function loadFieldOptionStore() {
+      var store = null;
+      try { store = JSON.parse(localStorage.getItem(FIELD_OPTIONS_KEY) || 'null'); } catch (e) { store = null; }
+      if (!store || typeof store !== 'object') {
+        store = { names: [], drawings: [], specs: [], prices: [] };
+      }
+      ['names', 'drawings', 'specs', 'prices'].forEach(function (k) {
+        if (!Array.isArray(store[k])) store[k] = [];
+      });
+      return store;
+    }
+
+    // 获取某字段的全部候选值（产品库 + 手工积累），去重排序
+    function getProductFieldOptions(key) {
+      var store = loadFieldOptionStore();
+      var values = (store[key] || []).slice();
+      var libField = FIELD_OPTION_LIB_MAP[key];
+      if (libField) {
+        getLibraryProducts().forEach(function (p) {
+          var v = p[libField];
+          if (v !== undefined && v !== null && v !== '') values.push(String(v));
+        });
+      }
+      var seen = {};
+      var uniq = [];
+      values.forEach(function (v) {
+        var s = String(v).trim();
+        if (!s || seen[s]) return;
+        seen[s] = true;
+        uniq.push(s);
+      });
+      uniq.sort(function (a, b) { return a.localeCompare(b, 'zh-CN', { numeric: true }); });
+      return uniq;
+    }
+
+    // 保存产品时把本次录入的新值积累进候选库
+    function rememberProductFieldValues(data) {
+      var store = loadFieldOptionStore();
+      var map = { names: data.productName, drawings: data.drawingNumber, specs: data.specification, prices: data.unitPrice };
+      var changed = false;
+      Object.keys(map).forEach(function (k) {
+        var v = map[k];
+        if (v === undefined || v === null) return;
+        var s = String(v).trim();
+        if (!s) return;
+        if (store[k].indexOf(s) === -1) { store[k].push(s); changed = true; }
+      });
+      if (changed) localStorage.setItem(FIELD_OPTIONS_KEY, JSON.stringify(store));
+    }
+
     // 排序状态变量
     let numberSortAscending = true;
     

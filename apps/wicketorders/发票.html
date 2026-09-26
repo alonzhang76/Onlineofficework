@@ -178,9 +178,15 @@
             width: 200px;
         }
         
-        /* 单位列样式 */
-        .formal-table th:nth-child(6),
-        .formal-table td:nth-child(6) {
+        /* 图号列样式：接收原产品编号列腾出的宽度 */
+        .drawing-col {
+            width: 150px;
+            max-width: 180px;
+        }
+
+        /* 单位列样式（删除产品编号列后为第5列） */
+        .formal-table th:nth-child(5),
+        .formal-table td:nth-child(5) {
             width: 80px;
             max-width: 100px;
             text-align: center;
@@ -253,9 +259,15 @@
                 width: 200px !important;
             }
             
-            /* 打印时单位列样式 */
-            .formal-table th:nth-child(6),
-            .formal-table td:nth-child(6) {
+            /* 打印时图号列样式：接收原产品编号列腾出的宽度 */
+            .drawing-col {
+                width: 130px !important;
+                max-width: 150px !important;
+            }
+
+            /* 打印时单位列样式（删除产品编号列后为第5列） */
+            .formal-table th:nth-child(5),
+            .formal-table td:nth-child(5) {
                 width: 80px !important;
                 max-width: 100px !important;
                 text-align: center !important;
@@ -558,9 +570,8 @@
                     <thead>
                         <tr>
                             <th class="text-sm">序号<br><span class="text-xs">No.</span></th>
-                            <th class="text-sm">产品编号<br><span class="text-xs">Product No.</span></th>
                             <th class="text-sm product-name-col">产品名称<br><span class="text-xs">Product Name</span></th>
-                            <th class="text-sm">图号<br><span class="text-xs">Drawing No.</span></th>
+                            <th class="text-sm drawing-col">图号<br><span class="text-xs">Drawing No.</span></th>
                             <th class="text-sm">规格型号<br><span class="text-xs">Specifications</span></th>
                             <th class="text-sm">单位<br><span class="text-xs">Unit</span></th>
                             <th class="text-sm">数量<br><span class="text-xs">Quantity</span></th>
@@ -608,6 +619,17 @@
                 <span class="font-semibold text-xs w-36">银行账户信息<br><span class="text-xs">Bank Account:</span></span>
                 <div id="bankAccountInfo" class="text-xs ml-2 font-semibold whitespace-pre-wrap" style="min-width: 200px;"></div>
             </div>
+        </div>
+
+        <!-- European agent 印章切换（与出口与报关页一致） -->
+        <div class="no-print mb-1">
+            <button type="button" onclick="toggleEuAgentImg()"
+                style="padding:4px 12px;font-size:11px;border:1px solid #000;background:#fff;cursor:pointer;border-radius:3px;">European agent</button>
+        </div>
+        <!-- 印章：height:0 + relative 保证图片展开时不占用文档流空间 -->
+        <div id="euAgentStampRow" style="display:none;height:0;overflow:visible;position:relative;z-index:20;">
+            <img src="rene.png" alt="European agent"
+                 style="position:absolute;top:2mm;left:5mm;width:100%;max-width:300px;height:auto;display:block;" />
         </div>
 
         <!-- 交货备注 -->
@@ -922,14 +944,13 @@
                 const amount = product.unitPrice * product.quantity;
                 row.innerHTML = `
                     <td>${product.serialNo}</td>
-                    <td>${product.productNo}</td>
                     <td class="product-name-cell">
                         <input type="text" value="${product.productName}" 
                                class="editable-input product-name-input" 
                                data-product-index="${index}" 
                                placeholder="产品名称">
                     </td>
-                    <td>${product.drawingNumber}</td>
+                    <td class="drawing-col">${product.drawingNumber}</td>
                     <td>${product.specification}</td>
                     <td>
                         <input type="text" value="${product.unit}" 
@@ -978,17 +999,19 @@
             });
         }
         
-        // 页面加载时填充数据
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('页面加载完成，开始填充数据...');
-            populateInvoiceData();
-        });
-        
-        // 确保DOM已经加载完成
+        // 页面加载时填充数据（仅保留一个初始化入口，避免重复执行把 sessionStorage 产品数据清空）
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', populateInvoiceData);
         } else {
             populateInvoiceData();
+        }
+    </script>
+    <script>
+        // European agent 印章显示/隐藏（与出口与报关页功能一致）
+        function toggleEuAgentImg() {
+            const row = document.getElementById('euAgentStampRow');
+            if (!row) return;
+            row.style.display = (row.style.display === 'none') ? 'block' : 'none';
         }
     </script>
 </body>
