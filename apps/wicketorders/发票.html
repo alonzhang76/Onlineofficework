@@ -626,10 +626,10 @@
             <button type="button" onclick="toggleEuAgentImg()"
                 style="padding:4px 12px;font-size:11px;border:1px solid #000;background:#fff;cursor:pointer;border-radius:3px;">European agent</button>
         </div>
-        <!-- 印章：height:0 + relative 保证图片展开时不占用文档流空间 -->
-        <div id="euAgentStampRow" style="display:none;height:0;overflow:visible;position:relative;z-index:20;">
+        <!-- 印章：正常文档流占位，展开时把下方备注/条款向下推开，不重叠 -->
+        <div id="euAgentStampRow" style="display:none;margin-bottom:8px;">
             <img src="rene.png" alt="European agent"
-                 style="position:absolute;top:2mm;left:5mm;width:100%;max-width:300px;height:auto;display:block;" />
+                 style="margin-left:5mm;width:100%;max-width:300px;height:auto;display:block;" />
         </div>
 
         <!-- 交货备注 -->
