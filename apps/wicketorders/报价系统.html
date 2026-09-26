@@ -2557,7 +2557,8 @@
       };
       
       // 产品字段独立下拉（产品名称/图号/规格/单价 互不关联，选中只填本字段）
-      const bindIndependentDropdown = (inputId, optKey) => {
+      // onSelect(value)：选中下拉项后的可选回调（用于产品名称→产品编号的单字段联动）
+      const bindIndependentDropdown = (inputId, optKey, onSelect) => {
         const input = document.getElementById(inputId);
         let listEl = null;
 
@@ -2587,6 +2588,7 @@
             item.addEventListener('click', () => {
               input.value = v; // 仅填充当前字段，不联动其他字段
               input.dispatchEvent(new Event('input', { bubbles: true }));
+              if (typeof onSelect === 'function') onSelect(v);
               hideList();
               input.focus();
             });
@@ -2602,10 +2604,25 @@
         });
       };
 
-      bindIndependentDropdown('productName', 'names');
+      // 产品名称 → 产品编号：根据产品库中该名称对应的编号自动填充（仅填编号，不联动其他字段）
+      const fillProductNoByName = (name) => {
+        if (!name) return;
+        const matched = getLibraryProducts().find(p => p.name === name);
+        if (matched && matched.no) {
+          document.getElementById('productNo').value = matched.no;
+        }
+      };
+
+      bindIndependentDropdown('productName', 'names', fillProductNoByName);
       bindIndependentDropdown('drawingNumber', 'drawings');
       bindIndependentDropdown('specification', 'specs');
       bindIndependentDropdown('unitPrice', 'prices');
+
+      // 手工输入完整产品名称后失焦，且产品编号为空时，也尝试按产品库补填编号（不覆盖已填值）
+      document.getElementById('productName').addEventListener('blur', (e) => {
+        const productNoInput = document.getElementById('productNo');
+        if (!productNoInput.value.trim()) fillProductNoByName(e.target.value.trim());
+      });
       
       // 隐藏模态框
       const hideModal = () => {
