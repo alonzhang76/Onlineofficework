@@ -413,7 +413,7 @@
             left: 50% !important;
             transform: translateX(-50%) rotate(10deg) !important;
             opacity: 0.7 !important;
-            background: white !important;
+            background: transparent !important;
             z-index: 1000 !important;
             margin: 0 !important;
             padding: 8px !important;
@@ -626,12 +626,6 @@
             <button type="button" onclick="toggleEuAgentImg()"
                 style="padding:4px 12px;font-size:11px;border:1px solid #000;background:#fff;cursor:pointer;border-radius:3px;">European agent</button>
         </div>
-        <!-- 印章：正常文档流占位，展开时把下方备注/条款向下推开，不重叠 -->
-        <div id="euAgentStampRow" style="display:none;margin-bottom:8px;">
-            <img src="rene.png" alt="European agent"
-                 style="margin-left:5mm;width:100%;max-width:300px;height:auto;display:block;" />
-        </div>
-
         <!-- 交货备注 -->
         <div class="p-4 border border-gray-200 rounded-lg mb-8">
             <div class="flex">
@@ -654,7 +648,7 @@
                 align-items: center;
                 transform: rotate(10deg);
                 opacity: 0.7;
-                background: white;
+                background: transparent;
                 z-index: 10;
                 padding: 6px;
                 box-sizing: border-box;
@@ -706,6 +700,12 @@
                 <p>3. 所有产品均受我们的标准保修条件约束。 All products are subject to our standard warranty conditions.</p>
                 <p>4. 如有任何疑问，请与我们联系。 Please contact us with any questions.</p>
             </div>
+        </div>
+
+        <!-- European agent 印章图片：置于条款与条件下方，展开时在文档流中占位 -->
+        <div id="euAgentStampRow" style="display:none;margin-bottom:8px;">
+            <img src="rene.png" alt="European agent"
+                 style="margin-left:5mm;width:100%;max-width:300px;height:auto;display:block;" />
         </div>
 
     <script>
