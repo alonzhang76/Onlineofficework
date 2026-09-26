@@ -132,6 +132,19 @@
                 height: 24mm !important;
                 padding: 4px !important;
             }
+
+            /* 打印时隐藏“总计”下方下拉框的箭头（保留所选文字） */
+            #paymentType {
+                -webkit-appearance: none !important;
+                -moz-appearance: none !important;
+                appearance: none !important;
+            }
+
+            /* 打印时隐藏云端同步状态徽标（“云端已连接”“已同步”） */
+            #__cb_sync_badge,
+            .__cs_fallback_badge {
+                display: none !important;
+            }
         }
 
         /* 渐变标题 */
