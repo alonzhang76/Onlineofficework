@@ -191,6 +191,7 @@
       // 报价系统（与 plm-work 小程序 trade 模块共用）
       'quotationRecords', 'libraryProducts', 'quotationSystemUnits',
       'quotationSystemPaymentRatios', 'quotationSystemPaymentMethods', 'quotationSystemTerms',
+      'quotation_selected_company',
       'calendarNotes',
       // 报关文件系统：成交条款自定义选项
       'customs_terms_options'],
@@ -261,7 +262,7 @@
       // 历史/双写兜底：公司级 contacts、memos（若 React 版本将其按公司隔离）
       /^[^_]+__(contacts|favoriteContacts|memos|industryTypes|industryApplications|vocabularies|hscodes|hscodeData|customColumns|gradeComparisons|calculationParams|certificateData|plateCalcData|dataCleared|userPhone)$/
     ],
-    wicketorders: ['quotation_products_', 'invoice_products_', 'contract_products_']
+    wicketorders: ['quotation_products_', 'invoice_products_', 'contract_products_', 'quotation_bank_']
   };
   var APP_KEYS = window.CLOUDBASE_APP_KEYS || _DEFAULT_APP_KEYS[APP_ID] || [];
   var APP_KEY_PREFIXES = window.CLOUDBASE_APP_KEY_PREFIXES || _DEFAULT_APP_KEY_PREFIXES[APP_ID] || [];

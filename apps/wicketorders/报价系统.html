@@ -100,10 +100,8 @@
         </button>
         
         <div id="companyDropdown" class="absolute right-0 mt-2 w-64 bg-accent rounded-lg shadow-xl hidden">
-          <ul class="py-1">
-            <li><button class="w-full text-left px-4 py-2 hover:bg-white/20 text-white company-option" style="font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" data-value="无锡龙力印铁设备制造有限公司">无锡龙力印铁设备制造有限公司</button></li>
-            <li><button class="w-full text-left px-4 py-2 hover:bg-white/20 text-white company-option" style="font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" data-value="普利美(常州)环境工程科技有限公司">普利美(常州)环境工程科技有限公司</button></li>
-            <li><button class="w-full text-left px-4 py-2 hover:bg-white/20 text-white company-option" style="font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" data-value="无锡市天梁对外贸易有限公司">无锡市天梁对外贸易有限公司</button></li>
+          <ul class="py-1" id="companyDropdownList">
+            <!-- 公司选项由 JS 从 cdg_companies 动态生成 -->
           </ul>
         </div>
       </div>
@@ -783,78 +781,165 @@
     // 公司选择下拉菜单交互
     const companySelectBtn = document.getElementById('companySelectBtn');
     const companyDropdown = document.getElementById('companyDropdown');
+    const companyDropdownList = document.getElementById('companyDropdownList');
     const selectedCompany = document.getElementById('selectedCompany');
     const companyInfo = document.getElementById('companyInfo');
     const bankAccountInfo = document.getElementById('bankAccountInfo');
-    
-    // 初始化默认银行账户信息
-    bankAccountInfo.value = '江苏银行无锡新区支行 | 807010188600012106';
-    
-    companySelectBtn.addEventListener('click', () => {
-      companyDropdown.classList.toggle('hidden');
-    });
-    
-    // 选择公司
-    document.querySelectorAll('.company-option').forEach(option => {
-      option.addEventListener('click', () => {
-        const companyName = option.dataset.value;
-        selectedCompany.textContent = companyName;
-        
-        // 更新公司信息
-        let companyDetails = '';
-        let bankInfo = '';
+
+    // 从 cdg_companies 读取公司列表（报关文件系统维护）
+    function getCdgCompanies() {
+      try {
+        return JSON.parse(localStorage.getItem('cdg_companies') || '[]');
+      } catch(e) { return []; }
+    }
+
+    // 根据公司中文名从 cdg_companies 查找匹配公司
+    function findCompanyByCnName(nameCn) {
+      const companies = getCdgCompanies();
+      // 先精确匹配
+      let c = companies.find(x => x.nameCn === nameCn);
+      if (c) return c;
+      // 再模糊匹配（cdg_companies 中 nameCn 可能带税号后缀）
+      c = companies.find(x => x.nameCn && x.nameCn.includes(nameCn));
+      if (c) return c;
+      c = companies.find(x => nameCn.includes(x.nameCn?.split('(')[0] || ''));
+      return c || null;
+    }
+
+    // 将 cdg_companies 公司数据格式化为银行账户文本
+    function formatBankInfo(c) {
+      if (!c) return '';
+      if (c.bank || c.account) {
+        let parts = [];
+        if (c.bank) parts.push('Bank Name: ' + c.bank);
+        if (c.bankAddress) parts.push('Bank Addr: ' + c.bankAddress);
+        if (c.account) parts.push('Account: ' + c.account);
+        if (c.swift) parts.push('Swift No.: ' + c.swift);
+        return parts.join('\n');
+      }
+      return '';
+    }
+
+    // 将 cdg_companies 公司数据格式化为显示HTML
+    function formatCompanyDetails(c) {
+      if (!c) return '';
+      return `
+        <p class="font-medium">${c.nameCn || ''} | ${c.nameEn || ''}</p>
+        <p><i class="fa fa-map-marker text-primary mr-2"></i>${c.address || ''}</p>
+        <p><i class="fa fa-phone text-primary mr-2"></i>${c.phone || ''}</p>
+        <p><i class="fa fa-envelope text-primary mr-2"></i>${c.email || ''}</p>
+      `;
+    }
+
+    // 动态渲染公司下拉列表
+    function renderCompanyDropdown() {
+      const companies = getCdgCompanies();
+      // 硬编码兜底：如果 cdg_companies 为空，用默认3家
+      const fallback = [
+        { nameCn: '无锡龙力印铁设备制造有限公司', nameEn: 'Wuxi Longli Iron-Printing Equipment Manufacturing Co., Ltd', address: '6-1, zhongnan gaoke industrial park, #8 zhounan road, xueyan town, wujin district, Changzhou City, Jiangsu Province, China', phone: '+86 139 5158 9291', email: 'anny@rhssjx.com', bank: '江苏银行无锡新区支行', account: '807010188600012106' },
+        { nameCn: '普利美(常州)环境工程科技有限公司', nameEn: 'Purimate (Changzhou) Environmental Engineering Technology Co., Ltd', address: '6-1, zhongnan gaoke industrial park, #8 zhounan road, xueyan town, wujin district, Changzhou City, Jiangsu Province, China', phone: '+86 139 5158 9291', email: 'anny@rhssjx.com', bank: '中国银行常州潘家支行', account: '463776505380' },
+        { nameCn: '无锡市天梁对外贸易有限公司', nameEn: 'WUXI TIANLIANG FOREIGN TRADE CO.,LTD', address: 'Room#605, XingSheng Building No.900 JieFang East Street, WuXi City,JiangSu Province,China', phone: '+86 186 2632 7266', email: 'alonzhang76@outlook.com', bank: 'BANK OF CHINA,WUXI BR', bankAddress: '258 ZHONGSHAN ROAD, WUXI, 214001 P.R.CHINA', account: '510558218196', swift: 'BKCHCNBJ95C' }
+      ];
+      const list = companies.length ? companies : fallback;
+      companyDropdownList.innerHTML = list.map(c => {
+        const displayName = (c.nameCn || '').split('(')[0]; // 去掉税号后缀
+        return `<li><button class="w-full text-left px-4 py-2 hover:bg-white/20 text-white company-option" style="font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" data-value="${displayName}" data-id="${c.id || ''}">${displayName}</button></li>`;
+      }).join('');
+      // 重新绑定点击事件
+      companyDropdownList.querySelectorAll('.company-option').forEach(option => {
+        option.addEventListener('click', () => {
+          const companyName = option.dataset.value;
+          selectedCompany.textContent = companyName;
+          selectCompanyByName(companyName);
+          companyDropdown.classList.add('hidden');
+        });
+      });
+    }
+
+    // 根据公司名选中并填充信息
+    function selectCompanyByName(companyName) {
+      const c = findCompanyByCnName(companyName);
+      if (c) {
+        companyInfo.innerHTML = formatCompanyDetails(c);
+        bankAccountInfo.value = formatBankInfo(c);
+      } else {
+        // 硬编码兜底
         switch(companyName) {
           case '无锡龙力印铁设备制造有限公司':
-            companyDetails = `
+            companyInfo.innerHTML = `
               <p class="font-medium">无锡龙力印铁设备制造有限公司 | Wuxi Longli Iron-Printing Equipment Manufacturing Co., Ltd</p>
               <p><i class="fa fa-map-marker text-primary mr-2"></i>6-1, zhongnan gaoke industrial park, #8 zhounan road, xueyan town, wujin district, Changzhou City, Jiangsu Province, China</p>
               <p><i class="fa fa-phone text-primary mr-2"></i>+86 139 5158 9291</p>
               <p><i class="fa fa-envelope text-primary mr-2"></i>anny@rhssjx.com</p>
             `;
-            bankInfo = '江苏银行无锡新区支行 | 807010188600012106';
+            bankAccountInfo.value = '江苏银行无锡新区支行 | 807010188600012106';
             break;
           case '普利美(常州)环境工程科技有限公司':
-            companyDetails = `
+            companyInfo.innerHTML = `
               <p class="font-medium">普利美(常州)环境工程科技有限公司 | Purimate (Changzhou) Environmental Engineering Technology Co., Ltd</p>
               <p><i class="fa fa-map-marker text-primary mr-2"></i>6-1, zhongnan gaoke industrial park, #8 zhounan road, xueyan town, wujin district, Changzhou City, Jiangsu Province, China</p>
               <p><i class="fa fa-phone text-primary mr-2"></i>+86 139 5158 9291</p>
               <p><i class="fa fa-envelope text-primary mr-2"></i>anny@rhssjx.com</p>
             `;
-            bankInfo = '中国银行常州潘家支行 | 463776505380';
+            bankAccountInfo.value = '中国银行常州潘家支行 | 463776505380';
             break;
           case '无锡市天梁对外贸易有限公司':
-            companyDetails = `
+            companyInfo.innerHTML = `
               <p class="font-medium">无锡市天梁对外贸易有限公司 | WUXI TIANLIANG FOREIGN TRADE CO.,LTD</p>
               <p><i class="fa fa-map-marker text-primary mr-2"></i>Room#605, XingSheng Building No.900 JieFang East Street, WuXi City,JiangSu Province,China</p>
               <p><i class="fa fa-phone text-primary mr-2"></i>+86 186 2632 7266</p>
               <p><i class="fa fa-envelope text-primary mr-2"></i>alonzhang76@outlook.com</p>
             `;
-            bankInfo = 'Bank Name: BANK OF CHINA,WUXI BR\nBank Addr: 258 ZHONGSHAN ROAD, WUXI, 214001 P.R.CHINA\nAccount:　510558218196\nSwift No.: BKCHCNBJ95C\nTelex No.: 362021 WXBOC CN';
+            bankAccountInfo.value = 'Bank Name: BANK OF CHINA,WUXI BR\nBank Addr: 258 ZHONGSHAN ROAD, WUXI, 214001 P.R.CHINA\nAccount: 510558218196\nSwift No.: BKCHCNBJ95C\nTelex No.: 362021 WXBOC CN';
             break;
         }
-        companyInfo.innerHTML = companyDetails;
-        bankAccountInfo.value = bankInfo;
-        
-        // 根据公司抬头自动设置税率：普利美、龙力 选择13%（增值税），其他选择0%（免税）
-        const taxRateSelect = document.getElementById('taxRate');
-        if (taxRateSelect) {
-          if (companyName.includes('普利美') || companyName.includes('龙力')) {
-            taxRateSelect.value = '13% (增值税)';
-          } else {
-            taxRateSelect.value = '0% (免税)';
-          }
-          // 触发change事件以重新计算税费
-          taxRateSelect.dispatchEvent(new Event('change'));
+      }
+      // 根据公司抬头自动设置税率
+      const taxRateSelect = document.getElementById('taxRate');
+      if (taxRateSelect) {
+        if (companyName.includes('普利美') || companyName.includes('龙力')) {
+          taxRateSelect.value = '13% (增值税)';
+        } else {
+          taxRateSelect.value = '0% (免税)';
         }
-        
-        companyDropdown.classList.add('hidden');
-      });
+        taxRateSelect.dispatchEvent(new Event('change'));
+      }
+      // 保存当前选中公司到 localStorage（供云端同步）
+      localStorage.setItem('quotation_selected_company', companyName);
+    }
+
+    // 初始化：渲染公司下拉并恢复上次选中
+    renderCompanyDropdown();
+    const savedCompany = localStorage.getItem('quotation_selected_company');
+    if (savedCompany) {
+      selectedCompany.textContent = savedCompany;
+      selectCompanyByName(savedCompany);
+    } else {
+      // 默认选中第一个公司
+      const firstCompany = companyDropdownList.querySelector('.company-option');
+      if (firstCompany) {
+        const name = firstCompany.dataset.value;
+        selectedCompany.textContent = name;
+        selectCompanyByName(name);
+      }
+    }
+
+    companySelectBtn.addEventListener('click', () => {
+      companyDropdown.classList.toggle('hidden');
     });
-    
+
     // 点击外部关闭下拉菜单
     document.addEventListener('click', (e) => {
       if (!companySelectBtn.contains(e.target) && !companyDropdown.contains(e.target)) {
         companyDropdown.classList.add('hidden');
+      }
+    });
+
+    // 银行账户信息修改后自动保存（按当前公司存储）
+    bankAccountInfo.addEventListener('input', () => {
+      const currentCompany = selectedCompany.textContent;
+      if (currentCompany) {
+        localStorage.setItem('quotation_bank_' + currentCompany, bankAccountInfo.value);
       }
     });
     

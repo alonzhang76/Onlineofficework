@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 	<script>window.SUPABASE_APP_ID='wicketorders';</script>
@@ -376,14 +376,17 @@
 </head>
 <body class="bg-gray-50">
     <!-- 打印控制按钮 -->
-    <div class="fixed top-4 right-4 no-print">
+    <div class="fixed top-4 right-4 no-print flex gap-2">
+        <button id="exportPdfBtn" title="导出 PDF" class="px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center shadow-lg">
+            <i class="fa fa-file-pdf"></i>
+        </button>
         <button id="printBtn" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center shadow-lg">
             <i class="fa fa-print mr-2"></i>Print
         </button>
     </div>
 
     <!-- 报价单容器 -->
-    <div class="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg">
+    <div id="quotationContent" class="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg">
         <!-- 顶部公司名称 -->
         <div class="text-center mb-8">
             <div class="text-2xl font-bold mb-4" id="companyName"></div>
@@ -562,7 +565,11 @@
                 <p>4. 所有产品均受我们的标准保修条件约束。 All products are subject to our standard warranty conditions.</p>
             </div>
         </div>
+    </div>
 
+    <!-- 导出 PDF 依赖（本地库，不经打印机驱动） -->
+    <script src="html2canvas.min.js"></script>
+    <script src="jspdf.umd.min.js"></script>
     <script>
         // 格式化数字为千分位格式
         function formatNumber(num) {
@@ -769,6 +776,86 @@
         // 打印按钮事件
         document.getElementById('printBtn').addEventListener('click', () => {
             window.print();
+        });
+
+        // 导出 PDF 按钮事件（html2canvas + jsPDF，直接下载，不经任何打印机驱动）
+        document.getElementById('exportPdfBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('exportPdfBtn');
+            const icon = btn.querySelector('i');
+            const originalIcon = icon.className;
+            btn.disabled = true;
+            icon.className = 'fa fa-spinner fa-spin';
+            try {
+                const source = document.getElementById('quotationContent');
+
+                // html2canvas 不渲染 input 的实时 value，克隆时把输入框替换为静态 span
+                const canvas = await html2canvas(source, {
+                    scale: 2,
+                    backgroundColor: '#ffffff',
+                    useCORS: true,
+                    logging: false,
+                    onclone: (clonedDoc) => {
+                        clonedDoc.getElementById('quotationContent').querySelectorAll('input').forEach(inp => {
+                            const span = clonedDoc.createElement('span');
+                            span.className = inp.className;
+                            span.style.cssText = inp.style.cssText;
+                            span.style.display = 'inline-block';
+                            span.style.width = '100%';
+                            span.style.boxSizing = 'border-box';
+                            span.textContent = inp.value || '';
+                            inp.parentNode.replaceChild(span, inp);
+                        });
+                    }
+                });
+
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+                // A4: 210 x 297mm，边距与打印样式一致（左右/上 5mm，下 15mm 留给页脚）
+                const pageW = 210, pageH = 297;
+                const marginX = 5, marginTop = 5, marginBottom = 15;
+                const contentW = pageW - marginX * 2;
+                const contentH = pageH - marginTop - marginBottom;
+                const pxPerMm = canvas.width / contentW;
+                const pageChunkPx = Math.floor(contentH * pxPerMm);
+                const totalPages = Math.ceil(canvas.height / pageChunkPx);
+
+                const now = new Date();
+                const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+                let rendered = 0;
+                for (let pageIndex = 0; rendered < canvas.height; pageIndex++) {
+                    const chunkH = Math.min(pageChunkPx, canvas.height - rendered);
+                    const pageCanvas = document.createElement('canvas');
+                    pageCanvas.width = canvas.width;
+                    pageCanvas.height = chunkH;
+                    const ctx = pageCanvas.getContext('2d');
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+                    ctx.drawImage(canvas, 0, rendered, canvas.width, chunkH, 0, 0, canvas.width, chunkH);
+
+                    if (pageIndex > 0) pdf.addPage();
+                    pdf.addImage(pageCanvas.toDataURL('image/png'), 'PNG', marginX, marginTop, contentW, chunkH / pxPerMm);
+
+                    // 页脚：Quoted By AlonZhang + 页码 + 日期
+                    pdf.setFontSize(8);
+                    pdf.setTextColor(153, 153, 153);
+                    pdf.text('Quoted By AlonZhang', marginX, pageH - 7);
+                    pdf.text(`Page ${pageIndex + 1} / ${totalPages}`, pageW / 2, pageH - 7, { align: 'center' });
+                    pdf.text(dateStr, pageW - marginX, pageH - 7, { align: 'right' });
+
+                    rendered += chunkH;
+                }
+
+                const quoteNo = (document.getElementById('quoteNo').textContent || '').trim().replace(/[\\/:*?"<>|]+/g, '_');
+                pdf.save(quoteNo ? `Formal_Quotation_${quoteNo}.pdf` : 'Formal Quotation.pdf');
+            } catch (err) {
+                console.error('导出 PDF 失败:', err);
+                alert('导出 PDF 失败：' + err.message);
+            } finally {
+                btn.disabled = false;
+                icon.className = originalIcon;
+            }
         });
 
         // 页面加载时填充数据

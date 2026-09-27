@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>外贸出口单据生成系统</title>
+<style>
+  :root{
+    --primary:#1a5276; --primary-light:#eaf2f8; --accent:#c0392b;
+    --border:#d5d8dc; --bg:#f4f6f7; --text:#2c3e50;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:Arial,"Microsoft YaHei","微软雅黑",sans-serif;background:var(--bg);color:var(--text);font-size:14px;}
+  header{background:var(--primary);color:#fff;padding:14px 24px;display:flex;justify-content:space-between;align-items:center;}
+  header h1{font-size:20px;font-weight:600;}
+  header .tools button{margin-left:8px;}
+  .layout{display:flex;min-height:calc(100vh - 54px);}
+  aside{width:230px;background:#fff;border-right:1px solid var(--border);padding:16px 0;}
+  aside h3{padding:0 16px 8px;font-size:12px;color:#7f8c8d;text-transform:uppercase;letter-spacing:1px;}
+  .nav-item{padding:11px 16px;cursor:pointer;border-left:3px solid transparent;}
+  .nav-item:hover{background:var(--primary-light);}
+  .nav-item.active{background:var(--primary-light);border-left-color:var(--primary);font-weight:600;color:var(--primary);}
+  main{flex:1;padding:20px 24px;max-width:1100px;}
+  .card{background:#fff;border:1px solid var(--border);border-radius:6px;padding:18px 20px;margin-bottom:18px;}
+  .card h2{font-size:16px;margin-bottom:14px;color:var(--primary);border-bottom:2px solid var(--primary-light);padding-bottom:8px;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;}
+  .field label{display:block;font-size:12px;color:#566573;margin-bottom:4px;}
+  .field input,.field select,.field textarea{width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:4px;font-size:13px;font-family:inherit;}
+  .field textarea{resize:vertical;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{background:var(--primary-light);color:var(--primary);padding:8px 6px;border:1px solid var(--border);font-weight:600;}
+  td{padding:6px;border:1px solid var(--border);}
+  td input{width:100%;border:none;padding:4px;font-size:13px;background:transparent;}
+  td input:focus{outline:2px solid var(--primary);border-radius:2px;background:#fff;}
+  .num{text-align:right;}
+  .btn{padding:7px 16px;border:none;border-radius:4px;cursor:pointer;font-size:13px;}
+  .btn-primary{background:var(--primary);color:#fff;}
+  .btn-outline{background:#fff;border:1px solid var(--primary);color:var(--primary);}
+  .btn-danger{background:#fff;border:1px solid var(--accent);color:var(--accent);}
+  .btn-sm{padding:3px 10px;font-size:12px;}
+  .hint{font-size:12px;color:#7f8c8d;margin-top:6px;}
+  .doc-actions{margin-bottom:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+  .checkbox-list label{margin-right:16px;font-size:13px;cursor:pointer;}
+  /* ===== 打印单据样式 (A4) ===== */
+  .doc-sheet{background:#fff;width:210mm;min-height:296mm;margin:0 auto 24px;padding:14mm 12mm;border:1px solid var(--border);box-shadow:0 1px 4px rgba(0,0,0,.08);}
+  .doc-sheet .doc-title{text-align:center;font-size:20px;font-weight:700;letter-spacing:2px;margin:6mm 0 2mm;}
+  .doc-sheet .doc-title-en{text-align:center;font-size:15px;letter-spacing:1px;margin-bottom:5mm;color:#555;}
+  .doc-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4mm;}
+  .doc-head .company{font-size:16px;font-weight:700;}
+  .doc-head .company small{display:block;font-weight:400;font-size:11px;color:#555;line-height:1.5;margin-top:2px;}
+  .meta-tb{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:4mm;}
+  .meta-tb td,.meta-tb th{border:1px solid #333;padding:2mm 3mm;vertical-align:top;}
+  .meta-tb th{text-align:left;font-weight:600;background:#f5f5f5;}
+  .doc-tb{width:100%;border-collapse:collapse;font-size:12px;}
+  .doc-tb th,.doc-tb td{border:1px solid #333;padding:2mm 2.5mm;}
+  .doc-tb th{background:#f0f0f0;text-align:center;font-weight:600;}
+  .doc-tb .num{text-align:right;}
+  .doc-tb .ctr{text-align:center;}
+  .doc-tb .end-row td{border-top:1px solid #333;}
+  .doc-foot{margin-top:8mm;display:flex;justify-content:space-between;font-size:12px;}
+  .doc-foot .sig{text-align:center;width:40%;}
+  .doc-foot .sig .line{margin-top:18mm;border-top:1px solid #333;}
+  .doc-clause{font-size:12px;line-height:1.7;margin-top:5mm;}
+  .doc-clause h4{margin:3mm 0 1mm;}
+  #printArea{display:none;}
+  @media print{
+    body *{visibility:hidden;}
+    #printArea,#printArea *{visibility:visible;}
+    #printArea{display:block;position:absolute;left:0;top:0;width:100%;}
+    .doc-sheet{border:none;box-shadow:none;page-break-after:always;margin:0;}
+    @page{size:A4;margin:8mm;}
+  }
+  .toast{position:fixed;top:70px;right:24px;background:#27ae60;color:#fff;padding:10px 18px;border-radius:4px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:99;}
+  .toast.show{opacity:1;}
+  .elem-table{border-collapse:collapse;width:100%;font-size:12px;}
+  .elem-table th{background:var(--primary-light);color:var(--primary);padding:6px;border:1px solid var(--border);font-weight:600;}
+  .elem-table td{border:1px solid var(--border);padding:6px;}
+  .elem-table textarea{width:100%;border:1px solid var(--border);border-radius:3px;padding:5px;font-size:12px;font-family:inherit;resize:vertical;}
+  .doc-cn{font-family:Arial,"SimSun","宋体","Microsoft YaHei",serif;}
+  .doc-cn .doc-title{font-family:Arial,"SimHei","黑体","Microsoft YaHei",sans-serif;}
+  .doc-cn .meta-tb th{background:#f7f7f7;font-weight:600;}
+  .doc-cn .doc-tb th{background:#f2f2f2;}
+</style>
+</head>
+<body>
+<header>
+  <h1>📦 外贸出口单据生成系统</h1>
+  <div class="tools">
+    <button class="btn btn-outline" style="border-color:#fff;color:#fff;" onclick="exportData()">导出数据</button>
+    <button class="btn btn-outline" style="border-color:#fff;color:#fff;" onclick="document.getElementById('importFile').click()">导入数据</button>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(this)">
+  </div>
+</header>
+
+<div class="layout">
+  <aside>
+    <h3>基础数据录入</h3>
+    <div class="nav-item active" data-tab="basic">🏢 出口商 / 进口商</div>
+    <div class="nav-item" data-tab="trade">🚢 交易条款与运输</div>
+    <div class="nav-item" data-tab="goods">📋 商品明细</div>
+    <div class="nav-item" data-tab="customs">🛃 报关信息</div>
+    <h3 style="margin-top:14px;">单据生成与打印</h3>
+    <div class="nav-item" data-tab="docs">🖨️ 生成单据</div>
+  </aside>
+
+  <main>
+    <!-- 出口商/进口商 -->
+    <section id="tab-basic" class="tab">
+      <div class="card">
+        <h2>出口商信息 (Exporter / Shipper)</h2>
+        <div class="grid">
+          <div class="field"><label>公司名称（英文）</label><input id="exp_name" oninput="save()"></div>
+          <div class="field"><label>地址（英文）</label><input id="exp_addr" oninput="save()"></div>
+          <div class="field"><label>电话 / 传真</label><input id="exp_tel" oninput="save()"></div>
+          <div class="field"><label>邮箱</label><input id="exp_email" oninput="save()"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>进口商信息 (Importer / Consignee)</h2>
+        <div class="grid">
+          <div class="field"><label>公司名称（英文）</label><input id="imp_name" oninput="save()"></div>
+          <div class="field"><label>地址（英文）</label><input id="imp_addr" oninput="save()"></div>
+          <div class="field"><label>联系人 / 电话</label><input id="imp_tel" oninput="save()"></div>
+          <div class="field"><label>邮箱</label><input id="imp_email" oninput="save()"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 交易条款 -->
+    <section id="tab-trade" class="tab" style="display:none">
+      <div class="card">
+        <h2>交易条款 (Trade Terms)</h2>
+        <div class="grid">
+          <div class="field"><label>发票号码 (Invoice No.)</label><input id="inv_no" oninput="save()"></div>
+          <div class="field"><label>发票日期 (Invoice Date)</label><input type="date" id="inv_date" oninput="save()"></div>
+          <div class="field"><label>合同号 (S/C No.)</label><input id="sc_no" oninput="save()"></div>
+          <div class="field"><label>信用证号 (L/C No.)</label><input id="lc_no" oninput="save()"></div>
+          <div class="field"><label>贸易术语 (Incoterms)</label>
+            <select id="term" onchange="save()">
+              <option>FOB</option><option>CIF</option><option>CFR</option>
+              <option>EXW</option><option>FCA</option><option>CPT</option><option>CIP</option><option>DAP</option><option>DDP</option>
+            </select>
+          </div>
+          <div class="field"><label>术语附加港口，如 FOB SHANGHAI</label><input id="term_port" oninput="save()" placeholder="SHANGHAI, CHINA"></div>
+          <div class="field"><label>币种 (Currency)</label>
+            <select id="currency" onchange="save()">
+              <option value="USD">USD 美元</option><option value="EUR">EUR 欧元</option>
+              <option value="CNY">CNY 人民币</option><option value="JPY">JPY 日元</option><option value="GBP">GBP 英镑</option>
+            </select>
+          </div>
+          <div class="field"><label>付款方式 (Payment)</label>
+            <select id="payment" onchange="save()">
+              <option>T/T</option><option>L/C AT SIGHT</option><option>D/P</option><option>D/A</option><option>OA</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>运输信息 (Shipment)</h2>
+        <div class="grid">
+          <div class="field"><label>起运港 (Port of Loading)</label><input id="pol" oninput="save()" placeholder="SHANGHAI, CHINA"></div>
+          <div class="field"><label>目的港 (Port of Discharge)</label><input id="pod" oninput="save()"></div>
+          <div class="field"><label>唛头 (Shipping Marks)</label><textarea id="marks" rows="3" oninput="save()"></textarea></div>
+          <div class="field"><label>原产国 (Country of Origin)</label><input id="origin" oninput="save()" value="CHINA"></div>
+          <div class="field"><label>装运期 (Latest Shipment Date)</label><input type="date" id="ship_date" oninput="save()"></div>
+          <div class="field"><label>是否允许分批/转运</label><input id="transit" oninput="save()" value="PARTIAL SHIPMENT AND TRANSSHIPMENT NOT ALLOWED"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 商品明细 -->
+    <section id="tab-goods" class="tab" style="display:none">
+      <div class="card">
+        <h2>商品明细 (Goods Items)</h2>
+        <table id="goodsTable">
+          <thead><tr>
+            <th style="width:36px">#</th><th style="width:90px">货号<br>Item No.</th><th>品名规格<br>Description</th>
+            <th style="width:80px">HS编码</th><th style="width:70px">数量<br>Qty</th><th style="width:60px">单位</th>
+            <th style="width:80px">单价</th><th style="width:90px">金额</th>
+            <th style="width:80px">净重kg<br>合计</th><th style="width:80px">毛重kg<br>合计</th><th style="width:60px">箱数<br>CTNS</th><th style="width:70px">体积CBM</th><th style="width:44px"></th>
+          </tr></thead>
+          <tbody id="goodsBody"></tbody>
+        </table>
+        <div style="margin-top:10px;display:flex;gap:10px;">
+          <button class="btn btn-primary" onclick="addRow()">+ 添加商品</button>
+          <button class="btn btn-outline" onclick="recalcAll()">重新计算汇总</button>
+        </div>
+        <p class="hint">💡 填写"数量、单价、净重/毛重(单件或合计均可识别)、箱数、体积"，系统自动计算金额与总计。</p>
+      </div>
+      <div class="card">
+        <h2>汇总信息（自动计算，可手动微调）</h2>
+        <div class="grid">
+          <div class="field"><label>总金额 (Total Amount)</label><input id="total_amt" oninput="save()"></div>
+          <div class="field"><label>总箱数 (Total CTNS)</label><input id="total_ctns" oninput="save()"></div>
+          <div class="field"><label>总净重 (Total N.W.)</label><input id="total_nw" oninput="save()"></div>
+          <div class="field"><label>总毛重 (Total G.W.)</label><input id="total_gw" oninput="save()"></div>
+          <div class="field"><label>总体积 (Total CBM)</label><input id="total_cbm" oninput="save()"></div>
+          <div class="field"><label>大写金额 (Amount in Words)</label><input id="amt_words" oninput="save()" placeholder="自动生成，可修改"></div>
+        </div>
+        <div style="margin-top:10px"><button class="btn btn-primary" onclick="summarize(false)">自动汇总</button></div>
+      </div>
+    </section>
+
+    <!-- 报关信息 -->
+    <section id="tab-customs" class="tab" style="display:none">
+      <div class="card">
+        <h2>报关单抬头信息（中华人民共和国海关出口货物报关单）</h2>
+        <div class="grid">
+          <div class="field"><label>境内发货人（中文名称）</label><input id="cde_exp_cn" oninput="save()"></div>
+          <div class="field"><label>海关编码（10位）</label><input id="cde_exp_code" oninput="save()"></div>
+          <div class="field"><label>统一社会信用代码</label><input id="cde_uscc" oninput="save()"></div>
+          <div class="field"><label>境外收货人（中/英文名称）</label><input id="cde_imp_cn" oninput="save()"></div>
+          <div class="field"><label>境外收货人编码（无则留空）</label><input id="cde_imp_code" oninput="save()"></div>
+          <div class="field"><label>出口日期</label><input type="date" id="cde_export_date" oninput="save()"></div>
+          <div class="field"><label>申报日期</label><input type="date" id="cde_decl_date" oninput="save()"></div>
+          <div class="field"><label>备案号</label><input id="cde_record_no" oninput="save()"></div>
+          <div class="field"><label>运输方式</label>
+            <select id="cde_trans_mode" onchange="save()">
+              <option>江海运输</option><option>航空运输</option><option>铁路运输</option><option>公路运输</option><option>其他运输</option>
+            </select>
+          </div>
+          <div class="field"><label>提运单号（B/L No.）</label><input id="cde_bl_no" oninput="save()"></div>
+          <div class="field"><label>监管方式</label>
+            <select id="cde_supervise" onchange="save()">
+              <option>一般贸易(0110)</option><option>进料加工(0615)</option><option>来料加工(0214)</option><option>其他(9900)</option>
+            </select>
+          </div>
+          <div class="field"><label>征免性质</label>
+            <select id="cde_duty_nature" onchange="save()"><option>一般征税</option><option>其他法定</option><option>免税</option><option>加工设备</option></select>
+          </div>
+          <div class="field"><label>许可证号</label><input id="cde_license" oninput="save()"></div>
+          <div class="field"><label>运抵国（地区）</label><input id="cde_dest_country" oninput="save()" placeholder="如：美国"></div>
+          <div class="field"><label>指运港</label><input id="cde_dest_port" oninput="save()" placeholder="如：洛杉矶"></div>
+          <div class="field"><label>离境口岸</label><input id="cde_exit_port" oninput="save()" placeholder="如：上海洋山港"></div>
+          <div class="field"><label>成交方式</label>
+            <select id="cde_trade_mode" onchange="save()"><option>CIF</option><option>CFR</option><option>FOB</option><option>市场价</option></select>
+          </div>
+          <div class="field"><label>运费（如 USD 1500，无则留空）</label><input id="cde_freight" oninput="save()"></div>
+          <div class="field"><label>保费（如 USD 120，无则留空）</label><input id="cde_insurance" oninput="save()"></div>
+          <div class="field"><label>包装种类</label>
+            <select id="cde_pack_type" onchange="save()"><option>纸箱</option><option>木箱</option><option>托盘</option><option>散装</option><option>其他</option></select>
+          </div>
+          <div class="field"><label>集装箱号（无则留空）</label><input id="cde_container" oninput="save()" placeholder="如：TGHU1234567*1(1)"></div>
+          <div class="field"><label>随附单证及编号</label><input id="cde_docs" oninput="save()"></div>
+        </div>
+        <p class="hint">件数、毛重、净重、合同号、唛头自动取自"商品明细"与"交易条款"页签。</p>
+      </div>
+      <div class="card">
+        <h2>申报要素（按商品逐条填写）</h2>
+        <div style="display:flex;gap:10px;margin-bottom:10px;">
+          <button class="btn btn-outline" onclick="renderElementsInputs()">按商品清单刷新</button>
+          <button class="btn btn-outline" onclick="fillElementTemplate()">为未填商品填入常用模板</button>
+        </div>
+        <div id="elemList"></div>
+        <p class="hint">💡 常规出口要素顺序：品牌类型；出口享惠情况；材质；成分含量；品牌；型号；用途。具体以海关商品编码规范申报要求为准。</p>
+      </div>
+    </section>
+
+    <!-- 生成单据 -->
+    <section id="tab-docs" class="tab" style="display:none">
+      <div class="card">
+        <h2>选择要生成的单据</h2>
+        <div class="doc-actions checkbox-list">
+          <label><input type="checkbox" id="d_inv" checked> 商业发票 Commercial Invoice</label>
+          <label><input type="checkbox" id="d_pl" checked> 装箱单 Packing List</label>
+          <label><input type="checkbox" id="d_pi"> 形式发票 Proforma Invoice</label>
+          <label><input type="checkbox" id="d_sc"> 销售合同 Sales Contract</label>
+          <label><input type="checkbox" id="d_bl"> 提单 Bill of Lading</label>
+          <label><input type="checkbox" id="d_sa"> 装船通知 Shipping Advice</label>
+          <label><input type="checkbox" id="d_cd" checked> 出口报关单 Customs Declaration</label>
+          <label><input type="checkbox" id="d_de" checked> 申报要素 Declaration Elements</label>
+        </div>
+        <div class="doc-actions">
+          <button class="btn btn-primary" onclick="generateDocs()">生成单据预览</button>
+          <button class="btn btn-outline" onclick="printDocs()">🖨️ 打印 / 导出 PDF</button>
+          <button class="btn btn-outline" onclick="window.print()">打印当前页面</button>
+        </div>
+        <p class="hint">打印时请在浏览器打印对话框中选择"另存为 PDF"，纸张 A4，边距默认。</p>
+      </div>
+      <div id="docPreview"></div>
+    </section>
+  </main>
+</div>
+
+<div id="printArea"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= 数据与持久化 ================= */
+const FIELDS = ["exp_name","exp_addr","exp_tel","exp_email","imp_name","imp_addr","imp_tel","imp_email",
+  "inv_no","inv_date","sc_no","lc_no","term_port","ship_date","transit","pol","pod","marks","origin",
+  "total_amt","total_ctns","total_nw","total_gw","total_cbm","amt_words",
+  "cde_exp_cn","cde_exp_code","cde_uscc","cde_imp_cn","cde_imp_code","cde_export_date","cde_decl_date",
+  "cde_record_no","cde_bl_no","cde_license","cde_dest_country","cde_dest_port","cde_exit_port",
+  "cde_freight","cde_insurance","cde_container","cde_docs"];
+const SELS = ["term","currency","payment","cde_trans_mode","cde_supervise","cde_duty_nature","cde_trade_mode","cde_pack_type"];
+let ELEMENTS=[];
+
+function collectData(){
+  const d={};
+  FIELDS.forEach(f=>d[f]=document.getElementById(f).value);
+  SELS.forEach(f=>d[f]=document.getElementById(f).value);
+  d.goods=[];
+  document.querySelectorAll("#goodsBody tr").forEach(tr=>{
+    const g={}; tr.querySelectorAll("input").forEach(inp=>g[inp.dataset.k]=inp.value);
+    if(Object.values(g).some(v=>v)) d.goods.push(g);
+  });
+  d.elements=ELEMENTS.slice();
+  return d;
+}
+function save(){
+  localStorage.setItem("exportDocsData",JSON.stringify(collectData()));
+  summarize(true);
+}
+function loadData(){
+  let d; try{ d=JSON.parse(localStorage.getItem("exportDocsData")||"{}"); }catch(e){ d={}; }
+  FIELDS.forEach(f=>{ if(d[f]!==undefined) document.getElementById(f).value=d[f]; });
+  SELS.forEach(f=>{ if(d[f]!==undefined) document.getElementById(f).value=d[f]; });
+  ELEMENTS=(d.elements&&Array.isArray(d.elements))?d.elements.slice():[];
+  (d.goods&&d.goods.length?d.goods:[{}]).forEach(g=>addRow(g));
+  renderElementsInputs();
+}
+function exportData(){
+  const blob=new Blob([JSON.stringify(collectData(),null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download="export-docs-data.json"; a.click();
+  toast("数据已导出");
+}
+function importData(input){
+  const f=input.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{ try{
+      localStorage.setItem("exportDocsData",r.result);
+      document.getElementById("goodsBody").innerHTML="";
+      loadData(); toast("数据已导入");
+    }catch(e){ toast("导入失败：文件格式错误"); } };
+  r.readAsText(f); input.value="";
+}
+function toast(msg){
+  const t=document.getElementById("toast");
+  t.textContent=msg; t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"),2000);
+}
+
+/* ================= 商品行 ================= */
+const KEYS=["item","desc","hs","qty","unit","price","nw","gw","ctns","cbm"];
+function addRow(g={}){
+  const tr=document.createElement("tr");
+  tr.innerHTML=`<td class="ctr idx"></td>`+KEYS.map(k=>
+    `<td><input data-k="${k}" value="${g[k]||""}" oninput="rowChange(this)"></td>`).join("")+
+    `<td class="ctr"><button class="btn btn-danger btn-sm" onclick="this.closest('tr').remove();renumber();save();renderElementsInputs()">删</button></td>`;
+  document.getElementById("goodsBody").appendChild(tr);
+  renumber();
+}
+function renumber(){
+  document.querySelectorAll("#goodsBody tr").forEach((tr,i)=>tr.querySelector(".idx").textContent=i+1);
+}
+const n=v=>{const x=parseFloat(v);return isNaN(x)?0:x;};
+const fmt=(v,d=2)=>n(v).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});
+function rowChange(inp){
+  const tr=inp.closest("tr"), g={}; tr.querySelectorAll("input").forEach(i=>g[i.dataset.k]=i.value);
+  const amtCell=tr.querySelectorAll("td")[7];
+  amtCell.textContent=fmt(n(g.qty)*n(g.price));
+  save();
+}
+function recalcAll(){
+  document.querySelectorAll("#goodsBody tr").forEach(tr=>{
+    const g={}; tr.querySelectorAll("input").forEach(i=>g[i.dataset.k]=i.value);
+    tr.querySelectorAll("td")[7].textContent=fmt(n(g.qty)*n(g.price));
+  });
+  summarize(false);
+}
+function summarize(silent){
+  let amt=0,ctns=0,nw=0,gw=0,cbm=0;
+  document.querySelectorAll("#goodsBody tr").forEach(tr=>{
+    const g={}; tr.querySelectorAll("input").forEach(i=>g[i.dataset.k]=i.value);
+    amt+=n(g.qty)*n(g.price); ctns+=n(g.ctns); nw+=n(g.nw); gw+=n(g.gw); cbm+=n(g.cbm);
+  });
+  if(!silent){
+    document.getElementById("total_amt").value=fmt(amt);
+    document.getElementById("total_ctns").value=fmt(ctns,0);
+    document.getElementById("total_nw").value=fmt(nw,2)+" KGS";
+    document.getElementById("total_gw").value=fmt(gw,2)+" KGS";
+    document.getElementById("total_cbm").value=fmt(cbm,3)+" CBM";
+    document.getElementById("amt_words").value=amountInWords(amt,document.getElementById("currency").value);
+  }
+  localStorage.setItem("exportDocsData",JSON.stringify(collectData()));
+}
+/* 数字转英文大写 */
+function amountInWords(amount,cur){
+  const ones=["","ONE","TWO","THREE","FOUR","FIVE","SIX","SEVEN","EIGHT","NINE","TEN","ELEVEN","TWELVE","THIRTEEN","FOURTEEN","FIFTEEN","SIXTEEN","SEVENTEEN","EIGHTEEN","NINETEEN"];
+  const tens=["","","TWENTY","THIRTY","FORTY","FIFTY","SIXTY","SEVENTY","EIGHTY","NINETY"];
+  function below1000(x){
+    let s="";
+    if(x>=100){ s+=ones[Math.floor(x/100)]+" HUNDRED"; x%=100; if(x) s+=" AND "; }
+    if(x>=20){ s+=tens[Math.floor(x/10)]; x%=10; if(x) s+="-"+ones[x]; }
+    else if(x>0) s+=ones[x];
+    return s;
+  }
+  function full(x){
+    let parts=[],units=["","THOUSAND","MILLION","BILLION"],i=0;
+    while(x>0){ const c=x%1000; if(c) parts.unshift(below1000(c)+(units[i]?" "+units[i]:"")); x=Math.floor(x/1000); i++; }
+    return parts.join(" ")||"ZERO";
+  }
+  const name={"USD":"US DOLLARS","EUR":"EUROS","CNY":"CHINESE YUAN","JPY":"JAPANESE YEN","GBP":"POUNDS STERLING"}[cur]||cur;
+  const i=Math.floor(amount), c=Math.round((amount-i)*100);
+  return "SAY TOTAL: "+name+" "+full(i)+(c?(" AND CENTS "+c+" ONLY"):" ONLY");
+}
+
+/* ================= 申报要素录入 ================= */
+function renderElementsInputs(){
+  const box=document.getElementById("elemList"); if(!box) return;
+  const rows=document.querySelectorAll("#goodsBody tr");
+  while(ELEMENTS.length<rows.length) ELEMENTS.push("");
+  ELEMENTS.length=rows.length;
+  if(!rows.length){ box.innerHTML="<p class='hint'>请先到「商品明细」页签添加商品。</p>"; return; }
+  let html=`<table class="elem-table"><thead><tr>
+    <th style="width:36px">#</th><th style="width:110px">商品编号(HS)</th><th style="width:170px">品名</th>
+    <th>申报要素（每行一条，如：品牌类型：无品牌）</th></tr></thead><tbody>`;
+  rows.forEach((tr,i)=>{
+    const inp=tr.querySelectorAll("input");
+    const hs=inp[2]?inp[2].value:"";
+    const desc=inp[1]?inp[1].value:"";
+    html+=`<tr><td class="ctr">${i+1}</td><td class="ctr">${esc(hs)}</td><td>${esc(desc)}</td>
+      <td><textarea rows="3" oninput="ELEMENTS[${i}]=this.value;save()">${esc(ELEMENTS[i]||"")}</textarea></td></tr>`;
+  });
+  box.innerHTML=html+"</tbody></table>";
+}
+function fillElementTemplate(){
+  const tpl="品牌类型：无品牌\n出口享惠情况：出口货物在最终目的国（地区）不享受优惠关税\n材质：\n成分含量：\n品牌：无\n型号：\n用途：";
+  let filled=0;
+  document.querySelectorAll("#goodsBody tr").forEach((tr,i)=>{
+    if(!ELEMENTS[i]){ ELEMENTS[i]=tpl; filled++; }
+  });
+  save(); renderElementsInputs();
+  toast(filled?`已为 ${filled} 个未填写的商品填入模板`:"所有商品均已填写要素");
+}
+
+/* ================= 单据生成 ================= */
+function esc(s){return (s||"").toString().replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>");}
+function getD(){ return collectData(); }
+
+function goodsRowsHTML(d,cols){
+  let rows="";
+  d.goods.forEach((g,i)=>{
+    rows+=`<tr>
+      ${cols.item?`<td class="ctr">${i+1}</td>`:""}
+      ${cols.itemNo?`<td class="ctr">${esc(g.item)}</td>`:""}
+      <td>${esc(g.desc)}${g.hs?`<br><span style="font-size:10px">HS CODE: ${esc(g.hs)}</span>`:""}</td>
+      <td class="ctr">${esc(g.qty)} ${esc(g.unit)}</td>
+      ${cols.price?`<td class="num">${esc(d.currency)} ${fmt(g.price)}</td>`:""}
+      ${cols.amount?`<td class="num">${esc(d.currency)} ${fmt(n(g.qty)*n(g.price))}</td>`:""}
+      ${cols.nw?`<td class="num">${fmt(g.nw)}</td>`:""}
+      ${cols.gw?`<td class="num">${fmt(g.gw)}</td>`:""}
+      ${cols.ctns?`<td class="ctr">${fmt(g.ctns,0)}</td>`:""}
+      ${cols.cbm?`<td class="num">${fmt(g.cbm,3)}</td>`:""}
+    </tr>`;
+  });
+  return rows;
+}
+function totalRow(d,cols){
+  const cells=[];
+  if(cols.item) cells.push(`<td></td>`);
+  if(cols.itemNo) cells.push(`<td></td>`);
+  cells.push(`<td class="ctr" style="font-weight:700">TOTAL: ${d.goods.length} ITEM(S)</td>`);
+  cells.push(`<td></td>`);
+  if(cols.price) cells.push(`<td></td>`);
+  if(cols.amount) cells.push(`<td class="num" style="font-weight:700">${esc(d.currency)} ${fmt(d.total_amt)}</td>`);
+  if(cols.nw) cells.push(`<td class="num" style="font-weight:700">${fmt(d.total_nw)}</td>`);
+  if(cols.gw) cells.push(`<td class="num" style="font-weight:700">${fmt(d.total_gw)}</td>`);
+  if(cols.ctns) cells.push(`<td class="ctr" style="font-weight:700">${fmt(d.total_ctns,0)}</td>`);
+  if(cols.cbm) cells.push(`<td class="num" style="font-weight:700">${fmt(d.total_cbm,3)}</td>`);
+  return `<tr class="end-row" style="font-weight:700">${cells.join("")}</tr>`;
+}
+function headerHTML(d){
+  return `<div class="doc-head">
+    <div class="company">${esc(d.exp_name)}<small>${esc(d.exp_addr)}<br>TEL: ${esc(d.exp_tel)} &nbsp; E-MAIL: ${esc(d.exp_email)}</small></div>
+    <div style="text-align:right;font-size:11px;color:#555;">${d.inv_no?`Invoice No.: ${esc(d.inv_no)}`:""}${d.inv_date?`<br>Date: ${esc(d.inv_date)}`:""}</div>
+  </div>`;
+}
+function metaTable(d,rows){
+  return `<table class="meta-tb">${rows}</table>`;
+}
+function footerHTML(d,leftNote){
+  return `<div class="doc-foot">
+    <div style="width:45%;font-size:11px;color:#555;">${leftNote||""}</div>
+    <div class="sig">${esc(d.exp_name)}<div class="line">Authorized Signature</div></div>
+  </div>`;
+}
+
+function buildInvoice(d,proforma){
+  const title=proforma?"PROFORMA INVOICE":"COMMERCIAL INVOICE";
+  const cn=proforma?"形 式 发 票":"商 业 发 票";
+  return sheetHTML(d,title,cn,`
+    ${headerHTML(d)}
+    ${metaTable(d,`<tr><th style="width:20%">To (Buyer):</th><td>${esc(d.imp_name)}<br><span style="font-size:11px">${esc(d.imp_addr)}</span></td>
+      <th style="width:16%">S/C No.:</th><td style="width:19%">${esc(d.sc_no)}</td></tr>
+    <tr><th>Trade Term:</th><td>${esc(d.term)} ${esc(d.term_port)}</td><th>L/C No.:</th><td>${esc(d.lc_no)}</td></tr>
+    <tr><th>From (Port of Loading):</th><td>${esc(d.pol)}</td><th>Payment:</th><td>${esc(d.payment)}</td></tr>
+    <tr><th>To (Port of Discharge):</th><td>${esc(d.pod)}</td><th>Origin:</th><td>${esc(d.origin)}</td></tr>`)}
+    ${d.marks?`<p style="font-size:12px;margin:2mm 0;"><b>Shipping Marks:</b><br>${esc(d.marks)}</p>`:""}
+    <table class="doc-tb">
+      <thead><tr><th style="width:6%">No.</th><th style="width:14%">Item No.</th><th>Description of Goods</th><th style="width:14%">Quantity</th><th style="width:12%">Unit Price</th><th style="width:16%">Amount</th></tr></thead>
+      <tbody>${goodsRowsHTML(d,{item:true,itemNo:true,price:true,amount:true})}${totalRow(d,{item:true,itemNo:true,amount:true})}</tbody>
+    </table>
+    <p style="font-size:12px;margin:3mm 0;"><b>Amount in Words:</b> ${esc(d.amt_words)}</p>
+    <div class="doc-clause">
+      <h4>Remarks:</h4>
+      ${proforma?`<p>This proforma invoice is for buyer's reference / import license / L/C application. Validity: 30 days.</p>`:""}
+      <p>1. Trade term: ${esc(d.term)} ${esc(d.term_port)} (Incoterms 2020).<br>
+      2. Payment: ${esc(d.payment)}.<br>
+      3. Country of origin: ${esc(d.origin)}.<br>
+      ${d.ship_date?`4. Latest shipment date: ${esc(d.ship_date)}. ${esc(d.transit)}.`:""}</p>
+    </div>
+    ${footerHTML(d)}`);
+}
+function buildPackingList(d){
+  return sheetHTML(d,"PACKING LIST","装 箱 单",`
+    ${headerHTML(d)}
+    ${metaTable(d,`<tr><th style="width:20%">To (Buyer):</th><td>${esc(d.imp_name)}<br><span style="font-size:11px">${esc(d.imp_addr)}</span></td>
+      <th style="width:16%">Invoice No.:</th><td style="width:19%">${esc(d.inv_no)}</td></tr>
+    <tr><th>From:</th><td>${esc(d.pol)}</td><th>Date:</th><td>${esc(d.inv_date)}</td></tr>
+    <tr><th>To:</th><td>${esc(d.pod)}</td><th>S/C No.:</th><td>${esc(d.sc_no)}</td></tr>`)}
+    ${d.marks?`<p style="font-size:12px;margin:2mm 0;"><b>Shipping Marks:</b><br>${esc(d.marks)}</p>`:""}
+    <table class="doc-tb">
+      <thead><tr><th style="width:5%">No.</th><th>Description of Goods</th><th style="width:12%">CTNS</th><th style="width:14%">Quantity</th><th style="width:13%">N.W. (KGS)</th><th style="width:13%">G.W. (KGS)</th><th style="width:12%">CBM</th></tr></thead>
+      <tbody>${goodsRowsHTML(d,{item:true,nw:true,gw:true,ctns:true,cbm:true})}${totalRow(d,{item:true,nw:true,gw:true,ctns:true,cbm:true})}</tbody>
+    </table>
+    <p style="font-size:12px;margin:3mm 0;">
+      <b>Total Packages:</b> ${fmt(d.total_ctns,0)} CTNS &nbsp;&nbsp;
+      <b>Total N.W.:</b> ${fmt(d.total_nw)} KGS &nbsp;&nbsp;
+      <b>Total G.W.:</b> ${fmt(d.total_gw)} KGS &nbsp;&nbsp;
+      <b>Total Volume:</b> ${fmt(d.total_cbm,3)} CBM
+    </p>
+    ${footerHTML(d)}`);
+}
+function buildSalesContract(d){
+  return sheetHTML(d,"SALES CONTRACT","销 售 合 同",`
+    ${headerHTML(d)}
+    ${metaTable(d,`<tr><th style="width:22%">Contract No.:</th><td>${esc(d.sc_no)}</td><th style="width:18%">Date:</th><td>${esc(d.inv_date)}</td></tr>
+    <tr><th>The Seller:</th><td>${esc(d.exp_name)}</td><th>The Buyer:</th><td>${esc(d.imp_name)}</td></tr>
+    <tr><th>Address:</th><td style="font-size:11px">${esc(d.exp_addr)}</td><th>Address:</th><td style="font-size:11px">${esc(d.imp_addr)}</td></tr>`)}
+    <p style="font-size:12px;margin:2mm 0;">This contract is made by and between the Seller and the Buyer, whereby the Seller agrees to sell and the Buyer agrees to buy the under-mentioned goods subject to the terms and conditions stipulated below:</p>
+    <table class="doc-tb">
+      <thead><tr><th style="width:5%">No.</th><th>Description of Goods</th><th style="width:13%">Quantity</th><th style="width:12%">Unit Price</th><th style="width:15%">Amount</th></tr></thead>
+      <tbody>${goodsRowsHTML(d,{item:true,price:true,amount:true})}${totalRow(d,{item:true,amount:true})}</tbody>
+    </table>
+    <p style="font-size:12px;margin:3mm 0;"><b>Total Value:</b> ${esc(d.currency)} ${fmt(d.total_amt)} (${esc(d.amt_words)})</p>
+    <div class="doc-clause">
+      <h4>Terms and Conditions:</h4>
+      <p>1. <b>Price Term:</b> ${esc(d.term)} ${esc(d.term_port)} (Incoterms 2020).<br>
+      2. <b>Payment:</b> ${esc(d.payment)}.<br>
+      3. <b>Port of Loading:</b> ${esc(d.pol)} &nbsp; <b>Port of Discharge:</b> ${esc(d.pod)}.<br>
+      ${d.ship_date?`4. <b>Shipment:</b> ${esc(d.ship_date)}. ${esc(d.transit)}.<br>`:""}
+      5. <b>Country of Origin:</b> ${esc(d.origin)}.<br>
+      6. <b>Quality/Discrepancy:</b> In case of quality discrepancy, claim should be filed by the Buyer within 30 days after arrival of goods; for quantity discrepancy, within 15 days. Claims must be supported by inspection certificates issued by a recognized surveyor.<br>
+      7. <b>Force Majeure:</b> The Seller shall not be responsible for failure to perform hereunder due to force majeure.<br>
+      8. <b>Arbitration:</b> All disputes shall be settled through friendly negotiation; failing that, arbitration shall take place in China under CIETAC rules, whose award is final.</p>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:12mm;">
+      <div class="sig" style="width:40%;text-align:center;font-size:12px;">The Seller<br><div class="line">${esc(d.exp_name)}</div></div>
+      <div class="sig" style="width:40%;text-align:center;font-size:12px;">The Buyer<br><div class="line">${esc(d.imp_name)}</div></div>
+    </div>`);
+}
+function buildBLInstruction(d){
+  return sheetHTML(d,"BILL OF LADING (B/L)","提 单",`
+    ${headerHTML(d)}
+    ${metaTable(d,`<tr><th style="width:24%">Shipper:</th><td>${esc(d.exp_name)}<br><span style="font-size:11px">${esc(d.exp_addr)}</span></td></tr>
+    <tr><th>Consignee:</th><td>${esc(d.imp_name)}<br><span style="font-size:11px">${esc(d.imp_addr)}</span></td></tr>
+    <tr><th>Notify Party:</th><td>SAME AS CONSIGNEE</td></tr>
+    <tr><th>Port of Loading:</th><td>${esc(d.pol)}</td><th style="width:20%">Port of Discharge:</th><td>${esc(d.pod)}</td></tr>
+    <tr><th>Place of Receipt:</th><td></td><th>Place of Delivery:</th><td></td></tr>
+    <tr><th>Invoice No.:</th><td>${esc(d.inv_no)}</td><th>S/C No.:</th><td>${esc(d.sc_no)}</td></tr>`)}
+    <table class="doc-tb">
+      <thead><tr><th style="width:5%">No.</th><th>Container / Marks &amp; Numbers</th><th>Description of Goods</th><th style="width:12%">CTNS</th><th style="width:14%">G.W. (KGS)</th><th style="width:12%">CBM</th></tr></thead>
+      <tbody>${goodsRowsHTML(d,{item:true,gw:true,ctns:true,cbm:true})}${totalRow(d,{item:true,gw:true,ctns:true,cbm:true})}</tbody>
+    </table>
+    <div class="doc-clause">
+      <h4>Freight &amp; Remarks:</h4>
+      <p>1. Trade term: ${esc(d.term)} ${esc(d.term_port)} → Freight: <b>${d.term==="FOB"||d.term==="EXW"||d.term==="FCA"?"COLLECT":"PREPAID"}</b>.<br>
+      2. B/L copies required: 3/3 ORIGINAL + 3 H/L.<br>
+      3. Please confirm booking and loading schedule with shipper in advance.<br>
+      ${d.ship_date?`4. Expected shipment date: ${esc(d.ship_date)}.`:""}</p>
+    </div>
+    ${footerHTML(d,"Issued by: "+esc(d.exp_name))}`);
+}
+function buildShippingAdvice(d){
+  return sheetHTML(d,"SHIPPING ADVICE","装 船 通 知",`
+    ${headerHTML(d)}
+    ${metaTable(d,`<tr><th style="width:22%">To:</th><td>${esc(d.imp_name)}</td><th style="width:16%">Date:</th><td>${esc(d.inv_date)}</td></tr>
+    <tr><th>Contract No.:</th><td>${esc(d.sc_no)}</td><th>Invoice No.:</th><td>${esc(d.inv_no)}</td></tr>
+    <tr><th>L/C No.:</th><td>${esc(d.lc_no)}</td><th>Shipment Date:</th><td>${esc(d.ship_date)}</td></tr>`)}
+    <p style="font-size:12px;margin:3mm 0;">Dear Sirs,<br>&nbsp;&nbsp;&nbsp;&nbsp;We hereby inform you that the goods under the above-mentioned contract have been shipped as follows:</p>
+    <table class="doc-tb">
+      <thead><tr><th style="width:5%">No.</th><th>Description of Goods</th><th style="width:12%">CTNS</th><th style="width:14%">Quantity</th><th style="width:13%">G.W. (KGS)</th><th style="width:12%">CBM</th></tr></thead>
+      <tbody>${goodsRowsHTML(d,{item:true,gw:true,ctns:true,cbm:true})}${totalRow(d,{item:true,gw:true,ctns:true,cbm:true})}</tbody>
+    </table>
+    <div class="doc-clause">
+      <p>Port of Loading: <b>${esc(d.pol)}</b> &nbsp;&nbsp; Port of Discharge: <b>${esc(d.pod)}</b><br>
+      Shipping Marks: ${esc(d.marks)||"—"}</p>
+    </div>
+    ${footerHTML(d)}`);
+}
+function sheetHTML(d,titleEn,titleCn,inner){
+  return `<div class="doc-sheet">
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:#888;"><span>Page 1 of 1</span><span>${esc(d.term)} ${esc(d.term_port)}</span></div>
+    <div class="doc-title">${titleEn}</div>
+    <div class="doc-title-en">— ${titleCn} —</div>
+    ${inner}
+  </div>`;
+}
+
+function buildCustomsDecl(d){
+  const rows=d.goods.map((x,i)=>`<tr>
+    <td class="ctr">${i+1}</td>
+    <td class="ctr">${esc(x.hs)}</td>
+    <td>${esc(x.desc)}</td>
+    <td class="ctr">${esc(x.qty)} ${esc(x.unit)}</td>
+    <td class="ctr">${esc(d.cde_dest_country||d.pod)}</td>
+    <td class="ctr">${esc(d.origin)}</td>
+    <td class="num">${fmt(n(x.qty)*n(x.price))}</td>
+    <td class="ctr">${esc(d.currency)}</td>
+    <td class="ctr">照章征税</td>
+  </tr>`).join("");
+  return `<div class="doc-sheet doc-cn">
+    <div style="display:flex;justify-content:space-between;font-size:12px;"><span>预录入编号：${esc(d.inv_no)}</span><span>海关编号：</span></div>
+    <div class="doc-title" style="font-size:22px;">中华人民共和国海关出口货物报关单</div>
+    <div style="text-align:center;font-size:12px;margin-bottom:3mm;">EXPORT DECLARATION OF THE PEOPLE'S REPUBLIC OF CHINA</div>
+    <table class="meta-tb">
+      <tr><th style="width:16%">境内发货人</th><td colspan="3">${esc(d.cde_exp_cn)}<br>海关编码：${esc(d.cde_exp_code)}　统一社会信用代码：${esc(d.cde_uscc)}</td></tr>
+      <tr><th>境外收货人</th><td colspan="3">${esc(d.cde_imp_cn)}${d.cde_imp_code?("（编码："+esc(d.cde_imp_code)+"）"):""}</td></tr>
+      <tr><th>出口日期</th><td>${esc(d.cde_export_date)}</td><th style="width:16%">申报日期</th><td>${esc(d.cde_decl_date)}</td></tr>
+      <tr><th>备案号</th><td>${esc(d.cde_record_no)}</td><th>运输方式</th><td>${esc(d.cde_trans_mode)}${d.cde_bl_no?("（提运单号："+esc(d.cde_bl_no)+"）"):""}</td></tr>
+      <tr><th>监管方式</th><td>${esc(d.cde_supervise)}</td><th>征免性质</th><td>${esc(d.cde_duty_nature)}</td></tr>
+      <tr><th>许可证号</th><td>${esc(d.cde_license)}</td><th>成交方式</th><td>${esc(d.cde_trade_mode)}${d.cde_freight?("　运费："+esc(d.cde_freight)):""}${d.cde_insurance?("　保费："+esc(d.cde_insurance)):""}</td></tr>
+      <tr><th>运抵国（地区）</th><td>${esc(d.cde_dest_country)}</td><th>指运港</th><td>${esc(d.cde_dest_port)}</td></tr>
+      <tr><th>离境口岸</th><td>${esc(d.cde_exit_port)}</td><th>合同协议号</th><td>${esc(d.sc_no)}</td></tr>
+      <tr><th>件数 / 包装种类</th><td>${fmt(d.total_ctns,0)}（${esc(d.cde_pack_type)}）</td><th>毛重/净重（公斤）</th><td>${fmt(d.total_gw,1)} / ${fmt(d.total_nw,1)}</td></tr>
+      <tr><th>集装箱号</th><td>${esc(d.cde_container)}</td><th>随附单证及编号</th><td>${esc(d.cde_docs)}</td></tr>
+      <tr><th>标记唛码及备注</th><td colspan="3">${esc(d.marks)||"N/M"}</td></tr>
+    </table>
+    <table class="doc-tb">
+      <thead><tr>
+        <th style="width:5%">项号</th><th style="width:11%">商品编号</th><th style="width:25%">商品名称、规格型号</th>
+        <th style="width:12%">数量及单位</th><th style="width:11%">最终目的国（地区）</th><th style="width:9%">原产国（地区）</th>
+        <th style="width:9%">总价</th><th style="width:6%">币制</th><th style="width:8%">征免</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p style="font-size:11px;margin-top:2mm;color:#555;">兹申明对以上所申报内容承担法律责任。<span style="float:right;">报关人员签名：＿＿＿＿＿＿　　申报单位（签章）</span></p>
+  </div>`;
+}
+function buildDeclElements(d){
+  const rows=d.goods.map((x,i)=>`<tr>
+    <td class="ctr" style="width:5%">${i+1}</td>
+    <td class="ctr" style="width:13%">${esc(x.hs)}</td>
+    <td style="width:24%">${esc(x.desc)}</td>
+    <td style="white-space:pre-line;font-size:11px;">${esc(ELEMENTS[i]||"（未填写，请到「报关信息」页签填写）")}</td>
+  </tr>`).join("");
+  return `<div class="doc-sheet doc-cn">
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:#888;"><span>Page 1 of 1</span><span>关联发票号：${esc(d.inv_no)}</span></div>
+    <div class="doc-title">申报要素</div>
+    <div class="doc-title-en">— DECLARATION ELEMENTS —</div>
+    <table class="meta-tb">
+      <tr><th style="width:18%">境内发货人</th><td>${esc(d.cde_exp_cn||d.exp_name)}</td>
+      <th style="width:14%">监管方式</th><td>${esc(d.cde_supervise)}</td></tr>
+      <tr><th>合同协议号</th><td>${esc(d.sc_no)}</td><th>申报日期</th><td>${esc(d.cde_decl_date||d.inv_date)}</td></tr>
+    </table>
+    <table class="doc-tb">
+      <thead><tr><th>项号</th><th>商品编号（HS Code）</th><th>商品名称</th><th>申报要素</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="doc-clause">
+      <p style="font-size:11px;color:#555;">注：以上要素按《中华人民共和国海关进出口商品规范申报目录》要求逐项申报，具体以申报商品对应税号的要求为准。</p>
+    </div>
+    ${footerHTML(d)}
+  </div>`;
+}
+
+function generateDocs(){
+  const d=getD();
+  if(!d.goods.length){ toast("请先录入商品明细"); return; }
+  let html="";
+  if(document.getElementById("d_inv").checked) html+=buildInvoice(d,false);
+  if(document.getElementById("d_pl").checked)  html+=buildPackingList(d);
+  if(document.getElementById("d_pi").checked)  html+=buildInvoice(d,true);
+  if(document.getElementById("d_sc").checked)  html+=buildSalesContract(d);
+  if(document.getElementById("d_bl").checked)  html+=buildBLInstruction(d);
+  if(document.getElementById("d_sa").checked)  html+=buildShippingAdvice(d);
+  if(document.getElementById("d_cd").checked)  html+=buildCustomsDecl(d);
+  if(document.getElementById("d_de").checked)  html+=buildDeclElements(d);
+  document.getElementById("docPreview").innerHTML=html||"<p class='hint'>请至少勾选一种单据。</p>";
+  document.getElementById("printArea").innerHTML=html;
+  document.getElementById("tab-docs").scrollIntoView({behavior:"smooth"});
+  toast(html?"已生成 "+(html.match(/doc-sheet/g)||[]).length+" 份单据":"");
+}
+function printDocs(){
+  if(!document.getElementById("printArea").innerHTML) generateDocs();
+  if(!document.getElementById("printArea").innerHTML){ toast("请先勾选并生成单据"); return; }
+  window.print();
+}
+
+/* ================= 导航 ================= */
+document.querySelectorAll(".nav-item").forEach(el=>{
+  el.addEventListener("click",()=>{
+    document.querySelectorAll(".nav-item").forEach(x=>x.classList.remove("active"));
+    el.classList.add("active");
+    document.querySelectorAll(".tab").forEach(t=>t.style.display="none");
+    document.getElementById("tab-"+el.dataset.tab).style.display="block";
+    if(el.dataset.tab==="customs") renderElementsInputs();
+  });
+});
+
+loadData();
+summarize(false);
+</script>
+</body>
+</html>
