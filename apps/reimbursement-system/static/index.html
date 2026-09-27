@@ -22,7 +22,7 @@ nav{display:flex;gap:4px;height:100%;flex:1;overflow-x:auto}
 nav button{border:none;background:none;padding:0 16px;height:100%;cursor:pointer;font-size:14px;color:var(--muted);border-bottom:3px solid transparent;font-weight:500;white-space:nowrap}
 nav button.active{color:var(--primary);border-bottom-color:var(--primary)}
 nav button:hover{color:var(--text)}
-.userbox{display:flex;align-items:center;gap:10px;white-space:nowrap}
+.userbox{display:flex;align-items:center;gap:10px;white-space:nowrap;margin-left:auto}
 .userbox .who{font-size:13px;color:var(--muted)}
 .userbox .who b{color:var(--text)}
 .rolechip{background:#eff6ff;color:var(--primary);border-radius:20px;padding:2px 10px;font-size:12px;font-weight:600}
@@ -181,13 +181,9 @@ td.bg-payee-claimant{background:#f3e8ff}
 <header id="appHeader" style="display:none">
   <div class="logo">🧾 发票与付款系统</div>
   <nav id="mainNav"></nav>
-  <div class="cloud-tools" id="cloudTools" style="display:none">
-    <button class="ct-btn ct-save" title="保存：把本机数据库上传到云端" onclick="cloudSave()">💾</button>
-    <button class="ct-btn ct-pull" title="云端下载：用云端数据库覆盖本机" onclick="cloudPull()">⬇️</button>
-    <button class="ct-btn ct-ghost" title="备份到电脑：下载数据库备份文件" onclick="cloudBackupLocal()">📥</button>
-    <button class="ct-btn ct-ghost" title="从电脑恢复：选择备份文件恢复本机数据" onclick="cloudRestoreLocal()">📤</button>
-    <input type="file" id="restoreInput" accept=".db" hidden>
-  </div>
+  <!-- 页首云端工具条（💾保存 / ⬇️云端下载 / 📥备份到电脑 / 📤从电脑恢复）由
+       ../cloudbase-admin.js 统一注入，仅管理员登录后加载（见 boot()） -->
+  <input type="file" id="restoreInput" accept=".json" hidden>
   <div class="userbox">
     <span class="rolechip" id="u_role"></span>
     <span class="who"><b id="u_name"></b></span>
@@ -346,7 +342,12 @@ td.bg-payee-claimant{background:#f3e8ff}
         <tbody id="paycBody"></tbody>
       </table>
     </div>
-    <h2 style="margin:18px 0 8px;font-size:14px">③ 开票收款统计（按客户）</h2>
+    <div class="hint" id="payBookHint" style="margin-top:10px"></div>
+  </div>
+  <div class="card">
+    <h2>开票收款统计</h2>
+    <div class="sumbar" id="rcSummary" style="padding-top:0"></div>
+    <div class="hint">我方开出的销项发票需匹配公司抬头为销项后计入。点击行内「收款」为该客户登记收款（支持整笔按开票顺序自动抵扣，也可单独登记某张）。</div>
     <div class="tbl-topbar" id="rc_pager"></div>
     <div class="tbl-wrap" style="max-height:34vh">
       <table>
@@ -354,7 +355,6 @@ td.bg-payee-claimant{background:#f3e8ff}
         <tbody id="rcBody"></tbody>
       </table>
     </div>
-    <div class="hint" id="payBookHint" style="margin-top:10px"></div>
   </div>
 </section>
 
@@ -728,8 +728,10 @@ async function backfillCloud(){
   toast(`☁ 云端补传完成：归档 ${n} 份`+(fail?`，失败 ${fail} 份`:''),fail?'err':'ok');
 }
 
-/* ---------- 顶部四按钮：数据在云端，改为导出/导入 JSON 备份 ---------- */
-async function cloudSave(){
+/* ---------- 备份到电脑 / 从电脑恢复（供标准工具条转发调用） ----------
+ * 页首工具条（../cloudbase-admin.js）的「备份到电脑」→ window.backupData，
+ * 「从电脑恢复」→ 自动点击 #restoreInput（下方 onchange 处理）。 */
+window.backupData=async function(){
   if(!ME||ME.role!=='admin')return toast('仅管理员可操作','err');
   toast('正在导出数据…','info');
   try{
@@ -742,32 +744,108 @@ async function cloudSave(){
     };
     const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
     const url=URL.createObjectURL(blob);
+    const d=new Date(),p=n=>String(n).padStart(2,'0');
     const a=document.createElement('a');
-    a.href=url;a.download='发票与付款系统备份_'+new Date().toISOString().slice(0,10)+'.json';
+    a.href=url;a.download=`发票与付款系统备份_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.json`;
     a.click();URL.revokeObjectURL(url);
-    toast('💾 数据已导出');
-  }catch(e){toast('导出失败：'+e.message,'err');}
-}
-async function cloudPull(){
-  if(!ME||ME.role!=='admin')return toast('仅管理员可操作','err');
-  toast('数据已存储在云端，多台电脑自动同步。如需从备份文件恢复，请用「从电脑恢复」','info');
-}
-function cloudBackupLocal(){cloudSave();}
-function cloudRestoreLocal(){$('#restoreInput').click();}
-$('#restoreInput').setAttribute('accept','.json');
+    toast('💾 已备份到电脑');
+  }catch(e){toast('备份失败：'+e.message,'err');}
+};
 $('#restoreInput').onchange=async function(){
   const f=this.files[0];this.value='';
   if(!f)return;
-  if(!confirm('将用所选备份文件覆盖当前云端数据。确认继续？'))return;
   try{
     const text=await f.text();
     const data=JSON.parse(text);
+    // 版本对比：备份导出时间 + 内容条数 vs 当前云端条数，防止旧备份误覆盖新数据
+    const bakTime=data.exported_at?new Date(data.exported_at):null;
+    const bakStr=bakTime&&!isNaN(bakTime)?bakTime.toLocaleString('zh-CN'):'未知（旧格式备份）';
+    const bi=(data.invoices||[]).length,bu=(data.users||[]).length,bc=(data.companies||[]).length;
+    let curN='?';
+    try{curN=(await ReimStore.getInvoices()).length;}catch(e){}
+    const msg=`备份导出时间：${bakStr}\n备份内容：发票 ${bi} 张 / 用户 ${bu} 个 / 公司 ${bc} 家\n当前云端：发票 ${curN} 张\n\n将用该备份覆盖当前云端数据，确认继续？`;
+    if(!confirm(msg))return;
     if(Array.isArray(data.invoices))await ReimStore.saveInvoices(data.invoices);
     if(Array.isArray(data.users))await ReimStore.saveUsers(data.users);
     if(Array.isArray(data.companies))await ReimStore.saveCompanies(data.companies);
     if(Array.isArray(data.review_log))await ReimStore.saveReviewLogs(data.review_log);
     toast('恢复成功，页面即将刷新…');setTimeout(()=>location.reload(),1200);
   }catch(e){toast('恢复失败：'+e.message,'err');}
+};
+
+/* ---------- 标准云端工具条适配（cloudbase-admin.js 的 CloudbaseSync 契约） ----------
+ * 发票系统数据直连云端（ReimStore 每次操作即时写入 app_data_store），本机无
+ * 业务数据副本，因此：
+ *  - 「保存」= 把四个集合当前数据重新 upsert 回云端（刷新云端更新时间，确保最新）
+ *  - 「云端下载」= 对比后确认 → 刷新页面（页面数据本就实时来自云端）
+ *  - 计数 pill 中「本地」与「云端」恒等（同一份数据），perKey 直接用中文名 */
+const REIM_COLLECTIONS=[['invoices','发票'],['users','用户'],['companies','公司'],['review_log','流转记录']];
+// cloudbase-admin.js 的 toast 兼容层只认 window.showToast / App.toast / UI.toast，此处桥接
+window.showToast=function(m){toast(m,'info');};
+window.CloudbaseSync={
+  async ensureClient(){await cbReady();},
+  prepareForCloudClear(){},
+  getVersionInfo(){return {localNewest:null};},
+  async pushAll(alsoDelete,onProg){
+    if(!ME||ME.role!=='admin')return {ok:false,msg:'仅管理员可操作'};
+    const getters={invoices:ReimStore.getInvoices,users:ReimStore.getUsers,companies:ReimStore.getCompanies,review_log:ReimStore.getReviewLogs};
+    const setters={invoices:ReimStore.saveInvoices,users:ReimStore.saveUsers,companies:ReimStore.saveCompanies,review_log:ReimStore.saveReviewLogs};
+    let done=0,failed=0;
+    onProg&&onProg({phase:'start',total:REIM_COLLECTIONS.length});
+    for(const [key,label] of REIM_COLLECTIONS){
+      try{
+        const data=await getters[key]();
+        await setters[key](data);
+        done++;
+        onProg&&onProg({phase:'progress',current:done+failed,total:REIM_COLLECTIONS.length,key:label,ok:true});
+      }catch(e){
+        failed++;
+        onProg&&onProg({phase:'progress',current:done+failed,total:REIM_COLLECTIONS.length,key:label,ok:false});
+      }
+    }
+    return failed?{ok:false,failed,msg:failed+' 个集合写入失败'}:{ok:true,uploaded:done};
+  },
+  async pullAll(){
+    if(!ME||ME.role!=='admin')return {ok:false,msg:'仅管理员可操作'};
+    // 本机无副本：云端有数据的集合即视为"云端更新"，确认后刷新页面即完成下载
+    let cloudNewer=0;
+    for(const [key] of REIM_COLLECTIONS){
+      try{
+        const data=await {invoices:ReimStore.getInvoices,users:ReimStore.getUsers,companies:ReimStore.getCompanies,review_log:ReimStore.getReviewLogs}[key]();
+        if(Array.isArray(data)&&data.length>0)cloudNewer++;
+      }catch(e){}
+    }
+    return {ok:true,comparison:{cloudNewerCount:cloudNewer,localNewerCount:0,sameCount:REIM_COLLECTIONS.length-cloudNewer,cloudNewer:REIM_COLLECTIONS.slice(0,cloudNewer).map(x=>x[0])}};
+  },
+  applyCloudRows(rows){return Array.isArray(rows)?rows.length:0;},
+  _countsCache:null,_countsPending:false,
+  async _fetchCounts(){
+    const out=[];
+    for(const [key,label] of REIM_COLLECTIONS){
+      try{
+        const data=await {invoices:ReimStore.getInvoices,users:ReimStore.getUsers,companies:ReimStore.getCompanies,review_log:ReimStore.getReviewLogs}[key]();
+        const n=Array.isArray(data)?data.length:0;
+        out.push({key:label,local:n,cloud:n});
+      }catch(e){out.push({key:label,local:0,cloud:null});}
+    }
+    this._countsCache=out;
+    return out;
+  },
+  getRecordCounts(){
+    // 同步契约：立即返回缓存，后台异步刷新（工具条每 2.5s 轮询，下一轮即最新）
+    if(!this._countsPending){
+      this._countsPending=true;
+      this._fetchCounts().catch(()=>{}).finally(()=>{this._countsPending=false;});
+    }
+    const pk=this._countsCache||[];
+    return {
+      appId:'reimbursement',
+      localTotal:pk.reduce((s,r)=>s+(r.local||0),0),
+      cloudTotal:pk.reduce((s,r)=>s+(r.cloud||0),0),
+      cloudLoaded:pk.length>0&&pk.every(r=>r.cloud!==null),
+      perKey:pk
+    };
+  }
 };
 
 /* ---------- 登录 ---------- */
@@ -805,14 +883,23 @@ function boot(user){
   buildNav();
   loadSubjects();
   loadCompaniesCache();
-  // 进销项统计：年份与月份选项（初始化一次）
+  // 进销项统计：年份与月份选项（初始化一次，默认"全部"年份以展示所有发票）
   const yNow=new Date().getFullYear(), ySel=$('#v_year');
   if(!ySel.options.length){
-    for(let y=yNow;y>=yNow-4;y--)ySel.insertAdjacentHTML('beforeend',`<option ${y===yNow?'selected':''}>${y}</option>`);
+    ySel.insertAdjacentHTML('beforeend','<option value="" selected>全部</option>');
+    for(let y=yNow;y>=yNow-4;y--)ySel.insertAdjacentHTML('beforeend',`<option>${y}</option>`);
     for(let m=1;m<=12;m++)$('#v_month').insertAdjacentHTML('beforeend',`<option value="${m}">${m} 月</option>`);
   }
   fillSizeSel($('#pgSize'),LEDGER.size);   // 台账每页条数（20~1000）
   const first=$('#mainNav button');if(first)first.click();
+  // 管理员：动态加载标准云端工具条（保存/云端下载/备份到电脑/从电脑恢复/清空云端），
+  // 与其它应用（wage/orderschedule 等）布局功能一致；报销人/审核人不加载。
+  // 路径相对本 HTML 所在目录解析（apps/reimbursement-system/ 及其 static/ 副本深度不同）
+  if(user.role==='admin'&&!window.CloudAdmin){
+    const s=document.createElement('script');
+    s.src=new URL('../cloudbase-admin.js?v=20260928a',location.href).href;
+    document.head.appendChild(s);
+  }
 }
 
 function buildNav(){
@@ -849,7 +936,6 @@ function buildNav(){
   $('#batchBox').style.display=canBatchReview?'':'none';
   $('#submitBox').style.display=['claimant','admin'].includes(ME.role)?'':'none';
   $('#adminBatchBox').style.display=ME.role==='admin'?'':'none';
-  $('#cloudTools').style.display=ME.role==='admin'?'flex':'none';
   $('#btnCloudSync').style.display=ME.role==='admin'?'inline-flex':'none';
   $('#selAll').closest('th').style.display='';
   // 报销人录入页：报销人/部门锁定为自己
@@ -1437,12 +1523,15 @@ function payTableRender(state,tbodyId,pagerId,nameKey,navFn,sizeFn,mode){
 function renderPayStats(){
   const a=PAY_P.all||{n:0,total:0,paid:0,owed:0},bk=PAY_P.book||{n:0,total:0},rj=PAY_P.rej||{n:0,total:0};
   const rc=RCP_P.all||{n:0,total:0,received:0,owed:0};
-  $('#paySummary').innerHTML=(PAY_P.rows.length||PAYC_P.rows.length||RCP_P.rows.length)?`
+  $('#paySummary').innerHTML=(PAY_P.rows.length||PAYC_P.rows.length)?`
     <span>待付款发票 <b>${a.n}</b> 张 · ¥<b>${a.total.toFixed(2)}</b></span>
     <span>已付款 <b style="color:var(--green)">¥${a.paid.toFixed(2)}</b></span>
     <span>未付欠款 <b style="color:var(--red)">¥${a.owed.toFixed(2)}</b></span>
-    <span>开票未收款 <b style="color:var(--primary)">¥${rc.owed.toFixed(2)}</b></span>
     <span style="color:var(--muted)">（仅做账 ${bk.n} 张 ¥${bk.total.toFixed(2)}、已驳回 ${rj.n} 张 ¥${rj.total.toFixed(2)} 不计入）</span>`:'';
+  $('#rcSummary').innerHTML=RCP_P.rows.length?`
+    <span>待收款发票 <b>${rc.n}</b> 张 · ¥<b>${rc.total.toFixed(2)}</b></span>
+    <span>已收款 <b style="color:var(--green)">¥${rc.received.toFixed(2)}</b></span>
+    <span>未收差额 <b style="color:var(--red)">¥${rc.owed.toFixed(2)}</b></span>`:'';
   payTableRender(PAY_P,'payBody','pay_pager','seller_name','payNav','paySize','seller');
   payTableRender(PAYC_P,'paycBody','payc_pager','claimant','payCNav','payCSize','claimant');
   payTableRender(RCP_P,'rcBody','rc_pager','buyer_name','rcNav','rcSize','buyer');
@@ -1549,17 +1638,18 @@ async function loadStats(){
     <div class="bar-row"><div class="name">${x.m}</div>
     <div class="track"><div class="fill" style="width:${(x.t/maxM*100).toFixed(1)}%;background:linear-gradient(90deg,#34d399,#059669)"></div></div>
     <div class="val">¥${(x.t||0).toFixed(2)}</div></div>`).join(''):'<div class="empty">暂无数据</div>';
-  // 按状态/类型
+  // 按状态/类型（与 eff 保持相同的公司筛选口径，仅状态分布不过滤"已驳回/仅做账"）
   const bySt={},byTy={};
-  invoices.forEach(r=>{const k=r.status;if(!bySt[k])bySt[k]={status:k,n:0,t:0};bySt[k].n++;bySt[k].t+=r.total_amount||0;});
-  invoices.forEach(r=>{const k=r.invoice_type||'未知';if(!byTy[k])byTy[k]={invoice_type:k,n:0,x:0};byTy[k].n++;byTy[k].x+=r.total_amount||0;});
+  const scope=invoices.filter(r=>!companyFilter||r.company_id===companyFilter);
+  scope.forEach(r=>{const k=r.status;if(!bySt[k])bySt[k]={status:k,n:0,t:0};bySt[k].n++;bySt[k].t+=r.total_amount||0;});
+  scope.forEach(r=>{const k=r.invoice_type||'未知';if(!byTy[k])byTy[k]={invoice_type:k,n:0,x:0};byTy[k].n++;byTy[k].x+=r.total_amount||0;});
   const items=[...Object.values(bySt).map(x=>['状态·'+x.status,x.n,x.t]),...Object.values(byTy).map(x=>['类型·'+x.invoice_type,x.n,x.x])];
   $('#chartStatus').innerHTML=items.length?items.map(([l,n,v])=>`
     <div class="bar-row"><div class="name">${esc(l)}</div>
     <div class="track"><div class="fill" style="width:${Math.min(100,n*8+10)}%;background:linear-gradient(90deg,#fbbf24,#d97706)"></div></div>
     <div class="val">${n} 张 · ¥${(v||0).toFixed(2)}</div></div>`).join(''):'<div class="empty">暂无数据</div>';
-  // 收票付款统计（按收款对象分组）
-  const payEff=invoices.filter(r=>r.direction==='进项'&&r.status!=='已驳回'&&r.settle!=='仅做账');
+  // 收票付款统计（按收款对象分组）——此处必须与上方 eff 的 companyFilter 口径一致
+  const payEff=invoices.filter(r=>r.direction==='进项'&&r.status!=='已驳回'&&r.settle!=='仅做账'&&(!companyFilter||r.company_id===companyFilter));
   const bySeller={},byClaimant={};
   payEff.forEach(r=>{
     const s=r.seller_name||'未知';if(!bySeller[s])bySeller[s]={seller_name:s,n:0,t:0,p:0};bySeller[s].n++;bySeller[s].t+=r.total_amount||0;bySeller[s].p+=r.paid_amount||0;
@@ -1567,7 +1657,7 @@ async function loadStats(){
   payEff.filter(r=>r.payee==='报销人').forEach(r=>{
     const c=r.claimant||'未知';if(!byClaimant[c])byClaimant[c]={claimant:c,n:0,t:0,p:0};byClaimant[c].n++;byClaimant[c].t+=r.total_amount||0;byClaimant[c].p+=r.paid_amount||0;
   });
-  const recEff=invoices.filter(r=>r.direction==='销项'&&r.status!=='已驳回');
+  const recEff=invoices.filter(r=>r.direction==='销项'&&r.status!=='已驳回'&&(!companyFilter||r.company_id===companyFilter));
   const byBuyer={};
   recEff.forEach(r=>{const b=r.buyer_name||'未知';if(!byBuyer[b])byBuyer[b]={buyer_name:b,n:0,t:0,p:0};byBuyer[b].n++;byBuyer[b].t+=r.total_amount||0;byBuyer[b].p+=r.paid_amount||0;});
   PAY_P.rows=Object.values(bySeller);PAY_P.all={n:payEff.length,total:sum(payEff,'total_amount'),paid:sum(payEff,'paid_amount'),owed:sum(payEff,'total_amount')-sum(payEff,'paid_amount')};
@@ -1720,10 +1810,15 @@ async function loadVat(){
   const df=$('#v_date_from').value,dt=$('#v_date_to').value;
   const year=$('#v_year').value,month=$('#v_month').value;
   const companyId=$('#v_company').value?parseInt($('#v_company').value):null;
-  // 生成年份下拉
+  // 生成年份下拉（含"全部"选项，首次默认选"全部"以展示所有年份发票）
   const years=[...new Set(invoices.filter(r=>r.invoice_date).map(r=>r.invoice_date.slice(0,4)))].sort().reverse();
-  if(!years.includes(year)&&years.length)$('#v_year').value=years[0];
-  // 过滤
+  const ySel=$('#v_year');
+  const hasAllOpt=ySel.options.length&&ySel.options[0].value==='';
+  if(!hasAllOpt){
+    const cur=ySel.value;
+    ySel.innerHTML='<option value="">全部</option>'+years.map(y=>`<option value="${y}" ${y===cur?'selected':''}>${y}</option>`).join('');
+  }
+  // 过滤（year 为空字符串表示"全部年份"）
   let rows=invoices.filter(r=>{
     if(!r.invoice_date)return false;
     if(df&&r.invoice_date<df)return false;
@@ -1744,7 +1839,9 @@ async function loadVat(){
   const outN=outRows.length,outAmt=sum(outRows,'amount'),outTax=sum(outRows,'tax_amount');
   const diffTax=outTax-inTax;
   VAT.year=year;VAT.month=month;VAT.company_id=$('#v_company').value;
-  $('#v_year').innerHTML=years.map(y=>`<option value="${y}" ${y===$('#v_year').value?'selected':''}>${y}</option>`).join('');
+  const curY=$('#v_year').value;
+  $('#v_year').innerHTML='<option value="">全部</option>'+years.map(y=>`<option value="${y}" ${y===curY?'selected':''}>${y}</option>`).join('');
+  if(curY==='')$('#v_year').value='';
   $('#vInN').textContent=inN;
   $('#vInAmt').textContent='金额 ¥'+inAmt.toFixed(2);
   $('#vInTax').textContent='¥'+inTax.toFixed(2);
@@ -1755,28 +1852,32 @@ async function loadVat(){
   const d=$('#vDiff');d.textContent='¥'+diffTax.toFixed(2);
   d.style.color=diffTax>=0?'var(--red)':'var(--green)';
   $('#vDiffHint').textContent=diffTax>=0?'正数：应缴增值税':'负数：留抵税额';
-  // 月度卡片
+  // 月度卡片（year 为空时按所有有数据的"年-月"倒序展示）
   const mm={};
   rows.forEach(r=>{const m=r.invoice_date.slice(0,7);if(!mm[m])mm[m]={in_n:0,out_n:0,in_tax:0,out_tax:0};
     if(r.direction==='进项'){mm[m].in_n++;mm[m].in_tax+=(r.invoice_type||'').includes('专用')?(r.tax_amount||0):0;}
     else{mm[m].out_n++;mm[m].out_tax+=r.tax_amount||0;}});
-  $('#v_months').innerHTML=Array.from({length:12},(_,i)=>{
-    const m=`${year}-${String(i+1).padStart(2,'0')}`,x=mm[m]||{};
+  const monthCardHtml=(m,x,clickable)=>{
     const inN=x.in_n||0,outN=x.out_n||0;
-    if(!inN&&!outN)return `<div class="m-card" style="opacity:.45;cursor:default">
-      <div class="mt">${m}<small>无发票</small></div>
-      <div class="ml"><span>进项 0</span><span>销项 0</span></div>
-      <div class="diff"><span>税额差</span><b>¥0.00</b></div></div>`;
     const diff=(x.out_tax||0)-(x.in_tax||0);
-    const sel=VAT.month===String(i+1)?' sel':'';
-    return `<div class="m-card${sel}" onclick="monthClick('${m}')" title="进项税额仅含专票（可抵扣）">
-      <div class="mt">${m}<small>${inN+outN} 张</small></div>
+    const sel=clickable&&VAT.month===m.slice(5,7)?' sel':'';
+    return `<div class="m-card${sel}" ${clickable?`onclick="monthClick('${m}')"`:''} title="进项税额仅含专票（可抵扣）"${!inN&&!outN?' style="opacity:.45;cursor:default"':''}>
+      <div class="mt">${m}<small>${inN+outN?`${inN+outN} 张`:'无发票'}</small></div>
       <div class="ml"><span>进项 ${inN}</span><b>¥${(x.in_tax||0).toFixed(2)}</b></div>
       <div class="ml"><span>销项 ${outN}</span><b>¥${(x.out_tax||0).toFixed(2)}</b></div>
       <div class="diff"><span>税额差</span><b style="color:${diff>=0?'var(--red)':'var(--green)'}">¥${diff.toFixed(2)}</b></div></div>`;
-  }).join('');
+  };
+  if(year){
+    $('#v_months').innerHTML=Array.from({length:12},(_,i)=>{
+      const m=`${year}-${String(i+1).padStart(2,'0')}`;
+      return monthCardHtml(m,mm[m]||{},true);
+    }).join('');
+  }else{
+    const keys=Object.keys(mm).sort().reverse();
+    $('#v_months').innerHTML=keys.length?keys.map(m=>monthCardHtml(m,mm[m],true)).join(''):'<div class="empty">暂无数据</div>';
+  }
   // 明细列表
-  const period=(df||dt)?`${df||'…'} ~ ${dt||'…'}`:(month?`${year}年${+month}月`:`${year}年全年`);
+  const period=(df||dt)?`${df||'…'} ~ ${dt||'…'}`:(year?(month?`${year}年${+month}月`:`${year}年全年`):'全部年份');
   $('#v_in_title').textContent=`（${period}，共 ${inRows.length} 张，进项税额仅专票计入）`;
   $('#v_out_title').textContent=`（${period}，共 ${outRows.length} 张）`;
   VATLIST.in.rows=inRows;VATLIST.in.page=1;
@@ -1784,8 +1885,14 @@ async function loadVat(){
   vatRenderList('in');vatRenderList('out');
 }
 function monthClick(m){
-  const mo=m.slice(5,7);
-  $('#v_month').value=(VAT.month===mo)?'':mo;   // 再点一次取消筛选
+  const y=m.slice(0,4),mo=m.slice(5,7);
+  // 再点同一张卡取消月份筛选；"全部"年份模式下点卡片同时定位到该年
+  if(VAT.month===mo&&VAT.year===y){
+    $('#v_month').value='';
+  }else{
+    $('#v_year').value=y;
+    $('#v_month').value=mo;
+  }
   vatClearRange();
   loadVat();
 }

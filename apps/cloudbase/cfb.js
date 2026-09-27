@@ -25,6 +25,8 @@
   var CB_ROOT = CFG.root || 'orderschedule';
   // 本应用标识（同步消息里用于忽略自己发出的通知）
   var APP_ID = CFG.app || 'app';
+  // 是否允许进入 app-photos 桶根浏览模式（仅宿主页 CFB_CONFIG.bucketRoot=true 时开启，目前仅 wicketorders）
+  var ALLOW_BUCKET_ROOT = CFG.bucketRoot === true;
 
   // ===== 分区定义 =====
   var ZONES = [
@@ -436,7 +438,7 @@
         }
       } else {
         html = '<a onclick="CFB.openDir(\'/\')">☁️ 根目录</a>';
-        if (path === '/') {
+        if (path === '/' && ALLOW_BUCKET_ROOT) {
           html += '<span class="sep">›</span><a onclick="CFB.enterBucketRoot()" title="浏览 app-photos 桶根（图片文件 / PDF 文件 / orderschedule）" style="color:#64748b;">⬆️ app-photos</a>';
         }
         if (path !== '/') {
@@ -479,6 +481,7 @@
 
     // 进入 app-photos 桶根浏览模式（仅 wicketorders 需要，其他应用保持默认）
     enterBucketRoot: function () {
+      if (!ALLOW_BUCKET_ROOT) return;
       this._bucketRootMode = true;
       this.currentPath = '/';
       this.searchQ = '';
