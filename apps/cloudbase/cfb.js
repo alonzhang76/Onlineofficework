@@ -190,6 +190,9 @@
     treeCache: {},
     // signed URL 缓存
     urlCache: {},
+    // 桶根浏览模式：true 时列出 app-photos 桶根（图片文件/PDF 文件/orderschedule），
+    // false 时保持三应用共享的 orderschedule/ 前缀（默认）
+    _bucketRootMode: false,
     // 内部拖拽（移动文件/文件夹）
     _dragging: null,
     // 正在上传数（用于分区卡片忙碌态）
@@ -263,8 +266,10 @@
     _st: function () {
       var bucket = window.STORAGE_BUCKET || 'app-photos';
       var ref = window.supabase.storage.from(bucket);
+      var self = this;
       function key(p) {
         p = String(p == null ? '' : p).replace(/^\/+/, '');
+        if (self._bucketRootMode) return p;
         return (p === CB_ROOT || p.indexOf(CB_ROOT + '/') === 0) ? p : (CB_ROOT + '/' + p);
       }
       function keys(a) { return (Array.isArray(a) ? a : [a]).map(key); }
@@ -411,19 +416,45 @@
     renderBreadcrumb: function () {
       var host = document.getElementById('breadcrumb');
       var path = this.currentPath;
-      var html = '<a onclick="CFB.openDir(\'/\')">☁️ 根目录</a>';
-      if (path !== '/') {
-        var parts = path.slice(1).split('/');
-        var acc = '';
-        for (var i = 0; i < parts.length; i++) {
-          acc += '/' + parts[i];
-          var isLast = (i === parts.length - 1);
-          if (isLast) html += '<span class="sep">›</span><span class="cur">' + App.utils.escapeHtml(parts[i]) + '</span>';
-          else html += '<span class="sep">›</span><a onclick="CFB.openDir(\'' + this._escJs(acc) + '\')">' + App.utils.escapeHtml(parts[i]) + '</a>';
+      var html;
+      if (this._bucketRootMode) {
+        html = '<a onclick="CFB.exitBucketRoot()" title="返回三应用共享目录">☁️ 共享目录</a>';
+        if (path === '/') {
+          html += '<span class="sep">›</span><span class="cur">app-photos</span>';
+        } else {
+          html += '<span class="sep">›</span><a onclick="CFB.enterBucketRoot()" title="回到 app-photos 根目录">app-photos</a>';
+        }
+        if (path !== '/') {
+          var parts = path.slice(1).split('/');
+          var acc = '';
+          for (var i = 0; i < parts.length; i++) {
+            acc += '/' + parts[i];
+            var isLast = (i === parts.length - 1);
+            if (isLast) html += '<span class="sep">›</span><span class="cur">' + App.utils.escapeHtml(parts[i]) + '</span>';
+            else html += '<span class="sep">›</span><a onclick="CFB.openDir(\'' + this._escJs(acc) + '\')">' + App.utils.escapeHtml(parts[i]) + '</a>';
+          }
+        }
+      } else {
+        html = '<a onclick="CFB.openDir(\'/\')">☁️ 根目录</a>';
+        if (path === '/') {
+          html += '<span class="sep">›</span><a onclick="CFB.enterBucketRoot()" title="浏览 app-photos 桶根（图片文件 / PDF 文件 / orderschedule）" style="color:#64748b;">⬆️ app-photos</a>';
+        }
+        if (path !== '/') {
+          var parts2 = path.slice(1).split('/');
+          var acc2 = '';
+          for (var j = 0; j < parts2.length; j++) {
+            acc2 += '/' + parts2[j];
+            var isLast2 = (j === parts2.length - 1);
+            if (isLast2) html += '<span class="sep">›</span><span class="cur">' + App.utils.escapeHtml(parts2[j]) + '</span>';
+            else html += '<span class="sep">›</span><a onclick="CFB.openDir(\'' + this._escJs(acc2) + '\')">' + App.utils.escapeHtml(parts2[j]) + '</a>';
+          }
         }
       }
       var cnt = this.entries.length;
       html += '<span style="margin-left:auto;font-size:11.5px;color:#94a3b8;">' + cnt + ' 项</span>';
+      if (this._bucketRootMode) {
+        html += '<div style="font-size:11px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:4px 8px;margin-top:4px;">⚠️ 桶根浏览模式：当前显示 app-photos 整个桶；上传到根目录的文件其他应用看不到，建议进入「orderschedule」后再上传。</div>';
+      }
       host.innerHTML = html;
       var chips = '';
       for (var z = 0; z < ZONES.length; z++) {
@@ -434,7 +465,32 @@
     },
 
     openDir: function (p) {
-      this.currentPath = this._norm(p);
+      p = this._norm(p);
+      // 从分区/面包屑点击“根目录”以外的链接时，退出桶根浏览模式
+      if (p === '/' && this._bucketRootMode) {
+        this._bucketRootMode = false;
+      }
+      this.currentPath = p;
+      this.searchQ = '';
+      var s = document.getElementById('cfbSearch'); if (s) s.value = '';
+      this.refresh();
+      this.renderTree();
+    },
+
+    // 进入 app-photos 桶根浏览模式（仅 wicketorders 需要，其他应用保持默认）
+    enterBucketRoot: function () {
+      this._bucketRootMode = true;
+      this.currentPath = '/';
+      this.searchQ = '';
+      var s = document.getElementById('cfbSearch'); if (s) s.value = '';
+      this.refresh();
+      this.renderTree();
+    },
+
+    // 退出桶根浏览模式，回到三应用共享的 orderschedule/ 前缀
+    exitBucketRoot: function () {
+      this._bucketRootMode = false;
+      this.currentPath = '/';
       this.searchQ = '';
       var s = document.getElementById('cfbSearch'); if (s) s.value = '';
       this.refresh();
@@ -1115,6 +1171,16 @@
       var z = ZONES.find(function (x) { return x.key === zoneKey; }) || null;
 
       var UNI_STYLE_DIR = '/图片文件/款式图';
+
+      // 桶根浏览模式：上传到根目录前确认（避免误传到 app-photos 桶根导致其他应用不可见）
+      if (this._bucketRootMode && (!targetDir || targetDir === '/')) {
+        var goShared = await App.confirmAsync('当前处于 app-photos 桶根浏览模式。上传到根目录的文件其他应用（订单排程/工资）无法看到。\n\n点「确定」仍上传到桶根；点「取消」进入共享目录 orderschedule 后再上传。');
+        if (!goShared) {
+          self.exitBucketRoot();
+          App.toast('已返回共享目录 orderschedule，请重新上传', 'info', 2500);
+          return;
+        }
+      }
 
       if (z && z.exts && z.key !== 'other') {
         var bad = files.filter(function (f) { return !self._extIn(f.name, z.exts); });
