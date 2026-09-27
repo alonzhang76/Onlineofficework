@@ -944,6 +944,14 @@
 
     function saveCompanies(list) {
       localStorage.setItem(COMPANY_STORAGE_KEY, JSON.stringify(list));
+      // 显式触发云端上传（cloudbase-sync 拦截 setItem 只更新本地版本号，
+      // 不自动推送；需调用 syncToCloud 才能实时同步到其他设备）
+      if (window.CloudbaseSync && typeof window.CloudbaseSync.pushAll === 'function') {
+        // 延迟触发，避免在页面初始化时频繁上传
+        setTimeout(function () {
+          try { window.CloudbaseSync.pushAll(); } catch (e) { console.warn('自动上传失败:', e); }
+        }, 1500);
+      }
     }
 
     // 单个账户渲染为银行账户文本

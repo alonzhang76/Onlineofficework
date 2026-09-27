@@ -4303,8 +4303,8 @@ function buildInvoice(d,proforma,stampImg){
     <tr><th>To (Port of Discharge):</th><td>${esc(d.pod)}</td><th>Origin:</th><td>${esc(d.origin)}</td></tr>`)}
     ${d.marks?`<p style="font-size:12px;margin:2mm 0;"><b>Shipping Marks:</b><br>${esc(d.marks)}</p>`:""}
     <table class="doc-tb">
-      <thead><tr><th style="width:6%">No.</th><th style="width:14%">Item No.</th><th>Description of Goods</th><th style="width:14%">Quantity</th><th style="width:12%">Unit Price</th><th style="width:16%">Amount</th></tr></thead>
-      <tbody>${goodsRowsHTML(d,{item:true,itemNo:true,price:true,amount:true})}${totalRow(d,{item:true,itemNo:true,amount:true})}</tbody>
+      <thead><tr><th style="width:6%">No.</th><th>Description of Goods</th><th style="width:16%">Quantity</th><th style="width:14%">Unit Price</th><th style="width:18%">Amount</th></tr></thead>
+      <tbody>${goodsRowsHTML(d,{item:true,price:true,amount:true})}${totalRow(d,{item:true,price:true,amount:true})}</tbody>
     </table>
     <p style="font-size:12px;margin:3mm 0;"><b>Amount in Words:</b> ${esc(d.amt_words)}</p>
     <div class="doc-clause">
