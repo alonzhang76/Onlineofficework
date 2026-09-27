@@ -77,6 +77,16 @@
       "sort_order": 4
     },
     {
+      "id": "reimbursement",
+      "name": "发票与付款系统",
+      "description": "PDF发票自动识别、台账审核与付款管理（本地服务）",
+      "url": "http://127.0.0.1:8686/",
+      "icon": "🧾",
+      "color": "#f97316",
+      "category": "furnace",
+      "sort_order": 5
+    },
+    {
       "id": "incomeexpense",
       "name": "收支表",
       "description": "多公司财务收支追踪系统",
@@ -84,7 +94,7 @@
       "icon": "💰",
       "color": "#0ea5e9",
       "category": "furnace",
-      "sort_order": 5
+      "sort_order": 6
     },
     {
       "id": "stainlessbusiness",
