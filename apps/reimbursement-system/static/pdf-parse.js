@@ -35,17 +35,56 @@ async function extractText(file) {
   for (var i = 1; i <= maxPages; i++) {
     var page = await pdf.getPage(i);
     var tc = await page.getTextContent();
-    var lines = [];
-    var lastY = null;
-    tc.items.forEach(function (item) {
-      var y = item.transform[5];
-      if (lastY !== null && Math.abs(y - lastY) > 2) lines.push('\n');
-      lines.push(item.str);
-      lastY = y;
-    });
-    parts.push(lines.join(''));
+    parts.push(rebuildLines(tc.items));
   }
   return parts.join('\n');
+}
+
+/* 按视觉坐标重建文本行（对齐 pdfplumber extract_text 的行为）。
+ * 数电票 PDF 的内容流中"标签"和"值"是分批绘制的（先画全部标签、
+ * 后画全部值），直接按流顺序拼接会得到"发票号码："与号码相隔数百字，
+ * 因此必须按 y 坐标聚类成行、行内按 x 排序，标签和值才会相邻。 */
+function rebuildLines(items) {
+  var nodes = [];
+  items.forEach(function (it) {
+    if (!it.str || it.str.length === 0) return;
+    var h = it.height || Math.abs(it.transform[3]) || 9;
+    nodes.push({ str: it.str, x: it.transform[4], y: it.transform[5], w: it.width || 0, h: h });
+  });
+  // 按 y 从大到小（页面上到下）排序，聚类成行
+  nodes.sort(function (a, b) { return b.y - a.y; });
+  var lines = [];
+  nodes.forEach(function (n) {
+    var target = null;
+    for (var k = 0; k < lines.length; k++) {
+      var tol = Math.max(2.5, lines[k].h * 0.35);
+      if (Math.abs(n.y - lines[k].y) <= tol) { target = lines[k]; break; }
+    }
+    if (!target) {
+      target = { y: n.y, h: n.h, items: [] };
+      lines.push(target);
+    } else {
+      var cnt = target.items.length;
+      target.y = (target.y * cnt + n.y) / (cnt + 1);
+      if (n.h > target.h) target.h = n.h;
+    }
+    target.items.push(n);
+  });
+  lines.forEach(function (ln) {
+    ln.minX = Math.min.apply(null, ln.items.map(function (n) { return n.x; }));
+  });
+  lines.sort(function (a, b) { return (b.y - a.y) || (a.minX - b.minX); });
+  return lines.map(function (ln) {
+    ln.items.sort(function (a, b) { return a.x - b.x; });
+    var s = '';
+    var prevEnd = null;
+    ln.items.forEach(function (n) {
+      if (prevEnd !== null && n.x - prevEnd > 3) s += ' ';
+      s += n.str;
+      prevEnd = n.x + Math.max(n.w, n.str.length * n.h * 0.4);
+    });
+    return s;
+  }).join('\n');
 }
 
 /* ---------- 解析逻辑（翻译自 invoice_parser.py） ---------- */
@@ -71,6 +110,9 @@ function cleanLines(text) {
 
 function extractInvoiceNo(text) {
   var m = text.match(/发\s*票\s*号\s*码[:：\s]*([0-9]{8,20})/);
+  if (m) return m[1];
+  // 兜底：个别数电票版式号码独立成行（20 位纯数字）
+  m = text.match(/(?:^|\n)\s*(\d{20})\s*(?:\n|$)/);
   return m ? m[1] : null;
 }
 
@@ -100,8 +142,17 @@ function cleanPartyName(name) {
 }
 
 function extractParties(text) {
-  // 数电票两栏同行版式
-  var m = text.match(/[购买]\s*名\s*称\s*[:：]\s*(.+?)\s*[销售]\s*名\s*称\s*[:：]\s*([^\n]+)/);
+  // 数电票按坐标重建后两栏同行："名称：购方公司 销 名称：销方公司"
+  // （购/销/售可能是竖排"购买方/销售方"标签残留在同一行）
+  var m = text.match(/名\s*称\s*[:：]\s*(.+?)\s*[购销售]\s*名\s*称\s*[:：]\s*([^\n]+)/);
+  if (!m) m = text.match(/名\s*称\s*[:：]\s*([^\n:：]+?)\s{1,}名\s*称\s*[:：]\s*([^\n]+)/);
+  if (m) {
+    var buyer2 = cleanPartyName(m[1].split(/统一社会信用代码|纳税人识别号/)[0]);
+    var seller2 = cleanPartyName(m[2].split(/统一社会信用代码|纳税人识别号/)[0]);
+    if (buyer2 || seller2) return { buyer: buyer2, seller: seller2 };
+  }
+  // 数电票两栏同行版式（竖排前缀未并入名称行）
+  m = text.match(/[购买]\s*名\s*称\s*[:：]\s*(.+?)\s*[销售]\s*名\s*称\s*[:：]\s*([^\n]+)/);
   if (m) {
     var buyer = cleanPartyName(m[1].split(/统一社会信用代码|纳税人识别号/)[0]);
     var seller = cleanPartyName(m[2].split(/统一社会信用代码|纳税人识别号/)[0]);
@@ -156,7 +207,16 @@ function extractAmounts(text) {
   return { amount: amount, tax: tax, total: total };
 }
 
-var NUM_TOKEN = /^[\d.,%¥￥+\-—:：/（）()()\[\]]+$/;
+var NUM_TOKEN = /^[\d.,%¥￥+\-—*#:：/（）()()\[\]]+$/;
+
+/* 合并相邻 CJK 字符间的空白（PDF 分块绘制会把一个词拆成多段） */
+function collapseCjkSpaces(s) {
+  if (!s) return s;
+  var pattern = new RegExp('([' + CJK + '])\\s+(?=[' + CJK + '])', 'g');
+  var prev = null;
+  while (prev !== s) { prev = s; s = s.replace(pattern, '$1'); }
+  return s;
+}
 var UNIT_TOKENS = { '吨': 1, '个': 1, '件': 1, '台': 1, '张': 1, '次': 1, '米': 1, '千克': 1, '公斤': 1, '克': 1, '升': 1, '箱': 1, '盒': 1, '瓶': 1, '桶': 1, '卷': 1, '包': 1, '套': 1, '只': 1, '根': 1, '块': 1, '批': 1, 'kg': 1, 'L': 1, 'm': 1 };
 
 function extractItems(text) {
@@ -166,17 +226,17 @@ function extractItems(text) {
     var line = lines[i];
     var m = line.match(/\*([^*\n]+)\*(.*)/);
     if (!m) continue;
-    var cat = m[1].trim(), rest = m[2].trim();
+    var cat = collapseCjkSpaces(m[1].trim()), rest = m[2].trim();
     var toks = rest.split(/\s+/).filter(function (t) {
       return !NUM_TOKEN.test(t) && !UNIT_TOKENS[t];
     });
-    var name = toks.join(' ');
+    var name = collapseCjkSpaces(toks.join(' '));
     var nxt = (i + 1 < lines.length) ? lines[i + 1].trim() : '';
     if (nxt && nxt.indexOf('*') !== 0 &&
         !/^(合\s*计|价税|备\s*注|开票人|项目名称|规格型号|销|购|购\s*名|销\s*名)/.test(nxt) &&
         /[\u4e00-\u9fa5A-Za-z]/.test(nxt) &&
         !/[¥￥]|\d{2,}%|\*\S+\*/.test(nxt)) {
-      name = (name ? name + ' ' + nxt : nxt).trim();
+      name = collapseCjkSpaces((name ? name + ' ' + nxt : nxt).trim());
     }
     var full = (cat || name) ? (cat + (name ? ' ' + name : '')).trim() : '';
     if (full && items.indexOf(full) < 0) items.push(full);
