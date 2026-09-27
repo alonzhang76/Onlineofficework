@@ -1,6 +1,8 @@
-﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
+    <script>window.AUTO_SCALE_WIDE_BASE=2048;window.AUTO_SCALE_WIDE_CAP=1.5;</script>
+    <script src="../auto-scale.js?v=20260926a"></script>
 	<script>window.SUPABASE_APP_ID='wicketorders';</script>
 	<script src="../cloudbase-sync.js?v=20260924c"></script>
     <meta charset="UTF-8">
@@ -831,27 +833,19 @@
                     pageCanvas.height = chunkH;
                     const ctx = pageCanvas.getContext('2d');
                     ctx.fillStyle = '#ffffff';
-                    ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+                    ctx.fillRect(0, 0, pageCanvas.width, chunkH);
                     ctx.drawImage(canvas, 0, rendered, canvas.width, chunkH, 0, 0, canvas.width, chunkH);
-
+                    const imgData = pageCanvas.toDataURL('image/jpeg', 0.92);
                     if (pageIndex > 0) pdf.addPage();
-                    pdf.addImage(pageCanvas.toDataURL('image/png'), 'PNG', marginX, marginTop, contentW, chunkH / pxPerMm);
-
-                    // 页脚：Quoted By AlonZhang + 页码 + 日期
-                    pdf.setFontSize(8);
-                    pdf.setTextColor(153, 153, 153);
-                    pdf.text('Quoted By AlonZhang', marginX, pageH - 7);
-                    pdf.text(`Page ${pageIndex + 1} / ${totalPages}`, pageW / 2, pageH - 7, { align: 'center' });
-                    pdf.text(dateStr, pageW - marginX, pageH - 7, { align: 'right' });
-
+                    pdf.addImage(imgData, 'JPEG', marginX, marginTop, contentW, chunkH / pxPerMm);
                     rendered += chunkH;
                 }
 
-                const quoteNo = (document.getElementById('quoteNo').textContent || '').trim().replace(/[\\/:*?"<>|]+/g, '_');
-                pdf.save(quoteNo ? `Formal_Quotation_${quoteNo}.pdf` : 'Formal Quotation.pdf');
+                const quoteNo = (document.getElementById('quoteNo') || {}).textContent || 'quotation';
+                pdf.save(`${quoteNo}_${dateStr}.pdf`);
             } catch (err) {
                 console.error('导出 PDF 失败:', err);
-                alert('导出 PDF 失败：' + err.message);
+                alert('导出 PDF 失败: ' + err.message);
             } finally {
                 btn.disabled = false;
                 icon.className = originalIcon;

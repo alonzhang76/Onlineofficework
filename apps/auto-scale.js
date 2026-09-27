@@ -1,19 +1,26 @@
 /* ============================================================
- * auto-scale.js — 窄窗口整页等比自动缩放（所有应用管理页面共用）
+ * auto-scale.js — 非基准分辨率整页等比自动缩放（所有应用管理页面共用）
  * ------------------------------------------------------------
  * 现象：浏览器窗口变窄（分屏/小屏/拖动 DevTools）时，桌面布局不收缩，
- *       出现横向滚动、标签栏被截断、表格挤压。
+ *       出现横向滚动、标签栏被截断、表格挤压；
+ *       反之在 2K/4K 等高分辨率屏幕上，内容又显得过小。
  * 做法：视口物理宽度 < 设计基准 1280px 且 > 手机断点 820px 时，
  *       对 <html> 应用 CSS zoom = 物理宽度 / 1280，
  *       整页（含固定顶栏/侧栏/弹窗）等比缩小适应窗口，等同浏览器整页缩放；
  *       ≤820px 恢复 zoom:1，交给各页面已有的手机/平板 @media 响应式布局；
  *       ≥1280px 不缩放。
+ * 大屏放大（可选，默认关闭，其他应用不受影响）：
+ *       页面需在引入本脚本之前设置 window.AUTO_SCALE_WIDE_BASE（如 2048），
+ *       视口物理宽度 > AUTO_SCALE_WIDE_BASE 时按 zoom = 宽度 / BASE 整体放大，
+ *       上限 window.AUTO_SCALE_WIDE_CAP（默认 1.5），用于 2K/4K 高分辨率屏幕。
  * 打印：@media print 强制 zoom:1，不影响任何 A4/标签打印排版。
- * 版本：v=20260917a
+ * 版本：v=20260926a
  * ============================================================ */
 (function () {
   var DESIGN_WIDTH = 1280; // 桌面设计基准宽度
   var MOBILE_BP = 820;     // 低于此宽度不再整页缩放，使用响应式布局
+  var WIDE_BASE = parseFloat(window.AUTO_SCALE_WIDE_BASE) || 0; // 大屏放大基准宽度，0=关闭放大
+  var WIDE_CAP = parseFloat(window.AUTO_SCALE_WIDE_CAP) || 1.5; // 大屏放大倍数上限
   var docEl = document.documentElement;
   var rafId = null;
 
@@ -37,9 +44,11 @@
     var physical = window.innerWidth * currentZoom();
     var z = 1;
     if (physical > MOBILE_BP && physical < DESIGN_WIDTH) {
-      z = physical / DESIGN_WIDTH;
+      z = physical / DESIGN_WIDTH; // 窄窗口整页缩小
+    } else if (WIDE_BASE > DESIGN_WIDTH && physical > WIDE_BASE) {
+      z = Math.min(physical / WIDE_BASE, WIDE_CAP); // 大分辨率整页放大
     }
-    var next = z >= 0.9999 ? '' : z.toFixed(4);
+    var next = Math.abs(z - 1) < 0.0001 ? '' : z.toFixed(4);
     if (docEl.style.zoom !== next) docEl.style.zoom = next;
   }
 
