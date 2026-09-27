@@ -74,7 +74,79 @@ async function saveUsers(list) {
 
 async function findUserByEmail(email) {
   var users = await getUsers();
-  return users.find(function (u) { return u.email === email; }) || null;
+  return users.find(function (u) { return (u.email || u.username) === email; }) || null;
+}
+
+async function findUserByUsername(username) {
+  var users = await getUsers();
+  return users.find(function (u) { return (u.username || u.email) === username; }) || null;
+}
+
+/* ---------- 密码哈希（兼容 werkzeug pbkdf2:sha256 格式） ---------- */
+var PBKDF2_ITERATIONS = 260000;
+var SALT_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+function randomSalt(len) {
+  var s = '';
+  var arr = new Uint8Array(len);
+  crypto.getRandomValues(arr);
+  for (var i = 0; i < len; i++) s += SALT_CHARS[arr[i] % SALT_CHARS.length];
+  return s;
+}
+
+async function generatePasswordHash(password) {
+  var salt = randomSalt(16);
+  var enc = new TextEncoder();
+  var keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+  var bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: enc.encode(salt), iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+    keyMaterial, 256
+  );
+  var hash = Array.from(new Uint8Array(bits)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+  return 'pbkdf2:sha256:' + PBKDF2_ITERATIONS + '$' + salt + '$' + hash;
+}
+
+async function checkPasswordHash(password, hash) {
+  if (!hash) return false;
+  var parts = hash.split('$');
+  if (parts.length !== 3) return false;
+  var methodParts = parts[0].split(':');
+  var salt = parts[1];
+  var expected = parts[2];
+  var enc = new TextEncoder();
+  var actual;
+  if (methodParts[0] === 'pbkdf2' && methodParts[1] === 'sha256') {
+    var iterations = parseInt(methodParts[2], 10);
+    var keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+    var bits = await crypto.subtle.deriveBits(
+      { name: 'PBKDF2', salt: enc.encode(salt), iterations: iterations, hash: 'SHA-256' },
+      keyMaterial, 256
+    );
+    actual = Array.from(new Uint8Array(bits)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+  } else if (methodParts[0] === 'scrypt') {
+    // scrypt:N:r:p
+    var N = parseInt(methodParts[1], 10);
+    var r = parseInt(methodParts[2], 10);
+    var p = parseInt(methodParts[3], 10);
+    var pwBytes = Array.from(enc.encode(password));
+    var saltBytes = Array.from(enc.encode(salt));
+    actual = await new Promise(function (resolve, reject) {
+      var scryptFn = (typeof scrypt === 'function') ? scrypt : (scrypt && scrypt.scrypt);
+      if (typeof scryptFn !== 'function') { reject(new Error('scrypt-js not loaded')); return; }
+      scryptFn(pwBytes, saltBytes, N, r, p, 32, function (err, result) {
+        if (err) { reject(err); return; }
+        var h = '';
+        for (var i = 0; i < result.length; i++) h += result[i].toString(16).padStart(2, '0');
+        resolve(h);
+      });
+    });
+  } else {
+    return false;
+  }
+  if (actual.length !== expected.length) return false;
+  var diff = 0;
+  for (var i = 0; i < actual.length; i++) diff |= actual.charCodeAt(i) ^ expected.charCodeAt(i);
+  return diff === 0;
 }
 
 /* ---------- 公司集合 ---------- */
@@ -165,6 +237,9 @@ window.ReimStore = {
   getUsers: getUsers,
   saveUsers: saveUsers,
   findUserByEmail: findUserByEmail,
+  findUserByUsername: findUserByUsername,
+  generatePasswordHash: generatePasswordHash,
+  checkPasswordHash: checkPasswordHash,
   getCompanies: getCompanies,
   saveCompanies: saveCompanies,
   getReviewLogs: getReviewLogs,
