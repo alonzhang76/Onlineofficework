@@ -936,11 +936,32 @@
       try { list = JSON.parse(localStorage.getItem(COMPANY_STORAGE_KEY) || 'null'); } catch (e) { list = null; }
       if (!Array.isArray(list) || list.length === 0) {
         list = cloneDefaultCompanies();
-        saveCompanies(list);
+        // 首次初始化：用原生 setItem 写入，绕过 cloudbase-sync 拦截，
+        // 避免把本地版本号刷成最新导致云端数据被判定为"旧数据"而拒绝下载
+        try {
+          var nativeSet = Object.getPrototypeOf(localStorage).setItem;
+          nativeSet.call(localStorage, COMPANY_STORAGE_KEY, JSON.stringify(list));
+        } catch (e) {
+          localStorage.setItem(COMPANY_STORAGE_KEY, JSON.stringify(list));
+        }
         return list;
       }
       return list.map(normalizeCompany);
     }
+
+    // 云端数据到达后，重新加载公司列表（解决另一台电脑初始化写入默认值后收不到云端更新的问题）
+    window.addEventListener('cloud-data-updated', function (e) {
+      if (e.detail && e.detail.keys && e.detail.keys.indexOf(COMPANY_STORAGE_KEY) >= 0) {
+        console.log('[报价系统] 检测到云端公司数据更新，重新加载...');
+        companiesData = loadCompanies();
+        renderCompanyDropdown();
+        // 若当前选中的公司仍存在则保持，否则切到第一家
+        var stillExists = companiesData.some(function (c) { return c.nameCn === currentCompanyName; });
+        if (!stillExists && companiesData.length > 0) {
+          applyCompany(companiesData[0].nameCn);
+        }
+      }
+    });
 
     function saveCompanies(list) {
       localStorage.setItem(COMPANY_STORAGE_KEY, JSON.stringify(list));
