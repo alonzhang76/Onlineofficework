@@ -16,12 +16,14 @@
 import os
 import re
 import secrets
+import shutil
 import sqlite3
 import time
 from datetime import datetime, timedelta
 from functools import wraps
 
-from flask import Flask, request, jsonify, session, send_from_directory, send_file
+from flask import (Flask, request, jsonify, session, send_from_directory,
+                   send_file, after_this_request)
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
@@ -177,7 +179,8 @@ def init_db():
     for col, decl in [("payment_date", "TEXT"), ("paid_amount", "REAL"),
                       ("payment_method", "TEXT"), ("payment_note", "TEXT"),
                       ("company_id", "INTEGER"), ("direction", "TEXT"),
-                      ("settle", "TEXT DEFAULT '正常付款'"), ("payee", "TEXT DEFAULT '销售方'")]:
+                      ("settle", "TEXT DEFAULT '正常付款'"), ("payee", "TEXT DEFAULT '销售方'"),
+                      ("cloud_path", "TEXT")]:
         if col not in cols:
             conn.execute(f"ALTER TABLE invoices ADD COLUMN {col} {decl}")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_invoices_dir ON invoices(direction)")
@@ -657,11 +660,18 @@ def upload():
         # 按公司抬头判定进项/销项方向
         cid, direction = compute_direction(conn, rec["buyer_name"], rec["seller_name"])
         conn.execute("UPDATE invoices SET company_id=?, direction=? WHERE id=?", (cid, direction, cur.lastrowid))
+        company_short = None
+        if cid:
+            crow = conn.execute("SELECT short_name, name FROM companies WHERE id=?", (cid,)).fetchone()
+            if crow:
+                company_short = crow["short_name"] or crow["name"]
         add_log(conn, cur.lastrowid, u, "提交" if rec["status"] == "待审核" else "草稿")
         conn.commit()
         conn.close()
         return jsonify({"ok": True, "id": cur.lastrowid, "invoice_no": invoice_no,
-                        "status": rec["status"], "parsed": bool(parsed), "subject": rec["subject_name"]})
+                        "status": rec["status"], "parsed": bool(parsed), "subject": rec["subject_name"],
+                        "company_id": cid, "direction": direction, "company_short": company_short,
+                        "file_path": rec["file_path"]})
     except Exception as e:
         _trash(stage)
         return jsonify({"ok": False, "msg": f"上传处理失败: {e}"}), 500
@@ -711,7 +721,8 @@ def list_invoices():
     rows = conn.execute(
         f"""SELECT i.*,
               (SELECT g.comment FROM review_log g WHERE g.invoice_id = i.id ORDER BY g.id DESC LIMIT 1) AS last_comment,
-              (SELECT g.action FROM review_log g WHERE g.invoice_id = i.id ORDER BY g.id DESC LIMIT 1) AS last_action
+              (SELECT g.action FROM review_log g WHERE g.invoice_id = i.id ORDER BY g.id DESC LIMIT 1) AS last_action,
+              (SELECT COALESCE(NULLIF(c.short_name,''), c.name) FROM companies c WHERE c.id=i.company_id) AS company_short
             FROM invoices i WHERE {cond} ORDER BY {sort} {order}, id DESC LIMIT ? OFFSET ?""",
         params + [size, (page - 1) * size]).fetchall()
     agg = conn.execute(
@@ -790,8 +801,15 @@ def update_invoice(iid):
     if u["role"] == "claimant" and r["status"] == "已驳回":
         conn.execute("UPDATE invoices SET status='草稿', updated_at=? WHERE id=?", (now_str(), iid))
     conn.commit()
+    # 返回更新后的进项/销项归属，供前端把云端 PDF 迁移到对应文件夹
+    nr = conn.execute(
+        "SELECT i.company_id, i.direction, i.cloud_path,"
+        " (SELECT COALESCE(NULLIF(c.short_name,''), c.name) FROM companies c WHERE c.id=i.company_id) company_short"
+        " FROM invoices i WHERE id=?", (iid,)).fetchone()
     conn.close()
-    return jsonify({"ok": True})
+    return jsonify({"ok": True,
+                    "company_id": nr["company_id"], "direction": nr["direction"],
+                    "company_short": nr["company_short"], "cloud_path": nr["cloud_path"]})
 
 
 # ---------------- 删除 ----------------
@@ -821,6 +839,27 @@ def delete_invoice(iid):
         fp = os.path.join(UPLOAD_DIR, os.path.basename(fpath))
         if os.path.exists(fp):
             _trash(fp)
+    return jsonify({"ok": True})
+
+
+# ---------------- 云端 PDF 路径登记（前端归档到云存储后回写） ----------------
+@app.post("/api/invoices/<int:iid>/cloud-path")
+@login_required("claimant", "admin")
+def set_cloud_path(iid):
+    u = current_user()
+    body = request.get_json(silent=True) or {}
+    cloud_path = (body.get("cloud_path") or "").strip() or None
+    conn = db()
+    r = get_invoice(conn, iid)
+    if not r:
+        conn.close()
+        return jsonify({"ok": False, "msg": "记录不存在"}), 404
+    if u["role"] == "claimant" and r["user_id"] != u["id"]:
+        conn.close()
+        return jsonify({"ok": False, "msg": "只能操作本人的发票"}), 403
+    conn.execute("UPDATE invoices SET cloud_path=? WHERE id=?", (cloud_path, iid))
+    conn.commit()
+    conn.close()
     return jsonify({"ok": True})
 
 
@@ -1551,6 +1590,95 @@ def get_file(fname):
     if r and u["role"] == "claimant" and r["user_id"] != u["id"]:
         return jsonify({"ok": False, "msg": "没有权限下载该原件"}), 403
     return send_from_directory(UPLOAD_DIR, base, as_attachment=True)
+
+
+# ---------------- 数据库备份 / 恢复（仅管理员） ----------------
+REQUIRED_TABLES = {"invoices", "users", "companies", "review_log"}
+
+
+def snapshot_db(dest_path):
+    """在线一致性快照（sqlite3 backup API，自动合并 WAL，不阻塞服务）"""
+    src = sqlite3.connect(DB_PATH)
+    try:
+        dst = sqlite3.connect(dest_path)
+        try:
+            src.backup(dst)
+        finally:
+            dst.close()
+    finally:
+        src.close()
+
+
+@app.get("/api/backup/download")
+@login_required("admin")
+def backup_download():
+    snap = os.path.join(BASE_DIR, f"~backup_{int(time.time() * 1000)}.db")
+    snapshot_db(snap)
+    dl_name = f"发票与付款系统备份_{datetime.now():%Y%m%d_%H%M%S}.db"
+
+    @after_this_request
+    def _cleanup(resp):
+        try:
+            os.remove(snap)
+        except OSError:
+            pass
+        return resp
+
+    return send_file(snap, as_attachment=True, download_name=dl_name)
+
+
+@app.post("/api/backup/restore")
+@login_required("admin")
+def backup_restore():
+    f = request.files.get("file")
+    if not f or not f.filename:
+        return jsonify({"ok": False, "msg": "未收到备份文件"}), 400
+    tmp = os.path.join(BASE_DIR, f"~restore_{int(time.time() * 1000)}.db")
+    f.save(tmp)
+
+    # ---- 校验备份文件：完整性 + 必需数据表 ----
+    try:
+        chk = sqlite3.connect(tmp)
+        try:
+            row = chk.execute("PRAGMA integrity_check").fetchone()
+            if not row or row[0] != "ok":
+                raise ValueError("数据库完整性校验失败")
+            tables = {r[0] for r in
+                      chk.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            missing = REQUIRED_TABLES - tables
+            if missing:
+                raise ValueError("缺少数据表：" + "、".join(sorted(missing)))
+        finally:
+            chk.close()
+    except Exception as e:
+        _trash(tmp)
+        return jsonify({"ok": False, "msg": f"备份文件无效：{e}"}), 422
+
+    # ---- 替换当前库：先 checkpoint WAL，再把现库留一份 .bak ----
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    bak = os.path.join(BASE_DIR, f"reimbursement.db.before-restore-{ts}.bak")
+    try:
+        c = sqlite3.connect(DB_PATH)
+        try:
+            c.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        finally:
+            c.close()
+        shutil.copy2(DB_PATH, bak)
+        for ext in ("-wal", "-shm"):
+            p = DB_PATH + ext
+            if os.path.exists(p):
+                os.remove(p)
+        os.replace(tmp, DB_PATH)
+    except OSError as e:
+        return jsonify({"ok": False, "msg": f"恢复失败：{e}（原数据库已保留）"}), 500
+
+    # ---- 在新库上跑迁移/索引，并重算进销项方向 ----
+    init_db()
+    conn = db()
+    recompute_all_directions(conn)
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True, "msg": "恢复成功", "backup_file": os.path.basename(bak)})
 
 
 if __name__ == "__main__":

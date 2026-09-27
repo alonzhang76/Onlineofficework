@@ -79,8 +79,8 @@
     {
       "id": "reimbursement",
       "name": "发票与付款系统",
-      "description": "PDF发票自动识别、台账审核与付款管理（本地服务）",
-      "url": "http://127.0.0.1:8686/",
+      "description": "PDF发票自动识别、台账审核与付款管理",
+      "url": "apps/reimbursement-system/index.html",
       "icon": "🧾",
       "color": "#f97316",
       "category": "furnace",
