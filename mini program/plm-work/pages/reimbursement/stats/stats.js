@@ -28,6 +28,7 @@ Page({
       { key: 'year', name: '今年' }
     ],
     kpi: {},
+    paySummary: {},
     byStatus: [],
     bySubject: [],
     byMonth: [],
@@ -117,6 +118,16 @@ Page({
       { name: '销项', count: xiao.length, totalText: fmt.fmtMoney(Math.round(sumOf(xiao) * 100) / 100), taxText: fmt.fmtMoney(Math.round(xiao.reduce((t, r) => t + (r.tax_amount || 0), 0) * 100) / 100), cls: 'out' }
     ];
 
+    // 付款汇总：发票金额、已收款、欠款
+    const paidTotal = Math.round(rows.reduce((t, r) => t + (r.paid_amount || 0), 0) * 100) / 100;
+    const invoiceTotal = Math.round(s.total * 100) / 100;
+    const owedTotal = Math.round((invoiceTotal - paidTotal) * 100) / 100;
+    const paySummary = {
+      invoiceText: fmt.fmtMoney(invoiceTotal),
+      paidText: fmt.fmtMoney(paidTotal),
+      owedText: fmt.fmtMoney(owedTotal)
+    };
+
     this.setData({
       me: Object.assign({}, me, {
         roleName: db.roleName(me.role),
@@ -130,6 +141,7 @@ Page({
         pendingCount: s.pending.count,
         pendingTotalText: fmt.fmtMoney(s.pending.total)
       },
+      paySummary: paySummary,
       byStatus: byStatus,
       bySubject: bySubject,
       byMonth: byMonth,

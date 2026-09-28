@@ -34,6 +34,25 @@
     </view>
   </view>
 
+  <!-- 收款情况 -->
+  <view class="card pay-summary-card">
+    <view class="sec-title">收款情况</view>
+    <view class="pay-row">
+      <view class="pay-item">
+        <text class="pay-label">发票金额</text>
+        <text class="pay-val">¥{{paySummary.invoiceText}}</text>
+      </view>
+      <view class="pay-item">
+        <text class="pay-label">已收款</text>
+        <text class="pay-val green">¥{{paySummary.paidText}}</text>
+      </view>
+      <view class="pay-item">
+        <text class="pay-label">欠款</text>
+        <text class="pay-val red">¥{{paySummary.owedText}}</text>
+      </view>
+    </view>
+  </view>
+
   <!-- 进销项 -->
   <view class="card">
     <view class="sec-title">进销项汇总</view>
