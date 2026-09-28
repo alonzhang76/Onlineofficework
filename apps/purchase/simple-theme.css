@@ -374,41 +374,36 @@ table th, table td {
     box-shadow: var(--st-shadow-hover) !important;
     transform: none !important;
 }
-/* 隐藏卡片顶部彩色渐变条 */
-.supplier-card > .absolute.top-0 {
-    display: none !important;
+/* 供应商卡片（名片式设计） */
+.supplier-card .supplier-card-header {
+    background: linear-gradient(to right, #3b82f6, #6366f1, #a855f7) !important;
 }
-/* 卡片内所有渐变背景：统一去除 */
-.supplier-card .bg-gradient-to-br,
-.supplier-card .bg-gradient-to-r {
-    background-image: none !important;
-}
-/* 圆形图标：改纯色蓝底 */
-.supplier-card .from-blue-500 {
-    --tw-gradient-from: transparent !important;
-    background-color: var(--st-primary) !important;
-    background-image: none !important;
-    border-radius: var(--st-radius) !important;
-}
-/* 供应商名称背景：蓝紫渐变改浅灰 */
+/* 供应商名称：纯文本，无底色 */
 .supplier-card .supplier-name {
-    background-color: var(--st-border-light) !important;
+    background-color: transparent !important;
     background-image: none !important;
-    border-radius: var(--st-radius) !important;
 }
-/* 联系人字段：去橙色底改浅灰 */
-.supplier-card .bg-orange-50,
+/* 联系人：绿底白字胶囊 */
 .supplier-card .contact-person {
-    background-color: var(--st-border-light) !important;
+    background-color: #22c55e !important;
     background-image: none !important;
-    border-radius: var(--st-radius) !important;
+    color: #fff !important;
+    border-radius: 9999px !important;
+    font-size: 15px !important;
+    padding: 4px 14px !important;
+    font-weight: 500 !important;
+    line-height: 1.4 !important;
 }
-/* 电话字段：去绿色底改浅灰 */
-.supplier-card .bg-green-50,
+/* 电话：蓝底白字胶囊 */
 .supplier-card .phone-number {
-    background-color: var(--st-border-light) !important;
+    background-color: #3b82f6 !important;
     background-image: none !important;
-    border-radius: var(--st-radius) !important;
+    color: #fff !important;
+    border-radius: 9999px !important;
+    font-size: 15px !important;
+    padding: 4px 14px !important;
+    font-weight: 500 !important;
+    line-height: 1.4 !important;
 }
 /* 优先级按钮：覆盖内联彩色样式，改统一徽章风 */
 .supplier-card .priority-btn {
@@ -433,35 +428,40 @@ table th, table td {
     color: #16a34a !important;
     border-color: #bbf7d0 !important;
 }
-/* 编辑按钮：去 Tailwind 蓝色背景，改标准按钮 */
+/* 编辑按钮：默认蓝框蓝字，悬停绿底白字 */
 .supplier-card .edit-btn {
-    background-color: var(--st-primary) !important;
+    background-color: #fff !important;
     background-image: none !important;
-    color: #fff !important;
-    border: none !important;
+    color: #2563eb !important;
+    border: 1px solid #3b82f6 !important;
     border-radius: var(--st-radius) !important;
     padding: 4px 10px !important;
     font-size: 12px !important;
     box-shadow: none !important;
+    transition: background-color 0.15s, color 0.15s, border-color 0.15s !important;
 }
 .supplier-card .edit-btn:hover {
-    background-color: var(--st-primary-hover) !important;
+    background-color: #22c55e !important;
+    color: #fff !important;
+    border-color: #22c55e !important;
     transform: none !important;
 }
-/* 删除按钮：改描边型 */
+/* 删除按钮：默认红框红字，悬停红底白字 */
 .supplier-card .delete-btn {
     background-color: #fff !important;
     background-image: none !important;
-    color: var(--st-danger) !important;
-    border: 1px solid var(--st-border) !important;
+    color: #dc2626 !important;
+    border: 1px solid #ef4444 !important;
     border-radius: var(--st-radius) !important;
     padding: 4px 10px !important;
     font-size: 12px !important;
     box-shadow: none !important;
+    transition: background-color 0.15s, color 0.15s, border-color 0.15s !important;
 }
 .supplier-card .delete-btn:hover {
-    background-color: #fef2f2 !important;
-    border-color: #fecaca !important;
+    background-color: #ef4444 !important;
+    color: #fff !important;
+    border-color: #ef4444 !important;
     transform: none !important;
 }
 
