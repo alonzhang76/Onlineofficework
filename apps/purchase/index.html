@@ -119,7 +119,7 @@
          function changeInvoicePage(page) {
              const storageKey = `${getCurrentCompany()}-invoices`;
              const invoices = JSON.parse(localStorage.getItem(storageKey)) || [];
-             const totalPages = Math.ceil(invoices.length / invoicesPerPage);
+             const totalPages = Math.ceil(invoices.length / getInvoicePageSize());
              if (page > 0 && page <= totalPages) {
                  currentInvoicePage = page;
                  renderInvoiceList();
@@ -858,7 +858,7 @@
 <body class="bg-gray-50 font-sans">
     <!-- 管理抬头公司模态框 -->
     <div id="manage-companies-modal" class="fixed z-50 inset-0 overflow-y-auto hidden">
-        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0 sm:items-end sm:justify-center">
+        <div class="flex items-end justify-center min-h-screen p-4 text-center sm:items-end sm:justify-center">
             <!-- 背景遮罩 -->
             <div class="fixed inset-0 transition-opacity z-45" aria-hidden="true">
                 <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
@@ -908,7 +908,7 @@
 
     <!-- 合同迁移模态框 -->
     <div id="contract-migration-modal" class="fixed z-50 inset-0 overflow-y-auto hidden">
-        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0 sm:items-end sm:justify-center">
+        <div class="flex items-end justify-center min-h-screen p-4 text-center sm:items-end sm:justify-center">
             <!-- 背景遮罩 -->
             <div class="fixed inset-0 transition-opacity z-45" aria-hidden="true">
                 <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
@@ -967,7 +967,7 @@
 
     <!-- 新建付款模态框 -->
     <div id="create-payment-modal" class="fixed z-50 inset-0 overflow-y-auto hidden">
-        <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="flex items-center justify-center min-h-screen p-4 text-center">
             <!-- 背景遮罩 -->
             <div class="fixed inset-0 transition-opacity z-45" aria-hidden="true">
                 <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
@@ -1090,7 +1090,7 @@
 
     <!-- 新建发票模态框 -->
     <div id="create-invoice-modal" class="fixed z-50 inset-0 overflow-y-auto hidden">
-        <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="flex items-center justify-center min-h-screen p-4 text-center">
             <!-- 背景遮罩 -->
             <div class="fixed inset-0 transition-opacity z-45" aria-hidden="true">
                 <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
@@ -1195,7 +1195,7 @@
 
     <!-- 从采购订单开具发票模态框 -->
     <div id="create-invoice-from-order-modal" class="fixed z-50 inset-0 overflow-y-auto hidden">
-        <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="flex items-center justify-center min-h-screen p-4 text-center">
             <!-- 背景遮罩 -->
             <div class="fixed inset-0 transition-opacity z-45" aria-hidden="true">
                 <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
@@ -1417,7 +1417,7 @@
 
                 <!-- 新建付款模态框 -->
                 <div id="create-payment-modal" class="fixed z-50 inset-0 overflow-y-auto hidden">
-                    <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                    <div class="flex items-center justify-center min-h-screen p-4 text-center">
                         <!-- 背景遮罩 -->
                         <div class="fixed inset-0 transition-opacity z-45" aria-hidden="true">
                             <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
@@ -2037,7 +2037,7 @@
                 
                 <!-- 新建发票模态框 -->
                 <div id="create-invoice-modal" class="fixed z-50 inset-0 overflow-y-auto hidden">
-                    <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                    <div class="flex items-center justify-center min-h-screen p-4 text-center">
                         <!-- 背景遮罩 -->
                         <div class="fixed inset-0 transition-opacity z-45" aria-hidden="true">
                             <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
@@ -6074,57 +6074,69 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
             // 生成新卡片
             filteredSuppliers.forEach(supplier => {
                 const supplierCard = document.createElement('div');
-                supplierCard.className = 'supplier-card relative overflow-hidden rounded-xl border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-white to-gray-50';
+                // 名片式设计：渐变顶栏 + 公司首字头像 + 图标化联系方式
+                supplierCard.className = 'supplier-card group relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300';
                 supplierCard.dataset.supplierNumber = supplier.supplierNumber;
+                // 公司名称首字作为头像（中文名取首字，英文名取首字母）
+                const nameText = supplier.supplierName || '';
+                const initial = nameText ? nameText.trim().charAt(0).toUpperCase() : '?';
                 supplierCard.innerHTML = `
-                    <div class="p-5">
-                        <div class="space-y-3">
-                            <div>
-                                <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">公司名称</p>
-                                <p class="text-lg font-bold text-gray-800 bg-gradient-to-r from-blue-50 to-purple-50 px-3 py-2 rounded-lg supplier-name">${supplier.supplierName}</p>
-                            </div>
-                            <div class="grid grid-cols-2 gap-3">
-                                <div>
-                                    <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">联系人</p>
-                                    <p class="text-base font-semibold text-gray-700 bg-orange-50 px-3 py-2 rounded-lg contact-person">${supplier.contactPerson}</p>
-                                </div>
-                                <div>
-                                    <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">电话</p>
-                                    <p class="text-base font-semibold text-gray-700 bg-green-50 px-3 py-2 rounded-lg phone-number">${supplier.phoneNumber}</p>
-                                </div>
-                            </div>
-                            <div>
-                                <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">电子邮箱</p>
-                                <p class="text-sm text-gray-600 email">${supplier.email}</p>
-                            </div>
-                            <div>
-                                <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">公司地址</p>
-                                <p class="text-sm text-gray-600 company-address">${supplier.companyAddress}</p>
-                            </div>
-                            <div class="grid grid-cols-3 gap-2">
-                                <div>
-                                    <p class="text-xs text-gray-500 mb-1">开户行</p>
-                                    <p class="text-xs text-gray-500 bank-name">${supplier.bankName}</p>
-                                </div>
-                                <div>
-                                    <p class="text-xs text-gray-500 mb-1">行号</p>
-                                    <p class="text-xs text-gray-500 bank-code">${supplier.bankCode}</p>
-                                </div>
-                                <div>
-                                    <p class="text-xs text-gray-500 mb-1">账号</p>
-                                    <p class="text-xs text-gray-500 bank-account">${supplier.bankAccount}</p>
-                                </div>
-                            </div>
-                            ${supplier.remarks ? `
-                            <div>
-                                <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">备注</p>
-                                <p class="text-sm text-gray-500 remarks">${supplier.remarks}</p>
-                            </div>
-                            ` : ''}
+                    <!-- 顶部渐变条 + 头像 + 编号 -->
+                    <div class="h-20 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 relative">
+                        <div class="absolute -bottom-7 left-5 w-14 h-14 rounded-xl bg-white shadow-md flex items-center justify-center text-2xl font-bold text-indigo-600 ring-4 ring-white">
+                            ${initial}
                         </div>
-                        <div class="flex gap-2 mt-4 pt-4 border-t border-gray-100">
-                            <button class="flex-1 btn bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors edit-btn">编辑</button>
-                            <button class="flex-1 btn bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 px-4 rounded-lg text-sm font-medium transition-colors delete-btn">删除</button>
+                        <div class="absolute top-3 right-3 text-xs text-white/90 bg-white/20 px-2.5 py-1 rounded-full backdrop-blur-sm">
+                            ${supplier.supplierNumber || ''}
+                        </div>
+                    </div>
+                    <!-- 内容区 -->
+                    <div class="pt-9 px-5 pb-4">
+                        <h3 class="text-lg font-bold text-gray-800 truncate supplier-name">${supplier.supplierName || ''}</h3>
+                        <div class="mt-3 space-y-2 text-sm">
+                            <div class="flex items-center gap-2.5 text-gray-600">
+                                <i class="fa fa-user-circle text-indigo-500 w-4 text-center"></i>
+                                <span class="contact-person">${supplier.contactPerson || ''}</span>
+                            </div>
+                            <div class="flex items-center gap-2.5 text-gray-600">
+                                <i class="fa fa-phone text-green-500 w-4 text-center"></i>
+                                <span class="phone-number">${supplier.phoneNumber || ''}</span>
+                            </div>
+                            <div class="flex items-center gap-2.5 text-gray-600">
+                                <i class="fa fa-envelope text-amber-500 w-4 text-center"></i>
+                                <span class="email truncate">${supplier.email || ''}</span>
+                            </div>
+                            <div class="flex items-start gap-2.5 text-gray-600">
+                                <i class="fa fa-map-marker-alt text-red-400 w-4 text-center mt-0.5"></i>
+                                <span class="company-address text-xs leading-relaxed">${supplier.companyAddress || ''}</span>
+                            </div>
+                        </div>
+                        <!-- 银行信息 -->
+                        <div class="mt-3 pt-3 border-t border-dashed border-gray-200">
+                            <div class="grid grid-cols-3 gap-2 text-xs text-gray-500">
+                                <div>
+                                    <p class="text-gray-400 mb-0.5">开户行</p>
+                                    <p class="bank-name truncate" title="${supplier.bankName || ''}">${supplier.bankName || ''}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-400 mb-0.5">行号</p>
+                                    <p class="bank-code">${supplier.bankCode || ''}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-400 mb-0.5">账号</p>
+                                    <p class="bank-account truncate" title="${supplier.bankAccount || ''}">${supplier.bankAccount || ''}</p>
+                                </div>
+                            </div>
+                        </div>
+                        ${supplier.remarks ? `
+                        <div class="mt-3 pt-3 border-t border-dashed border-gray-200">
+                            <p class="text-xs text-gray-400 mb-1"><i class="fa fa-sticky-note-o mr-1"></i>备注</p>
+                            <p class="text-xs text-gray-500 remarks">${supplier.remarks}</p>
+                        </div>` : ''}
+                        <!-- 操作按钮 -->
+                        <div class="flex gap-2 mt-4">
+                            <button class="flex-1 btn bg-indigo-500 hover:bg-indigo-600 text-white py-2 rounded-lg text-sm font-medium transition-colors edit-btn">编辑</button>
+                            <button class="flex-1 btn bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-lg text-sm font-medium transition-colors delete-btn">删除</button>
                         </div>
                     </div>
                 `;
@@ -7036,9 +7048,12 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
          });
 
          // 渲染发票列表
-         // 发票列表分页变量
-         let currentInvoicePage = 1;
-         const invoicesPerPage = 10;
+        // 发票列表分页变量
+        let currentInvoicePage = 1;
+        // 每页条数从下拉框读取（支持 10/20/50/100）
+        function getInvoicePageSize() {
+            return parseInt(document.getElementById('invoice-page-size')?.value) || 10;
+        }
 
          function renderInvoiceList(searchTerm = '', startDate = null, endDate = null) {
              const invoiceTableBody = document.querySelector('#invoices-page .table tbody');
@@ -7132,6 +7147,7 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
              const totalAmount = invoices.reduce((sum, invoice) => sum + invoice.amount, 0);
 
              // 分页处理
+             const invoicesPerPage = getInvoicePageSize();
              const indexOfLastInvoice = currentInvoicePage * invoicesPerPage;
              const indexOfFirstInvoice = indexOfLastInvoice - invoicesPerPage;
              const currentInvoices = invoices.slice(indexOfFirstInvoice, indexOfLastInvoice);
@@ -7265,6 +7281,17 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
 
          // 搜索框事件监听
          document.addEventListener('DOMContentLoaded', () => {
+             // 发票每页条数切换
+             const invoicePageSizeSel = document.getElementById('invoice-page-size');
+             if (invoicePageSizeSel) {
+                 invoicePageSizeSel.addEventListener('change', () => {
+                     currentInvoicePage = 1;
+                     const searchTerm = document.getElementById('invoice-search-input')?.value || '';
+                     const startDate = document.getElementById('invoice-start-date')?.value;
+                     const endDate = document.getElementById('invoice-end-date')?.value;
+                     renderInvoiceList(searchTerm, startDate, endDate);
+                 });
+             }
              const searchInput = document.getElementById('invoice-search-input');
              if (searchInput) {
                  searchInput.addEventListener('input', (e) => {
@@ -7319,7 +7346,7 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
                  const modal = document.createElement('div');
                  modal.className = 'fixed z-50 inset-0 overflow-y-auto bg-gray-500 bg-opacity-75';
                  modal.innerHTML = `
-                     <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                     <div class="flex items-center justify-center min-h-screen p-4 text-center">
                          <div class="fixed inset-0 transition-opacity" aria-hidden="true" onclick="this.closest('.bg-gray-500').remove()"></div>
                          <div class="relative z-50 inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
                              <div class="sm:flex sm:items-start">
@@ -7386,7 +7413,7 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
                  const modal = document.createElement('div');
                  modal.className = 'fixed z-50 inset-0 overflow-y-auto bg-gray-500 bg-opacity-75';
                  modal.innerHTML = `
-                     <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                     <div class="flex items-center justify-center min-h-screen p-4 text-center">
                          <div class="fixed inset-0 transition-opacity" aria-hidden="true" onclick="this.closest('.bg-gray-500').remove()"></div>
                          <div class="relative z-50 inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
                              <div class="sm:flex sm:items-start">
@@ -7733,7 +7760,10 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
          
          // 付款列表分页变量
          let paymentCurrentPage = 1;
-         const paymentPageSize = 10;
+        // 每页条数从下拉框读取（支持 10/20/50/100）
+        function getPaymentPageSize() {
+            return parseInt(document.getElementById('payment-page-size')?.value) || 10;
+        }
 
          // 渲染付款列表
          // 根据合同号查找匹配的发票编号
@@ -7823,6 +7853,7 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
              }
 
              // 分页计算
+             const paymentPageSize = getPaymentPageSize();
              const totalPages = Math.ceil(payments.length / paymentPageSize);
               // 确保当前页在有效范围内
              if (paymentCurrentPage > totalPages) {
@@ -9649,7 +9680,7 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
                          (payment.status?.toLowerCase().includes(lowerCaseSearch))
                      );
                  }
-                 const totalPages = Math.ceil(filteredPayments.length / paymentPageSize);
+                 const totalPages = Math.ceil(filteredPayments.length / getPaymentPageSize());
                  if (paymentCurrentPage < totalPages) {
                      paymentCurrentPage++;
                      renderPaymentList(document.getElementById('payment-search-input').value);
@@ -9659,7 +9690,7 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
              lastPageBtn.addEventListener('click', () => {
                  const storageKey = `${getCurrentCompany()}-payments`;
                  const payments = JSON.parse(localStorage.getItem(storageKey)) || [];
-                 const totalPages = Math.ceil(payments.length / paymentPageSize);
+                 const totalPages = Math.ceil(payments.length / getPaymentPageSize());
                  if (paymentCurrentPage < totalPages) {
                      paymentCurrentPage = totalPages;
                      renderPaymentList(document.getElementById('payment-search-input').value);
@@ -9672,6 +9703,15 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
              const paymentEndDate = document.getElementById('payment-end-date');
              const paymentDateFilterBtn = document.getElementById('payment-date-filter-btn');
              const paymentDateResetBtn = document.getElementById('payment-date-reset-btn');
+             
+             // 付款每页条数切换
+             const paymentPageSizeSel = document.getElementById('payment-page-size');
+             if (paymentPageSizeSel) {
+                 paymentPageSizeSel.addEventListener('change', () => {
+                     paymentCurrentPage = 1;
+                     renderPaymentList(paymentSearchInput.value, paymentStartDate.value, paymentEndDate.value);
+                 });
+             }
               
              paymentSearchInput.addEventListener('input', () => {
                  // 重置到第一页
