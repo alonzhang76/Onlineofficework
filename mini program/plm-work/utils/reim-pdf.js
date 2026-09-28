@@ -415,6 +415,10 @@ function dictGet(dict, key) {
 
 function decodeStringBytes(bytes, font) {
   if (!bytes.length) return '';
+  // 预定义 CMap（如 UniGB-UCS2-H）：字符串字节本身就是 UCS2（UTF-16BE），
+  // 直接解码，不做启发式 —— 数电票"购买方/销售方信息"栏的公司名用的就是这种字体，
+  // 而"无"(U+65E0) 首字节 0x65 是合法 ASCII，会绕过下方的首字节门控被误判成 latin1。
+  if (font && font.ucs2) return utf16be(bytes);
   if (font && font.cmap) {
     const map = font.cmap.map;
     if (font.cmap.twoByte) {
@@ -858,16 +862,25 @@ function extractText(u8, maxPages) {
     }
   });
 
-  // 字体 ToUnicode CMap
+  // 字体解码映射：ToUnicode CMap 优先；无 ToUnicode 但 Encoding 为
+  // 预定义 UCS2 CMap（UniGB-UCS2-H 等）时标记 ucs2（字节即 UTF-16BE）。
+  // 数电票购买方/销售方栏的 STSong-Light 字体正是这种情况，缺失此分支
+  // 会导致公司名乱码（如 "无锡..." → "eà!RpÁ¾..."）。
   const fonts = {};
   Object.keys(objects).forEach(function (id) {
     const o = objects[id];
     if (o.dict.indexOf('/Font') < 0) return;
     const tu = dictGet(o.dict, 'ToUnicode');
-    if (!tu || !objects[tu] || !objects[tu].hasStream) return;
-    try {
-      fonts[id] = { cmap: parseCMap(latin1Str(pdf.decodedStream(objects[tu]))) };
-    } catch (e) { fonts[id] = null; }
+    if (tu && objects[tu] && objects[tu].hasStream) {
+      try {
+        fonts[id] = { cmap: parseCMap(latin1Str(pdf.decodedStream(objects[tu]))) };
+      } catch (e) { fonts[id] = null; }
+      return;
+    }
+    // /Encoding 既可能是间接引用（dictGet 处理），也可能是内联名字
+    // （/Encoding/UniGB-UCS2-H），须直接正则取名字值。
+    const em = o.dict.match(/\/Encoding\s*\/([A-Za-z0-9+\-]+)/);
+    if (em && /-UCS2-H$/.test(em[1])) fonts[id] = { ucs2: true };
   });
 
   // 页面收集（排除 /Pages 节点；须含 /Contents）
@@ -921,6 +934,17 @@ function extractDate(text) {
   // 兜底：标签与数值分处相邻两行的两段式内容流
   m = text.match(/开\s*票\s*日\s*期[:：\s]*\n(\d{4})\s*\n年\s*\n(\d{1,2})\s*\n月\s*\n(\d{1,2})\s*\n日/);
   if (m) return m[1] + '-' + String(parseInt(m[2])).padStart(2, '0') + '-' + String(parseInt(m[3])).padStart(2, '0');
+  // 兜底2（数电票新版式）：标签行与日期行之间隔着监制章等噪声行，
+  // 从标签行向后扫描几行找第一个完整日期。
+  var lines = text.split(/\r?\n/);
+  for (var i = 0; i < lines.length; i++) {
+    if (!/开\s*票\s*日\s*期/.test(lines[i])) continue;
+    for (var j = i; j <= i + 5 && j < lines.length; j++) {
+      var dm = lines[j].match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+      if (dm) return dm[1] + '-' + String(parseInt(dm[2])).padStart(2, '0') + '-' + String(parseInt(dm[3])).padStart(2, '0');
+    }
+    break;
+  }
   return null;
 }
 
@@ -936,13 +960,31 @@ function cleanPartyName(name) {
   return s || null;
 }
 
+var PARTY_SUFFIX = /(公司|中心|厂|店|部|社|行|馆|院|所|城|商行|商行|企业|集团|合作社|事务所|超市|宾馆|酒店|饭店|药房|药店|诊所|门诊)$/;
+var PARTY_RUN = new RegExp('([\\u4e00-\\u9fff\\u3400-\\u4dbf（）《》""·、A-Za-z0-9]{4,})', 'g');
+
+/** 从一行里抽出像公司名的长 CJK 串（过滤栏目词与监制章噪声） */
+function companyRuns(line) {
+  var runs = [];
+  var m;
+  PARTY_RUN.lastIndex = 0;
+  while ((m = PARTY_RUN.exec(line)) !== null) {
+    var s = (m[1] || '').replace(/^[0-9A-Za-z\s]+/, '').trim();
+    if (s.length < 4) continue;
+    if (!PARTY_SUFFIX.test(s)) continue;
+    if (/税务|监制|发票|国家|识别号|信用代码|名称|购买|销售|统一社会/.test(s)) continue;
+    if (runs.indexOf(s) < 0) runs.push(s);
+  }
+  return runs;
+}
+
 function extractParties(text) {
   // 数电票两栏同行版式（同一行内先购买方后销售方）
   var m = text.match(/[购买]\s*名\s*称\s*[:：]\s*(.+?)\s*[销售]\s*名\s*称\s*[:：]\s*([^\n]+)/);
   if (m) {
-    var buyer = cleanPartyName(m[1].split(/统一社会信用代码|纳税人识别号/)[0]);
-    var seller = cleanPartyName(m[2].split(/统一社会信用代码|纳税人识别号/)[0]);
-    return { buyer: buyer, seller: seller };
+    var buyer0 = cleanPartyName(m[1].split(/统一社会信用代码|纳税人识别号/)[0]);
+    var seller0 = cleanPartyName(m[2].split(/统一社会信用代码|纳税人识别号/)[0]);
+    return { buyer: buyer0, seller: seller0 };
   }
   // 传统版式
   function party(role) {
@@ -954,6 +996,20 @@ function extractParties(text) {
   }
   var buyer = party('购(?:买|货)方') || party('购买方');
   var seller = party('销(?:售|货)方') || party('销售方');
+  if (buyer && seller) return { buyer: buyer, seller: seller };
+  // 兜底（数电票新版式）："购买方信息/销售方信息"两栏并排，公司名独占一行、
+  // 左右两栏被"息"分隔（如 "息 无锡XX有限公司 息 宜兴XX有限公司"），
+  // 下一行才是 名称： 与纳税人识别号。从识别号行向上找含两个公司名串的行，
+  // 阅读顺序即 购买方、销售方（与识别号左右顺序一致）。
+  var lines = text.split(/\r?\n/);
+  for (var i = 0; i < lines.length; i++) {
+    var ids = lines[i].match(/(9[0-9A-Z]{17}|[0-9A-Z]{18})/g);
+    if (!ids || ids.length < 2 || !/识别号|信用代码/.test(lines[i])) continue;
+    for (var j = i - 1; j >= Math.max(0, i - 6); j--) {
+      var runs = companyRuns(lines[j]);
+      if (runs.length >= 2) return { buyer: runs[0], seller: runs[1] };
+    }
+  }
   return { buyer: buyer, seller: seller };
 }
 
@@ -972,6 +1028,10 @@ function extractTaxRates(text) {
   var re = /(?:^|[\s（(])((?:1[0-3]|9|6|5|3|1|0)(?:\.\d+)?%)(?=[\s）)*/\d¥￥]|$)/g;
   var m;
   while ((m = re.exec(text)) !== null) rates.push(m[1]);
+  // 数电票明细行金额与税率粘连（如 "12347.6113% 45.19"）：
+  // 从百分号前的数字串里取"合法税率后缀"（13/9/6/5/3/1/0/1.5...）。
+  var re2 = /([0-9])((?:1[0-3]|9|6|5|3|1|0)(?:\.\d+)?%)(?=[\s）)*/¥￥]|$)/g;
+  while ((m = re2.exec(text)) !== null) rates.push(m[2]);
   if (/免\s*税/.test(text)) rates.push('免税');
   if (/不\s*征\s*税/.test(text)) rates.push('不征税');
   rates = Array.from(new Set(rates)).sort(function (a, b) {
@@ -990,6 +1050,51 @@ function extractAmounts(text) {
   if (m) total = m[1];
   if (tax === null) { m = text.match(/税\s*额[^\n]*?[¥￥]\s*([0-9,]+\.\d{2})/); if (m) tax = m[1]; }
   if (amount === null) { m = text.match(/金\s*额[^\n]*?[¥￥]\s*([0-9,]+\.\d{2})/); if (m) amount = m[1]; }
+
+  var lines = text.split(/\r?\n/);
+
+  // 兜底1（数电票新版式）：合计标签与金额分行 —— 金额行 "¥58819.47 ¥7646.53"
+  // 在上、合计标签行在下（或相隔一行）。找含两个 ¥ 金额的行，且相邻 1~2 行内
+  // 出现"合计"（非"价税合计"）即认定。
+  if (amount === null || tax === null) {
+    for (var i = 0; i < lines.length; i++) {
+      var mm = lines[i].match(/[¥￥]\s*([0-9,]+\.\d{2})[^¥￥\d]*[¥￥]\s*([0-9,]+\.\d{2})/);
+      if (!mm) continue;
+      var ctx = '';
+      for (var k = Math.max(0, i - 2); k <= Math.min(lines.length - 1, i + 2); k++) ctx += lines[k];
+      if (/合\s*计/.test(ctx) && !/价\s*税\s*合\s*计/.test(lines[i])) {
+        amount = amount || mm[1];
+        tax = tax || mm[2];
+        break;
+      }
+    }
+  }
+
+  // 兜底2：明细行 "*类目*品名 单位 数量 单价 金额 税率% 税额"，
+  // 税率前的数字是金额、税率后的是税额（多明细行取合计意义不大，仅在无合计时用首行）。
+  if (amount === null || tax === null) {
+    for (var i2 = 0; i2 < lines.length; i2++) {
+      var im = lines[i2].match(/\*[^*\n]+\*.*?([0-9.,]+)\s+((?:1[0-3]|9|6|5|3|1|0)(?:\.\d+)?)%\s+([0-9.,]+)/);
+      if (im) {
+        amount = amount || im[1].replace(/,/g, '');
+        tax = tax || im[3].replace(/,/g, '');
+        break;
+      }
+    }
+  }
+
+  // 兜底3（数电票新版式）："价税合计（大写）（小写）"标签行与金额分离，
+  // 大写金额行在几行之后（中间隔备注/开票人栏），形如 "…圆整 ¥ 66466.00"。
+  if (total === null) {
+    for (var i3 = 0; i3 < lines.length; i3++) {
+      if (!/价\s*税\s*合\s*计/.test(lines[i3])) continue;
+      for (var k3 = i3; k3 <= i3 + 6 && k3 < lines.length; k3++) {
+        var tm = lines[k3].match(/[¥￥]\s*([0-9,]+\.\d{2})/);
+        if (tm) { total = tm[1]; break; }
+      }
+      break;
+    }
+  }
   return { amount: amount, tax: tax, total: total };
 }
 
