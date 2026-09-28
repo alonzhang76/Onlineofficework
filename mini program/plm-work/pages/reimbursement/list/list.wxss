@@ -1,0 +1,108 @@
+/* 身份与数据范围提示 */
+.scope-bar {
+  display: flex; align-items: center; gap: 14rpx;
+  background: #fff; border-radius: 20rpx;
+  padding: 18rpx 24rpx; margin-bottom: 18rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.04);
+}
+.scope-avatar {
+  width: 56rpx; height: 56rpx; border-radius: 50%;
+  background: #34C759; color: #fff; flex-shrink: 0;
+  font-size: 26rpx; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.scope-avatar.admin { background: #FF3B30; }
+.scope-avatar.approver { background: #007AFF; }
+.scope-text { display: flex; align-items: center; gap: 12rpx; flex-shrink: 0; }
+.scope-name { font-size: 27rpx; font-weight: 600; color: #1C1C1E; }
+.scope-hint {
+  margin-left: auto; font-size: 21rpx; color: #8E8E93;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* 搜索框 */
+.search-box {
+  display: flex; align-items: center; gap: 12rpx;
+  background: #fff; border-radius: 20rpx;
+  padding: 18rpx 24rpx; margin-bottom: 20rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.04);
+}
+.search-icon { font-size: 28rpx; }
+.search-input { flex: 1; font-size: 28rpx; }
+.ph { color: #C7C7CC; }
+
+/* 状态 chips 横向滚动 */
+.chip-scroll { white-space: nowrap; margin-bottom: 16rpx; }
+.chip-row-scroll { display: inline-flex; gap: 12rpx; padding-bottom: 4rpx; }
+.chip-row-scroll .chip { display: inline-block; }
+
+/* 方向筛选行 */
+.dir-row {
+  display: flex; align-items: center; gap: 12rpx;
+  margin-bottom: 20rpx;
+}
+.dir-chip {
+  padding: 8rpx 24rpx; border-radius: 999rpx;
+  background: rgba(52,199,89,0.1); color: #34C759;
+  font-size: 24rpx; font-weight: 500;
+}
+.dir-chip.active.in { background: #34C759; color: #fff; }
+.dir-chip { background: rgba(0,122,255,0.1); color: #007AFF; }
+.dir-chip.active { background: #007AFF; color: #fff; }
+.dir-chip.active.out { background: #FF6B35; color: #fff; }
+.dir-chip.out { background: rgba(255,107,53,0.1); color: #FF6B35; }
+.dir-sum {
+  margin-left: auto; font-size: 22rpx; color: #8E8E93;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dir-tax { color: #C7C7CC; }
+
+/* 发票行 */
+.inv-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 16rpx;
+  padding: 20rpx 0; border-bottom: 1rpx solid rgba(0,0,0,0.05);
+}
+.inv-row:last-child { border-bottom: none; }
+.inv-row:active { opacity: 0.7; }
+.inv-main { flex: 1; min-width: 0; }
+.inv-line1 { display: flex; align-items: center; gap: 10rpx; min-width: 0; }
+.inv-no {
+  font-size: 28rpx; font-weight: 600; color: #1C1C1E;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dir-tag {
+  font-size: 20rpx; padding: 2rpx 10rpx; border-radius: 8rpx; flex-shrink: 0;
+}
+.dir-tag.in { background: rgba(52,199,89,0.12); color: #248A3D; }
+.dir-tag.out { background: rgba(255,107,53,0.12); color: #C24A1E; }
+.inv-line2 { font-size: 22rpx; color: #8E8E93; margin-top: 4rpx; }
+.inv-line3 {
+  font-size: 22rpx; color: #A1A1A6; margin-top: 2rpx;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.inv-amt { display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; }
+.inv-total { font-size: 28rpx; font-weight: 700; color: #1C1C1E; }
+.inv-tax { font-size: 20rpx; color: #8E8E93; margin-top: 4rpx; }
+
+/* 详情字段（复用 import 的样式） */
+.detail-fields { background: #fff; border-radius: 16rpx; padding: 8rpx 20rpx; }
+.detail-fields .imp-field {
+  display: flex; justify-content: space-between; gap: 16rpx;
+  padding: 14rpx 0; border-bottom: 1rpx solid rgba(60,60,67,0.08);
+}
+.detail-fields .imp-field:last-child { border-bottom: none; }
+.imp-fk { font-size: 26rpx; color: #8E8E93; flex-shrink: 0; }
+.imp-fv { font-size: 26rpx; color: #1C1C1E; text-align: right; word-break: break-all; }
+.imp-fv.strong { font-weight: 700; color: #FF6B35; }
+.detail-tip { text-align: center; font-size: 24rpx; color: #C7C7CC; padding: 16rpx 0; }
+
+/* 审核记录 */
+.log-box { background: #fff; border-radius: 16rpx; padding: 20rpx; margin-top: 20rpx; }
+.log-title { font-size: 26rpx; font-weight: 600; margin-bottom: 12rpx; }
+.log-row {
+  display: flex; flex-direction: column;
+  padding: 10rpx 0; border-bottom: 1rpx solid rgba(60,60,67,0.06);
+}
+.log-row:last-child { border-bottom: none; }
+.log-text { font-size: 24rpx; color: #1C1C1E; }
+.log-time { font-size: 20rpx; color: #A1A1A6; margin-top: 2rpx; }

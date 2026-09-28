@@ -3,6 +3,7 @@ const tradeDb = require('../../utils/trade-db');
 const scheduleDb = require('../../utils/schedule-db');
 const purchaseDb = require('../../utils/purchase-db');
 const incomeDb = require('../../utils/income-db');
+const reimDb = require('../../utils/reim-db');
 const supa = require('../../utils/cloudbase');
 const fmt = require('../../utils/format');
 
@@ -50,7 +51,7 @@ Page({
   onPullDownRefresh() {
     // 先补发本机待上传写入（编辑后立刻下拉时，确保云端先收到最新值）
     try { if (typeof supa.flushQueue === 'function') supa.flushQueue(); } catch (e) {}
-    const dbs = [wageDb, tradeDb, scheduleDb, purchaseDb, incomeDb];
+    const dbs = [wageDb, tradeDb, scheduleDb, purchaseDb, incomeDb, reimDb];
     // 注意：syncFromCloud 的回调是 (ok, count) 两个参数，不能直接作为
     // Promise 的 resolve（resolve 只取第一个参数，会导致 count 丢失、
     // ok 布尔值被误当数组判断，曾经因此"同步成功却恒提示失败"）。
@@ -90,6 +91,8 @@ Page({
     const incStatsA = incomeDb.getStats('company1');
     const incStatsB = incomeDb.getStats('company2');
     const incBalance = incStatsA.balance + incStatsB.balance;
+    const reimStats = reimDb.getStats();
+    const reimPending = reimStats.pending;
 
     // 应用可见性过滤：按登录用户权限（user_app_permissions）决定显示哪些应用
     const user = app.globalData.user || null;
@@ -121,6 +124,9 @@ Page({
         // 收支模块需密码验证
         o.needPwd = true;
         o.locked = !(app.globalData && app.globalData.incomeExpenseUnlocked);
+      } else if (a.key === 'reimbursement') {
+        o.stat = fmt.fmtMoney(reimStats.total);
+        o.statLabel = '报销总额(' + reimStats.count + '张)';
       }
       return o;
     });
@@ -137,7 +143,9 @@ Page({
       { app: 'trade', label: '欠款(CNY)', value: fmt.fmtMoney(tradeDebtCNY), color: '#FF9500' },
       { app: 'schedule', label: '排程订单', value: schedOrders, color: '#FF9500' },
       { app: 'purchase', label: '采购总额', value: fmt.fmtMoney(purchTotal), color: '#5856D6' },
-      { app: 'income', label: '收支结余', value: fmt.fmtMoney(incBalance), color: '#00C7BE' }
+      { app: 'income', label: '收支结余', value: fmt.fmtMoney(incBalance), color: '#00C7BE' },
+      { app: 'reimbursement', label: '报销总额', value: fmt.fmtMoney(reimStats.total), color: '#FF6B35' },
+      { app: 'reimbursement', label: '待审核发票', value: reimPending.count + ' 笔', color: '#FF9500' }
     ];
 
     const email = (user && user.email) || '';
@@ -201,6 +209,6 @@ Page({
 
 /** 主色调加深，用于图标渐变第三档 */
 function darken(hex) {
-  const map = { '#007AFF': '#0062D6', '#34C759': '#248A3D', '#FF9500': '#C46F00', '#5856D6': '#3B39A8', '#00C7BE': '#008F89' };
+  const map = { '#007AFF': '#0062D6', '#34C759': '#248A3D', '#FF9500': '#C46F00', '#5856D6': '#3B39A8', '#00C7BE': '#008F89', '#FF6B35': '#C24A1E' };
   return map[hex] || hex;
 }

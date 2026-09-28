@@ -1,0 +1,106 @@
+<view class="page">
+  <view class="card">
+    <view class="sec-title">发票信息</view>
+
+    <view class="form-item">
+      <text class="f-label">发票号码 <text class="req">*</text></text>
+      <input value="{{form.invoice_no}}" data-k="invoice_no" bindinput="onInput" placeholder="必填" placeholder-class="ph" />
+    </view>
+    <view class="form-item">
+      <text class="f-label">发票代码</text>
+      <input value="{{form.invoice_code}}" data-k="invoice_code" bindinput="onInput" placeholder="选填" placeholder-class="ph" />
+    </view>
+    <view class="form-item">
+      <text class="f-label">发票类型</text>
+      <input value="{{form.invoice_type}}" data-k="invoice_type" bindinput="onInput" placeholder="如 数电票（增值税专用发票）" placeholder-class="ph" />
+    </view>
+    <view class="form-item">
+      <text class="f-label">开票日期</text>
+      <picker mode="date" value="{{form.invoice_date}}" bindchange="onDate">
+        <view class="f-value {{form.invoice_date ? '' : 'placeholder'}}">{{form.invoice_date || '选择日期'}}</view>
+      </picker>
+    </view>
+
+    <view class="form-item ta">
+      <text class="f-label">购买方</text>
+      <textarea value="{{form.buyer_name}}" data-k="buyer_name" bindinput="onInput" auto-height maxlength="120" placeholder="发票抬头（用于匹配公司方向）" placeholder-class="ph"></textarea>
+    </view>
+    <view class="form-item ta">
+      <text class="f-label">销售方</text>
+      <textarea value="{{form.seller_name}}" data-k="seller_name" bindinput="onInput" auto-height maxlength="120" placeholder="销售方名称（用于匹配公司方向）" placeholder-class="ph"></textarea>
+    </view>
+    <view class="form-item ta">
+      <text class="f-label">品名/项目</text>
+      <textarea value="{{form.item_name}}" data-k="item_name" bindinput="onInput" auto-height maxlength="200" placeholder="货物或应税劳务名称（用于科目归类）" placeholder-class="ph"></textarea>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="sec-title">金额</view>
+    <view class="form-row2">
+      <view class="form-item">
+        <text class="f-label">金额</text>
+        <input type="digit" value="{{form.amount}}" data-k="amount" bindinput="onInput" placeholder="0.00" placeholder-class="ph" />
+      </view>
+      <view class="form-item">
+        <text class="f-label">税率</text>
+        <picker range="{{taxRates}}" value="{{taxRateIdx}}" bindchange="onTaxRate">
+          <view class="f-value {{form.tax_rate ? '' : 'placeholder'}}">{{form.tax_rate || '选择'}}</view>
+        </picker>
+      </view>
+    </view>
+    <view class="form-row2">
+      <view class="form-item">
+        <text class="f-label">税额</text>
+        <input type="digit" value="{{form.tax_amount}}" data-k="tax_amount" bindinput="onInput" placeholder="0.00" placeholder-class="ph" />
+      </view>
+      <view class="form-item">
+        <text class="f-label">价税合计</text>
+        <input type="digit" value="{{form.total_amount}}" data-k="total_amount" bindinput="onInput" placeholder="0.00" placeholder-class="ph" />
+      </view>
+    </view>
+    <view class="form-item">
+      <text class="f-label">会计科目</text>
+      <picker range="{{subjects}}" range-key="name" value="{{subjectIdx}}" bindchange="onSubject">
+        <view class="f-value {{form.subject_name ? '' : 'placeholder'}}">{{form.subject_name ? form.subject_code + ' ' + form.subject_name : '按品名自动归类'}}</view>
+      </picker>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="sec-title">报销信息</view>
+    <view class="form-row2">
+      <view class="form-item">
+        <text class="f-label">报销人</text>
+        <input wx:if="{{!claimantLocked}}" value="{{form.claimant}}" data-k="claimant" bindinput="onInput" placeholder="报销人" placeholder-class="ph" />
+        <text wx:else class="f-value locked">{{form.claimant}}</text>
+      </view>
+      <view class="form-item">
+        <text class="f-label">部门</text>
+        <input value="{{form.department}}" data-k="department" bindinput="onInput" placeholder="部门" placeholder-class="ph" />
+      </view>
+    </view>
+    <view class="form-row2">
+      <view class="form-item">
+        <text class="f-label">结算方式</text>
+        <picker range="{{settles}}" value="{{settleIdx}}" bindchange="onSettle">
+          <view class="f-value">{{form.settle}}</view>
+        </picker>
+      </view>
+      <view class="form-item">
+        <text class="f-label">收款方</text>
+        <picker range="{{payees}}" value="{{payeeIdx}}" bindchange="onPayee">
+          <view class="f-value">{{form.payee}}</view>
+        </picker>
+      </view>
+    </view>
+    <view class="form-item ta">
+      <text class="f-label">备注</text>
+      <textarea value="{{form.remark}}" data-k="remark" bindinput="onInput" auto-height maxlength="200" placeholder="选填" placeholder-class="ph"></textarea>
+    </view>
+  </view>
+
+  <view class="btn btn-primary btn-block" bindtap="save">{{isEdit ? '保存修改' : '保存并继续录入'}}</view>
+
+  <view class="page-foot"></view>
+</view>

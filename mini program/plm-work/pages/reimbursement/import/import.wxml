@@ -1,0 +1,54 @@
+<view class="page">
+  <view class="sync-float sync-badge sync-badge-{{__syncState}}">
+    <view class="sync-dot"></view>
+    <text class="sync-text">{{__syncState === 'idle' ? '已同步' : __syncState === 'pending' ? '上传中' : __syncState === 'error' ? '上传失败' : '未连接'}}</text>
+  </view>
+
+  <view class="card">
+    <view class="sec-title">从微信聊天导入</view>
+    <view class="tip-text">在微信里把 PDF 发票发给同事或文件传输助手后，点下方按钮从聊天记录中选择。系统将自动识别发票字段、匹配公司方向、归类会计科目并查重，PDF 原件同步归档到云端。</view>
+    <view class="form-item">
+      <text class="f-label">报销人</text>
+      <input wx:if="{{!claimantLocked}}" value="{{claimant}}" bindinput="onClaimant" placeholder="默认当前账号" placeholder-class="ph" />
+      <text wx:else class="f-value locked">{{claimant}}<text class="lock-tag">本人</text></text>
+    </view>
+    <view class="btn btn-primary btn-block {{importing ? 'disabled' : ''}}" bindtap="chooseFiles">
+      {{importing ? '导入中（' + doneCount + '）...' : '📎 从微信聊天选择 PDF 发票'}}
+    </view>
+  </view>
+
+  <view class="card" wx:if="{{items.length > 0}}">
+    <view class="sec-title">
+      导入结果
+      <text class="sec-sub" wx:if="{{doneCount > 0}}">新增 {{okCount}} · 重复 {{dupCount}} · 失败 {{failCount}}</text>
+      <text class="clear-link" bindtap="clearDone" wx:if="{{!importing}}">清空已完成</text>
+    </view>
+
+    <view class="imp-item" wx:for="{{items}}" wx:key="key">
+      <view class="imp-head">
+        <text class="imp-name">{{item.fileName}}</text>
+        <text class="imp-size" wx:if="{{item.sizeText}}">{{item.sizeText}}</text>
+      </view>
+      <text class="imp-size imp-path" wx:if="{{item.filePath}}">{{item.filePath}}</text>
+
+      <!-- 已解析出关键字段 -->
+      <view class="imp-fields" wx:if="{{item.inv}}">
+        <view class="imp-field"><text class="imp-fk">发票号</text><text class="imp-fv">{{item.inv.invoice_no || '-'}}</text></view>
+        <view class="imp-field"><text class="imp-fk">价税合计</text><text class="imp-fv mono">¥{{item.inv.totalText}}</text></view>
+        <view class="imp-field" wx:if="{{item.inv.invoice_date}}"><text class="imp-fk">开票日期</text><text class="imp-fv">{{item.inv.invoice_date}}</text></view>
+        <view class="imp-field" wx:if="{{item.inv.seller_name}}"><text class="imp-fk">销售方</text><text class="imp-fv">{{item.inv.seller_name}}</text></view>
+        <view class="imp-field" wx:if="{{item.inv.subject_name}}"><text class="imp-fk">科目</text><text class="imp-fv">{{item.inv.subject_name}}</text></view>
+      </view>
+
+      <view class="imp-state">
+        <text class="badge {{item.stateColor}}">{{item.stateText}}</text>
+        <view class="imp-ops" wx:if="{{item.state === 'ok' && item.inv.id}}">
+          <text class="imp-edit" data-id="{{item.inv.id}}" bindtap="goEdit">修改 →</text>
+        </view>
+      </view>
+      <view class="imp-error" wx:if="{{item.error}}">{{item.error}}</view>
+    </view>
+  </view>
+
+  <view class="page-foot"></view>
+</view>

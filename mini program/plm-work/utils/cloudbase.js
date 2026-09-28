@@ -58,7 +58,12 @@ const CONFIG = {
     ],
     schedule: ['production_orders_data', 'calendarNotes', 'memos'],
     purchase: ['purchaseOrders_companyA', 'purchaseOrders_companyB', 'companyA-invoices', 'companyB-invoices', 'companyA-payments', 'companyB-payments', 'contracts_companyA', 'contracts_companyB', 'receipts_companyA', 'receipts_companyB', 'returns_companyA', 'returns_companyB', 'suppliers', 'companyNames', 'units'],
-    incomeexpense: ['transactions_company1', 'transactions_company2', 'lastUpdated_company1', 'lastUpdated_company2', 'todos', 'currentCompany', 'currentCompany_statement']
+    incomeexpense: ['transactions_company1', 'transactions_company2', 'lastUpdated_company1', 'lastUpdated_company2', 'todos', 'currentCompany', 'currentCompany_statement'],
+    // 发票报销（与网页版 apps/reimbursement-system 共用；电脑端 store.js
+    // 直接以裸键读写 app_data_store，故此处不加前缀）
+    // 注意：reim_users 必须列入白名单，否则 pullAll('reimbursement')
+    // 不会拉取账号列表，小程序报销登录页将永远显示「没有可用的报销账号」。
+    reimbursement: ['reim_users', 'reim_invoices', 'reim_companies', 'reim_review_log']
   },
   // 云端 store_key 前缀：
   //   工资网页版（apps/wage/js/cloudbase-store.js）直接用裸键存储，无前缀；
@@ -73,7 +78,9 @@ const CONFIG = {
     purchase: 'purchase__',
     // 收支表网页版经通用 cloudbase-sync.js 同步，APP_ID='incomeexpense'，
     // 云端键名为 incomeexpense__ + 裸键。
-    incomeexpense: 'incomeexpense__'
+    incomeexpense: 'incomeexpense__',
+    // 报销系统电脑端 store.js 直接用裸键（reim_invoices…），无前缀
+    reimbursement: ''
   }
 };
 
@@ -175,6 +182,12 @@ function grantBody(kind, forceRelogin) {
 
 /** 刷新 access_token（refresh_token 用后即失效，必须保存新值） */
 async function refreshSession(kind, cached) {
+  if (!cached || !cached.refresh_token) {
+    // 没有 refresh_token 就别发请求了：网关会返回 400（body 里 refresh_token 为 undefined）
+    const e = new Error('no refresh_token');
+    e.statusCode = 400;
+    throw e;
+  }
   const res = await httpReq('POST', CONFIG.base + '/auth/v1/token', {
     grant_type: 'refresh_token',
     refresh_token: cached.refresh_token,
@@ -239,7 +252,7 @@ function ensureToken(kind, forceRelogin) {
       return cached;
     }
 
-    // 2) 用 refresh_token 续期
+    // 2) 用 refresh_token 续期（没有 refresh_token 时直接跳过，不发无效请求）
     if (cached && cached.refresh_token) {
       try {
         return await refreshSession(kind, cached);
@@ -247,6 +260,9 @@ function ensureToken(kind, forceRelogin) {
         // refresh_token 已过期/失效：清除旧缓存，避免下次启动又试一遍旧 token 产生 400 噪音
         clearSession(kind);
       }
+    } else if (cached) {
+      // 缓存里只有过期 access_token、没有 refresh_token：清掉，走密码登录
+      clearSession(kind);
     }
 
     // 3) 账号密码登录
@@ -739,7 +755,8 @@ const WEB_APP_ID_MAP = {
   wicketorders: 'trade',
   orderschedule: 'schedule',
   purchase: 'purchase',
-  incomeexpense: 'income'
+  incomeexpense: 'income',
+  reimbursement: 'reimbursement'
 };
 
 /** 云端 perms（网页版 app id）→ 小程序 key 视图；无权限文档返回 null */

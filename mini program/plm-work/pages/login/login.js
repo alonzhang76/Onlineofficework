@@ -19,9 +19,17 @@ Page({
   },
 
   onLoad() {
-    // 已登录：直接进入工作台
+    // 已登录：直接进入工作台。
+    // 注意：必须推迟一 tick —— 在 lazyCodeLoading: "requiredComponents" 下，
+    // 首页模块可能尚未完成注入，此时 reLaunch 会命中未注册路由，报
+    // "Page pages/home/home has not been registered yet"。
     if (cb.getUser()) {
-      wx.reLaunch({ url: '/pages/home/home' });
+      setTimeout(() => {
+        wx.reLaunch({
+          url: '/pages/home/home',
+          fail: () => { /* 首页不可用时留在登录页，避免白屏 */ }
+        });
+      }, 0);
     }
   },
 
@@ -55,7 +63,12 @@ Page({
         return;
       }
       wx.showToast({ title: '欢迎回来', icon: 'success' });
-      setTimeout(() => { wx.reLaunch({ url: '/pages/home/home' }); }, 400);
+      setTimeout(() => {
+        wx.reLaunch({
+          url: '/pages/home/home',
+          fail: () => { wx.showToast({ title: '页面加载失败，请重试', icon: 'none' }); }
+        });
+      }, 400);
     } catch (e) {
       console.warn('[login] 登录失败', e);
       let msg = '登录失败，请检查账号密码';

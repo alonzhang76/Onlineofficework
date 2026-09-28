@@ -6,6 +6,8 @@
  *   2. 外贸出口管理系统（trade）── utils/trade-db.js（密码保护）
  *   3. 订单排程（schedule）──── utils/schedule-db.js
  *   4. 采购管理（purchase）──── utils/purchase-db.js
+ *   5. 收支管理（income）────── utils/income-db.js（密码保护）
+ *   6. 发票报销（reimbursement）── utils/reim-db.js（与电脑端报销系统共用云端数据）
  *
  * 各子应用数据独立存储，并各自与 CloudBase 云端同步
  * （命名空间 wage / trade / schedule / purchase，与网页版共用同一后端）。
@@ -15,6 +17,7 @@ const tradeDb = require('./utils/trade-db');
 const scheduleDb = require('./utils/schedule-db');
 const purchaseDb = require('./utils/purchase-db');
 const incomeDb = require('./utils/income-db');
+const reimDb = require('./utils/reim-db');
 const cb = require('./utils/cloudbase');
 
 /* ============ 电脑网页端变更 → 小程序自动更新 ============
@@ -32,33 +35,54 @@ var SYNC_DBS = [
   { ns: 'trade', mod: tradeDb },
   { ns: 'schedule', mod: scheduleDb },
   { ns: 'purchase', mod: purchaseDb },
-  { ns: 'incomeexpense', mod: incomeDb }
+  { ns: 'incomeexpense', mod: incomeDb },
+  { ns: 'reimbursement', mod: reimDb }
 ];
 
-var _OrigPage = Page;
-Page = function (options) {
-  options = options || {};
-  var _onShow = options.onShow;
-  options.onShow = function () {
-    if (typeof _onShow === 'function') _onShow.apply(this, arguments);
-    // 切到该页：节流拉取云端（变化时由 app.cloudTick 回调 onCloudUpdate）
-    try {
-      var app = getApp();
-      if (app && typeof app.cloudTick === 'function') app.cloudTick();
-    } catch (e) {}
-  };
-  if (typeof options.onCloudUpdate !== 'function') {
-    options.onCloudUpdate = function () {
-      var d = this.data || {};
-      // 编辑弹窗打开期间不刷新，避免覆盖正在输入的表单
-      if (d.modal || d.showForm) return;
-      if (typeof this.render === 'function') return this.render();
-      if (typeof this.search === 'function') return this.search();
-      if (typeof this.refresh === 'function') return this.refresh();
+/*
+ * 全局包装 Page：注入默认 onCloudUpdate。
+ *
+ * 注意（踩坑记录）：不要用 `Page = function(...)` 直接改写全局 Page 标识符。
+ * 在 `lazyCodeLoading: "requiredComponents"` 下，页面模块是「按需注入」的，
+ * 框架内部仍持有原始 Page 引用；对全局标识符重新赋值会让部分页面走不到
+ * 原生注册流程，开发者工具报：
+ *     Page "pages/login/login" has not been registered yet.
+ *     Component is not found in path "wx://not-found".
+ * 正确做法是包装 window/global 上的原始方法并原地回写（见下），
+ * 且必须在任何 require('./pages/...') 之前完成。
+ */
+function _installPageWrapper() {
+  var host = (typeof globalThis !== 'undefined') ? globalThis
+    : (typeof global !== 'undefined') ? global : this;
+  if (!host || typeof host.Page !== 'function') return;
+  if (host.__plmPageWrapped) return;      // 幂等：热重载时不会层层套娃
+  var _OrigPage = host.Page;
+  host.Page = function (options) {
+    options = options || {};
+    var _onShow = options.onShow;
+    options.onShow = function () {
+      if (typeof _onShow === 'function') _onShow.apply(this, arguments);
+      // 切到该页：节流拉取云端（变化时由 app.cloudTick 回调 onCloudUpdate）
+      try {
+        var app = getApp();
+        if (app && typeof app.cloudTick === 'function') app.cloudTick();
+      } catch (e) {}
     };
-  }
-  return _OrigPage(options);
-};
+    if (typeof options.onCloudUpdate !== 'function') {
+      options.onCloudUpdate = function () {
+        var d = this.data || {};
+        // 编辑弹窗打开期间不刷新，避免覆盖正在输入的表单
+        if (d.modal || d.showForm) return;
+        if (typeof this.render === 'function') return this.render();
+        if (typeof this.search === 'function') return this.search();
+        if (typeof this.refresh === 'function') return this.refresh();
+      };
+    }
+    return _OrigPage.call(host, options);
+  };
+  host.__plmPageWrapped = true;
+}
+_installPageWrapper();
 
 App({
   onLaunch() {
@@ -68,25 +92,41 @@ App({
     this.globalData.incomeExpenseUnlocked = false;
     // 恢复门户登录用户（决定首页可见应用；未登录由 home 页引导去登录页）
     this.globalData.user = cb.getUser();
-    // 本地加载
-    wageDb.loadAll();
-    tradeDb.loadAll();
-    scheduleDb.loadAll();
-    purchaseDb.loadAll();
-    incomeDb.loadAll();
-    // 云端拉取合并（本地有更新写入时保留本地并自动补推，未配置 CloudBase 时静默跳过）
-    wageDb.syncFromCloud();
-    tradeDb.syncFromCloud();
-    scheduleDb.syncFromCloud();
-    purchaseDb.syncFromCloud();
-    incomeDb.syncFromCloud();
-    // 补发上次进程被切后台/杀死前未确认成功的本地写入
-    cb.flushQueue();
-    // 云端轮询状态
-    this._cloudTimer = null;
-    this._cloudSyncing = null;
-    this._lastCloudSync = Date.now(); // 冷启动已拉过一次，抑制首页 onShow 的重复拉取
-    this.startCloudPoll();
+    /*
+     * 所有启动工作推迟到下一个事件循环 tick 执行。
+     * 原因：onLaunch 内同步发起 wx.request / setData 时，开发者工具会先抛出
+     * "Page route 错误(system error) — appLaunch with non-empty page stack"
+     * （request/页面栈尚未初始化完成），并打断首个页面的路由。
+     * 推迟一 tick 后页面栈与网络模块均已就绪，异常消失，且对用户无感知。
+     */
+    setTimeout(() => {
+      try {
+        // 本地加载
+        wageDb.loadAll();
+        tradeDb.loadAll();
+        scheduleDb.loadAll();
+        purchaseDb.loadAll();
+        incomeDb.loadAll();
+        reimDb.loadAll();
+        // 云端拉取合并（本地有更新写入时保留本地并自动补推，未配置 CloudBase 时静默跳过）
+        wageDb.syncFromCloud();
+        tradeDb.syncFromCloud();
+        scheduleDb.syncFromCloud();
+        purchaseDb.syncFromCloud();
+        incomeDb.syncFromCloud();
+        reimDb.syncFromCloud();
+        // 补发上次进程被切后台/杀死前未确认成功的本地写入
+        cb.flushQueue();
+      } catch (e) {
+        console.warn('[app] 启动数据加载失败', e);
+      }
+      // 云端轮询状态
+      this._cloudTimer = null;
+      this._cloudSyncing = null;
+      this._launched = true;            // 启动守卫：允许 cloudTick 拉取
+      this._lastCloudSync = Date.now(); // 冷启动已拉过一次，抑制首页 onShow 的重复拉取
+      this.startCloudPoll();
+    }, 0);
     // 同步状态指示灯：监听 cloudbase 状态变化，下发给当前页面 + 关键状态弹 toast
     this._lastToastState = null;
     cb.onSyncStateChange(state => this.propagateSyncState(state));
@@ -96,9 +136,21 @@ App({
     // 回到前台：补发本地写入 + 立即拉取云端 + 重启轮询
     cb.flushQueue();
     this.startCloudPoll();
-    this.cloudTick();
-    // 重新向前台页面下发一次状态
-    this.propagateSyncState(cb.getSyncState());
+    /*
+     * 注意：这里不再同步调用 cloudTick()。
+     * 冷启动的 onLaunch → onShow 之间页面栈可能尚未就绪，此时发起
+     * syncFromCloud 会走到 cloudbase 的 pullAll → wx.request，在网络回调
+     * 阶段撞上框架内部的页面类型查询（getPageTypeById），在开发者工具里
+     * 报 "SystemError (appServiceSDKScriptError) / Cannot read properties
+     * of undefined (reading 'getPageTypeById')"。推迟一 tick 让页面栈就绪。
+     * 冷启动的首次拉取已由 onLaunch 的 setTimeout 负责，此处只处理
+     * 「从后台返回前台」的场景，且受 _lastCloudSync 节流保护。
+     */
+    setTimeout(() => {
+      try { this.cloudTick(); } catch (e) { /* 页面栈未就绪时静默跳过 */ }
+      // 重新向前台页面下发一次状态
+      this.propagateSyncState(cb.getSyncState());
+    }, 0);
   },
 
   onHide() {
@@ -114,12 +166,13 @@ App({
   propagateSyncState(state) {
     setTimeout(() => {
       try {
+        // getCurrentPages 在页面栈未就绪时可能返回非数组，先做形状校验
         const pages = getCurrentPages();
-        const page = pages[pages.length - 1];
-        if (page && typeof page.setData === 'function') {
+        const page = (Array.isArray(pages) && pages.length) ? pages[pages.length - 1] : null;
+        if (page && typeof page.setData === 'function' && page.data) {
           page.setData({ __syncState: state });
         }
-      } catch (e) {}
+      } catch (e) { /* 页面栈未就绪，忽略 */ }
       // 进入错误/离线时弹一次 toast（避免连续重复弹）
       if (state === this._lastToastState) return;
       this._lastToastState = state;
@@ -148,6 +201,13 @@ App({
    * @param {boolean} force 忽略节流（定时轮询时用）
    */
   cloudTick(force) {
+    /*
+     * 启动守卫：onLaunch 的延迟初始化尚未执行完（_lastCloudSync 未落值）时不拉取。
+     * 否则 onShow 可能抢在 onLaunch 的 setTimeout 之前跑到这里，在页面栈/网络
+     * 模块未就绪时发起请求，触发框架层 SystemError（screenHeight / getPageTypeById）。
+     * onLaunch 完成后会自行置 _lastCloudSync 并启动轮询，不会漏掉首次拉取。
+     */
+    if (!this._launched) return;
     if (!force && Date.now() - (this._lastCloudSync || 0) < CLOUD_TICK_THROTTLE) return;
     if (this._cloudSyncing) return this._cloudSyncing;
     this._lastCloudSync = Date.now();
@@ -171,9 +231,9 @@ App({
           if (changed.length) {
             try {
               var pages = getCurrentPages();
-              var page = pages[pages.length - 1];
+              var page = (Array.isArray(pages) && pages.length) ? pages[pages.length - 1] : null;
               if (page && typeof page.onCloudUpdate === 'function') page.onCloudUpdate(changed);
-            } catch (e) {}
+            } catch (e) { /* 页面栈未就绪，忽略 */ }
           }
           resolve(changed);
         });
@@ -244,6 +304,15 @@ App({
         icon: '🛒',
         color: '#5856D6',
         url: '/pages/purchase/hub/hub'
+      },
+      {
+        key: 'reimbursement',
+        name: '发票报销',
+        nameEn: 'Reimbursement',
+        desc: '导入 · 台账 · 审核',
+        icon: '🧾',
+        color: '#FF6B35',
+        url: '/pages/reimbursement/hub/hub'
       }
     ]
   }

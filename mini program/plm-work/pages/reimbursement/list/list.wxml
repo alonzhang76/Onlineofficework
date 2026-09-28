@@ -1,0 +1,138 @@
+<view class="page">
+  <view class="sync-float sync-badge sync-badge-{{__syncState}}">
+    <view class="sync-dot"></view>
+    <text class="sync-text">{{__syncState === 'idle' ? '已同步' : __syncState === 'pending' ? '上传中' : __syncState === 'error' ? '上传失败' : '未连接'}}</text>
+  </view>
+
+  <!-- 当前身份 + 数据范围提示 -->
+  <view class="scope-bar" wx:if="{{me}}">
+    <view class="scope-avatar {{me.role === 'admin' ? 'admin' : (me.role === 'approver' ? 'approver' : '')}}">{{me.initial}}</view>
+    <view class="scope-text">
+      <text class="scope-name">{{me.display_name}}</text>
+      <text class="badge {{me.badge}}">{{me.roleName}}</text>
+    </view>
+    <text class="scope-hint">{{me.role === 'claimant' ? '仅显示我经手的发票' : '可查看全部发票'}}</text>
+  </view>
+
+  <!-- 搜索 -->
+  <view class="search-box">
+    <text class="search-icon">🔍</text>
+    <input class="search-input" value="{{kw}}" bindinput="onKw" placeholder="搜索发票号 / 销售方 / 品名 / 报销人" placeholder-class="ph" confirm-type="search" />
+  </view>
+
+  <!-- 状态筛选 -->
+  <scroll-view class="chip-scroll" scroll-x enable-flex>
+    <view class="chip-row chip-row-scroll">
+      <view class="chip {{status === item ? 'active' : ''}}" wx:for="{{statuses}}" wx:key="*this"
+        data-s="{{item}}" bindtap="onStatus">{{item === 'all' ? '全部' : item}}</view>
+    </view>
+  </scroll-view>
+
+  <!-- 方向筛选 -->
+  <view class="dir-row">
+    <view class="dir-chip {{direction === '进项' ? 'active in' : ''}}" data-d="进项" bindtap="onDirection">进项</view>
+    <view class="dir-chip {{direction === '销项' ? 'active out' : ''}}" data-d="销项" bindtap="onDirection">销项</view>
+    <view class="dir-sum">共 {{total.count}} 张 · ¥{{totalText}}<text class="dir-tax">（税 ¥{{taxText}}）</text></view>
+  </view>
+
+  <!-- 发票列表 -->
+  <view class="card" wx:if="{{loading}}">
+    <view class="empty">
+      <text class="empty-icon">☁️</text>
+      <text>正在从云端同步发票数据...</text>
+    </view>
+  </view>
+  <view class="card" wx:elif="{{list.length > 0}}">
+    <view class="inv-row" wx:for="{{list}}" wx:key="id" data-id="{{item.id}}" bindtap="openDetail">
+      <view class="inv-main">
+        <view class="inv-line1">
+          <text class="inv-no">{{item.invoice_no}}</text>
+          <text class="badge {{item.statusColor}}">{{item.status}}</text>
+          <text class="dir-tag {{item.direction === '销项' ? 'out' : 'in'}}" wx:if="{{item.direction}}">{{item.direction}}</text>
+        </view>
+        <view class="inv-line2">
+          <text>{{item.invoice_date || '无日期'}}</text>
+          <text wx:if="{{item.company_short}}"> · {{item.company_short}}</text>
+          <text> · {{item.subject_name || '未归类'}}</text>
+        </view>
+        <view class="inv-line3" wx:if="{{item.parties}}">{{item.parties}}</view>
+      </view>
+      <view class="inv-amt">
+        <text class="inv-total mono">¥{{item.totalText}}</text>
+        <text class="inv-tax mono">税 ¥{{item.taxText}}</text>
+      </view>
+    </view>
+  </view>
+  <view class="card" wx:else>
+    <view class="empty">
+      <text class="empty-icon">🧾</text>
+      <text>没有符合条件的发票</text>
+    </view>
+  </view>
+
+  <!-- 新增 FAB（仅报销人 / 管理员） -->
+  <view class="fab" wx:if="{{canImport}}" bindtap="goNew">＋</view>
+
+  <!-- 详情/操作弹窗 -->
+  <view class="mask" wx:if="{{modal}}" catchtouchmove="noop" bindtap="closeModal">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">
+        发票详情
+        <text class="sheet-close" bindtap="closeModal">✕</text>
+      </view>
+      <scroll-view scroll-y class="sheet-body" wx:if="{{cur}}">
+        <view class="detail-fields">
+          <view class="imp-field"><text class="imp-fk">发票号码</text><text class="imp-fv">{{cur.invoice_no}}</text></view>
+          <view class="imp-field" wx:if="{{cur.invoice_code}}"><text class="imp-fk">发票代码</text><text class="imp-fv">{{cur.invoice_code}}</text></view>
+          <view class="imp-field" wx:if="{{cur.invoice_type}}"><text class="imp-fk">发票类型</text><text class="imp-fv">{{cur.invoice_type}}</text></view>
+          <view class="imp-field"><text class="imp-fk">开票日期</text><text class="imp-fv">{{cur.invoice_date || '-'}}</text></view>
+          <view class="imp-field"><text class="imp-fk">购买方</text><text class="imp-fv">{{cur.buyer_name || '-'}}</text></view>
+          <view class="imp-field"><text class="imp-fk">销售方</text><text class="imp-fv">{{cur.seller_name || '-'}}</text></view>
+          <view class="imp-field" wx:if="{{cur.item_name}}"><text class="imp-fk">品名/项目</text><text class="imp-fv">{{cur.item_name}}</text></view>
+          <view class="imp-field"><text class="imp-fk">金额</text><text class="imp-fv mono">¥{{cur.amountText}}</text></view>
+          <view class="imp-field" wx:if="{{cur.tax_rate}}"><text class="imp-fk">税率</text><text class="imp-fv">{{cur.tax_rate}}</text></view>
+          <view class="imp-field"><text class="imp-fk">税额</text><text class="imp-fv mono">¥{{cur.taxText}}</text></view>
+          <view class="imp-field"><text class="imp-fk">价税合计</text><text class="imp-fv mono strong">¥{{cur.totalText}}</text></view>
+          <view class="imp-field"><text class="imp-fk">科目</text><text class="imp-fv">{{cur.subject_code}} {{cur.subject_name}}</text></view>
+          <view class="imp-field" wx:if="{{cur.claimant}}"><text class="imp-fk">报销人</text><text class="imp-fv">{{cur.claimant}}</text></view>
+          <view class="imp-field" wx:if="{{cur.department}}"><text class="imp-fk">部门</text><text class="imp-fv">{{cur.department}}</text></view>
+          <view class="imp-field"><text class="imp-fk">付款状态</text><text class="imp-fv">{{cur.payStatus}}{{cur.paid_amount > 0 ? '（已付 ¥' + cur.paidText + '）' : ''}}</text></view>
+          <view class="imp-field"><text class="imp-fk">当前状态</text><text class="imp-fv"><text class="badge {{cur.statusColor}}">{{cur.status}}</text></text></view>
+          <view class="imp-field" wx:if="{{cur.remark}}"><text class="imp-fk">备注</text><text class="imp-fv">{{cur.remark}}</text></view>
+        </view>
+
+        <!-- 工作流按钮（已按角色 + 单据归属过滤） -->
+        <view class="btn-row" wx:if="{{curActions.length > 0}}">
+          <view class="btn btn-sm {{item.cls}}" wx:for="{{curActions}}" wx:key="key"
+            data-key="{{item.key}}" bindtap="doAction">{{item.name}}</view>
+        </view>
+        <view class="detail-tip" wx:if="{{curActions.length === 0}}">
+          {{me.role === 'claimant' ? '当前状态无可执行操作' : (cur.status === '已入账' ? '该发票已入账，不可再操作' : '当前角色无可执行操作')}}
+        </view>
+
+        <!-- 审核记录 -->
+        <view class="log-box" wx:if="{{curLog.length > 0}}">
+          <view class="log-title">审核记录</view>
+          <view class="log-row" wx:for="{{curLog}}" wx:key="id">
+            <text class="log-text">{{item.reviewer_name}} · {{item.action}}{{item.comment ? '：' + item.comment : ''}}</text>
+            <text class="log-time">{{item.created_at}}</text>
+          </view>
+        </view>
+
+        <!-- 底部操作（按权限显示） -->
+        <view class="btn-row" wx:if="{{curCanEdit}}">
+          <view class="btn btn-outline" bindtap="openOriginal">☁️ 云端原件</view>
+          <view class="btn btn-primary" bindtap="goEdit">编辑</view>
+        </view>
+        <view class="btn-row" wx:else>
+          <view class="btn btn-outline" bindtap="openOriginal">☁️ 查看云端原件</view>
+        </view>
+        <view class="btn-row" wx:if="{{curCanDelete}}">
+          <view class="btn btn-danger-ghost" bindtap="deleteInvoice">删除发票</view>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+
+  <view class="page-foot"></view>
+</view>

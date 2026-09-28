@@ -1,0 +1,94 @@
+<view class="page">
+  <view class="sync-float sync-badge sync-badge-{{__syncState}}">
+    <view class="sync-dot"></view>
+    <text class="sync-text">{{__syncState === 'idle' ? '已同步' : __syncState === 'pending' ? '上传中' : __syncState === 'error' ? '上传失败' : '未连接'}}</text>
+  </view>
+
+  <!-- 数据范围提示 -->
+  <view class="range-hint" wx:if="{{me}}">
+    <text>{{me.display_name}}（{{me.roleName}}） · 统计范围：{{me.scopeText}}</text>
+  </view>
+
+  <!-- 时间范围 -->
+  <view class="segment">
+    <view class="segment-item {{range === item.key ? 'active' : ''}}" wx:for="{{ranges}}" wx:key="key"
+      data-k="{{item.key}}" bindtap="onRange">{{item.name}}</view>
+  </view>
+
+  <!-- KPI -->
+  <view class="kpi-grid">
+    <view class="kpi-card">
+      <view class="kpi-label">价税合计</view>
+      <view class="kpi-value">¥{{kpi.totalText}}</view>
+      <view class="kpi-sub">共 {{kpi.count}} 张发票</view>
+    </view>
+    <view class="kpi-card">
+      <view class="kpi-label">税额合计</view>
+      <view class="kpi-value orange">¥{{kpi.taxText}}</view>
+      <view class="kpi-sub">不含税金额 ¥{{kpi.amountText}}</view>
+    </view>
+    <view class="kpi-card">
+      <view class="kpi-label">待审核</view>
+      <view class="kpi-value red">{{kpi.pendingCount}} 笔</view>
+      <view class="kpi-sub">金额 ¥{{kpi.pendingTotalText}}</view>
+    </view>
+  </view>
+
+  <!-- 进销项 -->
+  <view class="card">
+    <view class="sec-title">进销项汇总</view>
+    <view class="dir-cards">
+      <view class="dir-card {{item.cls}}" wx:for="{{byDirection}}" wx:key="name">
+        <view class="dir-card-name">{{item.name}}</view>
+        <view class="dir-card-total mono">¥{{item.totalText}}</view>
+        <view class="dir-card-sub">{{item.count}} 张 · 税 ¥{{item.taxText}}</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 按状态 -->
+  <view class="card" wx:if="{{byStatus.length > 0}}">
+    <view class="sec-title">按状态分布</view>
+    <view class="dist-row" wx:for="{{byStatus}}" wx:key="name">
+      <view class="dist-head">
+        <text class="badge {{item.color}}">{{item.name}}</text>
+        <text class="dist-val mono">¥{{item.totalText}}（{{item.count}} 张）</text>
+      </view>
+      <view class="bar-track"><view class="bar-fill" style="width: {{item.pct}}%"></view></view>
+    </view>
+  </view>
+
+  <!-- 按科目 -->
+  <view class="card" wx:if="{{bySubject.length > 0}}">
+    <view class="sec-title">按科目分布</view>
+    <view class="dist-row" wx:for="{{bySubject}}" wx:key="name">
+      <view class="dist-head">
+        <text class="dist-name">{{item.code}} {{item.name}}</text>
+        <text class="dist-val mono">¥{{item.totalText}}<text class="dist-tax">（税 ¥{{item.taxText}}）</text></text>
+      </view>
+      <view class="bar-track"><view class="bar-fill orange" style="width: {{item.pct}}%"></view></view>
+      <view class="dist-sub">{{item.count}} 张</view>
+    </view>
+  </view>
+
+  <!-- 按月份 -->
+  <view class="card" wx:if="{{byMonth.length > 0}}">
+    <view class="sec-title">按月份分布</view>
+    <view class="dist-row" wx:for="{{byMonth}}" wx:key="name">
+      <view class="dist-head">
+        <text class="dist-name">{{item.name}}</text>
+        <text class="dist-val mono">¥{{item.totalText}}（{{item.count}} 张）</text>
+      </view>
+      <view class="bar-track"><view class="bar-fill green" style="width: {{item.pct}}%"></view></view>
+    </view>
+  </view>
+
+  <view class="card" wx:if="{{kpi.count === 0}}">
+    <view class="empty">
+      <text class="empty-icon">📊</text>
+      <text>该时间段暂无发票数据</text>
+    </view>
+  </view>
+
+  <view class="page-foot"></view>
+</view>

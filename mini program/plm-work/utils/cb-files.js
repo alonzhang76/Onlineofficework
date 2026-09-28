@@ -42,7 +42,11 @@ const APP_ROOTS = {
   trade: 'orderschedule',
   schedule: 'orderschedule',
   purchase: 'purchase',
-  income: 'incomeexpense'
+  income: 'incomeexpense',
+  // 报销系统：电脑端把发票 PDF 归档在桶根的 PDF/ 目录下
+  // （PDF/{公司简称}/{进项发票|销项发票}/{发票号}.pdf，未分类兜底 PDF/未分类/待分类/），
+  // 小程序端上传必须走 uploadExact 精确路径，不能加时间戳前缀。
+  reimbursement: 'PDF'
 };
 
 function rootOf(app) {
@@ -267,6 +271,79 @@ function upload(app, zoneFolder, filePath, fileName) {
   });
 }
 
+/* ============ 精确路径上传 / 按路径下载与删除（报销系统 PDF 归档用） ============ */
+
+/**
+ * 按「桶内精确相对路径」上传文件（不加时间戳/随机数前缀）。
+ * 与电脑端报销系统的归档路径约定保持一致：
+ *   PDF/{公司简称}/{进项发票|销项发票}/{发票号}.pdf
+ * 若传入路径未带应用根（app 在 APP_ROOTS 有配置时）会自动补上根前缀，
+ * 因此传 '龙力/进项发票/xxx.pdf' 与 'PDF/龙力/进项发票/xxx.pdf' 等价。
+ * 同名对象会被覆盖（与电脑端 upsert 行为一致）。
+ * @param {string} app 应用 key
+ * @param {string} exactPath 应用根相对（或桶根相对）路径
+ * @param {string} filePath 小程序本地文件路径
+ * @returns {Promise<{objectId, cloudObjectId, key, path}>} path 为补根后的相对路径
+ */
+function uploadExact(app, exactPath, filePath) {
+  const root = rootOf(app);
+  let rel = String(exactPath || '').replace(/^\/+/, '');
+  if (!rel) return Promise.reject(new Error('uploadExact: 路径为空'));
+  if (root && rel.indexOf(root + '/') !== 0) rel = root + '/' + rel;
+  const objectId = joinPhysical(root, rel.slice(root ? root.length + 1 : 0));
+  return readLocalFile(filePath).then(buf => {
+    if (buf && buf.byteLength > MAX_FILE_SIZE) {
+      throw new Error('文件超过 10MB，请在电脑端网页版上传');
+    }
+    const url = '/v1/storages/object/' + BUCKET + '/' +
+      encodeObjectPath(objectId.slice(BUCKET.length + 1));
+    return cb.req('PUT', url, '', buf, { 'Content-Type': guessMime(rel) }, false, 'sync');
+  }).then(() => {
+    const cid = 'cloud://' + CONFIG.env + '.' + BUCKET + '/' + objectId;
+    rememberFileId(objectId, cid);
+    return { objectId: objectId, cloudObjectId: cid, key: objectId, path: rel, downloadUrl: '' };
+  });
+}
+
+/** 规范化「桶根相对路径」（cloud_path 存的是 PDF/... 形态） */
+function normRelPath(p) {
+  return String(p || '').replace(/^\/+/, '').replace(/\/+$/, '');
+}
+
+/**
+ * 按「桶根相对路径」获取临时下载链接（报销记录的 cloud_path 即此形态）。
+ * @param {string} relPath 如 'PDF/龙力/进项发票/xxx.pdf'
+ * @returns {Promise<string>} downloadUrl
+ */
+function downloadUrlByPath(relPath) {
+  const rel = normRelPath(relPath);
+  if (!rel) return Promise.reject(new Error('路径为空'));
+  const objectId = BUCKET + '/' + rel;
+  const candidates = [];
+  const push = c => { if (c && candidates.indexOf(c) < 0) candidates.push(c); };
+  push(idFor(objectId));
+  push('cloud://' + CONFIG.env + '.' + BUCKET + '/' + objectId);
+  return candidates.reduce(
+    (p, c) => p.catch(() => tryDownloadInfo(c)),
+    Promise.reject(new Error('start'))
+  ).then(url => {
+    if (url) rememberFileId(objectId, candidates[0]);
+    return url;
+  });
+}
+
+/**
+ * 按「桶根相对路径」删除云端对象。
+ * @param {string} relPath 如 'PDF/龙力/进项发票/xxx.pdf'
+ */
+function removeByPath(relPath) {
+  const rel = normRelPath(relPath);
+  if (!rel) return Promise.reject(new Error('路径为空'));
+  const objectId = BUCKET + '/' + rel;
+  return cb.req('POST', '/v1/storages/delete-objects', '',
+    [{ cloudObjectId: cloudObjectIdFor(objectId) }], null, false, 'sync').then(() => true);
+}
+
 /* ============ 下载链接 ============ */
 
 /**
@@ -339,5 +416,6 @@ function guessMime(name) {
 
 module.exports = {
   APP_ROOTS, MAX_FILE_SIZE,
-  rootOf, list, upload, downloadUrl, remove, guessMime
+  rootOf, list, upload, downloadUrl, remove, guessMime,
+  uploadExact, downloadUrlByPath, removeByPath
 };

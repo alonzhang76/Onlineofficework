@@ -1,0 +1,5 @@
+.ph { color: #C7C7CC; }
+textarea { min-height: 72rpx; }
+.btn-block { margin-top: 8rpx; }
+/* 锁定字段（报销人 = 本人） */
+.form-item .f-value.locked { color: #8E8E93; }

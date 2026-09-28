@@ -54,7 +54,13 @@
     "pages/income/list/list",
     "pages/income/todo/todo",
     "pages/income/report/report",
-    "pages/income/backup/backup"
+    "pages/income/backup/backup",
+    "pages/reimbursement/login/login",
+    "pages/reimbursement/hub/hub",
+    "pages/reimbursement/import/import",
+    "pages/reimbursement/list/list",
+    "pages/reimbursement/edit/edit",
+    "pages/reimbursement/stats/stats"
   ],
   "window": {
     "navigationBarBackgroundColor": "#F7F7F9",
