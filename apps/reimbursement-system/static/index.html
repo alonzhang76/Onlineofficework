@@ -1572,10 +1572,13 @@ async function openSupPay(mode,name){
   $('#supMask').querySelector('.btn-primary').textContent=`确认${verb}（按序抵扣）`;
   $('#supMask').classList.add('show');
   const invoices=await ReimStore.getInvoices();
-  // mode=buyer: 按购买方查销项（收款）; mode=seller: 按销售方查进项（付款）
-  const field=mode==='buyer'?'buyer_name':'seller_name';
+  // mode=buyer: 按购买方查销项（收款）; mode=seller: 按销售方查进项（付款）;
+  // mode=claimant: 按报销人查进项中 payee=报销人 的发票（与收票付款统计"付报销人"分组口径一致）
+  const field=mode==='buyer'?'buyer_name':(mode==='claimant'?'claimant':'seller_name');
   const dir=mode==='buyer'?'销项':'进项';
-  SUP.rows=invoices.filter(r=>r[field]===name&&r.direction===dir&&r.status!=='已驳回'&&r.settle!=='仅做账')
+  let pool=invoices.filter(r=>r.direction===dir&&r.status!=='已驳回'&&r.settle!=='仅做账');
+  if(mode==='claimant')pool=pool.filter(r=>r.payee==='报销人');
+  SUP.rows=pool.filter(r=>r[field]===name)
     .map(r=>{const bal=(r.total_amount||0)-(r.paid_amount||0);return{...r,balance:Math.max(0,bal)};})
     .filter(r=>r.balance>0.004)
     .sort((a,b)=>(a.invoice_date||'').localeCompare(b.invoice_date||''));
@@ -1618,8 +1621,9 @@ function payFillAll(){
 async function supSave(){
   const amount=+$('#sup_amount').value;
   const verb=SUP.mode==='buyer'?'收款':'付款';
+  const tagN=SUP.mode==='buyer'?'客户':(SUP.mode==='claimant'?'报销人':'销售方');
   if(!amount||amount<=0)return toast(`请填写有效的${verb}金额`,'err');
-  if(ieMixedRows(SUP.rows))return toast(`该${SUP.mode==='buyer'?'客户':'销售方'}发票涉及多个我方抬头（龙力/普利美），请逐张点「单独」登记${verb}`,'err');
+  if(ieMixedRows(SUP.rows))return toast(`该${tagN}发票涉及多个我方抬头（龙力/普利美），请逐张点「单独」登记${verb}`,'err');
   if(!confirm(`确认${verb==='收款'?'收到':'向'}「${SUP.name}」${verb} ¥${amount.toFixed(2)}？将按开票顺序自动抵扣。`))return;
   let remain=amount;const invoices=await ReimStore.getInvoices();
   const payDate=$('#sup_date').value,payMethod=$('#sup_method').value,payNote=$('#sup_note').value.trim();
