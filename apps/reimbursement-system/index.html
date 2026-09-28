@@ -529,14 +529,14 @@ td.bg-payee-claimant{background:#f3e8ff}
 <!-- 付款登记弹窗 -->
 <div class="modal-mask" id="payMask" style="z-index:150">
   <div class="modal narrow">
-    <h3>登记付款 <span class="mono" id="pay_no" style="color:var(--muted);font-size:13px"></span></h3>
+    <h3>登记付款 <span id="pay_co" style="display:none;background:var(--red);color:#fff;border-radius:4px;padding:2px 8px;font-size:12px;vertical-align:2px"></span> <span class="mono" id="pay_no" style="color:var(--muted);font-size:13px"></span></h3>
     <div id="pay_info" style="font-size:13px;color:var(--muted);line-height:2;margin-bottom:14px"></div>
     <div class="grid g4">
       <div><label>付款日期</label><input id="pay_date" type="date"></div>
       <div><label>付款方式</label><select id="pay_method">
         <option value="">--未选择--</option><option>电汇</option><option>承兑</option><option>现金</option>
       </select></div>
-      <div><label>累计已付金额 *</label><input id="pay_amount" type="number" step="0.01" min="0"></div>
+      <div><label>累计已付金额 *</label><div style="display:flex;gap:6px"><input id="pay_amount" type="number" step="0.01" min="0" style="flex:1"><button type="button" class="btn btn-sm btn-outline" onclick="payFillAll()">全额</button></div></div>
       <div><label>备注</label><input id="pay_note" placeholder="如：承兑到期日、票据号等"></div>
     </div>
     <div class="hint">差额 = 价税合计 − 累计已付金额，保存后实时更新台账中的付款状态；每次登记都会写入流转记录。</div>
@@ -572,12 +572,12 @@ td.bg-payee-claimant{background:#f3e8ff}
 <!-- 按单位付款弹窗（整笔按开票顺序抵扣） -->
 <div class="modal-mask" id="supMask">
   <div class="modal narrow">
-    <h3>登记付款 <span id="sup_name" style="color:var(--muted);font-size:13px"></span></h3>
+    <h3>登记付款 <span id="sup_co" style="display:none;background:var(--red);color:#fff;border-radius:4px;padding:2px 8px;font-size:12px;vertical-align:2px"></span> <span id="sup_name" style="color:var(--muted);font-size:13px"></span></h3>
     <div id="sup_info" style="font-size:13px;color:var(--muted);line-height:2;margin-bottom:10px"></div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:6px">名下未付清发票（按开票顺序自动抵扣，点击「单独」可对某张单独登记）：</div>
     <div id="sup_list" style="max-height:200px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px"></div>
     <div class="grid g4" style="margin-top:12px">
-      <div><label>本次付款金额 *</label><input id="sup_amount" type="number" step="0.01" min="0" oninput="supPreview()"></div>
+      <div><label>本次付款金额 *</label><div style="display:flex;gap:6px"><input id="sup_amount" type="number" step="0.01" min="0" oninput="supPreview()" style="flex:1"><button type="button" class="btn btn-sm btn-outline" onclick="supFillAll()">全额</button></div></div>
       <div><label>付款日期</label><input id="sup_date" type="date"></div>
       <div><label>付款方式</label><select id="sup_method">
         <option value="">--未选择--</option><option>电汇</option><option>承兑</option><option>现金</option></select></div>
@@ -925,9 +925,9 @@ function buildNav(){
   if(ME.role==='claimant'){
     items.push(['entry','发票录入'],['ledger','我的发票',null],['stats','我的统计']);
   }else if(ME.role==='approver'){
-    items.push(['ledger','待我审核','待审核'],['ledger2','全部发票',null],['stats','统计报表'],['vat','进销项统计'],['pays','付款记录']);
+    items.push(['ledger','待我审核','待审核'],['ledger2','全部发票',null],['vat','进销项统计'],['stats','付款与统计'],['pays','付款记录']);
   }else{
-    items.push(['entry','发票录入'],['ledger','发票台账',null],['stats','统计报表'],['vat','进销项统计'],['pays','付款记录'],['users','用户管理'],['companies','公司抬头']);
+    items.push(['entry','发票录入'],['ledger','发票台账',null],['vat','进销项统计'],['stats','付款与统计'],['pays','付款记录'],['users','用户管理'],['companies','公司抬头']);
   }
   $('#mainNav').innerHTML=items.map(([tab,label,st],i)=>
     `<button data-tab="${tab}" data-status="${st||''}" class="${i===0?'active':''}">${label}</button>`).join('');
@@ -1535,7 +1535,7 @@ function payTableRender(state,tbodyId,pagerId,nameKey,navFn,sizeFn,mode){
       <td class="num" style="color:var(--green)">${fmt(x.p)}</td>
       <td class="num"><b style="color:${owed>0.005?(isBuyer?'var(--primary)':'var(--red)'):'inherit'}">${fmt(owed)}</b></td>
       <td>${x.last_pay||'-'}</td>
-      <td><button class="btn btn-sm ${isBuyer?'btn-success':'btn-primary'}" onclick="openSupPay('${mode}','${esc(name)}')">${isBuyer?'收款':'付款'}</button></td>
+      <td>${owed>0.005?`<button class="btn btn-sm ${isBuyer?'btn-success':'btn-primary'}" onclick="openSupPay('${mode}','${esc(name)}')">${isBuyer?'收款':'付款'}</button>`:`<button class="btn btn-sm" disabled style="opacity:.45;cursor:not-allowed">${isBuyer?'收款':'付款'}</button>`}</td>
     </tr>`;}).join(''):`<tr><td colspan="7" class="empty">${isBuyer?'暂无开票数据（我方开出的销项发票需匹配公司抬头后计入）':'暂无数据（收到的发票需匹配公司抬头为进项后计入）'}</td></tr>`;
 }
 function renderPayStats(){
@@ -1580,6 +1580,8 @@ async function openSupPay(mode,name){
     .map(r=>{const bal=(r.total_amount||0)-(r.paid_amount||0);return{...r,balance:Math.max(0,bal)};})
     .filter(r=>r.balance>0.004)
     .sort((a,b)=>(a.invoice_date||'').localeCompare(b.invoice_date||''));
+  const cos=[...new Set(SUP.rows.map(r=>r.company_short).filter(Boolean))];
+  $('#sup_co').textContent=cos.join(' / ');$('#sup_co').style.display=cos.length?'':'none';
   const sum=SUP.rows.reduce((s,r)=>s+r.balance,0);
   $('#sup_info').innerHTML=`未${verb==='收款'?'收清':'付清'} <b>${SUP.rows.length}</b> 张，合计未${verb==='收款'?'收':'付'} <b style="color:var(--red)">¥${sum.toFixed(2)}</b>`;
   $('#sup_list').innerHTML=SUP.rows.map(r=>`
@@ -1599,6 +1601,14 @@ function supPreview(){
     remain=Math.round((remain-pay)*100)/100;
   }
   $('#sup_preview').textContent=amt>0?`按开票顺序抵扣：${lines.join('，')||'无可抵扣发票'}${remain>0.004?`；多余 ¥${remain.toFixed(2)} 无票可抵，请核对金额`:''}`:'';
+}
+function supFillAll(){
+  const total=SUP.rows.reduce((s,r)=>s+r.balance,0);
+  $('#sup_amount').value=total.toFixed(2);supPreview();
+  if(total<=0.004)toast('没有未付清发票','err');
+}
+function payFillAll(){
+  if(window._payTotal!=null)$('#pay_amount').value=(+window._payTotal).toFixed(2);
 }
 async function supSave(){
   const amount=+$('#sup_amount').value;
@@ -1678,16 +1688,23 @@ function ieShowNext(){
   $('#ieMask').classList.add('show');
 }
 function ieSkip(){IE_SYNC.queue.shift();ieShowNext();}
+// 防重复：同一笔付款（公司+日期+付款对象+发票号+分类+金额）生成确定性 ID，
+// 重复点击/重复提交时 upsert 覆盖同一行而不是新增一条
+function ieHash(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))>>>0;return h.toString(36);}
+function ieRecId(g,ctx,catId,amount){
+  return 'ie'+ieHash([g.companyKey,ctx.date||'',ctx.payee||'',g.nos.join(','),catId,amount.toFixed(2)].join('|'));
+}
 async function ieConfirm(){
-  const g=IE_SYNC.queue[0];if(!g)return;
+  const g=IE_SYNC.queue[0];if(!g||IE_SYNC.busy)return;
   const catId=$('#ie_category').value;
   if(!catId)return toast('请选择支出分类','err');
   const amount=+$('#ie_amount').value;
   if(!amount||amount<=0)return toast('请填写有效金额','err');
+  const btn=$('#ieMask .btn-primary');IE_SYNC.busy=true;if(btn)btn.disabled=true;
   const cat=IE_EXPENSE_CATS.find(c=>c.id===catId);
   const ctx=IE_SYNC.ctx;
   const rec={
-    id:Date.now().toString(36)+Math.random().toString(36).substr(2,5),
+    id:ieRecId(g,ctx,catId,amount),
     type:'expense',
     amount:Math.round(amount*100)/100,
     categoryId:catId,
@@ -1722,6 +1739,7 @@ async function ieConfirm(){
     if(up&&up.error)throw up.error;
     toast(`已写入收支表·${g.label}并上传云端`);
   }catch(e){toast('收支表同步失败：'+(e&&e.message||e),'err');}
+  IE_SYNC.busy=false;if(btn)btn.disabled=false;
   IE_SYNC.queue.shift();ieShowNext();
 }
 async function loadStats(){
@@ -2032,6 +2050,8 @@ function openPay(id,src){
   if(!r)return toast('请刷新后重试','err');
   payId=id;
   $('#pay_no').textContent='#'+id+' · '+r.invoice_no;
+  $('#pay_co').textContent=r.company_short||'';$('#pay_co').style.display=r.company_short?'':'none';
+  window._payTotal=r.total_amount;
   $('#pay_info').innerHTML=`价税合计：<b>¥${fmt(r.total_amount)}</b> ｜ 报销人：${esc(r.claimant||'-')} ｜ 状态：${r.status||'-'}<br>
     当前已付：<b>¥${fmt(r.paid_amount||0)}</b> ｜ 未付差额：<b>¥${fmt(r.balance)}</b>（${r.payment_status||'-'}）${r.payment_method?` ｜ 上次方式：${esc(r.payment_method)}`:''}`;
   $('#pay_date').value=r.payment_date||new Date().toISOString().slice(0,10);
@@ -2126,8 +2146,20 @@ function renderPays(){
       <td class="num">${fmt(bal)}</td>
       <td><span class="badge ${r.payment_status==='已付清'?'b-pass':'b-dai'}">${r.payment_status}</span></td>
       <td title="${esc(r.payment_note||'')}">${esc(cut(r.payment_note||'-',14))}</td>
-      <td><button class="btn btn-sm btn-outline" onclick="openPay(${r.id},PAYREC.rows)">修改</button></td>
+      <td>${ME.role==='admin'?`<button class="btn btn-sm btn-outline" style="color:var(--red);border-color:var(--red)" onclick="delPay(${r.id})">删除</button> `:''}<button class="btn btn-sm btn-outline" onclick="openPay(${r.id},PAYREC.rows)">修改</button></td>
     </tr>`;}).join(''):'<tr><td colspan="12" class="empty">暂无付款记录（在收票付款统计中登记付款后自动生成）</td></tr>';
+}
+async function delPay(id){
+  if(ME.role!=='admin')return toast('仅管理员可删除付款记录','err');
+  if(!confirm('确认删除该付款记录？将清除该发票的付款信息（已付金额归零、状态恢复为未付款）。'))return;
+  const invoices=await ReimStore.getInvoices();
+  const inv=invoices.find(x=>x.id===id);
+  if(!inv)return toast('发票不存在','err');
+  inv.paid_amount=0;inv.payment_date='';inv.payment_method='';inv.payment_note='';
+  await ReimStore.saveInvoices(invoices);
+  toast('付款记录已删除');loadPays(PAYREC.page);
+  const paysTab=document.getElementById('tab-pays');
+  if(!paysTab||paysTab.hidden){loadLedger(LEDGER.page);}
 }
 
 /* ---------- utils ---------- */
