@@ -865,7 +865,7 @@
             </div>
             
             <!-- 模态框内容 -->
-            <div class="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6 sm:align-bottom">
+            <div class="relative z-50 inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6 sm:align-bottom">
                 <div class="sm:flex sm:items-start">
                     <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
                         <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">
@@ -915,7 +915,7 @@
             </div>
             
             <!-- 模态框内容 -->
-            <div class="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6 sm:align-bottom">
+            <div class="relative z-50 inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6 sm:align-bottom">
                 <div class="sm:flex sm:items-start">
                     <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
                         <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">
@@ -974,7 +974,7 @@
             </div>
             
             <!-- 模态框内容 -->
-            <div class="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full sm:p-6">
+            <div class="relative z-50 inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full sm:p-6">
                 <div class="sm:flex sm:items-start">
                     <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-primary-100 sm:mx-0 sm:h-10 sm:w-10">
                         <i class="fa fa-credit-card text-primary-600 text-lg"></i>
@@ -1097,7 +1097,7 @@
             </div>
             
             <!-- 模态框内容 -->
-            <div class="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-4 sm:align-middle sm:max-w-4xl sm:w-full sm:p-6" style="max-height: 90vh;">
+            <div class="relative z-50 inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-4 sm:align-middle sm:max-w-4xl sm:w-full sm:p-6" style="max-height: 90vh;">
                 <div class="sm:flex sm:items-start">
                     <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-primary-100 sm:mx-0 sm:h-10 sm:w-10">
                         <i class="fa fa-file-text-o text-primary-600 text-lg"></i>
@@ -1202,7 +1202,7 @@
             </div>
             
             <!-- 模态框内容 -->
-            <div class="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+            <div class="relative z-50 inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
                 <div class="sm:flex sm:items-start">
                     <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-success-100 sm:mx-0 sm:h-10 sm:w-10">
                         <i class="fa fa-file-text-o text-success-600 text-lg"></i>
@@ -1344,43 +1344,6 @@
                     <i class="fa fa-dashboard w-5 text-center"></i>
                     <span>备忘录</span>
                 </a>
-                <!-- 添加线条和快速链接文本 -->
-                <div class="border-t-2 border-gray-400 my-2 rounded-t shadow-inner"></div>
-                <div class="text-gray-500 text-sm font-medium px-4 py-1">快速链接</div>
-                <a href="#" class="nav-link" style="background-color: #1a56db; color: white;" onclick="openBalanceSheetWindow(); return false;">
-                    <i class="fa fa-file-alt w-5 text-center"></i>
-                    <span>收支表</span>
-                </a>
-                <a href="#" class="nav-link" style="background-color: #1a56db; color: white;" onclick="openNormalInvoiceWindow(); return false;">
-                    <i class="fa fa-file-invoice w-5 text-center"></i>
-                    <span>普票管理项</span>
-                </a>
-                <a href="#" class="nav-link" style="background-color: #1a56db; color: white;" onclick="openInvoiceWindow(); return false;">
-                    <i class="fa fa-file-invoice w-5 text-center"></i>
-                    <span>专票管理项</span>
-                </a>
-                
-                <script>
-                function openInvoiceWindow() {
-                    // 尝试直接打开窗口，如果窗口已存在则会聚焦到该窗口
-                    window.open('invoice.html', 'invoice_window', 'noopener,noreferrer');
-                }
-                
-                function openBalanceSheetWindow() {
-                    // 尝试直接打开窗口，如果窗口已存在则会聚焦到该窗口
-                    const balanceSheetWindow = window.open('收支表.html?selectFirstCompany=true', 'balance_sheet_window', 'noopener,noreferrer');
-                    
-                    // 如果窗口已存在，刷新页面
-                    if (balanceSheetWindow && balanceSheetWindow.location) {
-                        balanceSheetWindow.location.href = '收支表.html?selectFirstCompany=true';
-                    }
-                }
-                
-                function openNormalInvoiceWindow() {
-                    // 尝试直接打开窗口，如果窗口已存在则会聚焦到该窗口
-                    window.open('普票登记系统.html', 'normal_invoice_window', 'noopener,noreferrer');
-                }
-                </script>
             </nav>
             
             <!-- 用户信息 -->
@@ -1461,7 +1424,7 @@
                         </div>
                         
                         <!-- 模态框内容 -->
-                        <div class="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full sm:p-6">
+                        <div class="relative z-50 inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full sm:p-6">
                             <div class="sm:flex sm:items-start">
                                 <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-primary-100 sm:mx-0 sm:h-10 sm:w-10">
                                     <i class="fa fa-credit-card text-primary-600 text-lg"></i>
@@ -2081,7 +2044,7 @@
                         </div>
                         
                         <!-- 模态框内容 -->
-                        <div class="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-4 sm:align-middle sm:max-w-2xl sm:w-full sm:p-6 max-h-[90vh]">
+                        <div class="relative z-50 inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-4 sm:align-middle sm:max-w-2xl sm:w-full sm:p-6 max-h-[90vh]">
                             <div class="sm:flex sm:items-start">
                                 <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-primary-100 sm:mx-0 sm:h-10 sm:w-10">
                                     <i class="fa fa-file-text-o text-primary-600 text-lg"></i>
@@ -7358,7 +7321,7 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
                  modal.innerHTML = `
                      <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
                          <div class="fixed inset-0 transition-opacity" aria-hidden="true" onclick="this.closest('.bg-gray-500').remove()"></div>
-                         <div class="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+                         <div class="relative z-50 inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
                              <div class="sm:flex sm:items-start">
                                  <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-primary-100 sm:mx-0 sm:h-10 sm:w-10">
                                      <i class="fa fa-file-text-o text-primary-600 text-lg"></i>
@@ -7425,7 +7388,7 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
                  modal.innerHTML = `
                      <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
                          <div class="fixed inset-0 transition-opacity" aria-hidden="true" onclick="this.closest('.bg-gray-500').remove()"></div>
-                         <div class="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+                         <div class="relative z-50 inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
                              <div class="sm:flex sm:items-start">
                                  <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-primary-100 sm:mx-0 sm:h-10 sm:w-10">
                                      <i class="fa fa-edit text-primary-600 text-lg"></i>
