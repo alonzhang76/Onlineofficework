@@ -1148,6 +1148,7 @@ const CAN={get edit(){return ME&&['claimant','admin'].includes(ME.role)},
            get del(){return ME&&['claimant','admin'].includes(ME.role)},
            get review(){return ME&&['approver','admin'].includes(ME.role)},
            get post(){return ME&&ME.role==='admin'},
+           get pay(){return ME&&['approver','admin'].includes(ME.role)},
            get submitWf(){return ME&&['claimant','admin'].includes(ME.role)}};
 
 async function loadLedger(page){
@@ -1555,7 +1556,7 @@ function payTableRender(state,tbodyId,pagerId,nameKey,navFn,sizeFn,mode){
       <td class="num" style="color:var(--green)">${fmt(x.p)}</td>
       <td class="num"><b style="color:${owed>0.005?(isBuyer?'var(--primary)':'var(--red)'):'inherit'}">${fmt(owed)}</b></td>
       <td>${x.last_pay||'-'}</td>
-      <td>${owed>0.005?`<button class="btn btn-sm ${isBuyer?'btn-success':'btn-primary'}" onclick="openSupPay('${mode}','${esc(name)}')">${isBuyer?'收款':'付款'}</button>`:`<button class="btn btn-sm" disabled style="opacity:.45;cursor:not-allowed">${isBuyer?'收款':'付款'}</button>`}</td>
+      <td>${!CAN.pay?'—':(owed>0.005?`<button class="btn btn-sm ${isBuyer?'btn-success':'btn-primary'}" onclick="openSupPay('${mode}','${esc(name)}')">${isBuyer?'收款':'付款'}</button>`:`<button class="btn btn-sm" disabled style="opacity:.45;cursor:not-allowed">${isBuyer?'收款':'付款'}</button>`)}</td>
     </tr>`;}).join(''):`<tr><td colspan="7" class="empty">${isBuyer?'暂无开票数据（我方开出的销项发票需匹配公司抬头后计入）':'暂无数据（收到的发票需匹配公司抬头为进项后计入）'}</td></tr>`;
 }
 function renderPayStats(){
