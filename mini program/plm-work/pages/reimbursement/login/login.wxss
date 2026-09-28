@@ -51,3 +51,21 @@
 }
 .lg-tip-title { font-size: 26rpx; font-weight: 600; color: #C24A1E; display: block; margin-bottom: 12rpx; }
 .lg-tip-row { font-size: 23rpx; color: #6E6E73; line-height: 1.7; }
+
+/* 登录表单 */
+.lg-field { margin-bottom: 28rpx; }
+.lg-label { font-size: 26rpx; font-weight: 600; color: #1C1C1E; display: block; margin-bottom: 14rpx; }
+.lg-picker {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #F2F2F7; border-radius: 16rpx; padding: 24rpx 28rpx;
+  font-size: 30rpx; color: #1C1C1E; min-height: 48rpx;
+}
+.lg-picker-empty { color: #C7C7CC; }
+.lg-picker-arrow { font-size: 28rpx; color: #8E8E93; }
+.lg-input {
+  background: #F2F2F7; border-radius: 16rpx; padding: 24rpx 28rpx;
+  font-size: 30rpx; color: #1C1C1E; min-height: 48rpx;
+}
+.lg-err { font-size: 24rpx; color: #FF3B30; margin-bottom: 16rpx; }
+.lg-login-btn { flex: 1; }
+.btn-disabled { opacity: 0.5; }

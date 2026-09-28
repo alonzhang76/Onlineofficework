@@ -13,8 +13,8 @@
   </view>
 
   <view class="lg-hero">
-    <view class="lg-hero-title">请选择你的身份</view>
-    <view class="lg-hero-sub">不同角色拥有不同的查看与操作权限</view>
+    <view class="lg-hero-title">登录报销系统</view>
+    <view class="lg-hero-sub">使用电脑端相同的账号密码登录</view>
   </view>
 
   <!-- 加载中 -->
@@ -38,23 +38,35 @@
     </view>
   </view>
 
-  <!-- 用户列表 -->
+  <!-- 登录表单 -->
   <block wx:else>
     <view class="card">
-      <view class="sec-title">可用账号<text class="sec-sub">共 {{users.length}} 人</text></view>
-      <view class="lg-user" wx:for="{{users}}" wx:key="id" data-id="{{item.id}}" bindtap="pick">
-        <view class="avatar {{item.role === 'admin' ? 'admin' : (item.role === 'approver' ? 'approver' : '')}}">{{item.initial}}</view>
-        <view class="lg-user-main">
-          <view class="lg-user-line1">
-            <text class="lg-user-name">{{item.display_name}}</text>
-            <text class="badge {{item.badge}}">{{item.roleName}}</text>
+      <view class="sec-title">账号登录</view>
+
+      <view class="lg-field">
+        <text class="lg-label">用户名</text>
+        <picker mode="selector" range="{{users}}" range-key="display_name" bindchange="onUserChange">
+          <view class="lg-picker {{selectedUserName ? '' : 'lg-picker-empty'}}">
+            <text>{{selectedUserName || '请选择用户名'}}</text>
+            <text class="lg-picker-arrow">▾</text>
           </view>
-          <view class="lg-user-line2">
-            <text wx:if="{{item.department}}">{{item.department}} · </text>{{item.username}}
-          </view>
-          <view class="lg-user-desc">{{item.desc}}</view>
-        </view>
-        <text class="lg-arrow">{{pendingId === item.id ? '···' : '›'}}</text>
+        </picker>
+      </view>
+
+      <view class="lg-field">
+        <text class="lg-label">密码</text>
+        <input class="lg-input" type="text" password="{{true}}" placeholder="请输入密码"
+               value="{{password}}" bindinput="onPwdInput"
+               bindconfirm="doLogin" />
+      </view>
+
+      <view class="lg-err" wx:if="{{pwdError}}">{{pwdError}}</view>
+
+      <view class="btn-row">
+        <button class="btn btn-primary lg-login-btn {{verifying ? 'btn-disabled' : ''}}"
+                bindtap="doLogin" disabled="{{verifying}}">
+          {{verifying ? '校验中...' : '登录'}}
+        </button>
       </view>
     </view>
 

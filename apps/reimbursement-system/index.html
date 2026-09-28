@@ -1153,8 +1153,13 @@ const CAN={get edit(){return ME&&['claimant','admin'].includes(ME.role)},
 async function loadLedger(page){
   LEDGER.page=page||1;
   let invoices=await ReimStore.getInvoices();
-  // 角色过滤
-  if(ME.role==='claimant')invoices=invoices.filter(r=>r.user_id===ME.id);
+  // 角色过滤：报销人只看自己经手的发票。
+  // 小程序端保存的发票没有 user_id（只有 claimant），所以用 claimant 名称匹配，
+  // 同时保留 user_id 回退（电脑端旧发票有 user_id 但可能无 claimant）。
+  if(ME.role==='claimant')invoices=invoices.filter(r=>{
+    const nc=(r.claimant||'').replace(/\s+/g,''),nm=(ME.display_name||'').replace(/\s+/g,'');
+    return (nc&&nc===nm)||r.user_id===ME.id;
+  });
   else if(ME.role==='approver'){
     // 审核人看全部，但默认筛选待审核
   }
@@ -1199,7 +1204,7 @@ async function loadLedger(page){
     const stCls={'草稿':'bg-st-draft','待审核':'bg-st-dai','已通过':'bg-st-pass','已驳回':'bg-st-rej','已入账':'bg-st-ru'}[r.status]||'';
     const pi=ReimStore.paymentInfo(r.total_amount,r.paid_amount);
     const payCls=r.settle==='仅做账'?'bg-pay-none':({'已付清':'bg-pay-paid','部分付款':'bg-pay-part','未付款':'bg-pay-unpaid'}[pi.status]||'');
-    const mine=ME.role!=='claimant'||r.user_id===ME.id;
+    const mine=ME.role!=='claimant'||(r.claimant||'').replace(/\s+/g,'')===(ME.display_name||'').replace(/\s+/g,'')||r.user_id===ME.id;
     const btns=[];
     if(mine&&CAN.submitWf&&(r.status==='草稿'||r.status==='已驳回'))
       btns.push(`<button class="btn btn-sm btn-primary" onclick="wf(${r.id},'submit')">提交</button>`);
@@ -1293,7 +1298,7 @@ async function batchSubmit(){
   let n=0;
   invoices.forEach(r=>{
     if(checked.has(r.id)&&(r.status==='草稿'||r.status==='已驳回')){
-      if(ME.role==='claimant'&&r.user_id!==ME.id)return;
+      if(ME.role==='claimant'&&(r.claimant||'').replace(/\s+/g,'')!==(ME.display_name||'').replace(/\s+/g,'')&&r.user_id!==ME.id)return;
       r.status='待审核';r.updated_at=new Date().toISOString().slice(0,19).replace('T',' ');n++;
     }
   });
@@ -1319,7 +1324,7 @@ async function wf(id,action){
   const invoices=await ReimStore.getInvoices();
   const r=invoices.find(x=>x.id===id);
   if(!r)return toast('记录不存在','err');
-  if(ME.role==='claimant'&&r.user_id!==ME.id)return toast('无权操作','err');
+  if(ME.role==='claimant'&&(r.claimant||'').replace(/\s+/g,'')!==(ME.display_name||'').replace(/\s+/g,'')&&r.user_id!==ME.id)return toast('无权操作','err');
   const now=new Date().toISOString().slice(0,19).replace('T',' ');
   if(action==='submit'&&(r.status==='草稿'||r.status==='已驳回'))r.status='待审核';
   else if(action==='withdraw'&&r.status==='待审核')r.status='草稿';
@@ -1388,7 +1393,7 @@ async function openEdit(id){
   const invoices=await ReimStore.getInvoices();
   const r=invoices.find(x=>x.id===id);
   if(!r)return toast('记录不存在或不可见','err');
-  if(ME.role==='claimant'&&r.user_id!==ME.id)return toast('无权编辑','err');
+  if(ME.role==='claimant'&&(r.claimant||'').replace(/\s+/g,'')!==(ME.display_name||'').replace(/\s+/g,'')&&r.user_id!==ME.id)return toast('无权编辑','err');
   currentEdit=r;$('#e_id').textContent='#'+id;
   const fields=ME.role==='claimant'?EF.filter(([k])=>k!=='claimant'):EF;
   $('#editForm').innerHTML=fields.map(([k,label,type])=>{
@@ -1790,7 +1795,12 @@ async function ieConfirm(){
   IE_SYNC.queue.shift();ieShowNext();
 }
 async function loadStats(){
-  const invoices=await ReimStore.getInvoices();
+  let invoices=await ReimStore.getInvoices();
+  // 报销人只统计自己经手的发票（与"我的发票"过滤口径一致）
+  if(ME.role==='claimant')invoices=invoices.filter(r=>{
+    const nc=(r.claimant||'').replace(/\s+/g,''),nm=(ME.display_name||'').replace(/\s+/g,'');
+    return (nc&&nc===nm)||r.user_id===ME.id;
+  });
   const companyFilter=$('#s_company')&&$('#s_company').value?parseInt($('#s_company').value):null;
   // 有效发票：非已驳回、非仅做账
   const eff=invoices.filter(r=>r.status!=='已驳回'&&r.settle!=='仅做账'&&(!companyFilter||r.company_id===companyFilter));
