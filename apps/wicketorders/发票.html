@@ -731,40 +731,63 @@
         function getQueryParams() {
             const params = new URLSearchParams(window.location.search);
             const data = {};
-            
+            const productsKey = params.get('productsKey');
+
+            // 头部数据优先从 sessionStorage 读取（与产品数据共用同一 key），
+            // 避免换行符等特殊字符进入 URL 触发 400 InvalidURI；
+            // 读取不到时回退到 URL 参数，兼容旧链接
+            let header = null;
+            if (productsKey) {
+                try {
+                    const headerJson = sessionStorage.getItem('invoice_header_' + productsKey);
+                    if (headerJson) {
+                        header = JSON.parse(headerJson);
+                    }
+                } catch (error) {
+                    console.error('解析发票头部数据失败:', error);
+                }
+            }
+            const headerVal = (key, fallback = 'N/A') => {
+                const value = header ? header[key] : null;
+                if (value !== null && value !== undefined && value !== '') {
+                    return value;
+                }
+                return params.get(key) || fallback;
+            };
+
             // 获取基本信息
-            data.companyName = params.get('companyName') || 'ABC公司 | ABC Company';
-            data.invoiceNo = params.get('invoiceNo') || 'N/A';
-            data.invoiceDate = params.get('invoiceDate') || 'N/A';
-            data.orderNo = params.get('orderNo') || 'N/A';
+            data.companyName = headerVal('companyName', 'ABC公司 | ABC Company');
+            data.invoiceNo = headerVal('invoiceNo');
+            data.invoiceDate = headerVal('invoiceDate');
+            data.orderNo = headerVal('orderNo');
             
             // 获取客户信息
-            data.customerCompany = params.get('customerCompany') || 'N/A';
-            data.customerContact = params.get('customerContact') || 'N/A';
-            data.customerTel = params.get('customerTel') || 'N/A';
-            data.customerEmail = params.get('customerEmail') || 'N/A';
+            data.customerCompany = headerVal('customerCompany');
+            data.customerContact = headerVal('customerContact');
+            data.customerTel = headerVal('customerTel');
+            data.customerEmail = headerVal('customerEmail');
             
             // 获取交货信息
-            data.deliveryMethod = params.get('deliveryMethod') || 'N/A';
-            data.deliveryLocation = params.get('deliveryLocation') || 'N/A';
-            data.deliveryDate = params.get('deliveryDate') || 'N/A';
-            data.remarks = params.get('remarks') || 'N/A';
+            data.deliveryMethod = headerVal('deliveryMethod');
+            data.deliveryLocation = headerVal('deliveryLocation');
+            data.deliveryDate = headerVal('deliveryDate');
+            data.remarks = headerVal('remarks');
             
             // 获取付款信息
-            data.terms = params.get('terms') || 'N/A';
-            data.paymentMethod = params.get('paymentMethod') || 'N/A';
-            data.paymentRatio = params.get('paymentRatio') || 'N/A';
-            data.bankAccountInfo = params.get('bankAccountInfo') || 'N/A';
-            data.taxRate = params.get('taxRate') || 'N/A';
+            data.terms = headerVal('terms');
+            data.paymentMethod = headerVal('paymentMethod');
+            data.paymentRatio = headerVal('paymentRatio');
+            data.bankAccountInfo = headerVal('bankAccountInfo');
+            data.taxRate = headerVal('taxRate');
             
             // 获取产品明细（优先从sessionStorage读取）
             try {
-                const productsKey = params.get('productsKey');
                 if (productsKey) {
                     const productsJson = sessionStorage.getItem('invoice_products_' + productsKey);
                     if (productsJson) {
                         data.products = JSON.parse(productsJson);
                         sessionStorage.removeItem('invoice_products_' + productsKey);
+                        sessionStorage.removeItem('invoice_header_' + productsKey);
                     } else {
                         data.products = [];
                     }

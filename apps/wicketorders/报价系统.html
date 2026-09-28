@@ -4666,30 +4666,36 @@
             }
         }
         
-        // 构建URL参数
-        const params = new URLSearchParams();
-        params.append('quoteNo', quoteNo);
-        params.append('quoteDate', quoteDate);
-        params.append('validUntil', validUntil);
-        params.append('customerCompany', customerCompany);
-        params.append('customerContact', customerContact);
-        params.append('customerTel', customerTel);
-        params.append('customerEmail', customerEmail);
-        params.append('deliveryMethod', deliveryMethod);
-        params.append('deliveryLocation', deliveryLocation);
-        params.append('deliveryDate', deliveryDate);
-        params.append('deliveryRemarks', deliveryRemarks);
-        params.append('terms', terms);
-        params.append('paymentMethod', paymentMethod);
-        params.append('paymentRatio', paymentRatio);
-        params.append('bankAccountInfo', bankAccountInfo);
-        params.append('taxRate', taxRate);
-        
-        // 使用sessionStorage传递产品数据，避免URL长度限制导致remark等字段丢失
+        // 头部数据与产品数据均通过 sessionStorage 传递，URL 中只保留一个短 key：
+        // 1) 避免多行文本（deliveryRemarks/bankAccountInfo）中的换行符被编码为
+        //    %0A/%0D，导致静态服务器（OSS）返回 400 InvalidURI；
+        // 2) 避免 URL 长度限制导致字段内容丢失
         const productsKey = 'qt_' + Date.now();
+        const quoteHeader = {
+          quoteNo,
+          quoteDate,
+          validUntil,
+          customerCompany,
+          customerContact,
+          customerTel,
+          customerEmail,
+          deliveryMethod,
+          deliveryLocation,
+          deliveryDate,
+          deliveryRemarks,
+          terms,
+          paymentMethod,
+          paymentRatio,
+          bankAccountInfo,
+          taxRate,
+          companyName: fullCompanyName
+        };
         sessionStorage.setItem('quotation_products_' + productsKey, JSON.stringify(products));
+        sessionStorage.setItem('quotation_header_' + productsKey, JSON.stringify(quoteHeader));
+
+        // 构建URL参数（仅携带 sessionStorage 的 key）
+        const params = new URLSearchParams();
         params.append('productsKey', productsKey);
-        params.append('companyName', fullCompanyName);
         
         // 收集所有需要保存的报价数据
         const quoteData = {
@@ -4819,30 +4825,35 @@
             }
         }
         
-        // 构建URL参数
-        const params = new URLSearchParams();
-        params.append('invoiceNo', invoiceNo);
-        params.append('invoiceDate', invoiceDate);
-        params.append('orderNo', orderNo);
-        params.append('customerCompany', customerCompany);
-        params.append('customerContact', customerContact);
-        params.append('customerTel', customerTel);
-        params.append('customerEmail', customerEmail);
-        params.append('deliveryMethod', deliveryMethod);
-        params.append('deliveryLocation', deliveryLocation);
-        params.append('deliveryDate', deliveryDate);
-        params.append('remarks', remarks);
-        params.append('terms', terms);
-        params.append('paymentMethod', paymentMethod);
-        params.append('paymentRatio', paymentRatio);
-        params.append('bankAccountInfo', bankAccountInfo);
-        params.append('taxRate', taxRate);
-        
-        // 使用sessionStorage传递产品数据，避免URL长度限制
+        // 头部数据与产品数据均通过 sessionStorage 传递，URL 中只保留一个短 key：
+        // 避免多行文本（remarks/bankAccountInfo）中的换行符被编码为 %0A/%0D，
+        // 导致静态服务器（OSS）返回 400 InvalidURI
         const productsKey = 'inv_' + Date.now();
+        const invoiceHeader = {
+          invoiceNo,
+          invoiceDate,
+          orderNo,
+          customerCompany,
+          customerContact,
+          customerTel,
+          customerEmail,
+          deliveryMethod,
+          deliveryLocation,
+          deliveryDate,
+          remarks,
+          terms,
+          paymentMethod,
+          paymentRatio,
+          bankAccountInfo,
+          taxRate,
+          companyName: fullCompanyName
+        };
         sessionStorage.setItem('invoice_products_' + productsKey, JSON.stringify(products));
+        sessionStorage.setItem('invoice_header_' + productsKey, JSON.stringify(invoiceHeader));
+
+        // 构建URL参数（仅携带 sessionStorage 的 key）
+        const params = new URLSearchParams();
         params.append('productsKey', productsKey);
-        params.append('companyName', fullCompanyName);
         
         // 打开新窗口显示发票
         window.open(`发票.html?${params.toString()}`, '_blank');
@@ -4948,31 +4959,36 @@
             }
         }
         
-        // 构建URL参数
-        const params = new URLSearchParams();
-        params.append('contractNo', contractNo);
-        params.append('contractDate', contractDate);
-        params.append('quotationNo', quotationNo);
-        params.append('validUntil', validUntil);
-        params.append('customerCompany', customerCompany);
-        params.append('customerContact', customerContact);
-        params.append('customerTel', customerTel);
-        params.append('customerEmail', customerEmail);
-        params.append('deliveryMethod', deliveryMethod);
-        params.append('deliveryLocation', deliveryLocation);
-        params.append('deliveryDate', deliveryDate);
-        params.append('deliveryRemarks', deliveryRemarks);
-        params.append('terms', terms);
-        params.append('paymentMethod', paymentMethod);
-        params.append('paymentRatio', paymentRatio);
-        params.append('bankAccountInfo', bankAccountInfo);
-        params.append('taxRate', taxRate);
-        
-        // 使用sessionStorage传递产品数据，避免URL长度限制
+        // 头部数据与产品数据均通过 sessionStorage 传递，URL 中只保留一个短 key：
+        // 避免多行文本（deliveryRemarks/bankAccountInfo）中的换行符被编码为 %0A/%0D，
+        // 导致静态服务器（OSS）返回 400 InvalidURI
         const productsKey = 'contract_' + Date.now();
+        const contractHeader = {
+          contractNo,
+          contractDate,
+          quotationNo,
+          validUntil,
+          customerCompany,
+          customerContact,
+          customerTel,
+          customerEmail,
+          deliveryMethod,
+          deliveryLocation,
+          deliveryDate,
+          deliveryRemarks,
+          terms,
+          paymentMethod,
+          paymentRatio,
+          bankAccountInfo,
+          taxRate,
+          companyName: fullCompanyName
+        };
         sessionStorage.setItem('contract_products_' + productsKey, JSON.stringify(products));
+        sessionStorage.setItem('contract_header_' + productsKey, JSON.stringify(contractHeader));
+
+        // 构建URL参数（仅携带 sessionStorage 的 key）
+        const params = new URLSearchParams();
         params.append('productsKey', productsKey);
-        params.append('companyName', fullCompanyName);
         
         // 打开新窗口显示销售合同
         window.open(`销售合同.html?${params.toString()}`, '_blank');

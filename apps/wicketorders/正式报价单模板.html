@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <script>window.AUTO_SCALE_WIDE_BASE=2048;window.AUTO_SCALE_WIDE_CAP=1.5;</script>
@@ -582,39 +582,62 @@
         function getQueryParams() {
             const params = new URLSearchParams(window.location.search);
             const data = {};
-            
+            const productsKey = params.get('productsKey');
+
+            // 头部数据优先从 sessionStorage 读取（与产品数据共用同一 key），
+            // 避免换行符等特殊字符进入 URL 触发 400 InvalidURI；
+            // 读取不到时回退到 URL 参数，兼容旧链接
+            let header = null;
+            if (productsKey) {
+                try {
+                    const headerJson = sessionStorage.getItem('quotation_header_' + productsKey);
+                    if (headerJson) {
+                        header = JSON.parse(headerJson);
+                    }
+                } catch (error) {
+                    console.error('解析报价头部数据失败:', error);
+                }
+            }
+            const headerVal = (key) => {
+                const value = header ? header[key] : null;
+                if (value !== null && value !== undefined && value !== '') {
+                    return value;
+                }
+                return params.get(key) || 'N/A';
+            };
+
             // 获取基本信息
-            data.companyName = params.get('companyName') || 'N/A';
-            data.quoteNo = params.get('quoteNo') || 'N/A';
-            data.quoteDate = params.get('quoteDate') || 'N/A';
-            data.validUntil = params.get('validUntil') || 'N/A';
+            data.companyName = headerVal('companyName');
+            data.quoteNo = headerVal('quoteNo');
+            data.quoteDate = headerVal('quoteDate');
+            data.validUntil = headerVal('validUntil');
             
             // 获取客户信息
-            data.customerCompany = params.get('customerCompany') || 'N/A';
-            data.customerContact = params.get('customerContact') || 'N/A';
-            data.customerTel = params.get('customerTel') || 'N/A';
-            data.customerEmail = params.get('customerEmail') || 'N/A';
+            data.customerCompany = headerVal('customerCompany');
+            data.customerContact = headerVal('customerContact');
+            data.customerTel = headerVal('customerTel');
+            data.customerEmail = headerVal('customerEmail');
             
             // 获取交货信息
-            data.deliveryMethod = params.get('deliveryMethod') || 'N/A';
-            data.deliveryLocation = params.get('deliveryLocation') || 'N/A';
-            data.deliveryDate = params.get('deliveryDate') || 'N/A';
-            data.deliveryRemarks = params.get('deliveryRemarks') || 'N/A';
+            data.deliveryMethod = headerVal('deliveryMethod');
+            data.deliveryLocation = headerVal('deliveryLocation');
+            data.deliveryDate = headerVal('deliveryDate');
+            data.deliveryRemarks = headerVal('deliveryRemarks');
             
             // 获取付款信息
-            data.terms = params.get('terms') || 'N/A';
-            data.paymentMethod = params.get('paymentMethod') || 'N/A';
-            data.paymentRatio = params.get('paymentRatio') || 'N/A';
-            data.taxRate = params.get('taxRate') || 'N/A';
+            data.terms = headerVal('terms');
+            data.paymentMethod = headerVal('paymentMethod');
+            data.paymentRatio = headerVal('paymentRatio');
+            data.taxRate = headerVal('taxRate');
             
             // 获取产品明细（优先从sessionStorage读取，避免URL长度限制）
             try {
-                const productsKey = params.get('productsKey');
                 if (productsKey) {
                     const productsJson = sessionStorage.getItem('quotation_products_' + productsKey);
                     if (productsJson) {
                         data.products = JSON.parse(productsJson);
                         sessionStorage.removeItem('quotation_products_' + productsKey);
+                        sessionStorage.removeItem('quotation_header_' + productsKey);
                     } else {
                         data.products = [];
                     }
