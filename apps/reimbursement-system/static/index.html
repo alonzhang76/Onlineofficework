@@ -171,7 +171,7 @@ td.bg-payee-claimant{background:#f3e8ff}
   <div class="login-card">
     <div class="appicon">🧾</div>
     <h1>发票与付款系统</h1>
-    <div class="field"><input id="login_email" type="text" placeholder="用户名" style="width:100%;height:44px;border:none;border-radius:12px;padding:0 14px;font-size:14px;color:#1d1d1f;background:rgba(255,255,255,.85);box-shadow:inset 0 0 0 1px rgba(0,0,0,.07);outline:none"></div>
+    <div class="field"><select id="login_email"></select></div>
     <div class="field pwd"><span>🔒</span><input id="login_pass" type="password" placeholder="密码" onkeydown="if(event.key==='Enter')doLogin()"></div>
     <button class="btn" onclick="doLogin()">登录</button>
     <div class="login-err" id="login_err"></div>
@@ -869,10 +869,25 @@ window.CloudbaseSync={
 function showLogin(){
   $('#loginMask').classList.add('show');$('#appHeader').style.display='none';$('#appMain').style.display='none';
   $('#login_pass').value='';$('#login_err').textContent='';
+  fillLoginUsers();
+}
+// 用户名下拉：选项来自用户管理列表（仅启用账号），免去手工输入
+async function fillLoginUsers(){
+  const sel=$('#login_email');
+  sel.innerHTML='<option value="">加载中…</option>';
+  try{
+    const users=await ReimStore.getUsers();
+    const actives=(users||[]).filter(u=>u.active);
+    if(!actives.length){sel.innerHTML='<option value="">暂无可用账号，请联系管理员</option>';return;}
+    sel.innerHTML='<option value="">请选择用户名</option>'+actives.map(u=>{
+      const un=u.username||u.email||'';
+      return `<option value="${esc(un)}">${esc((u.display_name||un)+'（'+un+'）')}</option>`;
+    }).join('');
+  }catch(e){console.warn('用户列表加载失败',e);sel.innerHTML='<option value="">用户列表加载失败</option>';}
 }
 async function doLogin(){
   const username=$('#login_email').value.trim(),password=$('#login_pass').value;
-  if(!username||!password){$('#login_err').textContent='请输入用户名和密码';return;}
+  if(!username||!password){$('#login_err').textContent='请选择用户名并输入密码';return;}
   $('#login_err').textContent='';
   try{
     const u=await ReimStore.findUserByUsername(username);
