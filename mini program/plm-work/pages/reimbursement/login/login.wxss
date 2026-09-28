@@ -67,5 +67,6 @@
   font-size: 30rpx; color: #1C1C1E; min-height: 48rpx;
 }
 .lg-err { font-size: 24rpx; color: #FF3B30; margin-bottom: 16rpx; }
+.lg-hint { font-size: 22rpx; color: #8E8E93; margin-top: 14rpx; text-align: center; line-height: 1.5; }
 .lg-login-btn { flex: 1; }
 .btn-disabled { opacity: 0.5; }

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://static.cloudbase.net/cli/cloudbaserc.schema.json",
+  "envId": "onlineofficework-d4e93l98bdf879e",
+  "functions": [
+    {
+      "name": "verify-password",
+      "timeout": 10,
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "memorySize": 128,
+      "description": "校验 werkzeug pbkdf2:sha256 密码哈希（小程序登录用，<100ms）",
+      "installDependency": false
+    }
+  ]
+}

@@ -68,6 +68,8 @@
           {{verifying ? '校验中...' : '登录'}}
         </button>
       </view>
+
+      <view class="lg-hint" wx:if="{{verifying && verifyHint}}">{{verifyHint}}</view>
     </view>
 
     <view class="card">

@@ -1,0 +1,7 @@
+{
+  "name": "verify-password",
+  "version": "1.0.0",
+  "description": "校验 werkzeug pbkdf2:sha256 密码哈希（小程序登录用，替代纯 JS PBKDF2 的 2 分钟耗时）",
+  "main": "index.js",
+  "dependencies": {}
+}

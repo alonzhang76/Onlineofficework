@@ -32,6 +32,7 @@ Page({
     password: '',
     pwdError: '',
     verifying: false,
+    verifyHint: '',
     __syncState: 'idle'
   },
 
@@ -98,7 +99,7 @@ Page({
     this.setData({ password: e.detail.value, pwdError: '' });
   },
 
-  /** 确认登录：校验密码 */
+  /** 确认登录：校验密码（优先走云函数 <100ms，回退本地计算约 30-50s） */
   doLogin() {
     if (this.data.verifying) return;
     const username = this.data.selectedUser;
@@ -112,13 +113,16 @@ Page({
     if (!u) { this.setData({ pwdError: '用户不存在或已被停用' }); return; }
     if (!u.password_hash) { this.setData({ pwdError: '该账号未设置密码，请联系管理员' }); return; }
 
-    this.setData({ verifying: true, pwdError: '' });
+    this.setData({ verifying: true, pwdError: '', verifyHint: '正在验证密码…' });
 
-    // PBKDF2 校验较慢（260000 次迭代），异步执行避免阻塞 UI
-    setTimeout(() => {
-      const ok = pbkdf2.verifyPassword(password, u.password_hash);
-      this.setData({ verifying: false });
-
+    // 异步校验：优先云函数（<100ms），失败回退本地 PBKDF2（优化版约 30-50s）
+    pbkdf2.verifyPasswordAsync(password, u.password_hash, (stage) => {
+      // stage: 'cloud' | 'local'；本地计算时更新提示文案
+      if (stage === 'local') {
+        this.setData({ verifyHint: '云函数不可用，正在本地计算（约 30-50 秒）…' });
+      }
+    }).then((ok) => {
+      this.setData({ verifying: false, verifyHint: '' });
       if (!ok) {
         this.setData({ pwdError: '密码错误' });
         return;
@@ -140,13 +144,15 @@ Page({
       setTimeout(() => {
         wx.reLaunch({ url: '/pages/reimbursement/hub/hub' });
       }, 500);
-    }, 50);
+    }).catch(() => {
+      this.setData({ verifying: false, verifyHint: '', pwdError: '校验失败，请重试' });
+    });
   },
 
   /** 云端还没有用户数据时的重试 */
   retry() {
     wx.showLoading({ title: '同步中...' });
-    db.syncFromCloud((ok, count) => {
+    db.syncFromCloud((_ok, count) => {
       const done = n => {
         wx.hideLoading();
         this.render();

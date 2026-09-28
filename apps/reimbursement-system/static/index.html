@@ -120,7 +120,7 @@ a.link{color:var(--primary);text-decoration:none}
 .login-card .pwd>span{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:13px;opacity:.55;pointer-events:none}
 .login-card select:focus,.login-card .pwd input:focus{box-shadow:inset 0 0 0 1px rgba(10,132,255,.7),0 0 0 4px rgba(10,132,255,.15)}
 .login-card .btn{width:100%;height:44px;border:none;border-radius:12px;background:#0a84ff;color:#fff;
-  font-size:15px;font-weight:600;letter-spacing:6px;cursor:pointer;transition:background .15s,transform .06s;margin-top:6px}
+  font-size:15px;font-weight:600;letter-spacing:6px;cursor:pointer;transition:background .15s,transform .06s;margin-top:6px;justify-content:center}
 .login-card .btn:hover{background:#0071e3}
 .login-card .btn:active{transform:scale(.985)}
 .login-err{color:#ff3b30;font-size:13px;margin-top:14px;min-height:18px}
@@ -1816,6 +1816,15 @@ async function loadStats(){
   $('#ovRcOwed').textContent='¥'+ra.owed.toFixed(2);$('#ovRcHint').textContent='已收 ¥'+ra.received.toFixed(2);
   $('#ovDeduct').textContent='¥'+ei.tax_deduct.toFixed(2);
   $('#ovTaxHint').textContent='销项税额 ¥'+eo.tax_all.toFixed(2);
+  // 报销人：卡片标签改为"我的"视角，更直观
+  if(ME.role==='claimant'){
+    const owedCard=$('#ovOwed').closest('.stat-card');
+    if(owedCard){
+      const lbl=owedCard.querySelector('.l');
+      if(lbl)lbl.textContent='我的报销欠款';
+      $('#ovPaidHint').textContent='已收款 ¥'+pa.paid.toFixed(2);
+    }
+  }
   // 按科目分组
   const bySub={};
   eff.forEach(r=>{const k=r.subject_name||'未分类';if(!bySub[k])bySub[k]={subject_name:k,n:0,t:0};bySub[k].n++;bySub[k].t+=r.total_amount||0;});
