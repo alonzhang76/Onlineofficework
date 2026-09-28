@@ -47,10 +47,18 @@ async function storeSet(key, payload) {
 }
 
 /* ---------- 发票集合 ---------- */
+// 数值字段强制转 Number：历史导入/恢复的 JSON 可能携带字符串金额，
+// 会导致页面 reduce 拼接后调 toFixed 崩溃（台账/统计全挂）
+var INVOICE_NUM_FIELDS = ['amount', 'tax_amount', 'total_amount', 'paid_amount'];
+
 async function getInvoices() {
   var data = await storeGet(STORE_KEYS.invoices);
   var list = Array.isArray(data) ? data : [];
   list.forEach(function (r) {
+    INVOICE_NUM_FIELDS.forEach(function (f) {
+      var n = parseFloat(r[f]);
+      r[f] = isFinite(n) ? n : 0;
+    });
     var pi = paymentInfo(r.total_amount, r.paid_amount);
     r.payment_status = pi.status;
     r.balance = pi.balance;
