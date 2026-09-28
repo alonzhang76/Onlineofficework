@@ -354,7 +354,10 @@ function pickNewestRow(rows) {
 function mapRow(r) {
   const d = _rowData(r);
   const ck = d.store_key || r.id || '';
-  return { key: ck, value: d.payload, updatedAt: d.updated_at };
+  // 兼容电脑端报销系统旧版 store.js 写入的形态：data 列 = {id, data:[...]}
+  // （无 payload/updated_at，2026-09-28 前）；标准形态 data 列 = {store_key,payload,updated_at}
+  const value = (d.payload !== undefined) ? d.payload : d.data;
+  return { key: ck, value: value, updatedAt: d.updated_at };
 }
 
 /**

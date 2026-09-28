@@ -26,21 +26,26 @@ function waitForSupabase(timeout) {
   });
 }
 
-/* ---------- 通用集合读写 ---------- */
+/* ---------- 通用集合读写 ----------
+ * 标准行形态（与 apps/cloudbase-sync.js、wage、小程序端 utils/cloudbase.js 一致）：
+ *   物理行 { id: store_key, data: { store_key, payload, updated_at } }
+ * 兼容层 _expand 会把 data 内字段展平到行上 → 读取时取 row.payload。
+ * 历史形态（旧版 store.js upsert {id, data:数组}）展平后是 row.data，做兜底兼容。 */
 async function storeGet(key) {
   var sb = await waitForSupabase();
   var r = await sb.from('app_data_store').select('*').eq('id', key);
   if (r.error) throw r.error;
   var row = (r.data && r.data[0]) || null;
   if (!row) return null;
+  if (row.payload !== undefined && row.payload !== null) return row.payload;
   return (row.data !== undefined && row.data !== null) ? row.data : null;
 }
 
 async function storeSet(key, payload) {
   var sb = await waitForSupabase();
   var r = await sb.from('app_data_store').upsert(
-    { id: key, data: payload },
-    { onConflict: 'id' }
+    { store_key: key, payload: payload, updated_at: new Date().toISOString() },
+    { onConflict: 'store_key' }
   );
   if (r.error) throw r.error;
   return true;
