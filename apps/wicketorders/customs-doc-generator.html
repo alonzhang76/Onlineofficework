@@ -207,6 +207,8 @@ tr:hover { background: rgba(37,99,235,0.04); }
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
 .doc-preview h2 { text-align: center; font-size: 16px; margin-bottom: 20px; }
+/* 申报要素手动编辑态：虚线框提示可编辑区域 */
+#dePreview .doc-sheet[contenteditable="true"] { outline: 2px dashed #3b82f6; outline-offset: 6px; cursor: text; }
 .doc-table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 9px; table-layout: fixed; }
 .doc-table th, .doc-table td { border: 1px solid #333; padding: 3px 4px; text-align: left; word-break: break-all; white-space: normal; vertical-align: top; }
 .doc-table th { background: #f0f0f0; text-align: center; }
@@ -1084,6 +1086,9 @@ tr:hover { background: rgba(37,99,235,0.04); }
       <div class="tab-panel" id="tab-de">
         <div class="btn-group" style="margin-bottom:12px">
           <button class="btn btn-primary" onclick="printDocSheet('dePreview')" data-i18n="documents.print">打印 Print</button>
+          <button class="btn btn-outline" id="deEditBtn" onclick="toggleDeEdit()">✏️ 编辑内容</button>
+          <button class="btn btn-outline" id="deResetBtn" onclick="resetDeOverride()" style="display:none">↺ 还原自动生成</button>
+          <span id="deEditHint" style="font-size:12px;color:#6b7280;margin-left:8px;align-self:center;"></span>
         </div>
         <div class="doc-preview" id="dePreview"></div>
       </div>
@@ -4659,6 +4664,8 @@ function docsDataFromManual(){
 
 /* ---------- 生成入口 ---------- */
 function renderDocsSet(d,stampImg){
+  window.__deLastStampImg = stampImg || '';
+  deExitEditIfActive();
   document.getElementById('invPreview').innerHTML = buildInvoice(d,false,stampImg);
   document.getElementById('plPreview').innerHTML  = buildPackingList(d,stampImg);
   document.getElementById('piPreview').innerHTML  = buildInvoice(d,true,stampImg);
@@ -4667,9 +4674,111 @@ function renderDocsSet(d,stampImg){
   document.getElementById('saPreview').innerHTML  = buildShippingAdvice(d,stampImg);
   document.getElementById('cdPreview').innerHTML  = buildCustomsDecl(d,stampImg);
   document.getElementById('dePreview').innerHTML  = buildDeclElements(d,stampImg);
+  deApplyOverride(); // 申报要素：若有手动编辑内容则覆盖显示（印章重插）
 }
+
+/* ---------- 申报要素页面内容编辑（contenteditable + 本机持久化） ---------- */
+const DE_OVERRIDE_KEY = 'cdg_de_overrides'; // { 记录键: { html, savedAt } }，随记录/手动模式区分
+let deEditing = false;
+let deSaveTimer = null;
+
+function deOverrideMap(){ try{ return JSON.parse(localStorage.getItem(DE_OVERRIDE_KEY)||'{}'); }catch(e){ return {}; } }
+function deSaveOverrideMap(m){ try{ localStorage.setItem(DE_OVERRIDE_KEY, JSON.stringify(m)); }catch(e){ alert('保存编辑内容失败（本机存储空间不足？）'); } }
+
+// 当前编辑内容归属键：记录模式按记录 id，手动模式共用一个键
+function deCurrentKey(){
+  return (window.deDocSource !== 'manual' && typeof currentDocRecord !== 'undefined' && currentDocRecord)
+    ? 'rec_' + currentDocRecord.id : '__manual__';
+}
+// 保存时剥离印章图片：印章按抬头公司动态生成，不固化进编辑内容
+function deStripStamp(html){
+  const div=document.createElement('div');
+  div.innerHTML=html;
+  div.querySelectorAll('img.doc-stamp').forEach(x=>x.remove());
+  return div.innerHTML;
+}
+function deGetOverride(){
+  const m=deOverrideMap();
+  return m[deCurrentKey()]||null;
+}
+// 生成单据后调用：该记录存在手动编辑内容时覆盖显示，并把印章补回
+function deApplyOverride(){
+  const box=document.getElementById('dePreview');
+  const resetBtn=document.getElementById('deResetBtn');
+  const hint=document.getElementById('deEditHint');
+  if(!box) return;
+  const ov=deGetOverride();
+  if(ov && ov.html){
+    box.innerHTML=ov.html;
+    const sheet=box.querySelector('.doc-sheet');
+    if(sheet && window.__deLastStampImg && !sheet.querySelector('img.doc-stamp')){
+      sheet.insertAdjacentHTML('beforeend', '<img class="doc-stamp" src="'+window.__deLastStampImg+'" alt="印章">');
+    }
+    if(resetBtn) resetBtn.style.display='';
+    if(hint) hint.textContent='已应用手动编辑（'+(ov.savedAt||'')+'），可还原为自动生成';
+  } else {
+    if(resetBtn) resetBtn.style.display='none';
+    if(hint) hint.textContent='';
+  }
+}
+function deExitEditIfActive(){
+  if(!deEditing) return;
+  deEditing=false;
+  clearTimeout(deSaveTimer);
+  const btn=document.getElementById('deEditBtn');
+  if(btn){ btn.textContent='✏️ 编辑内容'; btn.classList.add('btn-outline'); btn.classList.remove('btn-primary'); }
+  const sheet=document.querySelector('#dePreview .doc-sheet');
+  if(sheet){ sheet.removeAttribute('contenteditable'); sheet.removeEventListener('input', deOnEditInput); }
+}
+function toggleDeEdit(){
+  const box=document.getElementById('dePreview');
+  const sheet=box.querySelector('.doc-sheet');
+  if(!sheet){ alert('请先生成申报要素单据'); return; }
+  deEditing=!deEditing;
+  const btn=document.getElementById('deEditBtn');
+  if(deEditing){
+    sheet.setAttribute('contenteditable','true');
+    btn.textContent='✅ 完成编辑';
+    btn.classList.add('btn-primary'); btn.classList.remove('btn-outline');
+    sheet.addEventListener('input', deOnEditInput);
+    const hint=document.getElementById('deEditHint');
+    if(hint) hint.textContent='编辑态：可直接修改页面任意内容（自动保存到本机）';
+  } else {
+    sheet.removeAttribute('contenteditable');
+    btn.textContent='✏️ 编辑内容';
+    btn.classList.add('btn-outline'); btn.classList.remove('btn-primary');
+    sheet.removeEventListener('input', deOnEditInput);
+    clearTimeout(deSaveTimer);
+    deSaveNow();
+  }
+}
+function deOnEditInput(){ clearTimeout(deSaveTimer); deSaveTimer=setTimeout(deSaveNow, 900); }
+function deSaveNow(){
+  const sheet=document.querySelector('#dePreview .doc-sheet');
+  if(!sheet) return;
+  const m=deOverrideMap();
+  const savedAt=new Date().toLocaleString('zh-CN',{hour12:false});
+  m[deCurrentKey()]={ html: deStripStamp(sheet.innerHTML), savedAt: savedAt };
+  deSaveOverrideMap(m);
+  const resetBtn=document.getElementById('deResetBtn'); if(resetBtn) resetBtn.style.display='';
+  const hint=document.getElementById('deEditHint');
+  if(hint) hint.textContent='编辑内容已保存（本机）· '+savedAt;
+}
+function resetDeOverride(){
+  if(!confirm('确定丢弃该记录的手动编辑内容，还原为自动生成的申报要素吗？')) return;
+  const m=deOverrideMap();
+  delete m[deCurrentKey()];
+  deSaveOverrideMap(m);
+  if(document.getElementById('srcBtnRecord').classList.contains('active')){
+    generateAllDocs();
+  } else {
+    generateManualDocs();
+  }
+}
+
 async function generateAllDocs() {
   switchDocSource('record');
+  window.deDocSource = 'record';
   const r = currentDocRecord;
   if (!r) { alert('请先选择并加载一条记录'); return; }
   const shipper = companies.find(c => c.id == r.shipperId) || companies[1] || {};
@@ -4690,6 +4799,7 @@ async function generateAllDocs() {
   renderDocsSet(d, getStampImgByHeader(shipper.nameCn || ''));
 }
 function generateManualDocs() {
+  window.deDocSource = 'manual';
   const d = docsDataFromManual();
   if (!d.goods.length) { alert('请先在"商品明细"中添加商品'); return; }
   const headerCnEl = document.getElementById('exp_name_cn');

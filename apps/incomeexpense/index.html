@@ -3,7 +3,7 @@
 <head>
     <script src="../auto-scale.js?v=20260917a"></script>
     <!-- Supabase 云端数据同步层（必须在应用逻辑之前加载） -->
-    <script>window.SUPABASE_APP_ID='incomeexpense';</script>
+    <script>window.SUPABASE_APP_ID='incomeexpense';window.CLOUDBASE_APP_KEYS=['currentCompany','todos','reconciliation_transactions','reconciliation_params','categories'];</script>
     <script src="../cloudbase-sync.js?v=20260924f"></script>
     <script src="../cloudbase-admin.js?v=20260924a"></script>
     <meta charset="UTF-8">
@@ -860,7 +860,12 @@
                 </div>
                 
                 <div class="mb-4">
-                    <label for="transaction-category" class="block text-sm font-medium text-gray-700 mb-1">分类</label>
+                    <div class="flex items-center justify-between mb-1">
+                        <label for="transaction-category" class="block text-sm font-medium text-gray-700">分类</label>
+                        <button type="button" id="manage-categories-btn" class="text-xs text-blue-600 hover:text-blue-800 hover:underline flex items-center">
+                            <i class="fa fa-cog mr-1"></i>管理
+                        </button>
+                    </div>
                     <select id="transaction-category" class="input-field" required>
                         <!-- 分类选项将根据交易类型动态生成 -->
                     </select>
@@ -898,6 +903,52 @@
             <div class="flex justify-center space-x-3">
                 <button id="cancel-delete" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">取消</button>
                 <button id="confirm-delete" class="btn-danger">删除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 分类管理模态框 -->
+    <div id="category-manage-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-xl w-full max-w-md mx-4 flex flex-col animate-slide-in" style="max-height: 85vh;">
+            <div class="flex items-center justify-between p-4 border-b border-gray-200">
+                <h3 class="text-lg font-bold text-gray-800"><i class="fa fa-tags mr-2 text-blue-500"></i>管理分类</h3>
+                <button id="close-category-manage" class="text-gray-400 hover:text-gray-600">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+            <div class="p-4 overflow-y-auto flex-1">
+                <!-- 支出分类 -->
+                <div class="mb-6">
+                    <div class="flex items-center justify-between mb-2">
+                        <h4 class="text-sm font-bold text-red-600"><i class="fa fa-arrow-down mr-1"></i>支出分类</h4>
+                        <span class="text-xs text-gray-400" id="expense-cat-count"></span>
+                    </div>
+                    <div id="manage-expense-list" class="space-y-1"></div>
+                    <div class="flex mt-2">
+                        <input type="text" id="new-expense-category" class="input-field flex-1 text-sm" placeholder="输入新支出分类名称" maxlength="20">
+                        <button type="button" onclick="addCategoryFromInput('expense')" class="ml-2 px-3 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 transition-colors" title="添加支出分类">
+                            <i class="fa fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+                <!-- 收入分类 -->
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <h4 class="text-sm font-bold text-green-600"><i class="fa fa-arrow-up mr-1"></i>收入分类</h4>
+                        <span class="text-xs text-gray-400" id="income-cat-count"></span>
+                    </div>
+                    <div id="manage-income-list" class="space-y-1"></div>
+                    <div class="flex mt-2">
+                        <input type="text" id="new-income-category" class="input-field flex-1 text-sm" placeholder="输入新收入分类名称" maxlength="20">
+                        <button type="button" onclick="addCategoryFromInput('income')" class="ml-2 px-3 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 transition-colors" title="添加收入分类">
+                            <i class="fa fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-400 mt-4"><i class="fa fa-info-circle mr-1"></i>重命名或删除分类不影响已有交易记录的显示；点击「完成」保存所有修改。</p>
+            </div>
+            <div class="p-4 border-t border-gray-200">
+                <button type="button" id="category-manage-done" class="btn-primary w-full">完成</button>
             </div>
         </div>
     </div>
@@ -959,6 +1010,26 @@
                 { id: 'administrative-entertainment', name: '其它行政招待费用', icon: 'fa-cutlery', color: '#ef4444' }
             ]
         };
+
+        // 从 localStorage 加载自定义分类（「管理」功能编辑后的结果；无则用上方默认）
+        function loadCustomCategories() {
+            try {
+                const saved = JSON.parse(localStorage.getItem('categories'));
+                if (saved && Array.isArray(saved.income) && Array.isArray(saved.expense)) {
+                    window.categories = saved;
+                }
+            } catch (e) { /* 数据损坏时回退默认分类 */ }
+        }
+        loadCustomCategories();
+
+        // 保存自定义分类到 localStorage（随「上传云端」按钮一并同步，键 incomeexpense__categories）
+        function saveCustomCategories() {
+            try {
+                localStorage.setItem('categories', JSON.stringify(window.categories));
+            } catch (e) {
+                console.error('保存分类失败:', e);
+            }
+        }
 
         // 初始化应用
         function initializeApp() {
@@ -1134,6 +1205,8 @@
                     if (typeof loadTodos === 'function') loadTodos();
                 } catch (err) { console.warn('[CloudUpdate] 待办刷新失败:', err); }
                 try {
+                    // 云端覆盖了自定义分类时，先重载内存中的分类数据再刷新下拉
+                    if (keys.indexOf('categories') >= 0 && typeof loadCustomCategories === 'function') loadCustomCategories();
                     if (typeof initCategoryFilters === 'function') initCategoryFilters();
                 } catch (err) { console.warn('[CloudUpdate] 分类筛选刷新失败:', err); }
                 try {
@@ -1672,6 +1745,11 @@
             // 关闭交易模态框
             document.getElementById('close-modal').addEventListener('click', closeTransactionModal);
             document.getElementById('cancel-transaction').addEventListener('click', closeTransactionModal);
+
+            // 分类管理（添加新交易表单「管理」入口）
+            document.getElementById('manage-categories-btn').addEventListener('click', openCategoryManage);
+            document.getElementById('close-category-manage').addEventListener('click', closeCategoryManage);
+            document.getElementById('category-manage-done').addEventListener('click', closeCategoryManage);
             
             // 导出JSON功能
             document.getElementById('export-json').addEventListener('click', function(e) {
@@ -1944,28 +2022,44 @@
             filterTransactions();
         }
 
+        // 填充支出/收入筛选下拉的分类选项（供初始化与分类编辑后刷新共用；保留当前选中值）
+        function refreshCategoryFilterOptions() {
+            const expenseFilter = document.getElementById('expense-category-filter');
+            const incomeFilter = document.getElementById('income-category-filter');
+
+            if (expenseFilter) {
+                const prev = expenseFilter.value;
+                expenseFilter.innerHTML = '<option value="all">所有支出项目</option>';
+                window.categories.expense.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category.id;
+                    option.textContent = category.name;
+                    expenseFilter.appendChild(option);
+                });
+                if (prev && expenseFilter.querySelector(`option[value="${prev}"]`)) expenseFilter.value = prev;
+            }
+
+            if (incomeFilter) {
+                const prev = incomeFilter.value;
+                incomeFilter.innerHTML = '<option value="all">所有收入项目</option>';
+                window.categories.income.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category.id;
+                    option.textContent = category.name;
+                    incomeFilter.appendChild(option);
+                });
+                if (prev && incomeFilter.querySelector(`option[value="${prev}"]`)) incomeFilter.value = prev;
+            }
+        }
+
         // 初始化支出和收入分类下拉框
         function initCategoryFilters() {
-            // 初始化支出分类下拉框
+            // 填充分类选项
+            refreshCategoryFilterOptions();
+
             const expenseFilter = document.getElementById('expense-category-filter');
-            expenseFilter.innerHTML = '<option value="all">所有支出项目</option>';
-            window.categories.expense.forEach(category => {
-                const option = document.createElement('option');
-                option.value = category.id;
-                option.textContent = category.name;
-                expenseFilter.appendChild(option);
-            });
-            
-            // 初始化收入分类下拉框
             const incomeFilter = document.getElementById('income-category-filter');
-            incomeFilter.innerHTML = '<option value="all">所有收入项目</option>';
-            window.categories.income.forEach(category => {
-                const option = document.createElement('option');
-                option.value = category.id;
-                option.textContent = category.name;
-                incomeFilter.appendChild(option);
-            });
-            
+
             // 添加联动逻辑事件监听
             const filterType = document.getElementById('filter-transactions');
             
@@ -2424,6 +2518,8 @@
                     data: {
                         // 待办事项数据
                         todos: JSON.parse(localStorage.getItem('todos') || '[]'),
+                        // 自定义分类（「管理」功能编辑结果）
+                        categories: JSON.parse(localStorage.getItem('categories') || 'null'),
                         // 交易记录数据（按公司分组）
                         transactions: {},
                         // 最后更新时间（按公司分组）
@@ -2497,6 +2593,12 @@
                                 if (data.todos && Array.isArray(data.todos)) {
                                     localStorage.setItem('todos', JSON.stringify(data.todos));
                                 }
+
+                                // 恢复自定义分类
+                                if (data.categories && Array.isArray(data.categories.income) && Array.isArray(data.categories.expense)) {
+                                    window.categories = data.categories;
+                                    saveCustomCategories();
+                                }
                                 
                                 // 恢复交易记录和最后更新时间（按公司分组）
                                 if (data.transactions) {
@@ -2565,6 +2667,184 @@
         }
         
 
+
+        // ================= 分类管理（添加新交易表单「管理」入口） =================
+        let catManageEditId = null; // 当前正在重命名的分类 id
+
+        function catManageEsc(s) {
+            return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function openCategoryManage() {
+            catManageEditId = null;
+            renderCategoryManage();
+            document.getElementById('category-manage-modal').classList.remove('hidden');
+        }
+
+        function closeCategoryManage() {
+            catManageEditId = null;
+            document.getElementById('category-manage-modal').classList.add('hidden');
+        }
+
+        // 渲染分类管理弹窗中两组分类列表
+        function renderCategoryManage() {
+            ['expense', 'income'].forEach(function(type) {
+                const listEl = document.getElementById(type === 'expense' ? 'manage-expense-list' : 'manage-income-list');
+                listEl.innerHTML = '';
+                window.categories[type].forEach(function(cat) {
+                    const row = document.createElement('div');
+                    row.className = 'flex items-center px-3 py-2 bg-gray-50 rounded-lg';
+                    if (catManageEditId === cat.id) {
+                        // 重命名模式
+                        row.innerHTML =
+                            '<input type="text" id="rename-category-input" class="input-field flex-1 text-sm py-1" value="' + catManageEsc(cat.name) + '" maxlength="20">' +
+                            '<button type="button" onclick="saveRenameCategory(\'' + type + '\',\'' + cat.id + '\')" class="ml-2 text-green-600 hover:text-green-800 px-1" title="保存"><i class="fa fa-check"></i></button>' +
+                            '<button type="button" onclick="cancelRenameCategory()" class="ml-1 text-gray-400 hover:text-gray-600 px-1" title="取消"><i class="fa fa-times"></i></button>';
+                    } else {
+                        row.innerHTML =
+                            '<div class="flex items-center flex-1 min-w-0">' +
+                                '<span class="w-3 h-3 rounded-full mr-2 flex-shrink-0" style="background-color:' + catManageEsc(cat.color) + '"></span>' +
+                                '<span class="text-sm text-gray-700 truncate">' + catManageEsc(cat.name) + '</span>' +
+                            '</div>' +
+                            '<button type="button" onclick="startRenameCategory(\'' + type + '\',\'' + cat.id + '\')" class="text-gray-400 hover:text-blue-600 px-1" title="重命名"><i class="fa fa-pencil"></i></button>' +
+                            '<button type="button" onclick="deleteCategoryById(\'' + type + '\',\'' + cat.id + '\')" class="ml-1 text-gray-400 hover:text-red-600 px-1" title="删除"><i class="fa fa-trash"></i></button>';
+                    }
+                    listEl.appendChild(row);
+                });
+                const countEl = document.getElementById(type === 'expense' ? 'expense-cat-count' : 'income-cat-count');
+                countEl.textContent = window.categories[type].length + ' 项';
+            });
+
+            // 重命名输入框：聚焦、全选、回车保存、Esc 取消
+            const renameInput = document.getElementById('rename-category-input');
+            if (renameInput) {
+                renameInput.focus();
+                renameInput.select();
+                renameInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') { e.preventDefault(); saveRenameCategory(catManageEditType, catManageEditId); }
+                    if (e.key === 'Escape') { e.preventDefault(); cancelRenameCategory(); }
+                });
+            }
+        }
+
+        let catManageEditType = null; // 当前重命名的分类所属类型
+
+        function startRenameCategory(type, id) {
+            catManageEditType = type;
+            catManageEditId = id;
+            renderCategoryManage();
+        }
+
+        function cancelRenameCategory() {
+            catManageEditType = null;
+            catManageEditId = null;
+            renderCategoryManage();
+        }
+
+        function saveRenameCategory(type, id) {
+            const input = document.getElementById('rename-category-input');
+            if (!input) return;
+            const newName = input.value.trim();
+            if (!newName) {
+                showNotification('名称为空', '分类名称不能为空', 'error');
+                return;
+            }
+            const list = window.categories[type];
+            if (list.some(c => c.id !== id && c.name === newName)) {
+                showNotification('名称重复', '该类型下已存在同名分类', 'error');
+                return;
+            }
+            const cat = list.find(c => c.id === id);
+            if (cat) cat.name = newName;
+            catManageEditType = null;
+            catManageEditId = null;
+            saveCustomCategories();
+            renderCategoryManage();
+            refreshAllCategoryUI();
+        }
+
+        // 新增分类（自动配色；图标统一用标签图标）
+        const CAT_MANAGE_PALETTE = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ef4444', '#6b7280', '#14b8a6', '#f97316', '#0ea5e9'];
+
+        function addCategoryFromInput(type) {
+            const input = document.getElementById(type === 'expense' ? 'new-expense-category' : 'new-income-category');
+            const newName = input.value.trim();
+            if (!newName) {
+                showNotification('名称为空', '请先输入分类名称', 'error');
+                return;
+            }
+            if (window.categories[type].some(c => c.name === newName)) {
+                showNotification('名称重复', '该类型下已存在同名分类', 'error');
+                return;
+            }
+            window.categories[type].push({
+                id: 'cat-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+                name: newName,
+                icon: 'fa-tag',
+                color: CAT_MANAGE_PALETTE[window.categories[type].length % CAT_MANAGE_PALETTE.length]
+            });
+            input.value = '';
+            saveCustomCategories();
+            renderCategoryManage();
+            refreshAllCategoryUI();
+            showNotification('添加成功', '已添加分类「' + newName + '」', 'success');
+        }
+
+        // 删除分类（若已被交易记录使用则提示；不影响已有记录显示，记录中保留原分类名称快照）
+        function countTransactionsUsingCategory(id) {
+            let n = 0;
+            ['company1', 'company2'].forEach(function(c) {
+                try {
+                    const arr = JSON.parse(localStorage.getItem('transactions_' + c) || '[]');
+                    arr.forEach(t => { if (t.categoryId === id) n++; });
+                } catch (e) {}
+            });
+            return n;
+        }
+
+        function deleteCategoryById(type, id) {
+            const list = window.categories[type];
+            if (list.length <= 1) {
+                showNotification('无法删除', '每种类型至少需要保留一个分类', 'error');
+                return;
+            }
+            const cat = list.find(c => c.id === id);
+            if (!cat) return;
+            const usedCount = countTransactionsUsingCategory(id);
+            let msg = '确定要删除分类「' + cat.name + '」吗？';
+            if (usedCount > 0) msg += '\n该分类已被 ' + usedCount + ' 条交易记录使用，删除后这些记录将按原名称显示（不再归属任何分类）。';
+            if (!confirm(msg)) return;
+            window.categories[type] = list.filter(c => c.id !== id);
+            catManageEditType = null;
+            catManageEditId = null;
+            saveCustomCategories();
+            renderCategoryManage();
+            refreshAllCategoryUI();
+            showNotification('删除成功', '已删除分类「' + cat.name + '」', 'success');
+        }
+
+        // 分类编辑后统一刷新：交易表单下拉、筛选下拉、分类统计图、交易列表
+        function refreshAllCategoryUI() {
+            // 交易表单分类下拉（保留当前选中项）
+            const sel = document.getElementById('transaction-category');
+            const prevSel = sel ? sel.value : null;
+            if (document.querySelector('input[name="transaction-type"]:checked')) {
+                updateCategoryOptions();
+            }
+            if (sel && prevSel && sel.querySelector(`option[value="${prevSel}"]`)) sel.value = prevSel;
+
+            // 支出/收入筛选下拉
+            refreshCategoryFilterOptions();
+
+            // 分类统计图（按当前选中的支出/收入类型按钮刷新）
+            const typeBtn = document.querySelector('.category-type-btn.bg-danger, .category-type-btn.bg-secondary');
+            if (typeBtn) {
+                try { updateCategoryChart(typeBtn.dataset.type); } catch (e) {}
+            }
+
+            // 交易列表中的分类名称列
+            try { filterTransactions(); } catch (e) {}
+        }
 
         // 更新分类选项
         function updateCategoryOptions() {

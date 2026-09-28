@@ -593,13 +593,13 @@ td.bg-payee-claimant{background:#f3e8ff}
 <!-- 同步收支表：支出分类选择弹窗（登记付款确认后弹出） -->
 <div class="modal-mask" id="ieMask" style="z-index:160">
   <div class="modal narrow">
-    <h3>同步到收支表 <span style="color:var(--muted);font-size:13px">请选择支出分类</span></h3>
+    <h3>同步到收支表 <span id="ie_kind" style="color:var(--muted);font-size:13px">请选择支出分类</span></h3>
     <div id="ie_info" style="font-size:13px;color:var(--muted);line-height:2;margin-bottom:10px"></div>
     <div class="grid g4">
-      <div><label>支出分类 *</label><select id="ie_category"></select></div>
-      <div><label>支出金额 *</label><input id="ie_amount" type="number" step="0.01" min="0"></div>
+      <div><label id="ie_cat_label">支出分类 *</label><select id="ie_category"></select></div>
+      <div><label>金额 *</label><input id="ie_amount" type="number" step="0.01" min="0"></div>
     </div>
-    <div class="hint">将写入「收支表」应用对应公司（龙力/普利美）的支出记录，并自动上传云端；点「取消」则不写入（发票付款记录已保存）。</div>
+    <div class="hint">将写入「收支表」应用对应公司（龙力/普利美）的收入/支出记录，并自动上传云端；点「取消」则不写入（发票收付款记录已保存）。</div>
     <div style="margin-top:20px;display:flex;gap:10px;justify-content:flex-end">
       <button class="btn btn-outline" onclick="ieSkip()">取消</button>
       <button class="btn btn-primary" onclick="ieConfirm()">存入并上传云端</button>
@@ -1583,6 +1583,12 @@ async function openSupPay(mode,name){
   $('#sup_co').textContent=cos.join(' / ');$('#sup_co').style.display=cos.length?'':'none';
   const sum=SUP.rows.reduce((s,r)=>s+r.balance,0);
   $('#sup_info').innerHTML=`未${verb==='收款'?'收清':'付清'} <b>${SUP.rows.length}</b> 张，合计未${verb==='收款'?'收':'付'} <b style="color:var(--red)">¥${sum.toFixed(2)}</b>`;
+  // 涉及多个我方抬头（龙力/普利美）时禁止整笔按序抵扣，引导逐张「单独」登记
+  const mixedSup=ieMixedRows(SUP.rows);
+  if(mixedSup)$('#sup_info').innerHTML+=`<br><b style="color:var(--red)">⚠ 该${mode==='buyer'?'客户':'销售方'}发票涉及多个我方抬头（${cos.join(' / ')}），整笔${verb}无法正确入账收支表，请逐张点「单独」登记${verb}</b>`;
+  const supBtn=$('#supMask .btn-primary');
+  if(supBtn){supBtn.disabled=mixedSup;supBtn.style.opacity=mixedSup?'.45':'';supBtn.style.cursor=mixedSup?'not-allowed':'';}
+  $('#sup_amount').disabled=mixedSup;
   $('#sup_list').innerHTML=SUP.rows.map(r=>`
     <div style="display:flex;gap:10px;align-items:center;padding:4px 0;border-bottom:1px dashed #f1f5f9">
       <span style="flex:1">${r.invoice_date||'-'} · <span class="mono">${esc(cut(r.invoice_no,18))}</span></span>
@@ -1613,6 +1619,7 @@ async function supSave(){
   const amount=+$('#sup_amount').value;
   const verb=SUP.mode==='buyer'?'收款':'付款';
   if(!amount||amount<=0)return toast(`请填写有效的${verb}金额`,'err');
+  if(ieMixedRows(SUP.rows))return toast(`该${SUP.mode==='buyer'?'客户':'销售方'}发票涉及多个我方抬头（龙力/普利美），请逐张点「单独」登记${verb}`,'err');
   if(!confirm(`确认${verb==='收款'?'收到':'向'}「${SUP.name}」${verb} ¥${amount.toFixed(2)}？将按开票顺序自动抵扣。`))return;
   let remain=amount;const invoices=await ReimStore.getInvoices();
   const payDate=$('#sup_date').value,payMethod=$('#sup_method').value,payNote=$('#sup_note').value.trim();
@@ -1627,20 +1634,20 @@ async function supSave(){
     inv.payment_date=payDate;inv.payment_method=payMethod;
     inv.payment_note=payNote?payNote:(inv.payment_note||'');
     remain=Math.round((remain-pay)*100)/100;
-    if(SUP.mode!=='buyer'){
-      const cc=ieCompanyOf(inv);
-      if(cc){
-        if(!ieGroups[cc.key])ieGroups[cc.key]={companyKey:cc.key,label:cc.label,amount:0,nos:[]};
-        ieGroups[cc.key].amount=Math.round((ieGroups[cc.key].amount+pay)*100)/100;
-        if(inv.invoice_no)ieGroups[cc.key].nos.push(inv.invoice_no);
-      }
+    const cc=ieCompanyOf(inv);
+    if(cc){
+      const kind=SUP.mode==='buyer'?'income':'expense';
+      const gk=cc.key+'_'+kind;
+      if(!ieGroups[gk])ieGroups[gk]={companyKey:cc.key,label:cc.label,kind,amount:0,nos:[]};
+      ieGroups[gk].amount=Math.round((ieGroups[gk].amount+pay)*100)/100;
+      if(inv.invoice_no)ieGroups[gk].nos.push(inv.invoice_no);
     }
   }
   await ReimStore.saveInvoices(invoices);
   toast(`${verb}已登记`);closeModal('supMask');loadStats();
   const groups=Object.values(ieGroups);
   if(groups.length)ieOpenCategoryModal(groups,{date:payDate,method:payMethod,note:payNote,payee:SUP.name});
-  else if(verb==='付款')toast('未识别发票所属公司（龙力/普利美），收支表未同步','err');
+  else toast('未识别发票所属公司（龙力/普利美），收支表未同步','err');
 }
 
 /* ---------- 付款同步到「收支表」应用（incomeexpense）：支出记录 + 分类选择 + 自动上传云端 ---------- */
@@ -1660,6 +1667,13 @@ const IE_EXPENSE_CATS=[
   {id:'loan',name:'借款'},{id:'fixed-assets',name:'固定资产设备'},
   {id:'trade-product',name:'贸易产品'},{id:'administrative-entertainment',name:'其它行政招待费用'}
 ];
+// 收入分类与 apps/incomeexpense/index.html 的 window.categories.income 保持一致
+const IE_INCOME_CATS=[
+  {id:'salary',name:'前期账面余额'},{id:'bonus',name:'无锡龙力'},
+  {id:'investment',name:'货款'},{id:'side-income',name:'个人垫资'},
+  {id:'gift',name:'还款'},{id:'adjustment',name:'调账'},
+  {id:'other-income',name:'其他收入'}
+];
 // 发票系统公司 → 收支表公司键（收支表：company1=普利美(常州)、company2=无锡龙力）
 const IE_COMPANY_MAP=[
   {match:'龙力',key:'company2',label:'无锡龙力'},
@@ -1667,9 +1681,19 @@ const IE_COMPANY_MAP=[
 ];
 let IE_SYNC={queue:[],ctx:null};
 function ieCompanyOf(inv){
-  const s=String(inv.company_short||'')+String(inv.buyer_name||'');
+  // 优先按匹配出的我方简称判断；仅进项兜底用购买方（=我方全称）。
+  // 销项的购买方是客户，名称可能恰好含"龙力/普利美"，不能用其兜底，防误归公司
+  const s=String(inv.company_short||'');
   for(const m of IE_COMPANY_MAP)if(s.indexOf(m.match)>=0)return m;
+  if(inv.direction!=='销项'){
+    const b=String(inv.buyer_name||'');
+    for(const m of IE_COMPANY_MAP)if(b.indexOf(m.match)>=0)return m;
+  }
   return null;
+}
+// 判断一组发票是否涉及多个我方抬头（按收支表公司键判重）
+function ieMixedRows(rows){
+  return [...new Set(rows.map(r=>{const m=ieCompanyOf(r);return m?m.key:'';}).filter(Boolean))].length>1;
 }
 function ieOpenCategoryModal(groups,ctx){
   IE_SYNC={queue:groups.slice(),ctx};
@@ -1678,12 +1702,15 @@ function ieOpenCategoryModal(groups,ctx){
 function ieShowNext(){
   const g=IE_SYNC.queue[0];
   if(!g){closeModal('ieMask');IE_SYNC={queue:[],ctx:null};return;}
-  const sel=$('#ie_category');
-  if(!sel.options.length)IE_EXPENSE_CATS.forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.name;sel.appendChild(o);});
+  const kind=g.kind||'expense';
+  const sel=$('#ie_category');sel.innerHTML='';
+  (kind==='income'?IE_INCOME_CATS:IE_EXPENSE_CATS).forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.name;sel.appendChild(o);});
   sel.value='';
+  $('#ie_cat_label').textContent=(kind==='income'?'收入':'支出')+'分类 *';
+  $('#ie_kind').textContent='请选择'+(kind==='income'?'收入':'支出')+'分类';
   $('#ie_amount').value=g.amount.toFixed(2);
-  $('#ie_info').innerHTML=`公司：<b>${esc(g.label)}</b> ｜ 付款对象：<b>${esc(IE_SYNC.ctx.payee)}</b> ｜ 抵扣发票 ${g.nos.length} 张`
-    +(IE_SYNC.queue.length>1?`<br>本次付款涉及 ${IE_SYNC.queue.length} 家公司，将逐家选择分类写入`:'');
+  $('#ie_info').innerHTML=`公司：<b>${esc(g.label)}</b> ｜ ${kind==='income'?'付款方':'收款对象'}：<b>${esc(IE_SYNC.ctx.payee)}</b> ｜ 抵扣发票 ${g.nos.length} 张`
+    +(IE_SYNC.queue.length>1?`<br>本次${kind==='income'?'收款':'付款'}涉及 ${IE_SYNC.queue.length} 家我方公司，将逐家选择分类写入`:'');
   $('#ieMask').classList.add('show');
 }
 function ieSkip(){IE_SYNC.queue.shift();ieShowNext();}
@@ -1691,25 +1718,26 @@ function ieSkip(){IE_SYNC.queue.shift();ieShowNext();}
 // 重复点击/重复提交时 upsert 覆盖同一行而不是新增一条
 function ieHash(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))>>>0;return h.toString(36);}
 function ieRecId(g,ctx,catId,amount){
-  return 'ie'+ieHash([g.companyKey,ctx.date||'',ctx.payee||'',g.nos.join(','),catId,amount.toFixed(2)].join('|'));
+  return 'ie'+ieHash([g.kind||'expense',g.companyKey,ctx.date||'',ctx.payee||'',g.nos.join(','),catId,amount.toFixed(2)].join('|'));
 }
 async function ieConfirm(){
   const g=IE_SYNC.queue[0];if(!g||IE_SYNC.busy)return;
   const catId=$('#ie_category').value;
-  if(!catId)return toast('请选择支出分类','err');
+  if(!catId)return toast('请选择分类','err');
   const amount=+$('#ie_amount').value;
   if(!amount||amount<=0)return toast('请填写有效金额','err');
   const btn=$('#ieMask .btn-primary');IE_SYNC.busy=true;if(btn)btn.disabled=true;
-  const cat=IE_EXPENSE_CATS.find(c=>c.id===catId);
+  const cats=g.kind==='income'?IE_INCOME_CATS:IE_EXPENSE_CATS;
+  const cat=cats.find(c=>c.id===catId);
   const ctx=IE_SYNC.ctx;
   const rec={
     id:ieRecId(g,ctx,catId,amount),
-    type:'expense',
+    type:g.kind==='income'?'income':'expense',
     amount:Math.round(amount*100)/100,
     categoryId:catId,
     categoryName:cat?cat.name:'',
     date:ctx.date||new Date().toISOString().slice(0,10),
-    description:(ctx.note?ctx.note+'；':'')+`付「${ctx.payee}」（发票：${g.nos.join('、')||'-'}）`,
+    description:(ctx.note?ctx.note+'；':'')+(g.kind==='income'?'收「':'付「')+`${ctx.payee}」（发票：${g.nos.join('、')||'-'}）`,
     unit:ctx.payee||'',
     paymentMethod:ctx.method||'',
     createdAt:new Date().toISOString()
@@ -2065,6 +2093,7 @@ async function savePay(){
   const invoices=await ReimStore.getInvoices();
   const inv=invoices.find(x=>x.id===payId);
   if(!inv){toast('发票不存在','err');return;}
+  const prevPaid=inv.paid_amount||0;
   inv.payment_date=$('#pay_date').value;
   inv.paid_amount=+amount;
   inv.payment_method=$('#pay_method').value;
@@ -2078,6 +2107,18 @@ async function savePay(){
   else loadLedger(LEDGER.page);
   const paysTab=document.getElementById('tab-pays');
   if(paysTab&&!paysTab.hidden)loadPays(PAYREC.page);
+  // 单张收付款同步收支表：按本次新增金额入账（匹配我方抬头的进项=支出/销项=收入）
+  const delta=Math.round((+amount-prevPaid)*100)/100;
+  if(delta>0.004&&(inv.direction==='进项'||inv.direction==='销项')){
+    const m=ieCompanyOf(inv);
+    if(m){
+      const isRc=inv.direction==='销项';
+      ieOpenCategoryModal([{companyKey:m.key,label:m.label,kind:isRc?'income':'expense',amount:delta,nos:inv.invoice_no?[inv.invoice_no]:[]}],
+        {date:inv.payment_date,method:inv.payment_method,note:inv.payment_note,payee:isRc?inv.buyer_name:(inv.payee==='报销人'?(inv.claimant||''):(inv.seller_name||''))});
+    }else if(inv.payee!=='报销人'){
+      toast('该发票未匹配我方抬头（龙力/普利美），未同步收支表','err');
+    }
+  }
 }
 
 /* ---------- 付款记录（查询/导出） ---------- */
