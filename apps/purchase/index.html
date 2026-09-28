@@ -6074,54 +6074,52 @@ const purchaseOrders = JSON.parse(localStorage.getItem(storageKey)) || [];
             // 生成新卡片
             filteredSuppliers.forEach(supplier => {
                 const supplierCard = document.createElement('div');
-                // 名片式设计：渐变顶栏 + 图标化联系方式 + 彩色标签
+                // 名片式设计：图标化联系方式 + 彩色标签
                 supplierCard.className = 'supplier-card group relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300';
                 supplierCard.dataset.supplierNumber = supplier.supplierNumber;
                 supplierCard.innerHTML = `
-                    <!-- 顶部渐变条 -->
-                    <div class="supplier-card-header h-12 relative flex items-center justify-end px-4"></div>
                     <!-- 内容区 -->
                     <div class="pt-4 px-5 pb-4">
-                        <h3 class="text-lg font-bold text-gray-800 truncate supplier-name">${supplier.supplierName || ''}</h3>
-                        <div class="mt-3 space-y-2.5 text-sm">
-                            <div class="flex items-center gap-2.5 text-gray-600">
-                                <i class="fa fa-user-circle text-green-500 w-4 text-center"></i>
+                        <h3 class="text-xl font-bold text-gray-800 truncate supplier-name">${supplier.supplierName || ''}</h3>
+                        <div class="mt-3 space-y-2.5">
+                            <div class="flex items-center gap-3 text-gray-600">
+                                <i class="fa fa-user-circle text-green-500 w-5 text-center text-base"></i>
                                 <span class="contact-person inline-block px-3 py-1 rounded-full text-sm font-medium bg-green-500 text-white">${supplier.contactPerson || ''}</span>
                             </div>
-                            <div class="flex items-center gap-2.5 text-gray-600">
-                                <i class="fa fa-phone text-blue-500 w-4 text-center"></i>
+                            <div class="flex items-center gap-3 text-gray-600">
+                                <i class="fa fa-phone text-blue-500 w-5 text-center text-base"></i>
                                 <span class="phone-number inline-block px-3 py-1 rounded-full text-sm font-medium bg-blue-500 text-white">${supplier.phoneNumber || ''}</span>
                             </div>
-                            <div class="flex items-center gap-2.5 text-gray-600">
-                                <i class="fa fa-envelope text-amber-500 w-4 text-center"></i>
-                                <span class="email truncate">${supplier.email || ''}</span>
+                            <div class="flex items-center gap-3 text-gray-600">
+                                <i class="fa fa-envelope text-amber-500 w-5 text-center text-base"></i>
+                                <span class="email truncate text-base">${supplier.email || ''}</span>
                             </div>
-                            <div class="flex items-start gap-2.5 text-gray-600">
-                                <i class="fa fa-map-marker-alt text-red-400 w-4 text-center mt-0.5"></i>
-                                <span class="company-address text-xs leading-relaxed">${supplier.companyAddress || ''}</span>
+                            <div class="flex items-start gap-3 text-gray-600">
+                                <i class="fa fa-map-marker-alt text-red-400 w-5 text-center text-base mt-0.5"></i>
+                                <span class="company-address text-sm leading-relaxed">${supplier.companyAddress || ''}</span>
                             </div>
                         </div>
                         <!-- 银行信息 -->
                         <div class="mt-3 pt-3 border-t border-dashed border-gray-200">
-                            <div class="grid grid-cols-3 gap-2 text-xs text-gray-500">
+                            <div class="grid grid-cols-3 gap-2 text-sm text-gray-500">
                                 <div>
-                                    <p class="text-gray-400 mb-0.5">开户行</p>
-                                    <p class="bank-name truncate" title="${supplier.bankName || ''}">${supplier.bankName || ''}</p>
+                                    <p class="text-gray-400 mb-0.5 text-xs">开户行</p>
+                                    <p class="bank-name truncate text-sm" title="${supplier.bankName || ''}">${supplier.bankName || ''}</p>
                                 </div>
                                 <div>
-                                    <p class="text-gray-400 mb-0.5">行号</p>
-                                    <p class="bank-code">${supplier.bankCode || ''}</p>
+                                    <p class="text-gray-400 mb-0.5 text-xs">行号</p>
+                                    <p class="bank-code text-sm">${supplier.bankCode || ''}</p>
                                 </div>
                                 <div>
-                                    <p class="text-gray-400 mb-0.5">账号</p>
-                                    <p class="bank-account truncate" title="${supplier.bankAccount || ''}">${supplier.bankAccount || ''}</p>
+                                    <p class="text-gray-400 mb-0.5 text-xs">账号</p>
+                                    <p class="bank-account truncate text-sm" title="${supplier.bankAccount || ''}">${supplier.bankAccount || ''}</p>
                                 </div>
                             </div>
                         </div>
                         ${supplier.remarks ? `
                         <div class="mt-3 pt-3 border-t border-dashed border-gray-200">
                             <p class="text-xs text-gray-400 mb-1"><i class="fa fa-sticky-note-o mr-1"></i>备注</p>
-                            <p class="text-xs text-gray-500 remarks">${supplier.remarks}</p>
+                            <p class="text-sm text-gray-500 remarks">${supplier.remarks}</p>
                         </div>` : ''}
                         <!-- 操作按钮：默认外框线，悬停实色底 -->
                         <div class="flex gap-2 mt-4">
