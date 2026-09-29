@@ -59,8 +59,8 @@
     {
       "id": "purchase",
       "name": "采购管理",
-      "description": "采购合同发票付款系统",
-      "url": "apps/purchase/index.html",
+      "description": "采购合同发票付款系统（采购一体化）",
+      "url": "apps/purchase-integrated/index.html",
       "icon": "🎯",
       "color": "#ef4444",
       "category": "furnace",
