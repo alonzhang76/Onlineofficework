@@ -14,8 +14,8 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # 防止托管上传偶发挂起导致任务无限等待（正常 1-2 分钟）
-    timeout-minutes: 12
+    # 降低并发后上传变慢，放宽超时上限
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -57,8 +57,12 @@ jobs:
         env:
           TCB_ENV_ID: ${{ secrets.TCB_ENV_ID }}
         run: |
-          # 部署 _deploy 目录内容到静态托管根目录
-          tcb hosting deploy _deploy / -e "$TCB_ENV_ID"
+          # GitHub Runner（境外）→ 腾讯云 COS 的链路较弱，默认 20 并发在大批量
+          # 文件上传时会长时间挂起；按 CloudBase 官方建议降低并发、增加重试，
+          # 并关闭 COS SDK keep-alive 长连接（socket hang up / ECONNRESET 时的对策）
+          export COS_SDK_KEEPALIVE=false
+          tcb hosting deploy _deploy / -e "$TCB_ENV_ID" \
+            --concurrency 5 --retry-count 4 --retry-interval 2000
 
       # 云函数 tcb-file-list（可选增强，已在线上）不在 CI 中部署。
       # 函数代码变更时在本机手动部署（cloudbaserc.json 已锁定 Event 类型/入口，
