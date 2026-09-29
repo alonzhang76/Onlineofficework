@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>供应商管理 · 采购一体化系统</title>
+<link rel="stylesheet" href="css/common.css">
+</head>
+<body>
+<header>
+  <div class="logo"><span class="mark"><svg width="18" height="18" viewBox="0 0 48 48"><use href="#rrlogo"/></svg></span>采购一体化系统</div>
+  <div class="nav-wrap">
+    <button class="nav-btn" id="navMenuBtn" type="button">菜单 <span class="caret">▾</span></button>
+    <div class="nav-menu" id="navMenu"></div>
+  </div>
+  <span class="hspace"></span>
+  <div class="company-select" id="companySelectWrap">
+    <span>公司主体</span><select id="companySelect"></select>
+  </div>
+  <div class="userbox">
+    <b class="uname" id="whoName">—</b>
+    <button class="btn-exit" id="logoutBtn">退出</button>
+  </div>
+</header>
+<div class="layout">
+  <main id="main"></main>
+</div>
+<div class="modal-mask" id="modalMask"><div class="modal" id="modalBox"></div></div>
+<div class="toast" id="toastBox"></div>
+<div id="printArea"></div>
+<script src="js/common.js"></script>
+<script src="js/auth-guard.js"></script>
+<script>
+'use strict';
+/* ==========================================================
+   供应商管理
+   ========================================================== */
+function pageSuppliers(root) {
+  const canW = Session.canWrite('suppliers') && !Session.isSupplier();
+  const sups = Data.list('suppliers');
+  root.innerHTML =
+    '<div class="page-head"><h2>供应商管理</h2><span class="desc">供应商档案 · 联系方式 · 银行信息</span><span class="spacer"></span>' +
+    (canW ? '<button class="btn btn-primary" id="supAdd">＋ 添加供应商</button>' : '') +
+    '<div class="more-wrap"><button class="btn btn-outline" id="supMore">更多 ▾</button><div class="more-menu" id="supMoreMenu">' +
+      '<button data-m="import">📥 导入EXCEL</button>' +
+      '<button data-m="export">📤 导出EXCEL</button>' +
+      (canW ? '<button data-m="clear" class="danger">🗑 清空</button>' : '') +
+    '</div></div></div>' +
+    '<input type="file" id="supImportFile" accept=".xlsx,.xls,.csv" style="display:none">' +
+    '<div class="card"><div class="row-flex" style="margin-bottom:12px"><div style="flex:1;max-width:320px"><label>搜索</label><input id="supSearch" placeholder="名称 / 联系人 / 电话"></div></div><div id="supGrid" class="sup-grid"></div></div>';
+  const draw = () => {
+    const kw = ($('#supSearch').value || '').trim().toLowerCase();
+    let list = sups;
+    if (kw) list = list.filter(s => [s.supplierName, s.contactPerson, s.phoneNumber, s.supplierNumber].join(' ').toLowerCase().includes(kw));
+    if (!list.length) { $('#supGrid').innerHTML = '<div class="empty">暂无供应商，' + (canW ? '点击右上角添加' : '请先由管理员添加') + '</div>'; return; }
+    $('#supGrid').innerHTML = list.map(s =>
+      /* 不展示 supplierNumber（SUP-xxxxxxxx 之类的内部编号），卡片头部只显示供应商名称 */
+      '<div class="sup-card"><div class="head"><div class="nm">' + esc(s.supplierName) + '</div></div>' +
+      '<div class="body">' +
+      '<div class="kv"><span class="k">联系人</span><span class="v"><span class="pill pill-green">' + esc(s.contactPerson || '—') + '</span></span></div>' +
+      '<div class="kv"><span class="k">电话</span><span class="v"><span class="pill pill-blue">' + esc(s.phoneNumber || '—') + '</span></span></div>' +
+      '<div class="kv"><span class="k">邮箱</span><span class="v">' + esc(s.email || '—') + '</span></div>' +
+      '<div class="kv"><span class="k">地址</span><span class="v" title="' + esc(s.companyAddress || '') + '">' + esc(s.companyAddress || '—') + '</span></div>' +
+      '<div class="kv"><span class="k">开户行</span><span class="v">' + esc(s.bankName || '—') + '</span></div>' +
+      '<div class="kv"><span class="k">行号</span><span class="v mono">' + esc(s.bankCode || '—') + '</span></div>' +
+      '<div class="kv"><span class="k">银行账号</span><span class="v mono">' + esc(s.bankAccount || '—') + '</span></div>' +
+      (s.remarks ? '<div class="kv"><span class="k">备注</span><span class="v" title="' + esc(s.remarks) + '">' + esc(s.remarks) + '</span></div>' : '') +
+      '</div>' + (canW ? '<div class="ops"><button class="edit-btn" data-id="' + s.id + '" data-a="e">编辑</button><button class="del-btn" data-id="' + s.id + '" data-a="d">删除</button></div>' : '') + '</div>').join('');
+    if (canW) $('#supGrid').querySelectorAll('button[data-a]').forEach(b => b.addEventListener('click', () => {
+      const s = DB.get('suppliers', []).find(x => x.id === b.dataset.id);
+      if (b.dataset.a === 'e') supplierForm(s);
+      else if (confirm('删除供应商「' + s.supplierName + '」？其名下合同记录不会删除。')) { Data.remove('suppliers', s.id); toast('已删除', 'ok'); renderPage(); }
+    }));
+  };
+  $('#supSearch').addEventListener('input', draw);
+  if (canW) $('#supAdd').addEventListener('click', () => supplierForm(null));
+  /* 「更多」下拉：导入 / 导出 / 清空 */
+  $('#supMore').addEventListener('click', e => { e.stopPropagation(); $('#supMoreMenu').classList.toggle('show'); });
+  if (!window.__supDocClick) { window.__supDocClick = true; document.addEventListener('click', e => {
+    const m = $('#supMoreMenu'); if (m && (!e.target.closest || !e.target.closest('.more-wrap'))) m.classList.remove('show'); }); }
+  $$('#supMoreMenu button').forEach(b => b.addEventListener('click', () => {
+    $('#supMoreMenu').classList.remove('show');
+    const m = b.dataset.m;
+    if (m === 'import') $('#supImportFile').click();
+    else if (m === 'export') exportSuppliersExcel();
+    else if (m === 'clear') clearSuppliers();
+  }));
+  $('#supImportFile').addEventListener('change', e => { handleSupplierImportFile(e.target.files[0]); e.target.value = ''; });
+  draw();
+}
+/* ---------- EXCEL 组件懒加载（SheetJS，多 CDN 回退；与采购管理保持一致的实现） ---------- */
+function ensureXLSX() {
+  if (window.XLSX) return Promise.resolve();
+  return new Promise((res, rej) => {
+    const urls = ['https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+      'https://cdn.staticfile.net/xlsx/0.18.5/xlsx.full.min.js',
+      'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js'];
+    let i = 0;
+    const tryNext = () => {
+      if (i >= urls.length) { rej(new Error('EXCEL 组件加载失败，请检查网络后重试')); return; }
+      const s = document.createElement('script');
+      s.src = urls[i++];
+      s.onload = () => window.XLSX ? res() : tryNext();
+      s.onerror = () => { s.remove(); tryNext(); };
+      document.head.appendChild(s);
+    };
+    tryNext();
+  });
+}
+/* ---------- 导入EXCEL ---------- */
+async function handleSupplierImportFile(f) {
+  if (!f) return;
+  toast('正在解析 ' + f.name + ' …', 'info');
+  try {
+    await ensureXLSX();
+    const isCsv = f.name.toLowerCase().endsWith('.csv');
+    const data = isCsv ? await f.text() : await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(new Uint8Array(r.result)); r.onerror = () => rej(new Error('文件读取失败')); r.readAsArrayBuffer(f); });
+    const wb = XLSX.read(data, { type: isCsv ? 'string' : 'array', cellDates: true });
+    const aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' });
+    applySuppliersImport(aoa);
+  } catch (e) { toast('导入失败：' + e.message, 'err'); }
+}
+function applySuppliersImport(aoa) {
+  if (!aoa || aoa.length < 2) { toast('文件中没有可导入的数据', 'err'); return; }
+  const head = aoa[0].map(h => String(h).trim());
+  const col = n => head.findIndex(h => h.indexOf(n) > -1);
+  const C = {
+    name: col('供应商名称') > -1 ? col('供应商名称') : col('名称'),
+    contact: col('联系人'), phone: col('电话'), email: col('邮箱'), addr: col('地址'),
+    bank: col('开户行') > -1 ? col('开户行') : col('开户银行'), account: col('银行账号'),
+    bankCode: col('银行行号'), rem: col('备注')
+  };
+  if (C.name < 0) { toast('表头缺少「供应商名称」列', 'err'); return; }
+  const store = DB.get('suppliers', []);
+  const rows = []; let skipDup = 0;
+  for (let i = 1; i < aoa.length; i++) {
+    const r = aoa[i]; if (!r || !r.length) continue;
+    const name = String(r[C.name] || '').trim();
+    if (!name || name === '合计') continue;
+    if (store.find(s => s.supplierName === name) || rows.find(x => x.supplierName === name)) { skipDup++; continue; }
+    rows.push({
+      id: uid(), supplierNumber: '', supplierName: name,
+      contactPerson: C.contact > -1 ? String(r[C.contact] || '').trim() : '',
+      phoneNumber: C.phone > -1 ? String(r[C.phone] || '').trim() : '',
+      email: C.email > -1 ? String(r[C.email] || '').trim() : '',
+      companyAddress: C.addr > -1 ? String(r[C.addr] || '').trim() : '',
+      bankName: C.bank > -1 ? String(r[C.bank] || '').trim() : '',
+      bankCode: C.bankCode > -1 ? String(r[C.bankCode] || '').trim() : '',
+      bankAccount: C.account > -1 ? String(r[C.account] || '').trim() : '',
+      remarks: C.rem > -1 ? String(r[C.rem] || '').trim() : '',
+      createdAt: new Date().toISOString()
+    });
+  }
+  if (!rows.length) { toast('没有新供应商可导入' + (skipDup ? '（' + skipDup + ' 行已存在或重复，已跳过）' : ''), 'info'); return; }
+  if (!confirm('解析到 ' + rows.length + ' 家新供应商' + (skipDup ? '，跳过已存在 ' + skipDup + ' 行' : '') + '。\n确认导入？')) return;
+  DB.set('suppliers', rows.concat(store));
+  toast('已导入 ' + rows.length + ' 家供应商' + (skipDup ? '（跳过 ' + skipDup + ' 行）' : ''), 'ok');
+  renderPage();
+}
+/* ---------- 导出EXCEL ---------- */
+async function exportSuppliersExcel() {
+  try {
+    await ensureXLSX();
+    const list = Data.list('suppliers');
+    if (!list.length) { toast('暂无供应商可导出', 'info'); return; }
+    const rows = [['供应商名称', '联系人', '电话', '邮箱', '地址', '开户行', '银行行号', '银行账号', '备注']];
+    list.forEach(s => rows.push([
+      s.supplierName, s.contactPerson || '', s.phoneNumber || '', s.email || '', s.companyAddress || '',
+      s.bankName || '', s.bankCode || '', s.bankAccount || '', s.remarks || ''
+    ]));
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 30 }, { wch: 12 }, { wch: 16 }, { wch: 24 }, { wch: 34 }, { wch: 22 }, { wch: 14 }, { wch: 24 }, { wch: 24 }];
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '供应商档案');
+    const d = new Date(), pad = n => String(n).padStart(2, '0');
+    const ds = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    XLSX.writeFile(wb, '供应商清单_' + ds + '.xlsx');
+    toast('已导出 ' + list.length + ' 家供应商', 'ok');
+  } catch (e) { toast(e.message, 'err'); }
+}
+/* ---------- 清空 ---------- */
+function clearSuppliers() {
+  const list = DB.get('suppliers', []);
+  if (!list.length) { toast('暂无供应商可清空', 'info'); return; }
+  if (!confirm('⚠ 确认清空全部 ' + list.length + ' 家供应商档案？\n其名下合同 / 收发货 / 开票 / 付款记录不会删除，此操作不可恢复！')) return;
+  DB.set('suppliers', []);
+  toast('已清空 ' + list.length + ' 家供应商', 'ok');
+  renderPage();
+}
+function supplierForm(s) {
+  const isEdit = !!s;
+  /* 供应商编号只读、自动填充：新建时按 SUP-yyyyMMdd-NNN 生成（不消耗序号，保存成功才落号），
+     编辑时沿用原编号。与采购合同的合同号处理方式保持一致。 */
+  const noPreview = peekNo('SUP-');
+  const noVal = s ? (s.supplierNumber || '') : noPreview.no;
+  openModal('<h3>' + (isEdit ? '编辑供应商' : '添加供应商') + '</h3><form id="supF">' +
+    '<div class="form-grid">' +
+    '<div><label>供应商编号</label><input id="sfNo" readonly tabindex="-1" value="' + esc(noVal) + '" title="系统自动生成，不可修改"></div>' +
+    '<div><label class="req">供应商名称</label><input id="sfName" required value="' + esc(s ? s.supplierName : '') + '"></div>' +
+    '<div><label>联系人</label><input id="sfContact" value="' + esc(s ? (s.contactPerson || '') : '') + '"></div>' +
+    '<div><label>联系电话</label><input id="sfPhone" value="' + esc(s ? (s.phoneNumber || '') : '') + '"></div>' +
+    '<div><label>邮箱</label><input id="sfEmail" value="' + esc(s ? (s.email || '') : '') + '"></div>' +
+    '<div><label>公司地址</label><input id="sfAddr" value="' + esc(s ? (s.companyAddress || '') : '') + '"></div>' +
+    '<div><label>开户银行</label><input id="sfBank" value="' + esc(s ? (s.bankName || '') : '') + '"></div>' +
+    '<div><label>银行行号</label><input id="sfBankCode" value="' + esc(s ? (s.bankCode || '') : '') + '"></div>' +
+    '<div><label>银行账号</label><input id="sfAccount" value="' + esc(s ? (s.bankAccount || '') : '') + '"></div>' +
+    '<div style="grid-column:1/-1"><label>备注</label><input id="sfRemark" value="' + esc(s ? (s.remarks || '') : '') + '"></div></div>' +
+    '<div class="modal-foot"><button type="button" class="btn btn-outline" onclick="closeModal()">取消</button><button class="btn btn-primary">保存</button></div></form>');
+  $('#supF').addEventListener('submit', e => {
+    e.preventDefault();
+    const name = $('#sfName').value.trim();
+    const dup = DB.get('suppliers', []).find(x => x.supplierName === name && (!isEdit || x.id !== s.id));
+    if (dup) { toast('供应商名称已存在', 'err'); return; }
+    const no = $('#sfNo').value.trim();
+    const data = {
+      id: isEdit ? s.id : uid(), supplierNumber: no, supplierName: name,
+      contactPerson: $('#sfContact').value.trim(), phoneNumber: $('#sfPhone').value.trim(),
+      email: $('#sfEmail').value.trim(), companyAddress: $('#sfAddr').value.trim(),
+      bankName: $('#sfBank').value.trim(), bankCode: $('#sfBankCode').value.trim(), bankAccount: $('#sfAccount').value.trim(),
+      remarks: $('#sfRemark').value.trim(),
+      createdAt: isEdit ? s.createdAt : new Date().toISOString()
+    };
+    if (isEdit) {
+      // 同步更名到业务数据
+      if (s.supplierName !== name) {
+        ['orders', 'shipments', 'receipts', 'returns', 'invoices', 'payments'].forEach(c => {
+          const arr = DB.get(c, []); let chg = false;
+          arr.forEach(r => { if (r.supplier === s.supplierName) { r.supplier = name; chg = true; } });
+          if (chg) DB.set(c, arr);
+        });
+      }
+      Data.update('suppliers', s.id, data);
+    } else {
+      Data.add('suppliers', data);
+      if (no === noPreview.no) DB.set(noPreview.key, noPreview.n); // 保存成功才落号（取消表单不消耗序号）
+    }
+    closeModal(); toast('供应商已保存', 'ok'); renderPage();
+  });
+}
+
+initPage('suppliers', pageSuppliers);
+</script>
+</body>
+</html>

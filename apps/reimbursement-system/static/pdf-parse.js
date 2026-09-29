@@ -1,35 +1,132 @@
 /* ===== 发票与付款系统 - 前端 PDF 解析 =====
  * 使用 pdf.js 提取文本，用正则解析发票字段。
  * 翻译自 invoice_parser.py（pdfplumber 版），保持相同的解析逻辑。
+ *
+ * pdf.js 多源回退：第一源本地 vendor（离线/内网/受限托管环境首选），CDN 降级保留。
+ * 数电票的"值"（发票号/日期/金额/公司名）用 CID 编码字体绘制，不带 CMap 时
+ * pdf.js 解码失败、值字符整体缺失（表现为"未找到发票号码"），因此 getDocument
+ * 必须带 CMap。内嵌方案：vendor/cmaps-data.js、fonts-data.js 把 CMap/标准字体
+ * base64 打包成 .js，getDocument 走自定义工厂（useWorkerFetch:false），全程零 fetch——
+ * 绕开按扩展名做白名单的托管端（.bcmap/.pfb 返回 403 Forbidden）。
  */
 window.REIM_PDF_LOADED = true;
 
-var PDFJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+var PDFJS_SOURCES = [
+  { lib: 'vendor/pdf.min.js', worker: 'vendor/pdf.worker.min.js', inline: true,
+    /* 内嵌表覆盖全部 CMap；未命中才回退 CDN fetch（本地不放原始 cmaps 目录） */
+    cmaps: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
+    fonts: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/' },
+  { lib: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+    worker: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
+    cmaps: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
+    fonts: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/' },
+  { lib: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',
+    worker: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
+    cmaps: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
+    fonts: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/' },
+  { lib: 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js',
+    worker: 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
+    cmaps: 'https://unpkg.com/pdfjs-dist@3.11.174/cmaps/',
+    fonts: 'https://unpkg.com/pdfjs-dist@3.11.174/standard_fonts/' }
+];
 var _pdfjsPromise = null;
+var _activeSource = null;
+
+function _loadScript(src) {
+  return new Promise(function (resolve, reject) {
+    var s = document.createElement('script');
+    s.src = src;
+    s.onload = function () { resolve(); };
+    s.onerror = function () { reject(new Error('加载失败: ' + src)); };
+    document.head.appendChild(s);
+  });
+}
+
+/* ---------- 内嵌 CMap/标准字体工厂（零 fetch，绕开托管端扩展名白名单） ---------- */
+function _b64ToU8(b64) {
+  var bin = atob(b64);
+  var u8 = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  return u8;
+}
+/* CMap 工厂：pdf.js 以 { name }（不带扩展名）调用，成功返回 { cMapData, compressionType } */
+function _makeInlineCMapFactory(fallbackUrl) {
+  var table = window.PisCMapData || {};
+  function F(opts) { this.baseUrl = (opts && opts.baseUrl) || fallbackUrl || ''; }
+  F.prototype.fetch = function (req) {
+    var name = req && req.name;
+    var b64 = name && table[name];
+    if (b64) return Promise.resolve({ cMapData: _b64ToU8(b64), compressionType: 1 });
+    return fetch(this.baseUrl + name + '.bcmap').then(function (r) {
+      if (!r.ok) throw new Error('fetchBuiltInCMap: failed to fetch file "' + name + '.bcmap"');
+      return r.arrayBuffer();
+    }).then(function (ab) { return { cMapData: new Uint8Array(ab), compressionType: 1 }; });
+  };
+  return F;
+}
+/* 标准字体工厂：pdf.js 以 { filename }（带扩展名）调用，成功返回 { data } */
+function _makeInlineFontFactory(fallbackUrl) {
+  var table = window.PisFontData || {};
+  function F(opts) { this.baseUrl = (opts && opts.baseUrl) || fallbackUrl || ''; }
+  F.prototype.fetch = function (req) {
+    var name = req && (req.filename || req.name);
+    var b64 = name && table[name];
+    if (b64) return Promise.resolve({ data: _b64ToU8(b64) });
+    return fetch(this.baseUrl + name).then(function (r) {
+      if (!r.ok) throw new Error('fetchStandardFontData: failed to fetch file "' + name + '"');
+      return r.arrayBuffer();
+    }).then(function (ab) { return { data: new Uint8Array(ab) }; });
+  };
+  return F;
+}
+function _buildDocParams(buf, src) {
+  var params = {
+    data: buf,
+    cMapUrl: src.cmaps,
+    cMapPacked: true,
+    standardFontDataUrl: src.fonts
+  };
+  try {
+    if (window.PisCMapData) {
+      params.useWorkerFetch = false;               // CMap 请求回传主线程，走内嵌工厂
+      params.CMapReaderFactory = _makeInlineCMapFactory(src.cmaps);
+      if (window.PisFontData) {
+        params.StandardFontDataFactory = _makeInlineFontFactory(src.fonts);
+      }
+    }
+  } catch (e) { /* 工厂不可用时保持默认 fetch 行为 */ }
+  return params;
+}
 
 function loadPdfJs() {
   if (_pdfjsPromise) return _pdfjsPromise;
-  _pdfjsPromise = new Promise(function (resolve, reject) {
-    if (window.pdfjsLib) { resolve(window.pdfjsLib); return; }
-    var s = document.createElement('script');
-    s.src = PDFJS_URL;
-    s.onload = function () {
-      if (window.pdfjsLib) {
-        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
-          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        resolve(window.pdfjsLib);
-      } else { reject(new Error('pdf.js 加载失败')); }
-    };
-    s.onerror = function () { reject(new Error('pdf.js 加载失败，请检查网络')); };
-    document.head.appendChild(s);
-  });
+  _pdfjsPromise = (async function () {
+    var lastErr = null;
+    for (var i = 0; i < PDFJS_SOURCES.length; i++) {
+      var src = PDFJS_SOURCES[i];
+      try {
+        if (!window.pdfjsLib) await _loadScript(src.lib);
+        if (window.pdfjsLib) {
+          try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = src.worker; } catch (e) { /* 忽略 */ }
+          if (src.inline) {
+            try { if (!window.PisCMapData) await _loadScript('vendor/cmaps-data.js'); } catch (e) { /* 缺数据走 fetch 回退 */ }
+            try { if (!window.PisFontData) await _loadScript('vendor/fonts-data.js'); } catch (e) { /* 同上 */ }
+          }
+          _activeSource = src;
+          return window.pdfjsLib;
+        }
+      } catch (e) { lastErr = e; }
+    }
+    throw new Error('pdf.js 加载失败，请检查网络连接后重试（' + (lastErr ? lastErr.message : '无可用源') + '）');
+  })();
   return _pdfjsPromise;
 }
 
 async function extractText(file) {
   var pdfjsLib = await loadPdfJs();
   var buf = await file.arrayBuffer();
-  var pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  var src = _activeSource || {};
+  var pdf = await pdfjsLib.getDocument(_buildDocParams(buf, src)).promise;
   var parts = [];
   var maxPages = Math.min(pdf.numPages, 3);
   for (var i = 1; i <= maxPages; i++) {
@@ -64,8 +161,8 @@ function rebuildLines(items) {
       target = { y: n.y, h: n.h, items: [] };
       lines.push(target);
     } else {
-      var cnt = target.items.length;
-      target.y = (target.y * cnt + n.y) / (cnt + 1);
+      /* 行锚不漂移：江苏版数电票左侧的竖排装饰（监制章/竖排"购买方信息"）y 跨度大，
+         若做 y 均值漂移会把行锚一路拉偏，吞掉同一水平线的相邻行 → 标签与值分离 */
       if (n.h > target.h) target.h = n.h;
     }
     target.items.push(n);
@@ -196,14 +293,23 @@ function extractTaxRates(text) {
 
 function extractAmounts(text) {
   var amount = null, tax = null, total = null;
-  var m = text.match(/合\s*计[^\n]*?[¥￥]\s*([0-9,]+\.\d{2})[^\d¥￥]*[¥￥]\s*([0-9,]+\.\d{2})/);
+  /* 锚定聚类后"合 计"标签与金额可能分处相邻行：[^\n]*? 跨不了行会漏,
+     用限长 [\s\S]{0,80}?（限长防吞后续行的金额） */
+  var m = text.match(/合\s*计[\s\S]{0,80}?[¥￥]\s*([0-9,]+\.\d{2})[\s\S]{0,20}?[¥￥]\s*([0-9,]+\.\d{2})/);
   if (m) { amount = m[1]; tax = m[2]; }
-  m = text.match(/价税合计[（(]大写[）)][^\n]*?[（(]小写[）)]\s*[¥￥]?\s*([0-9,]+\.\d{2})/);
+  m = text.match(/价税合计[（(]大写[）)][\s\S]{0,60}?[（(]小写[）)]\s*[¥￥]?\s*([0-9,]+\.\d{2})/);
   if (!m) m = text.match(/[（(]小写[）)]\s*[¥￥]\s*([0-9,]+\.\d{2})/);
   if (!m) m = text.match(/价\s*税\s*合\s*计[^\n¥￥]*?[¥￥]\s*([0-9,]+\.\d{2})/);
   if (m) total = m[1];
   if (tax === null) { m = text.match(/税\s*额[^\n]*?[¥￥]\s*([0-9,]+\.\d{2})/); if (m) tax = m[1]; }
   if (amount === null) { m = text.match(/金\s*额[^\n]*?[¥￥]\s*([0-9,]+\.\d{2})/); if (m) amount = m[1]; }
+  /* 互推兜底：金额/税额/价税合计知其二推其三 */
+  function num(s) { return s === null ? null : parseFloat(String(s).replace(/,/g, '')); }
+  function fmt(n) { return n.toFixed(2); }
+  var a = num(amount), t = num(tax), tt = num(total);
+  if (tt !== null && a === null && t !== null) amount = fmt(tt - t);
+  if (tt !== null && t === null && a !== null) tax = fmt(tt - a);
+  if (tt === null && a !== null && t !== null) total = fmt(a + t);
   return { amount: amount, tax: tax, total: total };
 }
 

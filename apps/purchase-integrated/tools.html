@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>工具箱 · 采购一体化系统</title>
+<link rel="stylesheet" href="css/common.css">
+</head>
+<body>
+<header>
+  <div class="logo"><span class="mark"><svg width="18" height="18" viewBox="0 0 48 48"><use href="#rrlogo"/></svg></span>采购一体化系统</div>
+  <div class="nav-wrap">
+    <button class="nav-btn" id="navMenuBtn" type="button">菜单 <span class="caret">▾</span></button>
+    <div class="nav-menu" id="navMenu"></div>
+  </div>
+  <span class="hspace"></span>
+  <div class="company-select" id="companySelectWrap">
+    <span>公司主体</span><select id="companySelect"></select>
+  </div>
+  <div class="userbox">
+    <b class="uname" id="whoName">—</b>
+    <button class="btn-exit" id="logoutBtn">退出</button>
+  </div>
+</header>
+<div class="layout">
+  <main id="main"></main>
+</div>
+<div class="modal-mask" id="modalMask"><div class="modal" id="modalBox"></div></div>
+<div class="toast" id="toastBox"></div>
+<div id="printArea"></div>
+<script src="js/common.js"></script>
+<script src="js/auth-guard.js"></script>
+<script>
+'use strict';
+/* ==========================================================
+   工具箱（木箱 / 方底袋计算器）
+   ========================================================== */
+function pageTools(root) {
+  root.innerHTML =
+    '<div class="page-head"><h2>工具箱</h2><span class="desc">包装材料计算 · 快速测算木箱与方底袋面积、重量、价格</span></div>' +
+    '<div class="calc-grid">' +
+    /* 木箱 */
+    '<div class="card"><h3>木箱计算器</h3><form id="boxF"><div class="form-grid">' +
+    '<div><label>长 (m)</label><input id="bxL" type="number" step="0.01" min="0" required value="1.2"></div>' +
+    '<div><label>宽 (m)</label><input id="bxW" type="number" step="0.01" min="0" required value="1"></div>' +
+    '<div><label>高 (m)</label><input id="bxH" type="number" step="0.01" min="0" required value="1"></div>' +
+    '<div><label>板厚 (mm)</label><input id="bxT" type="number" step="1" min="0" value="15"></div>' +
+    '<div><label>托盘高度 (m)</label><input id="bxP" type="number" step="0.01" min="0" value="0.1"></div>' +
+    '<div><label>数量</label><input id="bxQ" type="number" step="1" min="1" value="1"></div>' +
+    '<div><label>单价 (元/㎡)</label><input id="bxPrice" type="number" step="0.01" min="0" value="55"></div>' +
+    '</div><div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-primary" type="submit">计算</button><button class="btn btn-outline" type="button" id="bxSave">保存记录</button></div></form>' +
+    '<div class="result-box" style="margin-top:12px" id="bxResult"><div class="empty">输入尺寸后点击计算</div></div></div>' +
+    /* 方底袋 */
+    '<div class="card"><h3>方底袋子计算器</h3><form id="bagF"><div class="form-grid">' +
+    '<div><label>长 (cm)</label><input id="bgL" type="number" step="0.1" min="0" required value="60"></div>' +
+    '<div><label>宽 (cm)</label><input id="bgW" type="number" step="0.1" min="0" required value="40"></div>' +
+    '<div><label>高 (cm)</label><input id="bgH" type="number" step="0.1" min="0" required value="15"></div>' +
+    '<div><label>数量</label><input id="bgQ" type="number" step="1" min="1" value="1000"></div>' +
+    '<div><label>克重 (g/㎡)</label><select id="bgGsm"><option>120</option><option selected>150</option><option>180</option><option>200</option></select></div>' +
+    '<div><label>单价&lt;6㎡ (元/㎡)</label><input id="bgP1" type="number" step="0.01" min="0" value="9"></div>' +
+    '<div><label>单价≥6㎡ (元/㎡)</label><input id="bgP2" type="number" step="0.01" min="0" value="7"></div>' +
+    '</div><div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-primary" type="submit">计算</button><button class="btn btn-outline" type="button" id="bgSave">保存记录</button></div></form>' +
+    '<div class="result-box" style="margin-top:12px" id="bgResult"><div class="empty">输入尺寸后点击计算</div></div></div></div>' +
+    '<div class="card"><h3>计算记录</h3><div style="margin-bottom:10px"><span id="toolMoreWrap"></span></div><div id="toolRecBox"></div></div>';
+  let lastBox = null, lastBag = null;
+  $('#boxF').addEventListener('submit', e => {
+    e.preventDefault();
+    const L = +$('#bxL').value || 0, W = +$('#bxW').value || 0, H = +$('#bxH').value || 0;
+    const T = (+$('#bxT').value || 0) / 1000, P = +$('#bxP').value || 0, Q = Math.max(1, +$('#bxQ').value || 1), price = +$('#bxPrice').value || 0;
+    const innerV = L * W * H;
+    const oL = L + 2 * T, oW = W + 2 * T, oH = H + T + P;
+    const outerV = oL * oW * oH, totalV = outerV * Q;
+    const area = 2 * (L * W + L * H + W * H);
+    const total = area * price * Q;
+    lastBox = { type: '木箱', L, W, H, T: T * 1000, P, Q, price, innerV, outerV, totalV, area, total, at: new Date().toISOString() };
+    // 集装箱推荐
+    const conts = [['20GP', 5.898, 2.352, 2.385, 28], ['40GP', 12.032, 2.352, 2.385, 67], ['40HQ', 12.032, 2.352, 2.697, 76]];
+    const fits = conts.map(c => {
+      const use = (Math.floor(c[1] / oL) * Math.floor(c[2] / oW) * Math.floor(c[3] / oH));
+      const useSwap = (Math.floor(c[1] / oW) * Math.floor(c[2] / oL) * Math.floor(c[3] / oH));
+      const best = Math.max(use, useSwap);
+      return { name: c[0], per: best, util: c[4] ? Math.min(100, Math.round(best * outerV / c[4] * 100)) : 0, need: best ? Math.ceil(Q / best) : '—' };
+    }).filter(c => c.per > 0).sort((a, b) => b.util - a.util);
+    const contHtml = fits.length ? '<div style="margin-top:8px;font-size:12px;color:var(--muted)">集装箱装载参考（单箱可装 ' + fits[0].per + ' 件）：' + fits.map(c => c.name + ' 利用率 ' + c.util + '% · 需 ' + c.need + ' 柜').join('；') + '</div>' : '';
+    $('#bxResult').innerHTML =
+      '<div class="result-line"><span class="rk">单箱表面积</span><span class="rv">' + area.toFixed(4) + ' ㎡</span></div>' +
+      '<div class="result-line"><span class="rk">内体积</span><span class="rv">' + innerV.toFixed(4) + ' m³</span></div>' +
+      '<div class="result-line"><span class="rk">外体积</span><span class="rv">' + outerV.toFixed(4) + ' m³</span></div>' +
+      '<div class="result-line"><span class="rk">总体积（×' + Q + '）</span><span class="rv">' + totalV.toFixed(4) + ' m³</span></div>' +
+      '<div class="result-line total"><span class="rk">木箱总价</span><span class="rv">' + fmtMoney(total) + '</span></div>' + contHtml;
+  });
+  $('#bagF').addEventListener('submit', e => {
+    e.preventDefault();
+    const L = +$('#bgL').value || 0, W = +$('#bgW').value || 0, H = +$('#bgH').value || 0;
+    const Q = Math.max(1, +$('#bgQ').value || 1), gsm = +$('#bgGsm').value || 150;
+    const p1 = +$('#bgP1').value || 9, p2 = +$('#bgP2').value || 7;
+    const area = (L * W + 2 * L * H + 2 * W * H) / 10000;
+    const totalArea = area * Q;
+    const w1 = area * gsm / 1000, tw = w1 * Q;
+    const up = totalArea < 6 ? p1 : p2;
+    const total = totalArea * up, unit = total / Q;
+    lastBag = { type: '方底袋', L, W, H, Q, gsm, area, totalArea, w1, tw, unit, total, at: new Date().toISOString() };
+    $('#bgResult').innerHTML =
+      '<div class="result-line"><span class="rk">单袋表面积</span><span class="rv">' + area.toFixed(4) + ' ㎡</span></div>' +
+      '<div class="result-line"><span class="rk">总表面积（×' + Q + '）</span><span class="rv">' + totalArea.toFixed(4) + ' ㎡</span></div>' +
+      '<div class="result-line"><span class="rk">单袋重量</span><span class="rv">' + w1.toFixed(4) + ' kg</span></div>' +
+      '<div class="result-line"><span class="rk">总重量</span><span class="rv">' + tw.toFixed(4) + ' kg</span></div>' +
+      '<div class="result-line"><span class="rk">适用单价</span><span class="rv">' + fmtMoney(up).slice(1) + ' 元/㎡（' + (totalArea < 6 ? '<6㎡' : '≥6㎡') + '）</span></div>' +
+      '<div class="result-line total"><span class="rk">总价格</span><span class="rv">' + fmtMoney(total) + '</span></div>' +
+      '<div class="result-line total"><span class="rk">单袋单价</span><span class="rv">' + fmtMoney(unit) + '</span></div>';
+  });
+  const saveRec = rec => { if (!rec) { toast('请先完成一次计算', 'err'); return; } const arr = DB.get('tool_records', []); arr.unshift(rec); DB.set('tool_records', arr.slice(0, 200)); drawRecs(); toast('已保存计算记录', 'ok'); };
+  $('#bxSave').addEventListener('click', () => saveRec(lastBox));
+  $('#bgSave').addEventListener('click', () => saveRec(lastBag));
+  const drawRecs = () => {
+    const arr = DB.get('tool_records', []);
+    $('#toolRecBox').innerHTML = arr.length ? '<div class="tbl-wrap" style="max-height:30vh"><table><thead><tr><th>时间</th><th>类型</th><th>尺寸</th><th>数量</th><th class="num">表面积</th><th class="num">总价</th></tr></thead><tbody>' +
+      arr.map(r => '<tr><td style="white-space:nowrap">' + (r.at || '').replace('T', ' ').slice(0, 16) + '</td><td><span class="badge b-blue">' + r.type + '</span></td>' +
+        '<td>' + (r.type === '木箱' ? r.L + '×' + r.W + '×' + r.H + 'm' : r.L + '×' + r.W + '×' + r.H + 'cm') + '</td><td>' + r.Q + '</td>' +
+        '<td class="num">' + (r.totalArea || r.area).toFixed(2) + ' ㎡</td><td class="num"><b>' + fmtMoney(r.total) + '</b></td></tr>').join('') + '</tbody></table></div>'
+      : '<div class="empty">暂无计算记录</div>';
+  };
+  /* 「更多」菜单：导出EXCEL / 清空记录（计算记录为本地工具数据，无导入） */
+  $('#toolMoreWrap').innerHTML = moreMenuHTML('toolMore', [
+    { m: 'export', label: '📤 导出EXCEL' },
+    { m: 'clear', label: '🗑 清空记录', cls: 'danger' }
+  ]);
+  bindMoreMenu('toolMore', {
+    export: async () => {
+      await exportCollExcel('计算记录', '计算记录_' + todayFileTag() + '.xlsx',
+        ['时间', '类型', '长', '宽', '高', '数量', '表面积(㎡)', '总价(元)'],
+        DB.get('tool_records', []).map(r => [(r.at || '').replace('T', ' ').slice(0, 16), r.type, r.L, r.W, r.H, r.Q, (r.totalArea || r.area).toFixed(2), +r.total.toFixed(2)]));
+    },
+    clear: () => {
+      const arr = DB.get('tool_records', []);
+      if (!arr.length) { toast('暂无计算记录', 'info'); return; }
+      if (confirm('清空全部 ' + arr.length + ' 条计算记录？此操作不可恢复！')) { DB.del('tool_records'); drawRecs(); toast('已清空', 'ok'); }
+    }
+  });
+  drawRecs();
+}
+
+initPage('tools', pageTools);
+</script>
+</body>
+</html>

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>发货管理 · 采购一体化系统</title>
+<link rel="stylesheet" href="css/common.css">
+</head>
+<body>
+<header>
+  <div class="logo"><span class="mark"><svg width="18" height="18" viewBox="0 0 48 48"><use href="#rrlogo"/></svg></span>采购一体化系统</div>
+  <div class="nav-wrap">
+    <button class="nav-btn" id="navMenuBtn" type="button">菜单 <span class="caret">▾</span></button>
+    <div class="nav-menu" id="navMenu"></div>
+  </div>
+  <span class="hspace"></span>
+  <div class="company-select" id="companySelectWrap">
+    <span>公司主体</span><select id="companySelect"></select>
+  </div>
+  <div class="userbox">
+    <b class="uname" id="whoName">—</b>
+    <button class="btn-exit" id="logoutBtn">退出</button>
+  </div>
+</header>
+<div class="layout">
+  <main id="main"></main>
+</div>
+<div class="modal-mask" id="modalMask"><div class="modal" id="modalBox"></div></div>
+<div class="toast" id="toastBox"></div>
+<div id="printArea"></div>
+<script src="js/common.js"></script>
+<script src="js/auth-guard.js"></script>
+<script>
+'use strict';
+/* ==========================================================
+   发货管理（供应商登记发货 → 采购员确认到货 → 结果回馈供应商）
+   ========================================================== */
+function pageShip(root) {
+  const canW = Session.canWrite('ship');          // 供应商可写（登记自己的发货）；采购员可写
+  const isSup = Session.isSupplier();
+  const stockStats = () => {
+    const all = Data.list('shipments');
+    return { total: all.length, pending: all.filter(r => deriveShipStatus(r) !== SHIP_CONFIRMED).length, done: all.filter(r => deriveShipStatus(r) === SHIP_CONFIRMED).length };
+  };
+  const st = stockStats();
+  const unread = isSup ? unreadShipMsgs().length : 0;
+  root.innerHTML =
+    '<div class="page-head"><h2>发货管理</h2><span class="desc">' + (isSup ? '登记贵司的发货信息，需方确认/反馈到货后可在「需方消息」查看' : '供应商发货登记 · 采购员在「收货管理」确认实收 · 结果自动回馈供应商') + '</span><span class="spacer"></span>' +
+    (isSup ? '<button class="btn btn-outline" id="shipMsgBtn">需方消息' + (unread ? ' <span class="msg-dot">' + unread + '</span>' : '') + '</button>' : '') +
+    '<span id="shipMoreWrap"></span>' +
+    (canW ? '<button class="btn btn-primary" id="shipAdd">＋ 登记发货</button>' : '') + '</div>' +
+    '<input type="file" id="shipImportFile" accept=".xlsx,.xls,.csv" style="display:none">' +
+    '<div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:12px">' +
+      '<div class="stat-card"><div class="l">发货单</div><div class="v">' + st.total + '</div><div class="s">' + (isSup ? '本供应商' : '当前公司主体') + '</div></div>' +
+      '<div class="stat-card hl"><div class="l">待确认到货</div><div class="v">' + st.pending + '</div><div class="s">' + (isSup ? '等待需方核对实收' : '需在收货管理确认') + '</div></div>' +
+      '<div class="stat-card good"><div class="l">已确认</div><div class="v">' + st.done + '</div><div class="s">收货已回写</div></div>' +
+    '</div>' +
+    '<div class="card"><div class="row-flex" style="margin-bottom:12px"><div style="flex:1;max-width:320px"><label>搜索</label><input id="shipSearch" placeholder="发货单号 / 合同号 / 物流单号 / 产品"></div>' +
+    '<div><label>状态</label><select id="shipStatus"><option value="">全部</option><option>' + SHIP_PENDING + '</option><option>' + SHIP_PARTIAL + '</option><option>' + SHIP_CONFIRMED + '</option></select></div></div><div id="shipTableBox"></div></div>';
+  const draw = () => {
+    const kw = ($('#shipSearch').value || '').trim().toLowerCase();
+    const stf = $('#shipStatus').value;
+    let list = Data.list('shipments');
+    if (kw) list = list.filter(r => [r.shipNumber, r.contractNumber, r.trackingNo, r.carrier, r.supplier, r.product].join(' ').toLowerCase().includes(kw));
+    if (stf) list = list.filter(r => deriveShipStatus(r) === stf);
+    list.sort((a, b) => (b.shipDate || '').localeCompare(a.shipDate || '') || (b.shipNumber || '').localeCompare(a.shipNumber || ''));
+    if (!list.length) { $('#shipTableBox').innerHTML = '<div class="empty">暂无发货记录</div>'; return; }
+    $('#shipTableBox').innerHTML = '<div class="tbl-wrap" style="max-height:60vh"><table><thead><tr>' +
+      '<th>发货单号</th><th>合同号</th><th>供应商</th><th>产品</th><th class="num">发货数量</th><th class="num">已确认收货</th><th>状态</th><th>发货日期</th><th>物流</th>' +
+      (isSup ? '<th>需方消息</th>' : '<th>备注</th>') + '<th style="width:170px">操作</th></tr></thead><tbody>' +
+      list.map(r => {
+        const dst = deriveShipStatus(r);
+        const done = confirmedQtyOfShip(r);
+        const diff = (+r.quantity || 0) - done;
+        const tail = isSup
+          ? '<td class="subtle">' + (r.supplierReadAt ? '<span class="badge b-blue">已读</span>' : dst !== SHIP_PENDING || r.receiveRemark ? '<span class="badge b-red">新消息</span>' : '—') + '</td>'
+          : '<td class="subtle">' + esc(r.remark || '') + '</td>';
+        return '<tr><td class="mono">' + esc(r.shipNumber) + '</td><td class="mono">' + esc(r.contractNumber) + '</td><td>' + esc(r.supplier) + '</td><td>' + esc(r.product) + '</td>' +
+          '<td class="num">' + fmtNum(r.quantity) + '</td><td class="num"><b>' + fmtNum(done) + '</b></td><td>' + shipBadge({ status: dst }) + '</td>' +
+          '<td>' + esc(r.shipDate || '') + '</td><td class="subtle">' + esc(r.carrier || '') + (r.trackingNo ? '<br><span class="mono" style="font-size:11px">' + esc(r.trackingNo) + '</span>' : '') + '</td>' + tail +
+          '<td style="white-space:nowrap"><button class="link-op" data-id="' + r.id + '" data-a="d">明细</button>' +
+          (isSup ? '<button class="link-op" data-id="' + r.id + '" data-a="m">' + (dst !== SHIP_PENDING || r.receiveRemark ? '查看消息' : '需方反馈') + '</button>' : '') +
+          (canW && (!isSup || dst === SHIP_PENDING) ? '<button class="link-op" data-id="' + r.id + '" data-a="e">编辑</button>' : '') +
+          '<button class="link-op danger" data-id="' + r.id + '" data-a="x">删除</button></td></tr>';
+      }).join('') +
+      '</tbody></table></div>';
+    $('#shipTableBox').querySelectorAll('button[data-a]').forEach(b => b.addEventListener('click', () => {
+      const rec = Data.list('shipments').find(x => x.id === b.dataset.id); if (!rec) return;
+      const a = b.dataset.a;
+      if (a === 'd') shipDetail(rec);
+      /* 注意：此处**不再**提供 confirmShipReceive —— 确认收货是采购员在「收货管理」的动作，
+         供应商端不应出现该入口。保留分支只为兼容旧调用，实际不会渲染出 data-a="c" 按钮。 */
+      else if (a === 'm') showSupplierMsg(rec);
+      else if (a === 'e') shipForm(rec);
+      else if (a === 'x') {
+        if (isSup && deriveShipStatus(rec) !== SHIP_PENDING) { toast('已确认或部分确认的发货记录不可删除，请联系采购员', 'err'); return; }
+        if (confirm('删除该发货记录？')) { Data.remove('shipments', rec.id); toast('已删除', 'ok'); renderPage(); }
+      }
+    }));
+  };
+  $('#shipSearch').addEventListener('input', draw);
+  $('#shipStatus').addEventListener('change', draw);
+  $('#shipMoreWrap').innerHTML = moreMenuHTML('shipMore', [
+    { m: 'export', label: '📤 导出EXCEL' }
+  ].concat(canW ? [{ m: 'import', label: '📥 导入EXCEL' }] : [])
+    .concat(canW && !isSup ? [{ m: 'clear', label: '🗑 清空', cls: 'danger' }] : []));
+  bindMoreMenu('shipMore', {
+    import: () => $('#shipImportFile').click(),
+    export: exportShipExcel,
+    clear: clearShipments
+  });
+  $('#shipImportFile').addEventListener('change', e => { handleShipImport(e.target.files[0]); e.target.value = ''; });
+  if (canW) $('#shipAdd').addEventListener('click', () => shipForm(null));
+  if (isSup && $('#shipMsgBtn')) $('#shipMsgBtn').addEventListener('click', () => openSupplierMsgCenter());
+  draw();
+  // 供应商登录进入本页时，若有需方确认/反馈且未读，自动弹出消息框提示
+  if (isSup) {
+    window.__supplierMsgTick = () => { // 已读后刷新按钮上的未读角标并同步表格
+      const n = unreadShipMsgs().length;
+      const btn = $('#shipMsgBtn'); if (btn) btn.innerHTML = '需方消息' + (n ? ' <span class="msg-dot">' + n + '</span>' : '');
+      draw();
+    };
+    const list = unreadShipMsgs();
+    if (list.length) setTimeout(() => showSupplierMsg(list[0]), 420);
+  }
+}
+/* ---------- 发货 · 导入EXCEL（采购员/供应商） ---------- */
+async function handleShipImport(f) {
+  if (!f) return;
+  const isSup = Session.isSupplier(), me = Session.mySupplier();
+  await importCollExcel(f, {
+    coll: 'shipments', label: '发货记录',
+    cols: { cno: '合同号', name: '产品名称', qty: '发货数量', date: '发货日期', carrier: '物流公司', track: '物流单号', sup: '供应商', rem: '备注' },
+    need: ['cno', 'name', 'qty'],
+    dedup: r => r.company + '|' + r.contractNumber + '|' + r.product + '|' + r.quantity + '|' + (r.shipDate || ''),
+    build: (r, C, num, dstr) => {
+      const cno = String(r[C.cno] || '').trim(), name = String(r[C.name] || '').trim();
+      if (!cno || !name) return null;
+      const qty = num(r[C.qty]);
+      if (qty <= 0) return null;
+      const order = contractByNo(cno);
+      let sup = C.sup > -1 ? String(r[C.sup] || '').trim() : '';
+      if (isSup) sup = me;                       // 供应商导入自动绑定自己
+      else if (!sup && order) sup = order.supplier;
+      return { id: uid(), company: (order && order.company) || curCo(), shipNumber: nextNo('SHP-'),
+        contractNumber: cno, supplier: sup, product: name, quantity: qty,
+        shipDate: dstr(C.date > -1 ? r[C.date] : '') || todayStr(),
+        carrier: C.carrier > -1 ? String(r[C.carrier] || '').trim() : '',
+        trackingNo: C.track > -1 ? String(r[C.track] || '').trim() : '',
+        remark: C.rem > -1 ? String(r[C.rem] || '').trim() : '', createdAt: new Date().toISOString() };
+    }
+  });
+}
+/* ---------- 发货 · 导出EXCEL ---------- */
+async function exportShipExcel() {
+  const list = Data.list('shipments');
+  list.sort((a, b) => (b.shipDate || '').localeCompare(a.shipDate || '') || (b.shipNumber || '').localeCompare(a.shipNumber || ''));
+  await exportCollExcel('发货记录', '发货记录_' + curCoName() + '_' + todayFileTag() + '.xlsx',
+    ['发货单号', '合同号', '供应商', '产品', '发货数量', '已确认收货', '状态', '发货日期', '物流公司', '物流单号', '需方反馈', '发货备注'],
+    list.map(r => [r.shipNumber, r.contractNumber, r.supplier, r.product, +r.quantity || 0, confirmedQtyOfShip(r), deriveShipStatus(r),
+      r.shipDate || '', r.carrier || '', r.trackingNo || '', r.receiveRemark || '', r.remark || '']));
+}
+/* ---------- 发货 · 清空（仅采购员） ---------- */
+function clearShipments() { clearCollConfirm('shipments', '发货记录'); }
+
+/* 供应商·需方消息中心：列出需方已处理/有待反馈的发货单，可逐条查看 */
+function openSupplierMsgCenter() {
+  const list = Data.list('shipments')
+    .filter(r => deriveShipStatus(r) !== SHIP_PENDING || r.receiveRemark || r.receivedAt)
+    .sort((a, b) => String(b.receivedAt || '').localeCompare(String(a.receivedAt || '')));
+  window.__msgCenterRecs = list;
+  openModal('<h3>需方消息</h3>' +
+    (list.length
+      ? '<div class="tbl-wrap"><table><thead><tr><th>发货单号</th><th>合同号</th><th>产品</th><th class="num">实收</th><th>状态</th><th>需方反馈</th><th>阅读</th><th>操作</th></tr></thead><tbody>' +
+        list.map((r, i) => '<tr><td class="mono">' + esc(r.shipNumber) + '</td><td class="mono">' + esc(r.contractNumber) + '</td><td>' + esc(r.product) + '</td>' +
+          '<td class="num"><b>' + fmtNum(confirmedQtyOfShip(r)) + '</b> / ' + fmtNum(r.quantity) + '</td>' +
+          '<td>' + shipBadge({ status: deriveShipStatus(r) }) + '</td>' +
+          '<td class="subtle">' + esc(r.receiveRemark || '—') + '</td>' +
+          '<td>' + (r.supplierReadAt ? '<span class="badge b-blue">已读</span>' : '<span class="badge b-red">未读</span>') + '</td>' +
+          '<td><button class="link-op" data-i="' + i + '">查看</button></td></tr>').join('') + '</tbody></table></div>'
+      : '<div class="empty">暂无需方消息<br><span class="subtle">需方确认收货或反馈差异后，此处会显示消息</span></div>') +
+    '<div class="modal-foot"><button class="btn btn-outline" onclick="closeModal()">关闭</button></div>', 'wide');
+  $$('#modalBox button[data-i]').forEach(b => b.addEventListener('click', () => showSupplierMsg(window.__msgCenterRecs[+b.dataset.i])));
+}
+function shipForm(rec) {
+  const isEdit = !!rec;
+  const orders = Data.list('orders');
+  const opts = orders.map(o => '<option value="' + esc(o.contractNumber) + '"' + (rec && rec.contractNumber === o.contractNumber ? ' selected' : '') + '>' + esc(o.contractNumber) + '（' + esc(o.supplier) + '）</option>').join('');
+  openModal('<h3>' + (isEdit ? '编辑发货记录' : '登记发货') + '</h3><form id="shipF">' +
+    '<div class="form-grid">' +
+    '<div><label class="req">发货单号</label><input id="shNo" required value="' + esc(rec ? rec.shipNumber : nextNo('SHP-')) + '"></div>' +
+    '<div><label class="req">合同号</label><select id="shContract" required><option value="">请选择合同</option>' + opts + '</select></div>' +
+    '<div><label class="req">产品</label><select id="shProduct" required></select></div>' +
+    '<div><label class="req">本次发货数量</label><input id="shQty" type="number" min="0" step="1" required value="' + (rec ? rec.quantity : '') + '"></div>' +
+    '<div><label class="req">发货日期</label><input id="shDate" type="date" required value="' + esc(rec ? rec.shipDate : todayStr()) + '"></div>' +
+    '<div><label>物流公司</label><input id="shCarrier" value="' + esc(rec ? (rec.carrier || '') : '') + '" placeholder="顺丰 / 德邦 / 自送…"></div>' +
+    '<div><label>物流单号</label><input id="shTrack" value="' + esc(rec ? (rec.trackingNo || '') : '') + '"></div>' +
+    '<div><label>备注</label><input id="shRemark" value="' + esc(rec ? (rec.remark || '') : '') + '"></div></div>' +
+    '<div class="amt-hint" id="shHint"></div>' +
+    '<div class="modal-foot"><button type="button" class="btn btn-outline" onclick="closeModal()">取消</button><button class="btn btn-primary">保存</button></div></form>');
+  const fillProducts = () => {
+    const o = contractByNo($('#shContract').value);
+    $('#shProduct').innerHTML = o ? o.products.map(p => '<option value="' + esc(p.name) + '">' + esc(p.name) + '（合同 ' + fmtNum(p.quantity) + ' ' + esc(p.unit || '') + '）</option>').join('') : '';
+    updHint();
+  };
+  const updHint = () => {
+    const cno = $('#shContract').value, pn = $('#shProduct').value;
+    const o = contractByNo(cno); if (!o || !pn) { $('#shHint').innerHTML = ''; return; }
+    const shipped = shippedQty(cno, pn) - (isEdit ? +rec.quantity || 0 : 0), ordered = (o.products.find(p => p.name === pn) || {}).quantity || 0;
+    const over = shipped + (+$('#shQty').value || 0) > ordered;
+    $('#shHint').innerHTML = '该产品已发货 <b>' + fmtNum(shipped) + '</b> / 合同数量 <b>' + fmtNum(ordered) + '</b>' +
+      (over ? ' · <span style="color:var(--red)">本次发货将超出合同数量，超额部分需方确认时可不计入收货</span>' : '') +
+      '<br><span style="color:var(--muted)">保存后进入「待确认」，采购员在「收货管理」核对实收数量后，结果会以消息形式回馈到本页「需方消息」</span>';
+  };
+  $('#shContract').addEventListener('change', fillProducts);
+  $('#shProduct').addEventListener('change', updHint);
+  $('#shQty').addEventListener('input', updHint);
+  if (isEdit) { fillProducts(); $('#shProduct').value = rec.product; updHint(); } else fillProducts();
+  $('#shipF').addEventListener('submit', e => {
+    e.preventDefault();
+    const cno = $('#shContract').value; const o = contractByNo(cno);
+    if (!o) { toast('请选择合同', 'err'); return; }
+    const data = {
+      id: isEdit ? rec.id : uid(), company: o.company || curCo(),
+      shipNumber: $('#shNo').value.trim(), contractNumber: cno, supplier: o.supplier,
+      product: $('#shProduct').value, quantity: +$('#shQty').value || 0,
+      shipDate: $('#shDate').value, carrier: $('#shCarrier').value.trim(),
+      trackingNo: $('#shTrack').value.trim(), remark: $('#shRemark').value.trim(),
+      status: isEdit ? (rec.status || SHIP_PENDING) : SHIP_PENDING, // 新登记 / 修改后均回到"待确认"，由采购员复核
+      createdAt: isEdit ? rec.createdAt : new Date().toISOString()
+    };
+    if (isEdit) Data.update('shipments', rec.id, data); else Data.add('shipments', data);
+    closeModal(); toast(isEdit ? '发货记录已更新，等待需方确认' : '发货已登记，等待需方确认收货', 'ok'); renderPage();
+  });
+}
+/* ---------- 发货明细（供应商查看需方反馈 / 采购员核对） ---------- */
+function shipDetail(rec) {
+  const rs = Data.list('receipts').filter(x => x.company === rec.company && x.contractNumber === rec.contractNumber && x.product === rec.product && x.shipNumber === rec.shipNumber);
+  const done = rs.reduce((s, x) => s + (+x.quantity || 0), 0);
+  const dst = deriveShipStatus(rec);
+  openModal('<h3>发货明细 · ' + esc(rec.shipNumber) + '</h3>' +
+    '<div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">' +
+    '<div class="stat-card"><div class="l">发货数量</div><div class="v">' + fmtNum(rec.quantity) + '</div><div class="s">' + esc(rec.product) + ' · ' + esc(rec.shipDate || '') + '</div></div>' +
+    '<div class="stat-card hl"><div class="l">已确认收货</div><div class="v">' + fmtNum(done) + '</div><div class="s">状态：' + dst + '</div></div>' +
+    '<div class="stat-card ' + (done >= (+rec.quantity || 0) ? 'good' : 'warn') + '"><div class="l">差异</div><div class="v">' + fmtNum((+rec.quantity || 0) - done) + '</div><div class="s">发货 − 实收</div></div></div>' +
+    '<div class="tbl-wrap"><table><thead><tr><th>收货单号</th><th class="num">实收数量</th><th>收货日期</th><th>收货人</th><th>备注</th></tr></thead><tbody>' +
+    (rs.length ? rs.map(x => '<tr><td class="mono">' + esc(x.receiptNumber) + '</td><td class="num"><b>' + fmtNum(x.quantity) + '</b></td><td>' + esc(x.receiptDate || '') + '</td><td>' + esc(x.person || '') + '</td><td class="subtle">' + esc(x.remark || '') + '</td></tr>').join('')
+      : '<tr><td colspan="5" class="empty">需方尚未确认收货</td></tr>') +
+    '</tbody></table></div>' +
+    (rec.receiveRemark ? '<div class="hint" style="margin-top:10px"><b>需方反馈：</b>' + esc(rec.receiveRemark) + (rec.receivedAt ? ' · ' + esc(rec.receivedAt.slice(0, 10)) : '') + '</div>' : '') +
+    (rec.remark ? '<div class="hint" style="margin-top:6px"><b>发货备注：</b>' + esc(rec.remark) + '</div>' : '') +
+    '<div class="modal-foot"><button class="btn btn-outline" onclick="closeModal()">关闭</button></div>', 'wide');
+}
+
+initPage('ship', pageShip);
+</script>
+</body>
+</html>

@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>付款管理 · 采购一体化系统</title>
+<link rel="stylesheet" href="css/common.css">
+</head>
+<body>
+<header>
+  <div class="logo"><span class="mark"><svg width="18" height="18" viewBox="0 0 48 48"><use href="#rrlogo"/></svg></span>采购一体化系统</div>
+  <div class="nav-wrap">
+    <button class="nav-btn" id="navMenuBtn" type="button">菜单 <span class="caret">▾</span></button>
+    <div class="nav-menu" id="navMenu"></div>
+  </div>
+  <span class="hspace"></span>
+  <div class="company-select" id="companySelectWrap">
+    <span>公司主体</span><select id="companySelect"></select>
+  </div>
+  <div class="userbox">
+    <b class="uname" id="whoName">—</b>
+    <button class="btn-exit" id="logoutBtn">退出</button>
+  </div>
+</header>
+<div class="layout">
+  <main id="main"></main>
+</div>
+<div class="modal-mask" id="modalMask"><div class="modal" id="modalBox"></div></div>
+<div class="toast" id="toastBox"></div>
+<div id="printArea"></div>
+<script src="js/common.js"></script>
+<script src="js/auth-guard.js"></script>
+<script>
+'use strict';
+/* ==========================================================
+   付款管理（只读映射视图）
+   数据源：报销系统「收票付款统计（付给销售方）」+「付款记录」
+     GET /api/payments/external（请求头 X-Reim-Token，只读）
+   本页不提供任何付款录入/编辑操作（原「新建付款」已下线，
+   付款登记统一在报销系统侧完成）。
+   三方关联：报销发票(project=合同号) ↔ 采购本地发票(contractNumber) ↔ 合同
+   供应商登录后自动只看自己的数据（Session.mySupplier 过滤）。
+   ========================================================== */
+const REIM_PAY_API = (localStorage.getItem('pis_reim_api') || 'http://127.0.0.1:8686') + '/api/payments/external';
+const REIM_TOKEN = 'purchase-link-2026';
+
+let payData = null;      // 报销系统返回 { summary, groups, invoices, records }
+let payExpanded = {};    // 供应商名 -> 是否展开明细
+
+function payBadge(st) {
+  const cls = { '已付清': 'b-green', '部分付款': 'b-amber', '未付款': 'b-red' }[st] || 'b-gray';
+  return '<span class="badge ' + cls + '">' + esc(st || '-') + '</span>';
+}
+/* 关联合同：优先报销侧 project 字段（提交时写入合同号），否则用采购本地发票反查 */
+function contractsOf(localInvs, invNo, project) {
+  const out = [];
+  splitMulti(project).forEach(c => { if (c && out.indexOf(c) < 0) out.push(c); });
+  if (!out.length) {
+    const v = localInvs.find(x => x.invoiceNumber === invNo);
+    splitMulti(v && v.contractNumber).forEach(c => { if (c && out.indexOf(c) < 0) out.push(c); });
+  }
+  return out;
+}
+function contractsHtml(localInvs, invNo, project, max) {
+  const cs = contractsOf(localInvs, invNo, project);
+  if (!cs.length) return '<span style="color:var(--muted)">—</span>';
+  const show = typeof max === 'number' ? cs.slice(0, max) : cs;
+  let h = show.map(c => '<span class="mono">' + esc(c) + '</span>').join(', ');
+  if (typeof max === 'number' && cs.length > max) h += ' 等 ' + cs.length + ' 个';
+  return h;
+}
+
+function pagePayment(root) {
+  const isSup = Session.isSupplier(), me = Session.mySupplier();
+  const statCard = (l, v, color, sub) =>
+    '<div class="stat-card"><div class="l">' + esc(l) + '</div><div class="v" style="color:' + color + '">' + v + '</div>' +
+    (sub ? '<div class="l" style="margin-top:4px">' + esc(sub) + '</div>' : '') + '</div>';
+  root.innerHTML =
+    '<div class="page-head"><h2>付款管理</h2>' +
+    '<span class="desc">数据来自报销系统（收票付款统计 + 付款记录）· 合同 / 发票 / 付款关联核对 · 只读</span>' +
+    (isSup ? '<span class="badge b-purple">供应商视角：' + esc(me) + '</span>' : '') +
+    '<span id="payConn"></span><span class="spacer"></span>' +
+    '<button class="btn btn-outline" id="payRefresh">⟳ 刷新</button></div>' +
+    '<div id="payErr"></div>' +
+    '<div id="payStats" class="stat-grid"></div>' +
+    '<div class="card"><div class="row-flex" style="margin-bottom:12px">' +
+    '<div style="flex:1;max-width:300px"><label>搜索</label><input id="paySearch" placeholder="供应商 / 发票号 / 合同号 / 品名"></div>' +
+    '<div><label>付款状态</label><select id="payStatus"><option value="">全部</option><option>已付清</option><option>部分付款</option><option>未付款</option></select></div>' +
+    '</div>' +
+    '<h3 style="margin:4px 0 8px;font-size:14px">供应商付款总览<span style="color:var(--muted);font-weight:400;font-size:12px">（口径同报销系统收票付款统计：正常付款、非驳回的进项发票；点击「明细」逐张核对）</span></h3>' +
+    '<div class="tbl-topbar" id="paygTop"></div>' +
+    '<div id="payGroupBox"></div>' +
+    '<h3 style="margin:18px 0 8px;font-size:14px">付款记录明细<span style="color:var(--muted);font-weight:400;font-size:12px">（口径同报销系统付款记录：已登记付款的发票）</span></h3>' +
+    '<div class="tbl-topbar" id="payrTop"></div>' +
+    '<div id="payRecBox"></div></div>';
+
+  const localInvs = Data.all('invoices'); // 本地全量发票（跨公司/跨供应商），用于合同反查
+  const setConn = st => {
+    $('#payConn').innerHTML = st === 'ok' ? '<span class="badge b-green">● 已连接</span>'
+      : st === 'loading' ? '<span class="badge b-gray">连接中…</span>'
+      : '<span class="badge b-red">● 未连接</span>';
+  };
+  async function load() {
+    setConn('loading');
+    $('#payErr').innerHTML = '';
+    try {
+      const res = await fetch(REIM_PAY_API, { headers: { 'X-Reim-Token': REIM_TOKEN } });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || !d.ok) throw new Error(d.msg || ('HTTP ' + res.status));
+      payData = d;
+      payExpanded = {};
+      setConn('ok');
+    } catch (e) {
+      payData = null;
+      setConn('err');
+      $('#payErr').innerHTML =
+        '<div class="card" style="border-left:4px solid var(--red);margin-bottom:12px"><b>无法连接报销系统</b>' +
+        '<div class="hint">' + esc(e.message || String(e)) + ' · 请先启动报销系统（运行 reimbursement-system/start.bat，默认 ' +
+        esc(REIM_PAY_API.replace('/api/payments/external', '')) + '），启动后点「刷新」。</div></div>';
+      $('#payStats').innerHTML = '';
+      $('#payGroupBox').innerHTML = '';
+      $('#payRecBox').innerHTML = '';
+      $('#paygTop').innerHTML = '';
+      $('#payrTop').innerHTML = '';
+      return;
+    }
+    draw();
+  }
+
+  const draw = () => {
+    if (!payData) return;
+    const kw = ($('#paySearch').value || '').trim().toLowerCase();
+    const st = $('#payStatus').value;
+    const scope = arr => isSup ? arr.filter(r => r.seller_name === me) : arr;
+    const allInv = scope(payData.invoices || []);
+    const allRec = scope(payData.records || []);
+    /* ---- 过滤（搜索 + 付款状态） ---- */
+    const fInv = allInv.filter(v => {
+      if (st && v.payment_status !== st) return false;
+      if (kw) {
+        const hay = [v.invoice_no, v.seller_name, v.item_name, v.project || '',
+          contractsOf(localInvs, v.invoice_no, v.project).join(' ')].join(' ').toLowerCase();
+        if (!hay.includes(kw)) return false;
+      }
+      return true;
+    });
+    const fRec = allRec.filter(r => {
+      if (st && r.payment_status !== st) return false;
+      if (kw) {
+        const payeeName = r.payee === '报销人' ? (r.claimant || '') : r.seller_name;
+        const hay = [r.invoice_no, r.seller_name, r.item_name || '', r.claimant || '', payeeName,
+          r.payment_method || '', r.payment_note || '', r.project || '',
+          contractsOf(localInvs, r.invoice_no, r.project).join(' ')].join(' ').toLowerCase();
+        if (!hay.includes(kw)) return false;
+      }
+      return true;
+    });
+    /* ---- 统计卡（全量口径，不随搜索筛选变化） ---- */
+    const sTotal = allInv.reduce((s, v) => s + (+v.total_amount || 0), 0);
+    const sPaid = allInv.reduce((s, v) => s + Math.min(+v.paid_amount || 0, +v.total_amount || 0), 0);
+    const sOwed = Math.max(0, sTotal - sPaid);
+    const supCnt = new Set(allInv.map(v => v.seller_name)).size;
+    const doneCnt = allInv.filter(v => v.payment_status === '已付清').length;
+    const pct = sTotal > 0.004 ? Math.round(sPaid / sTotal * 100) : 0;
+    $('#payStats').innerHTML =
+      statCard(isSup ? '我的发票' : '涉及供应商', isSup ? allInv.length + ' 张' : supCnt + ' 家', 'var(--primary)') +
+      statCard('价税合计', fmtMoney(sTotal), 'var(--text)') +
+      statCard('已付款', fmtMoney(sPaid), 'var(--green)') +
+      statCard('未付欠款', fmtMoney(sOwed), 'var(--red)') +
+      statCard('付款进度', pct + '%', 'var(--primary)', '已付清 ' + doneCnt + ' / ' + allInv.length + ' 张');
+    /* ---- 供应商付款总览（前端按过滤后明细聚合，与服务端口径一致） ---- */
+    const bySup = {};
+    fInv.forEach(v => {
+      const g = bySup[v.seller_name] || (bySup[v.seller_name] = { supplier: v.seller_name, n: 0, total: 0, paid: 0, last: '' });
+      g.n++;
+      g.total += +v.total_amount || 0;
+      g.paid += Math.min(+v.paid_amount || 0, +v.total_amount || 0);
+      if ((v.payment_date || '') > g.last) g.last = v.payment_date || '';
+    });
+    const groups = Object.values(bySup).sort((a, b) => b.total - a.total);
+    const supContracts = sup => {
+      const cs = [];
+      fInv.filter(v => v.seller_name === sup).forEach(v =>
+        contractsOf(localInvs, v.invoice_no, v.project).forEach(c => { if (cs.indexOf(c) < 0) cs.push(c); }));
+      return cs;
+    };
+    const supContractsHtml = sup => {
+      const cs = supContracts(sup);
+      if (!cs.length) return '<span style="color:var(--muted)">—</span>';
+      let h = cs.slice(0, 3).map(c => '<span class="mono">' + esc(c) + '</span>').join(', ');
+      if (cs.length > 3) h += ' 等 ' + cs.length + ' 个';
+      return h;
+    };
+    $('#paygTop').innerHTML = '<span>共 <b>' + groups.length + '</b> 家供应商</span>' +
+      moreMenuHTML('paygMore', [{ m: 'export', label: '📤 导出EXCEL' }]);
+    if (!groups.length) {
+      $('#payGroupBox').innerHTML = '<div class="empty">' + (isSup ? '报销系统中暂无与您（' + esc(me) + '）相关的发票付款数据' : '暂无数据') + '</div>';
+    } else {
+      const rows = [];
+      groups.forEach(g => {
+        const pctG = g.total > 0.004 ? Math.round(g.paid / g.total * 100) : 0;
+        const open = !!payExpanded[g.supplier];
+        rows.push('<tr' + (open ? ' style="background:var(--bg-hover,rgba(0,0,0,0.03))"' : '') + '>' +
+          '<td><b>' + esc(g.supplier) + '</b></td>' +
+          '<td class="num">' + g.n + '</td>' +
+          '<td class="num">' + fmtMoney(g.total) + '</td>' +
+          '<td class="num" style="color:var(--green)">' + fmtMoney(g.paid) + '</td>' +
+          '<td class="num" style="color:var(--red)">' + fmtMoney(Math.max(0, g.total - g.paid)) + '</td>' +
+          '<td class="num">' + pctG + '%</td>' +
+          '<td>' + esc(g.last || '—') + '</td>' +
+          '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + supContractsHtml(g.supplier) + '</td>' +
+          '<td><button class="link-op" data-sup="' + esc(g.supplier) + '" data-a="x">' + (open ? '收起▲' : '明细▼') + '</button></td></tr>');
+        if (open) {
+          const subs = fInv.filter(v => v.seller_name === g.supplier)
+            .sort((a, b) => (b.invoice_date || '').localeCompare(a.invoice_date || ''));
+          rows.push('<tr><td colspan="9" style="padding:0"><div style="max-height:320px;overflow:auto;border-top:1px dashed var(--border);background:var(--bg,#fafafa)">' +
+            '<table style="font-size:12.5px"><thead><tr>' +
+            '<th>发票号码</th><th>类型</th><th>开票日期</th><th>品名</th><th class="num">价税合计</th><th class="num">已付金额</th><th class="num">未付差额</th><th>付款状态</th><th>付款日期</th><th>付款方式</th><th>关联合同</th>' +
+            '</tr></thead><tbody>' +
+            subs.map(v => '<tr><td class="mono">' + esc(v.invoice_no) + '</td>' +
+              '<td>' + esc(v.invoice_type || '') + '</td>' +
+              '<td>' + esc(v.invoice_date || '') + '</td>' +
+              '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(v.item_name || '') + '</td>' +
+              '<td class="num">' + fmtMoney(v.total_amount) + '</td>' +
+              '<td class="num">' + fmtMoney(v.paid_amount) + '</td>' +
+              '<td class="num">' + (v.balance == null ? '—' : fmtMoney(v.balance)) + '</td>' +
+              '<td>' + payBadge(v.payment_status) + '</td>' +
+              '<td>' + esc(v.payment_date || '—') + '</td>' +
+              '<td>' + esc(v.payment_method || '—') + '</td>' +
+              '<td>' + contractsHtml(localInvs, v.invoice_no, v.project) + '</td></tr>').join('') +
+            '</tbody></table></div></td></tr>');
+        }
+      });
+      $('#payGroupBox').innerHTML = '<div class="tbl-wrap" style="max-height:46vh"><table><thead><tr>' +
+        '<th>供应商</th><th class="num">发票张数</th><th class="num">价税合计</th><th class="num">已付款</th><th class="num">未付欠款</th><th class="num">付款进度</th><th>最近付款日期</th><th>关联合同</th><th>操作</th>' +
+        '</tr></thead><tbody>' + rows.join('') + '</tbody></table></div>';
+      $('#payGroupBox').querySelectorAll('button[data-a="x"]').forEach(b => b.addEventListener('click', () => {
+        payExpanded[b.dataset.sup] = !payExpanded[b.dataset.sup];
+        draw();
+      }));
+    }
+    /* ---- 付款记录明细 ---- */
+    $('#payrTop').innerHTML = '<span>共 <b>' + fRec.length + '</b> 笔 · 合计已付 <b>' +
+      fmtMoney(fRec.reduce((s, r) => s + (+r.paid_amount || 0), 0)) + '</b></span>' +
+      moreMenuHTML('payrMore', [{ m: 'export', label: '📤 导出EXCEL' }]);
+    if (!fRec.length) {
+      $('#payRecBox').innerHTML = '<div class="empty">暂无付款记录</div>';
+    } else {
+      $('#payRecBox').innerHTML = '<div class="tbl-wrap" style="max-height:40vh"><table><thead><tr>' +
+        '<th>付款日期</th><th>付款方式</th><th>收款对象</th><th>收款单位/人</th><th>发票号码</th><th>发票类型</th><th>开票日期</th><th class="num">价税合计</th><th class="num">已付金额</th><th class="num">未付差额</th><th>付款状态</th><th>关联合同</th><th>备注</th>' +
+        '</tr></thead><tbody>' +
+        fRec.map(r => '<tr>' +
+          '<td>' + esc(r.payment_date || '—') + '</td>' +
+          '<td>' + esc(r.payment_method || '—') + '</td>' +
+          '<td>' + esc(r.payee || '') + '</td>' +
+          '<td>' + esc(r.payee === '报销人' ? (r.claimant || '') : r.seller_name) + '</td>' +
+          '<td class="mono">' + esc(r.invoice_no) + '</td>' +
+          '<td>' + esc(r.invoice_type || '') + '</td>' +
+          '<td>' + esc(r.invoice_date || '') + '</td>' +
+          '<td class="num">' + fmtMoney(r.total_amount) + '</td>' +
+          '<td class="num" style="color:var(--green)">' + fmtMoney(r.paid_amount) + '</td>' +
+          '<td class="num">' + (r.balance == null ? '—' : fmtMoney(r.balance)) + '</td>' +
+          '<td>' + payBadge(r.payment_status) + '</td>' +
+          '<td>' + contractsHtml(localInvs, r.invoice_no, r.project) + '</td>' +
+          '<td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(r.payment_note || '') + '</td></tr>').join('') +
+        '</tbody></table></div>';
+    }
+    /* ---- 导出（只读映射页：仅导出EXCEL，无导入/清空） ---- */
+    bindMoreMenu('paygMore', { export: async () => {
+      await exportCollExcel('供应商付款总览', '供应商付款总览_' + todayFileTag() + '.xlsx',
+        ['供应商', '发票张数', '价税合计', '已付款', '未付欠款', '最近付款日期', '关联合同'],
+        groups.map(g => [g.supplier, g.n, +g.total.toFixed(2), +g.paid.toFixed(2), +Math.max(0, g.total - g.paid).toFixed(2), g.last || '', supContracts(g.supplier).join(', ')]));
+    } });
+    bindMoreMenu('payrMore', { export: async () => {
+      await exportCollExcel('付款记录明细', '付款记录明细_' + todayFileTag() + '.xlsx',
+        ['付款日期', '付款方式', '收款对象', '收款单位/人', '发票号码', '发票类型', '开票日期', '价税合计', '已付金额', '未付差额', '付款状态', '关联合同', '备注'],
+        fRec.map(r => [r.payment_date || '', r.payment_method || '', r.payee || '', r.payee === '报销人' ? (r.claimant || '') : r.seller_name,
+          r.invoice_no, r.invoice_type || '', r.invoice_date || '', +(+r.total_amount || 0).toFixed(2), +(+r.paid_amount || 0).toFixed(2),
+          r.balance == null ? '' : +(+r.balance).toFixed(2), r.payment_status || '',
+          contractsOf(localInvs, r.invoice_no, r.project).join(', '), r.payment_note || '']));
+    } });
+  };
+
+  $('#paySearch').addEventListener('input', draw);
+  $('#payStatus').addEventListener('change', draw);
+  $('#payRefresh').addEventListener('click', load);
+  load();
+}
+
+initPage('payment', pagePayment);
+</script>
+</body>
+</html>

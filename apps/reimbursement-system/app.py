@@ -23,7 +23,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 
 from flask import (Flask, request, jsonify, session, send_from_directory,
-                   send_file, after_this_request)
+                   send_file, after_this_request, make_response)
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
@@ -675,6 +675,154 @@ def upload():
     except Exception as e:
         _trash(stage)
         return jsonify({"ok": False, "msg": f"上传处理失败: {e}"}), 500
+
+
+# ---------------- 外部系统提交（采购系统 → 待审核） ----------------
+# 与采购一体化系统（purchase-integrated/invoice.html）约定：
+#   POST /api/invoices/external  JSON + 请求头 X-Reim-Token
+# 供应商在采购系统录入发票后点「提交」，此处入库为「待审核」并记审核日志。
+# 联网部署时请更换 EXTERNAL_TOKEN，并把 Allow-Origin 收紧为采购系统的域名。
+EXTERNAL_TOKEN = "purchase-link-2026"
+
+
+def _external_cors(resp):
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Reim-Token"
+    resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    return resp
+
+
+@app.route("/api/invoices/external", methods=["POST", "OPTIONS"])
+def invoice_external():
+    if request.method == "OPTIONS":
+        return _external_cors(make_response("", 204))
+    if request.headers.get("X-Reim-Token", "") != EXTERNAL_TOKEN:
+        return _external_cors(make_response(jsonify({"ok": False, "msg": "令牌无效"}), 401))
+    d = request.get_json(silent=True) or {}
+    invoice_no = str(d.get("invoice_no") or "").strip()
+    if not invoice_no:
+        return _external_cors(make_response(jsonify({"ok": False, "msg": "缺少发票号码"}), 422))
+    try:
+        conn = db()
+        if conn.execute("SELECT id FROM invoices WHERE invoice_no=?", (invoice_no,)).fetchone():
+            conn.close()
+            return _external_cors(make_response(jsonify(
+                {"ok": False, "duplicate": True,
+                 "msg": f"发票 {invoice_no} 已在报销台账中，不可重复提交"}), 409))
+        rec = {
+            "invoice_no": invoice_no,
+            "invoice_code": d.get("invoice_code"),
+            "invoice_type": d.get("invoice_type"),
+            "invoice_date": d.get("invoice_date"),
+            "buyer_name": d.get("buyer_name"),
+            "seller_name": d.get("seller_name"),
+            "item_name": d.get("item_name"),
+            "amount": to_num(d.get("amount")),
+            "tax_rate": d.get("tax_rate"),
+            "tax_amount": to_num(d.get("tax_amount")),
+            "total_amount": to_num(d.get("total_amount")),
+            "subject_code": d.get("subject_code"),
+            "subject_name": d.get("subject_name"),
+            "claimant": (d.get("claimant") or "采购系统"),
+            "department": d.get("department"),
+            "project": d.get("project"),
+            "status": "待审核",
+            "remark": d.get("remark"),
+            "check_code": d.get("check_code"),
+            "file_path": None,
+            "user_id": None,
+            "settle": "正常付款",
+            "payee": "销售方",
+        }
+        if not rec.get("subject_code"):
+            code, name, _ = classify(rec["item_name"], rec["seller_name"], rec["tax_rate"])
+            rec["subject_code"], rec["subject_name"] = code, name
+        rec["created_at"] = rec["updated_at"] = now_str()
+        cols = ",".join(rec)
+        qs = ",".join("?" for _ in rec)
+        cur = conn.execute(f"INSERT INTO invoices ({cols}) VALUES ({qs})", tuple(rec.values()))
+        cid, direction = compute_direction(conn, rec["buyer_name"], rec["seller_name"])
+        conn.execute("UPDATE invoices SET company_id=?, direction=? WHERE id=?",
+                     (cid, direction, cur.lastrowid))
+        add_log(conn, cur.lastrowid, {"id": 0, "display_name": "采购系统"}, "采购系统提交")
+        conn.commit()
+        conn.close()
+        return _external_cors(make_response(jsonify(
+            {"ok": True, "id": cur.lastrowid, "invoice_no": invoice_no,
+             "status": rec["status"], "subject": rec["subject_name"]}), 201))
+    except Exception as e:
+        return _external_cors(make_response(jsonify({"ok": False, "msg": f"入库失败: {e}"}), 500))
+
+
+# ---------------- 外部系统读取（采购系统 ← 付款数据，只读） ----------------
+# 与采购一体化系统（purchase-integrated/payment.html）约定：
+#   GET /api/payments/external  + 请求头 X-Reim-Token（同 EXTERNAL_TOKEN）
+# 把「收票付款统计（付给销售方）」与「付款记录」映射给采购侧付款管理页，
+# 供供应商查看 / 查询 / 核对。只读接口，不接收任何写入。
+@app.route("/api/payments/external", methods=["GET", "OPTIONS"])
+def payments_external():
+    if request.method == "OPTIONS":
+        return _external_cors(make_response("", 204))
+    if request.headers.get("X-Reim-Token", "") != EXTERNAL_TOKEN:
+        return _external_cors(make_response(jsonify({"ok": False, "msg": "令牌无效"}), 401))
+    seller = (request.args.get("seller") or "").strip()
+    conn = db()
+    # 口径与 /api/stats「收票付款统计」一致：正常付款、非驳回的进项票；
+    # 欠款只统计付给销售方（供应商）的票，仅做账 / 已驳回 / 付报销人不计入
+    pay_base = ("direction='进项' AND total_amount IS NOT NULL"
+                " AND settle='正常付款' AND status!='已驳回'")
+    seller_cond = " AND seller_name = ?" if seller else ""
+    sparams = [seller] if seller else []
+    groups = conn.execute(
+        f"""SELECT seller_name, COUNT(*) n, SUM(total_amount) t,
+                   SUM(COALESCE(paid_amount,0)) p, MAX(payment_date) last_pay
+            FROM invoices WHERE {pay_base} AND payee='销售方'{seller_cond}
+            GROUP BY seller_name ORDER BY t DESC""", sparams).fetchall()
+    # 全部有效进项票明细（含未付款），供应商按张核对付款进度
+    invs = conn.execute(
+        f"""SELECT id, invoice_no, invoice_type, invoice_date, seller_name, item_name,
+                   project, payee, settle, total_amount, paid_amount,
+                   payment_date, payment_method, status
+            FROM invoices WHERE {pay_base} AND payee='销售方'{seller_cond}
+            ORDER BY seller_name, invoice_date DESC, id DESC""", sparams).fetchall()
+    # 付款记录：有付款（paid_amount>0）的发票，与「付款记录」页同口径
+    rec_cond, rec_params = ["paid_amount IS NOT NULL", "paid_amount > 0"], []
+    if seller:
+        rec_cond.append("seller_name = ?")
+        rec_params.append(seller)
+    recs = conn.execute(
+        f"""SELECT id, invoice_no, invoice_type, invoice_date, seller_name, claimant,
+                   payee, settle, project, total_amount, paid_amount,
+                   payment_date, payment_method, payment_note, status
+            FROM invoices WHERE {" AND ".join(rec_cond)}
+            ORDER BY payment_date DESC, id DESC LIMIT 2000""", rec_params).fetchall()
+    conn.close()
+    inv_rows = []
+    for r in invs:
+        d = dict(r)
+        d["payment_status"], d["balance"] = payment_info(d["total_amount"], d["paid_amount"])
+        inv_rows.append(d)
+    rec_rows = []
+    for r in recs:
+        d = dict(r)
+        d["payment_status"], d["balance"] = payment_info(d["total_amount"], d["paid_amount"])
+        rec_rows.append(d)
+    total_n = sum(g["n"] for g in groups)
+    total_t = sum(g["t"] or 0 for g in groups)
+    total_p = sum(g["p"] or 0 for g in groups)
+    return _external_cors(make_response(jsonify({
+        "ok": True,
+        "generated_at": now_str(),
+        "summary": {"suppliers": len(groups), "invoices": total_n,
+                    "total": round(total_t, 2), "paid": round(total_p, 2),
+                    "owed": round(total_t - total_p, 2)},
+        "groups": [{"seller_name": g["seller_name"], "count": g["n"],
+                    "total": round(g["t"] or 0, 2), "paid": round(g["p"] or 0, 2),
+                    "owed": round((g["t"] or 0) - (g["p"] or 0), 2),
+                    "last_pay": g["last_pay"] or ""} for g in groups],
+        "invoices": inv_rows,
+        "records": rec_rows,
+    }), 200))
 
 
 # ---------------- 查询（角色范围 + 筛选 + 分页） ----------------

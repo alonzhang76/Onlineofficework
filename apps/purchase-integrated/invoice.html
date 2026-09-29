@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>开票管理 · 采购一体化系统</title>
+<link rel="stylesheet" href="css/common.css">
+</head>
+<body>
+<header>
+  <div class="logo"><span class="mark"><svg width="18" height="18" viewBox="0 0 48 48"><use href="#rrlogo"/></svg></span>采购一体化系统</div>
+  <div class="nav-wrap">
+    <button class="nav-btn" id="navMenuBtn" type="button">菜单 <span class="caret">▾</span></button>
+    <div class="nav-menu" id="navMenu"></div>
+  </div>
+  <span class="hspace"></span>
+  <div class="company-select" id="companySelectWrap">
+    <span>公司主体</span><select id="companySelect"></select>
+  </div>
+  <div class="userbox">
+    <b class="uname" id="whoName">—</b>
+    <button class="btn-exit" id="logoutBtn">退出</button>
+  </div>
+</header>
+<div class="layout">
+  <main id="main"></main>
+</div>
+<div class="modal-mask" id="modalMask"><div class="modal" id="modalBox"></div></div>
+<div class="toast" id="toastBox"></div>
+<div id="printArea"></div>
+<script src="js/common.js"></script>
+<script src="js/auth-guard.js"></script>
+<script src="js/pdf-parse.js"></script>
+<script src="js/classifier.js"></script>
+<script>
+'use strict';
+/* ==========================================================
+   开票管理
+   ----------------------------------------------------------
+   两个标签页：
+     1) 发票台账 —— 已登记发票的查询 / 编辑 / 删除 / 导出 / 交接清单
+     2) 发票录入 —— 上传 PDF 发票自动识别字段，预览确认后入库
+                       （解析能力来自 js/pdf-parse.js，移植自报销系统）
+   ========================================================== */
+function pageInvoice(root) {
+  const canW = Session.canWrite('invoice');
+  const tab = (State.invTab === 'upload') ? 'upload' : 'ledger';
+  const isUpload = (tab === 'upload' && canW);
+  root.innerHTML =
+    '<div class="page-head"><h2>开票管理</h2><span class="desc">供应商开票登记 · 发票付款状态自动跟踪</span><span class="spacer"></span>' +
+    '<button class="btn btn-outline" id="invHandover" style="display:' + (isUpload ? 'none' : 'inline-flex') + '">🖨 发票交接清单</button>' +
+    '<span id="invMoreWrap" style="display:' + (isUpload ? 'none' : 'inline-flex') + '"></span>' +
+    '<input type="file" id="invImportFile" accept=".xlsx,.xls,.csv" style="display:none">' +
+    (canW ? '<button class="btn btn-primary" id="invAdd" style="display:' + (isUpload ? 'none' : 'inline-flex') + '">＋ 登记发票</button>' : '') + '</div>' +
+    '<div class="tabs" id="invTabs">' +
+    (canW ? '<button class="tab' + (tab === 'upload' ? ' active' : '') + '" data-t="upload">发票录入</button>' : '') +
+    '<button class="tab' + (tab === 'ledger' ? ' active' : '') + '" data-t="ledger">发票台账</button>' +
+    '</div>' +
+    '<div id="invPane"></div>';
+  const pane = $('#invPane');
+
+  /* 「更多」菜单：导出EXCEL / 导入EXCEL / 清空（台账标签专属，录入页隐藏） */
+  if (!isUpload) {
+    $('#invMoreWrap').innerHTML = moreMenuHTML('invMore', [
+      { m: 'export', label: '📤 导出EXCEL' }
+    ].concat(canW ? [
+      { m: 'import', label: '📥 导入EXCEL' },
+      { m: 'clear', label: '🗑 清空', cls: 'danger' }
+    ] : []));
+    bindMoreMenu('invMore', {
+      export: exportInvoicesExcel,
+      import: () => $('#invImportFile').click(),
+      clear: () => clearCollConfirm('invoices', '发票')
+    });
+    $('#invImportFile').addEventListener('change', e => { handleInvoiceImport(e.target.files[0]); e.target.value = ''; });
+  }
+
+  /* 台账 / 录入 切换 */
+  $$('#invTabs .tab').forEach(b => b.addEventListener('click', () => {
+    State.invTab = b.dataset.t;
+    pageInvoice(root);
+  }));
+
+  if (isUpload) { renderInvoiceUpload(pane); return; }
+  renderInvoiceLedger(pane, canW);
+}
+
+/* ---------- 报销系统对接 ----------
+   供应商录入的发票点「提交」→ POST 报销系统 /api/invoices/external → 进入其「待审核」。
+   API 地址默认本机 Flask(8686),可用 localStorage.pis_reim_api 覆盖;联网部署时改成
+   服务器地址即可。令牌与报销系统 app.py 的 EXTERNAL_TOKEN 保持一致。 */
+const REIM_API = (localStorage.getItem('pis_reim_api') || 'http://127.0.0.1:8686') + '/api/invoices/external';
+const REIM_TOKEN = 'purchase-link-2026';
+function normInvType(t) {
+  if (/专用/.test(t || '')) return '增值税专用发票';
+  if (/普通/.test(t || '')) return '增值税普通发票';
+  return t || '其他发票';
+}
+function cutStr(s, n) { s = s || ''; return s.length > n ? s.slice(0, n) + '…' : s; }
+/* 会计科目：优先取已存 subjectName，否则按品名/销售方/税率自动归类（与报销系统 classifier.py 同规则） */
+function subjectOf(v) {
+  if (v.subjectName) return { code: v.subjectCode || '', name: v.subjectName };
+  return PisClassify.classify(v.itemName, v.supplier, v.taxRate);
+}
+function reimStatusBadge(v) {
+  if (!v.reimStatus) return '<span class="badge b-gray">未提交</span>';
+  const cls = { '待审核': 'b-amber', '已通过': 'b-green', '已入账': 'b-blue', '已驳回': 'b-red' }[v.reimStatus] || 'b-gray';
+  return '<span class="badge ' + cls + '">' + esc(v.reimStatus) + '</span>';
+}
+async function submitToReim(v) {
+  const payload = {
+    invoice_no: v.invoiceNumber,
+    invoice_code: v.invoiceCode || '',
+    invoice_type: normInvType(v.invoiceType),
+    invoice_date: v.invoiceDate || '',
+    buyer_name: v.buyerName || curCoName(),
+    seller_name: v.supplier || '',
+    item_name: v.itemName || '',
+    amount: +v.netAmount || 0,
+    tax_rate: v.taxRate || '',
+    tax_amount: +v.taxAmount || 0,
+    total_amount: +v.amount || 0,
+    subject_code: v.subjectCode || '',
+    subject_name: v.subjectName || subjectOf(v).name,
+    claimant: (Session.user && (Session.user.name || Session.user.username)) || '采购系统',
+    project: v.contractNumber || '',
+    remark: v.remark || '',
+    check_code: v.checkCode || ''
+  };
+  let res, data;
+  try {
+    res = await fetch(REIM_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Reim-Token': REIM_TOKEN },
+      body: JSON.stringify(payload)
+    });
+    data = await res.json().catch(() => ({}));
+  } catch (e) {
+    throw new Error('报销系统不在线（' + REIM_API + '），请先启动报销系统');
+  }
+  if (!res.ok || !data.ok) throw new Error(data.msg || ('HTTP ' + res.status));
+  return data;
+}
+
+/* ---------- 更多菜单功能：导出EXCEL / 导入EXCEL / 清空 ----------
+   导出表头与导入映射列保持一致 → 导出的文件可直接再导入（派生列自动忽略） */
+async function exportInvoicesExcel() {
+  const payDateOf = no => {
+    const ds = Data.list('payments').filter(p => splitMulti(p.invoiceNumbers).includes(no))
+      .map(p => p.paymentDate || '').filter(Boolean).sort();
+    return ds.length ? ds[ds.length - 1] : '';
+  };
+  await exportCollExcel('发票台账', '发票台账_' + todayFileTag() + '.xlsx',
+    ['发票号码', '类型', '开票日期', '购买方', '销售方', '品名', '不含税', '税率', '税额', '价税合计', '会计科目', '所属项目', '备注', '报销状态', '付款日期', '已付款', '付款状态'],
+    Data.list('invoices').map(v => { const p = paidOfInvoice(v.invoiceNumber), stt = invoiceStatus(v);
+      return [v.invoiceNumber, v.invoiceType || '', v.invoiceDate || '', v.buyerName || curCoName(), v.supplier, v.itemName || '', v.netAmount || '', v.taxRate || '', v.taxAmount || '', v.amount, subjectOf(v).name, v.contractNumber || '', v.remark || '', v.reimStatus || '未提交', payDateOf(v.invoiceNumber), p, stt.t]; }));
+}
+function handleInvoiceImport(f) {
+  if (!f) return;
+  importCollExcel(f, {
+    coll: 'invoices', label: '发票',
+    cols: {
+      invoiceNumber: '发票号码', invoiceType: '类型', invoiceDate: '开票日期',
+      buyerName: '购买方', supplier: '销售方', itemName: '品名',
+      netAmount: '不含税', taxRate: '税率', taxAmount: '税额', amount: '价税合计',
+      contractNumber: '所属项目', remark: '备注'
+    },
+    need: ['invoiceNumber', 'supplier', 'amount'],
+    dedup: r => r.invoiceNumber,
+    build: (r, C, num, dstr) => {
+      const invoiceNumber = String(r[C.invoiceNumber] || '').trim();
+      const supplier = String(r[C.supplier] || '').trim();
+      const amount = num(r[C.amount]);
+      if (!invoiceNumber || !supplier || !amount) return null;
+      const rec = {
+        id: uid(), company: curCo(),
+        invoiceNumber, supplier, amount,
+        invoiceDate: dstr(C.invoiceDate > -1 ? r[C.invoiceDate] : '') || todayStr(),
+        invoiceType: normInvType(C.invoiceType > -1 ? r[C.invoiceType] : ''),
+        contractNumber: C.contractNumber > -1 ? String(r[C.contractNumber] || '').trim() : '',
+        remark: C.remark > -1 ? String(r[C.remark] || '').trim() : '',
+        netAmount: C.netAmount > -1 ? num(r[C.netAmount]) : 0,
+        taxRate: C.taxRate > -1 ? String(r[C.taxRate] || '').trim() : '',
+        taxAmount: C.taxAmount > -1 ? num(r[C.taxAmount]) : 0,
+        itemName: C.itemName > -1 ? String(r[C.itemName] || '').trim() : '',
+        buyerName: C.buyerName > -1 ? String(r[C.buyerName] || '').trim() : curCoName(),
+        source: 'EXCEL导入', createdAt: new Date().toISOString()
+      };
+      /* 会计科目：按品名/销售方/税率自动归类（与 PDF 识别入库同规则） */
+      const sub = PisClassify.classify(rec.itemName, rec.supplier, rec.taxRate);
+      rec.subjectCode = sub.code; rec.subjectName = sub.name;
+      return rec;
+    }
+  });
+}
+
+/* ---------- 标签页 1：发票台账（表头与报销系统「发票台账」完全一致） ---------- */
+function renderInvoiceLedger(pane, canW) {
+  const payDateOf = no => {
+    const ds = Data.list('payments').filter(p => splitMulti(p.invoiceNumbers).includes(no))
+      .map(p => p.paymentDate || '').filter(Boolean).sort();
+    return ds.length ? ds[ds.length - 1] : '';
+  };
+  pane.innerHTML =
+    '<div id="invStats" class="stat-grid"></div>' +
+    '<div class="card"><div class="row-flex" style="margin-bottom:12px">' +
+    '<div style="flex:1;max-width:300px"><label>搜索</label><input id="invSearch" placeholder="发票号 / 合同号 / 供应商"></div>' +
+    '<div><label>付款状态</label><select id="invStatus"><option value="">全部</option><option>未付款</option><option>部分付款</option><option>已付清</option></select></div>' +
+    (canW ? '<div style="align-self:flex-end"><button class="btn btn-primary" id="invSubmitReim">⇨ 提交到报销系统</button></div>' : '') +
+    '</div>' +
+    '<div class="tbl-topbar" id="invPager"></div>' +
+    '<div id="invTableBox"></div></div>';
+  const statCard = (l, v, color, sub) =>
+    '<div class="stat-card"><div class="l">' + esc(l) + '</div><div class="v" style="color:' + color + '">' + v + '</div>' +
+    (sub ? '<div class="l" style="margin-top:4px">' + esc(sub) + '</div>' : '') + '</div>';
+  function bindPager() {
+    const ps = $('#invPgSize');
+    if (ps) ps.addEventListener('change', e => { State.invLedgerSize = +e.target.value; State.invLedgerPage = 1; draw(); });
+    const pv = $('#invPgPrev');
+    if (pv) pv.addEventListener('click', () => { State.invLedgerPage = Math.max(1, (State.invLedgerPage || 1) - 1); draw(); });
+    const nx = $('#invPgNext');
+    if (nx) nx.addEventListener('click', () => { State.invLedgerPage = (State.invLedgerPage || 1) + 1; draw(); });
+  }
+  const draw = () => {
+    const kw = ($('#invSearch').value || '').trim().toLowerCase(), st = $('#invStatus').value;
+    const all = Data.list('invoices');
+    let list = all.slice();
+    if (kw) list = list.filter(v => [v.invoiceNumber, v.contractNumber, v.supplier].join(' ').toLowerCase().includes(kw));
+    if (st) list = list.filter(v => invoiceStatus(v).t === st);
+    list.sort((a, b) => (b.invoiceDate || '').localeCompare(a.invoiceDate || ''));
+    /* 分页状态规范化（首次进入给默认值） */
+    if (typeof State.invLedgerPage !== 'number' || isNaN(State.invLedgerPage)) State.invLedgerPage = 1;
+    if (typeof State.invLedgerSize !== 'number' || isNaN(State.invLedgerSize)) State.invLedgerSize = 10;
+    /* 统计卡片（全量口径，不随搜索筛选变化） */
+    const totalAmt = all.reduce((s, v) => s + (+v.amount || 0), 0);
+    const paidAmt = all.reduce((s, v) => s + Math.min(paidOfInvoice(v.invoiceNumber), +v.amount || 0), 0);
+    const taxDeduct = all.filter(v => /专用/.test(v.invoiceType || '')).reduce((s, v) => s + (+v.taxAmount || 0), 0);
+    $('#invStats').innerHTML =
+      statCard('发票总数', all.length + ' 张', 'var(--primary)') +
+      statCard('价税合计', fmtMoney(totalAmt), 'var(--text)') +
+      statCard('已付款', fmtMoney(paidAmt), 'var(--green)') +
+      statCard('未付欠款', fmtMoney(Math.max(0, totalAmt - paidAmt)), 'var(--red)') +
+      statCard('可抵扣税额（专票）', fmtMoney(taxDeduct), 'var(--green)', '按识别税额合计');
+    /* 分页（表格上方，与报销系统同款交互） */
+    const size = State.invLedgerSize;
+    const totalPages = size > 0 ? Math.max(1, Math.ceil(list.length / size)) : 1;
+    if (State.invLedgerPage > totalPages) State.invLedgerPage = totalPages;
+    if (State.invLedgerPage < 1) State.invLedgerPage = 1;
+    const page = State.invLedgerPage;
+    $('#invPager').innerHTML = '<span>共 <b>' + list.length + '</b> 条</span>' +
+      '<span>每页 <select id="invPgSize">' + [10, 20, 50, 0].map(s =>
+        '<option value="' + s + '"' + (s === size ? ' selected' : '') + '>' + (s === 0 ? '全部' : s) + '</option>').join('') + '</select> 条</span>' +
+      (size > 0 ? '<button id="invPgPrev"' + (page <= 1 ? ' disabled' : '') + '>上一页</button>' +
+        '<span>第 <b>' + page + '</b> / ' + totalPages + ' 页</span>' +
+        '<button id="invPgNext"' + (page >= totalPages ? ' disabled' : '') + '>下一页</button>' : '');
+    if (!list.length) { $('#invTableBox').innerHTML = '<div class="empty">暂无发票</div>'; bindPager(); return; }
+    const pageRows = size > 0 ? list.slice((page - 1) * size, page * size) : list;
+    const body = pageRows.map(v => {
+      const paid = paidOfInvoice(v.invoiceNumber), stt = invoiceStatus(v);
+      const buyer = v.buyerName || curCoName();
+      const typeCls = /专用/.test(v.invoiceType || '') ? 'b-purple' : (/普通/.test(v.invoiceType || '') ? 'b-blue' : 'b-gray');
+      const payCls = stt.t === '已付清' ? 'b-green' : (stt.t === '部分付款' ? 'b-amber' : 'b-gray');
+      const submittable = canW && (!v.reimStatus || v.reimStatus === '已驳回');
+      const sub = subjectOf(v);
+      return '<tr>' +
+        '<td class="checkbox-cell"><input type="checkbox" class="inv-chk" data-id="' + v.id + '"' + (submittable ? '' : ' disabled') + '></td>' +
+        '<td class="mono"><b>' + esc(v.invoiceNumber) + '</b></td>' +
+        '<td><span class="badge ' + typeCls + '">' + esc(v.invoiceType || '-') + '</span></td>' +
+        '<td>' + esc(v.invoiceDate || '-') + '</td>' +
+        '<td title="' + esc(buyer) + '">' + esc(cutStr(buyer, 10)) + '</td>' +
+        '<td title="' + esc(v.supplier) + '">' + esc(cutStr(v.supplier, 12)) + '</td>' +
+        '<td title="' + esc(v.itemName || '') + '">' + esc(cutStr(v.itemName || '-', 14)) + '</td>' +
+        '<td class="num">' + (v.netAmount ? fmtMoney(v.netAmount) : '-') + '</td>' +
+        '<td>' + esc(v.taxRate || '-') + '</td>' +
+        '<td class="num">' + (v.taxAmount ? fmtMoney(v.taxAmount) : '-') + '</td>' +
+        '<td class="num"><b>' + fmtMoney(v.amount) + '</b></td>' +
+        '<td>' + esc(sub.name) + '<div class="subtle" style="font-size:11px">' + esc(sub.code || '') + '</div></td><td>-</td>' +
+        '<td title="' + esc(v.contractNumber || '') + '">' + esc(cutStr(v.contractNumber || '-', 8)) + '</td>' +
+        '<td title="' + esc(v.remark || '') + '">' + esc(cutStr(v.remark || '-', 8)) + '</td>' +
+        '<td>' + reimStatusBadge(v) + '</td>' +
+        '<td>' + esc(payDateOf(v.invoiceNumber) || '-') + '</td>' +
+        '<td><span class="badge ' + payCls + '">' + stt.t + '</span><div class="subtle" style="font-size:11px">已付 ' + fmtMoney(paid) + ' / 差 ' + fmtMoney(Math.max(0, (+v.amount || 0) - paid)) + '</div></td>' +
+        '<td><span class="badge b-gray">正常</span></td>' +
+        '<td><span class="badge b-gray">销售方</span></td>' +
+        '<td style="white-space:nowrap">' + (canW ?
+          (submittable ? '<button class="link-op" data-id="' + v.id + '" data-a="s">提交</button>' : '') +
+          '<button class="link-op" data-id="' + v.id + '" data-a="e">编辑</button>' +
+          '<button class="link-op danger" data-id="' + v.id + '" data-a="d">删除</button>' : '') + '</td></tr>';
+    }).join('');
+    $('#invTableBox').innerHTML = '<div class="tbl-wrap" style="max-height:62vh"><table><thead><tr>' +
+      '<th class="checkbox-cell"><input type="checkbox" id="invSelAll"></th>' +
+      '<th>发票号码</th><th>类型</th><th>开票日期</th><th>购买方</th><th>销售方</th><th>品名</th>' +
+      '<th class="num">不含税</th><th>税率</th><th class="num">税额</th><th class="num">价税合计</th>' +
+      '<th>会计科目</th><th>报销人</th><th>所属项目</th><th>备注</th><th>状态 / 审核反馈</th>' +
+      '<th>付款日期</th><th>付款</th><th>结算</th><th>收款对象</th><th>操作</th>' +
+      '</tr></thead><tbody>' + body + '</tbody></table></div>';
+
+    const selAll = $('#invSelAll');
+    if (selAll) selAll.addEventListener('change', () => {
+      $$('#invTableBox .inv-chk:not(:disabled)').forEach(c => { c.checked = selAll.checked; });
+    });
+    $$('#invTableBox button[data-a]').forEach(b => b.addEventListener('click', async () => {
+      const rec = Data.list('invoices').find(x => x.id === b.dataset.id);
+      if (b.dataset.a === 'e') invoiceForm(rec);
+      else if (b.dataset.a === 's') {
+        b.disabled = true; b.textContent = '提交中…';
+        try {
+          const r = await submitToReim(rec);
+          Data.update('invoices', rec.id, { reimStatus: r.status, reimId: r.id });
+          toast('已提交至报销系统：' + r.status, 'ok');
+        } catch (e) { toast(e.message, 'err'); }
+        renderPage();
+      }
+      else if (confirm('删除该发票？')) { Data.remove('invoices', rec.id); toast('已删除', 'ok'); renderPage(); }
+    }));
+    bindPager();
+  };
+  $('#invSearch').addEventListener('input', () => { State.invLedgerPage = 1; draw(); });
+  $('#invStatus').addEventListener('change', () => { State.invLedgerPage = 1; draw(); });
+  if (canW) $('#invSubmitReim').addEventListener('click', async () => {
+    const ids = $$('#invTableBox .inv-chk:checked').map(c => c.dataset.id);
+    if (!ids.length) { toast('请先勾选要提交的发票（已提交的不可重复提交）', 'err'); return; }
+    let okN = 0; const errs = [];
+    for (const id of ids) {
+      const v = Data.list('invoices').find(x => x.id === id);
+      try {
+        const r = await submitToReim(v);
+        Data.update('invoices', id, { reimStatus: r.status, reimId: r.id });
+        okN++;
+      } catch (e) { errs.push(v.invoiceNumber + '：' + e.message); }
+    }
+    if (okN) toast('已提交 ' + okN + ' 张至报销系统（待审核）', 'ok');
+    if (errs.length) toast(errs[0] + (errs.length > 1 ? '　等 ' + errs.length + ' 张失败' : ''), 'err');
+    renderPage();
+  });
+  $('#invHandover').addEventListener('click', () => {
+    // 打印当前筛选结果为 A4 交接清单
+    const kw = ($('#invSearch').value || '').trim().toLowerCase(), st = $('#invStatus').value;
+    let list = Data.list('invoices');
+    if (kw) list = list.filter(v => [v.invoiceNumber, v.contractNumber, v.supplier].join(' ').toLowerCase().includes(kw));
+    if (st) list = list.filter(v => invoiceStatus(v).t === st);
+    list = list.slice().sort((a, b) => (b.invoiceDate || '').localeCompare(a.invoiceDate || ''));
+    if (!list.length) { toast('没有可打印的发票', 'err'); return; }
+    const total = list.reduce((s, v) => s + (+v.amount || 0), 0);
+    const rows = list.map((v, i) => '<tr><td>' + (i + 1) + '</td><td>' + esc(v.invoiceNumber) + '</td><td>' + esc(v.invoiceDate || '') + '</td>' +
+      '<td>' + esc(v.invoiceType || '') + '</td><td>' + esc(v.contractNumber || '') + '</td><td style="text-align:left">' + esc(v.supplier) + '</td>' +
+      '<td style="text-align:right">' + fmtMoney(v.amount).slice(1) + '</td></tr>').join('');
+    $('#printArea').innerHTML = '<div class="a4">' +
+      '<div class="info-grid" style="justify-content:space-between"><span style="font-size:15px;font-weight:700">增值税发票交接清单</span><span>制单日期：' + todayStr() + '</span></div>' +
+      '<div class="info-grid"><span>公司主体：' + esc(curCoName()) + '</span><span>共 ' + list.length + ' 张 · 合计金额：' + fmtMoney(total) + '</span></div>' +
+      '<table><thead><tr><th style="width:6%">序号</th><th style="width:22%">发票号码</th><th style="width:13%">开票日期</th><th style="width:11%">类型</th><th style="width:16%">合同号</th><th style="width:20%">供应商</th><th style="width:12%">金额(元)</th></tr></thead><tbody>' +
+      rows + '<tr><td colspan="6" style="text-align:right;font-weight:700">合计</td><td style="text-align:right;font-weight:700">' + fmtMoney(total).slice(1) + '</td></tr></tbody></table>' +
+      '<div class="sign-row"><div class="sign-box">交接人签字：　　　　　　日期：</div><div class="sign-box">接收人签字：　　　　　　日期：</div></div></div>';
+    window.print();
+  });
+  if (canW) $('#invAdd').addEventListener('click', () => invoiceForm(null));
+  draw();
+}
+
+/* ---------- 标签页 2：发票录入（PDF 自动识别） ----------
+   流程：拖拽/选择 PDF → pdf.js 提文本 + 正则解析 → 销方名称模糊匹配供应商
+         → 列出该供应商合同供多选 → 预览表单人工核对 → 确认入库
+   --------------------------------------------------------- */
+function renderInvoiceUpload(pane) {
+  pane.innerHTML =
+    '<div class="card">' +
+    '<div class="inv-up-head">' +
+    '<div><h3 style="margin:0 0 4px">发票录入</h3>' +
+    '<div class="subtle" style="font-size:12.5px">上传增值税发票 PDF，系统自动识别发票号 / 日期 / 金额 / 供应商等信息，核对无误后入库</div></div>' +
+    '<button class="btn btn-outline" id="iuHelp">识别说明</button></div>' +
+    '<div class="dz" id="invDropZone">' +
+    '<div class="dz-ico">📄</div>' +
+    '<div class="dz-title">点击选择 或 拖拽 PDF 发票到此处</div>' +
+    '<div class="dz-sub">支持数电票 / 增值税专用发票 / 普通发票 / 电子发票 · 可一次上传多张 · 仅支持文本型 PDF</div>' +
+    '</div>' +
+    '<input type="file" id="invFileInput" accept="application/pdf,.pdf" multiple style="display:none">' +
+    '<div class="iu-tip">💡 扫描件/拍照版发票无法提取文本，请使用「登记发票」手工录入。识别结果仅作预填，<b>请务必核对后保存</b>。</div>' +
+    '</div>' +
+    '<div id="invParseResults" class="iu-results"></div>';
+
+  const dz = $('#invDropZone'), fi = $('#invFileInput');
+  dz.addEventListener('click', () => fi.click());
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+  dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag'); handleInvoiceFiles(e.dataTransfer.files); });
+  fi.addEventListener('change', () => { handleInvoiceFiles(fi.files); fi.value = ''; });
+  $('#iuHelp').addEventListener('click', () => openModal(
+    '<h3>发票识别说明</h3>' +
+    '<div class="iu-help">' +
+    '<p><b>支持的发票类型</b>：全面数字化电子发票（数电票）、增值税专用发票、增值税普通发票、电子发票。</p>' +
+    '<p><b>识别字段</b>：发票号码、开票日期、发票类型、购买方、销售方、货物名称、金额、税额、价税合计、税率、校验码。</p>' +
+    '<p><b>自动关联</b>：识别出的销售方名称会与供应商档案做模糊匹配，匹配成功后自动列出该供应商名下的采购合同供选择。</p>' +
+    '<p><b>入库前请核对</b>：OCR 与正则解析可能存在偏差，尤其是金额与合同号，请在预览表单中确认后再保存。</p>' +
+    '<p class="subtle">不支持图片型 PDF（扫描件/照片）。此类发票请使用「登记发票」手工录入。</p>' +
+    '</div>' +
+    '<div class="modal-foot"><button type="button" class="btn btn-primary" onclick="closeModal()">知道了</button></div>'));
+}
+
+/* 批量处理上传的 PDF：先全部解析，再进入队列逐张预览（可上一条/下一条切换） */
+async function handleInvoiceFiles(files) {
+  const list = Array.from(files || []).filter(f => /\.pdf$/i.test(f.name));
+  const box = $('#invParseResults');
+  if (!list.length) { toast('请选择 PDF 格式的发票文件', 'err'); return; }
+  if (typeof PisPdf === 'undefined') { toast('解析模块未加载，请刷新页面重试', 'err'); return; }
+
+  const parsedList = [];
+  for (const f of list) {
+    const card = document.createElement('div');
+    card.className = 'parse-box';
+    card.innerHTML = '<span class="pb-spin">⏳</span> 正在解析 <b>' + esc(f.name) + '</b> …';
+    box.prepend(card);
+    try {
+      const parsed = await PisPdf.parseInvoicePdf(f);
+      parsed._file = f.name;
+      card.remove();
+      parsedList.push(parsed);
+    } catch (e) {
+      card.classList.add('fail');
+      card.innerHTML = '<span>❌</span> <b>' + esc(f.name) + '</b>：' + esc(e.message || '解析失败') +
+        ' <button class="link-op" data-manual="1">手工录入</button>';
+      card.querySelector('[data-manual]').addEventListener('click', () => invoiceForm(null));
+    }
+  }
+  if (parsedList.length) openInvoiceQueue(parsedList, 0);
+}
+
+/* 供应商模糊匹配：归一化后 双向包含 优先，其次最长公共子串占比 */
+function matchSupplier(sellerName) {
+  if (!sellerName) return null;
+  const target = PisPdf.normPartyName(sellerName);
+  if (!target) return null;
+  const sups = DB.get('suppliers', []);
+  let best = null, bestScore = 0;
+  sups.forEach(s => {
+    const n = PisPdf.normPartyName(s.supplierName);
+    if (!n) return;
+    let score = 0;
+    if (n === target) score = 1;
+    else if (n.includes(target) || target.includes(n)) score = 0.8;
+    else {
+      /* 最长公共子串占比（至少 4 字，避免误配） */
+      let max = 0;
+      for (let i = 0; i < target.length; i++) {
+        for (let j = i + 4; j <= target.length; j++) {
+          const sub = target.slice(i, j);
+          if (n.includes(sub) && sub.length > max) max = sub.length;
+        }
+      }
+      if (max >= 4) score = Math.min(0.7, max / Math.max(target.length, n.length));
+    }
+    if (score > bestScore) { bestScore = score; best = s; }
+  });
+  return bestScore >= 0.45 ? best : null;
+}
+
+/* ---------- 识别预览队列 ----------
+   多张 PDF 依次预览：「上一条 / 下一条」切换（切换前自动暂存已编辑的表单值），
+   「确认入库」保存当前张并自动跳到下一张，「跳过此张」不入库直接换下一张。 */
+let invQueue = [], invQueueIdx = 0;
+
+function openInvoiceQueue(list, idx) { invQueue = list; invQueueIdx = idx || 0; renderInvoiceQueueItem(); }
+
+/* 读取当前表单 DOM 值（键名与解析器输出一致，蛇形） */
+function readQueueForm() {
+  if (!$('#iuF')) return null;
+  return {
+    invoice_no: $('#iuNo').value.trim(),
+    invoice_date: $('#iuDate').value,
+    invoice_type: $('#iuType').value,
+    tax_rate: $('#iuRate').value.trim(),
+    seller_name: $('#iuSup').value.trim(),
+    total_amount: $('#iuAmount').value,
+    amount: $('#iuNet').value,
+    tax_amount: $('#iuTax').value,
+    contracts: Array.from($('#iuContracts').selectedOptions).map(o => o.value).filter(Boolean),
+    item_name: $('#iuItems') ? $('#iuItems').value.trim() : '',
+    remark: $('#iuRemark') ? $('#iuRemark').value.trim() : '',
+    subject_code: $('#iuSub') ? $('#iuSub').value : ''
+  };
+}
+function stashQueueForm() {
+  const p = invQueue[invQueueIdx];
+  if (p && $('#iuF')) p._form = readQueueForm();
+}
+
+function renderInvoiceQueueItem() {
+  const p = invQueue[invQueueIdx];
+  if (!p) { closeModal(); return; }
+  const f = p._form || {};   // 用户切换前编辑过的值优先于识别值
+  const val = (k, d) => (f[k] !== undefined && f[k] !== null && f[k] !== '') ? f[k] : (p[k] !== undefined && p[k] !== null && p[k] !== '' ? p[k] : d);
+
+  const sup = matchSupplier(f.seller_name || p.seller_name);
+  const orders = Data.list('orders');
+  const supOrders = sup ? orders.filter(o => o.supplier === sup.supplierName) : [];
+  const dup = DB.get('invoices', []).find(v => v.invoiceNumber === val('invoice_no'));
+  const type = normInvType(val('invoice_type', '增值税专用发票'));
+  const amt = val('total_amount', p.total_amount || p.amount || '');
+  const sellerName = f.seller_name !== undefined && f.seller_name !== '' ? f.seller_name : (sup ? sup.supplierName : (p.seller_name || ''));
+  const autoSub = PisClassify.classify(p.item_name, p.seller_name, p.tax_rate);
+  const subCode = f.subject_code || autoSub.code;
+  const itemNameVal = val('item_name', '');
+
+  const multi = invQueue.length > 1;
+  const matchTip = sup
+    ? '<span class="badge b-green">✓ 已匹配供应商：' + esc(sup.supplierName) + '</span>'
+    : (p.seller_name ? '<span class="badge b-amber">未匹配到供应商，将按识别名称新建</span>' : '<span class="badge b-gray">未识别到销售方</span>');
+  const dupTip = dup ? '<div class="iu-dup">⚠ 该发票号已存在于台账（供应商：' + esc(dup.supplier) + '，金额：' + fmtMoney(dup.amount) + '），继续保存将产生重复记录。</div>' : '';
+  const navBar = multi
+    ? '<div class="row-flex" style="gap:8px;margin:0 0 10px;align-items:center">' +
+      '<button type="button" class="btn btn-outline btn-sm" id="iuPrev"' + (invQueueIdx === 0 ? ' disabled' : '') + '>◀ 上一条</button>' +
+      '<span class="subtle" style="flex:1;text-align:center;font-size:12.5px">第 <b>' + (invQueueIdx + 1) + '</b> / ' + invQueue.length + ' 张 · ' + esc(p._file || '') + '</span>' +
+      '<button type="button" class="btn btn-outline btn-sm" id="iuNext"' + (invQueueIdx === invQueue.length - 1 ? ' disabled' : '') + '>下一条 ▶</button>' +
+      '</div>'
+    : '';
+
+  openModal('<h3>发票识别预览' + (multi ? ' <span class="subtle" style="font-size:13px;font-weight:400">（共 ' + invQueue.length + ' 张）</span>' : '') + '</h3>' + navBar + dupTip +
+    '<div class="iu-match">' + matchTip + (multi ? '' : '<span class="subtle" style="font-size:12px">文件：' + esc(p._file || '') + '</span>') + '</div>' +
+    '<form id="iuF"><div class="form-grid">' +
+    '<div><label class="req">发票号码</label><input id="iuNo" required value="' + esc(val('invoice_no', '')) + '"></div>' +
+    '<div><label class="req">开票日期</label><input id="iuDate" type="date" value="' + esc(val('invoice_date', todayStr())) + '"></div>' +
+    '<div><label>发票类型</label><select id="iuType">' +
+    ['增值税专用发票', '增值税普通发票', '其他发票'].map(t => '<option' + (t === type ? ' selected' : '') + '>' + t + '</option>').join('') +
+    '</select></div>' +
+    '<div><label>税率</label><input id="iuRate" value="' + esc(val('tax_rate', '')) + '" placeholder="如 13%"></div>' +
+    '<div><label class="req">供应商</label><input id="iuSup" required value="' + esc(sellerName) + '" placeholder="识别出的销售方名称"></div>' +
+    '<div><label class="req">价税合计</label><input id="iuAmount" type="number" step="0.01" min="0" required value="' + esc(amt) + '"></div>' +
+    '<div><label>金额(不含税)</label><input id="iuNet" type="number" step="0.01" value="' + esc(val('amount', '')) + '"></div>' +
+    '<div><label>税额</label><input id="iuTax" type="number" step="0.01" value="' + esc(val('tax_amount', '')) + '"></div>' +
+    '<div><label>会计科目（自动归类，可改）</label><select id="iuSub">' +
+    PisClassify.allSubjects().map(s => '<option value="' + esc(s.code) + '"' + (s.code === subCode ? ' selected' : '') + '>' + esc(s.name) + '</option>').join('') +
+    '</select><div class="subtle" style="font-size:11.5px;margin-top:4px">依据品名/销售方自动归类' + (autoSub.hit ? '（命中「' + esc(autoSub.hit) + '」）' : '') + '</div></div>' +
+    '<div style="grid-column:1/-1"><label class="req">关联合同</label>' +
+    '<select id="iuContracts" multiple size="' + Math.min(6, Math.max(2, supOrders.length || 2)) + '">' +
+    (supOrders.length
+      ? supOrders.map(o => '<option value="' + esc(o.contractNumber) + '"' + ((f.contracts || []).includes(o.contractNumber) ? ' selected' : '') + '>' + esc(o.contractNumber) + '（' + fmtMoney(o.totalAmount) + ' · 已开票 ' + fmtMoney(invoicedOfContract(o.contractNumber)) + '）</option>').join('')
+      : '<option value="" disabled>该供应商暂无采购合同</option>') +
+    '</select>' +
+    '<div class="subtle" style="font-size:11.5px;margin-top:4px">可按住 Ctrl / Cmd 多选；一张发票可关联多个合同。未选择时发票不挂合同，仅登记台账。</div></div>' +
+    (itemNameVal || p.item_name ? '<div style="grid-column:1/-1"><label>货物或应税劳务名称</label><input id="iuItems" value="' + esc(itemNameVal || p.item_name || '') + '"></div>' : '') +
+    '<div style="grid-column:1/-1"><label>备注</label><input id="iuRemark" value="' + esc(f.remark !== undefined ? f.remark : (p._remark || '')) + '"></div>' +
+    '</div>' +
+    '<div class="modal-foot"><button type="button" class="btn btn-outline" id="iuSkip">' + (multi ? '跳过此张' : '取消') + '</button>' +
+    '<button class="btn btn-primary">确认入库</button></div></form>');
+
+  if (multi) {
+    $('#iuPrev').addEventListener('click', () => { stashQueueForm(); invQueueIdx--; renderInvoiceQueueItem(); });
+    $('#iuNext').addEventListener('click', () => { stashQueueForm(); invQueueIdx++; renderInvoiceQueueItem(); });
+  }
+  $('#iuSkip').addEventListener('click', () => {
+    invQueue.splice(invQueueIdx, 1);
+    if (!invQueue.length) { closeModal(); toast(multi ? '已跳过全部待录发票' : '已取消', 'ok'); return; }
+    if (invQueueIdx >= invQueue.length) invQueueIdx = invQueue.length - 1;
+    renderInvoiceQueueItem();
+  });
+
+  $('#iuF').addEventListener('submit', e => {
+    e.preventDefault();
+    const no = $('#iuNo').value.trim();
+    if (!no) { toast('发票号码必填', 'err'); return; }
+    const sel = Array.from($('#iuContracts').selectedOptions).map(o => o.value).filter(Boolean);
+    const contractNumber = sel.join('，');
+    const supVal = $('#iuSup').value.trim();
+    const subSel = $('#iuSub');
+    const data = {
+      id: uid(), company: curCo(),
+      invoiceNumber: no,
+      invoiceDate: $('#iuDate').value,
+      invoiceType: $('#iuType').value,
+      contractNumber: contractNumber,
+      supplier: supVal,
+      amount: +$('#iuAmount').value || 0,
+      remark: $('#iuRemark').value.trim(),
+      /* 识别溯源字段（便于后续核对/排查） */
+      netAmount: +$('#iuNet').value || 0,
+      taxAmount: +$('#iuTax').value || 0,
+      taxRate: $('#iuRate').value.trim(),
+      itemName: ($('#iuItems') ? $('#iuItems').value.trim() : ''),
+      buyerName: p.buyer_name || '',
+      invoiceCode: p.invoice_code || '',
+      checkCode: p.check_code || '',
+      /* 会计科目（自动归类，可手工改） */
+      subjectCode: subSel ? subSel.value : '',
+      subjectName: subSel ? (subSel.options[subSel.selectedIndex] || {}).text : '',
+      source: 'PDF识别',
+      sourceFile: p._file || '',
+      createdAt: new Date().toISOString()
+    };
+    Data.add('invoices', data);
+    /* 未匹配到供应商时，自动建档（与合同/导入的自动创建保持一致） */
+    if (supVal) {
+      const sups = DB.get('suppliers', []);
+      if (!sups.find(s => s.supplierName === supVal)) {
+        sups.unshift({ id: uid(), supplierNumber: nextNo('SUP-'), supplierName: supVal, contactPerson: '', phoneNumber: '', email: '', companyAddress: '', bankName: '', bankCode: '', bankAccount: '', remarks: '由发票识别自动创建', createdAt: new Date().toISOString() });
+        DB.set('suppliers', sups);
+      }
+    }
+    invQueue.splice(invQueueIdx, 1);
+    if (!invQueue.length) {
+      closeModal();
+      toast('发票已入库：' + no, 'ok');
+      State.invTab = 'ledger';
+      renderPage();
+    } else {
+      if (invQueueIdx >= invQueue.length) invQueueIdx = invQueue.length - 1;
+      toast('发票已入库：' + no + '（还剩 ' + invQueue.length + ' 张）', 'ok');
+      renderInvoiceQueueItem();
+    }
+  });
+}
+function invoiceForm(rec) {
+  const isEdit = !!rec;
+  const orders = Data.list('orders');
+  openModal('<h3>' + (isEdit ? '编辑发票' : '登记发票') + '</h3><form id="ivF">' +
+    '<div class="form-grid">' +
+    '<div><label class="req">发票号码</label><input id="ivNo" required value="' + esc(rec ? rec.invoiceNumber : '') + '" placeholder="发票右上角号码"></div>' +
+    '<div><label class="req">开票日期</label><input id="ivDate" type="date" required value="' + esc(rec ? rec.invoiceDate : todayStr()) + '"></div>' +
+    '<div><label>发票类型</label><select id="ivType">' +
+    ['增值税专用发票', '增值税普通发票', '其他发票'].map(t => '<option' + (rec && rec.invoiceType === t ? ' selected' : '') + '>' + t + '</option>').join('') +
+    '</select></div>' +
+    '<div><label class="req">合同号</label><select id="ivContract" required><option value="">请选择</option>' +
+    orders.map(o => '<option value="' + esc(o.contractNumber) + '"' + (rec && rec.contractNumber === o.contractNumber ? ' selected' : '') + '>' + esc(o.contractNumber) + '（' + esc(o.supplier) + '）</option>').join('') + '</select></div>' +
+    '<div><label class="req">供应商</label><input id="ivSup" readonly placeholder="选择合同后自动带出"></div>' +
+    '<div><label class="req">发票金额</label><input id="ivAmount" type="number" step="0.01" min="0" required value="' + (rec ? rec.amount : '') + '"></div>' +
+    '<div style="grid-column:1/-1"><label>备注</label><input id="ivRemark" value="' + esc(rec ? (rec.remark || '') : '') + '"></div></div>' +
+    '<div class="amt-hint" id="ivHint"></div>' +
+    '<div class="modal-foot"><button type="button" class="btn btn-outline" onclick="closeModal()">取消</button><button class="btn btn-primary">保存</button></div></form>');
+  const upd = () => {
+    const o = contractByNo($('#ivContract').value);
+    if (!o) { $('#ivSup').value = ''; $('#ivHint').innerHTML = ''; return; }
+    $('#ivSup').value = o.supplier;
+    const inv = invoicedOfContract(o.contractNumber) - (isEdit ? +rec.amount || 0 : 0);
+    $('#ivHint').innerHTML = '合同金额 <b>' + fmtMoney(o.totalAmount) + '</b> · 已开票 <b>' + fmtMoney(inv) + '</b> · 未开票 <b>' + fmtMoney(Math.max(0, o.totalAmount - inv)) + '</b>';
+  };
+  $('#ivContract').addEventListener('change', upd);
+  if (isEdit) upd(); else upd();
+  $('#ivF').addEventListener('submit', e => {
+    e.preventDefault();
+    const cno = $('#ivContract').value; const o = contractByNo(cno);
+    if (!o) { toast('请选择合同', 'err'); return; }
+    const data = {
+      id: isEdit ? rec.id : uid(), company: o.company || curCo(),
+      invoiceNumber: $('#ivNo').value.trim(), invoiceDate: $('#ivDate').value,
+      invoiceType: $('#ivType').value, contractNumber: cno, supplier: o.supplier,
+      amount: +$('#ivAmount').value || 0, remark: $('#ivRemark').value.trim(),
+      createdAt: isEdit ? rec.createdAt : new Date().toISOString()
+    };
+    if (isEdit) Data.update('invoices', rec.id, data); else Data.add('invoices', data);
+    closeModal(); toast('发票已登记', 'ok'); renderPage();
+  });
+}
+
+initPage('invoice', pageInvoice);
+</script>
+</body>
+</html>

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>系统管理 · 采购一体化系统</title>
+<link rel="stylesheet" href="css/common.css">
+</head>
+<body>
+<header>
+  <div class="logo"><span class="mark"><svg width="18" height="18" viewBox="0 0 48 48"><use href="#rrlogo"/></svg></span>采购一体化系统</div>
+  <div class="nav-wrap">
+    <button class="nav-btn" id="navMenuBtn" type="button">菜单 <span class="caret">▾</span></button>
+    <div class="nav-menu" id="navMenu"></div>
+  </div>
+  <span class="hspace"></span>
+  <div class="company-select" id="companySelectWrap">
+    <span>公司主体</span><select id="companySelect"></select>
+  </div>
+  <div class="userbox">
+    <b class="uname" id="whoName">—</b>
+    <button class="btn-exit" id="logoutBtn">退出</button>
+  </div>
+</header>
+<div class="layout">
+  <main id="main"></main>
+</div>
+<div class="modal-mask" id="modalMask"><div class="modal" id="modalBox"></div></div>
+<div class="toast" id="toastBox"></div>
+<div id="printArea"></div>
+<script src="js/common.js"></script>
+<script src="js/auth-guard.js"></script>
+<script>
+'use strict';
+/* ==========================================================
+   系统管理（仅管理员）
+   ========================================================== */
+function pageAdmin(root) {
+  root.innerHTML =
+    '<div class="page-head"><h2>系统管理</h2><span class="desc">用户 · 角色权限 · 公司抬头 · 数据与云</span></div>' +
+    '<div class="card"><div class="tabs">' +
+    [['user', '用户管理'], ['role', '角色权限'], ['company', '公司抬头'], ['data', '数据与云']].map(t => '<button class="tab' + (State.adminTab === t[0] ? ' active' : '') + '" data-tab="' + t[0] + '">' + t[1] + '</button>').join('') +
+    '</div><div id="adminBox"></div></div>';
+  root.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => { State.adminTab = t.dataset.tab; renderPage(); }));
+  if (State.adminTab === 'user') adminUsers();
+  else if (State.adminTab === 'role') adminRoles();
+  else if (State.adminTab === 'company') adminCompanies();
+  else adminData();
+}
+function adminUsers() {
+  const box = $('#adminBox');
+  const users = DB.get('users', []), roles = DB.get('roles', []);
+  const roleName = k => (roles.find(r => r.key === k) || {}).name || k;
+  box.innerHTML = '<div style="margin-bottom:12px"><button class="btn btn-primary" id="uAdd">＋ 新建用户</button><span class="hint" style="display:inline-block;margin-left:12px">共 ' + users.length + ' 个用户 · 供应商角色用户只能查看自己名下数据</span></div>' +
+    '<div class="tbl-wrap"><table><thead><tr><th>用户名</th><th>姓名</th><th>角色</th><th>关联供应商</th><th>状态</th><th>创建时间</th><th style="width:230px">操作</th></tr></thead><tbody>' +
+    users.map(u => '<tr><td class="mono"><b>' + esc(u.username) + '</b></td><td>' + esc(u.name || '') + '</td>' +
+      '<td><span class="badge ' + (u.role === 'admin' ? 'b-purple' : u.role === 'supplier' ? 'b-blue' : 'b-gray') + '">' + esc(roleName(u.role)) + '</span></td>' +
+      '<td>' + esc(u.supplierName || '—') + '</td>' +
+      '<td>' + (u.active !== false ? '<span class="badge b-green">启用</span>' : '<span class="badge b-red">停用</span>') + '</td>' +
+      '<td style="color:var(--muted)">' + fmtDate((u.createdAt || '').slice(0, 10)) + '</td>' +
+      '<td><button class="link-op" data-a="e" data-id="' + u.id + '">编辑</button>' +
+      '<button class="link-op" data-a="p" data-id="' + u.id + '">重置密码</button>' +
+      '<button class="link-op" data-a="t" data-id="' + u.id + '">' + (u.active !== false ? '停用' : '启用') + '</button>' +
+      (u.username !== 'admin' ? '<button class="link-op danger" data-a="d" data-id="' + u.id + '">删除</button>' : '') + '</td></tr>').join('') +
+    '</tbody></table></div>';
+  $('#uAdd').addEventListener('click', () => userForm(null));
+  box.querySelectorAll('button[data-a]').forEach(b => b.addEventListener('click', async () => {
+    const users2 = DB.get('users', []); const u = users2.find(x => x.id === b.dataset.id); if (!u) return;
+    const a = b.dataset.a;
+    if (a === 'e') userForm(u);
+    else if (a === 'p') {
+      const np = prompt('为用户「' + u.username + '」设置新密码：'); if (!np) return;
+      u.pwd = await hashPwd(np); DB.set('users', users2); toast('密码已重置', 'ok');
+    } else if (a === 't') { u.active = u.active === false ? true : false; DB.set('users', users2); toast('已' + (u.active ? '启用' : '停用'), 'ok'); renderPage(); }
+    else if (a === 'd') { if (confirm('删除用户「' + u.username + '」？')) { DB.set('users', users2.filter(x => x.id !== u.id)); toast('已删除', 'ok'); renderPage(); } }
+  }));
+}
+function userForm(u) {
+  const isEdit = !!u;
+  const roles = DB.get('roles', []), sups = DB.get('suppliers', []);
+  openModal('<h3>' + (isEdit ? '编辑用户' : '新建用户') + '</h3><form id="uF"><div class="form-grid">' +
+    '<div><label class="req">用户名</label><input id="ufName" required value="' + esc(u ? u.username : '') + '"' + (isEdit ? ' readonly' : '') + '></div>' +
+    '<div><label>姓名</label><input id="ufDisplay" value="' + esc(u ? (u.name || '') : '') + '"></div>' +
+    (isEdit ? '' : '<div><label class="req">初始密码</label><input id="ufPwd" type="text" required value="" placeholder="至少4位"></div>') +
+    '<div><label class="req">角色</label><select id="ufRole">' + roles.map(r => '<option value="' + esc(r.key) + '"' + (u && u.role === r.key ? ' selected' : '') + '>' + esc(r.name) + '</option>').join('') + '</select></div>' +
+    '<div id="ufSupWrap" style="display:none"><label>关联供应商</label><select id="ufSup"><option value="">请选择</option>' + sups.map(s => '<option' + (u && u.supplierName === s.supplierName ? ' selected' : '') + '>' + esc(s.supplierName) + '</option>').join('') + '</select></div>' +
+    '</div><div class="hint">供应商角色用户登录后，仅能看到其关联供应商名下的合同、发货、收货、发票、付款与对账数据。</div>' +
+    '<div class="modal-foot"><button type="button" class="btn btn-outline" onclick="closeModal()">取消</button><button class="btn btn-primary">保存</button></div></form>');
+  const toggleSup = () => {
+    const r = DB.get('roles', []).find(x => x.key === $('#ufRole').value);
+    $('#ufSupWrap').style.display = r && r.supplierRole ? 'block' : 'none';
+  };
+  $('#ufRole').addEventListener('change', toggleSup); toggleSup();
+  $('#uF').addEventListener('submit', async e => {
+    e.preventDefault();
+    const users = DB.get('users', []);
+    const un = $('#ufName').value.trim();
+    const dup = users.find(x => x.username === un && (!isEdit || x.id !== u.id));
+    if (dup) { toast('用户名已存在', 'err'); return; }
+    const roleKey = $('#ufRole').value;
+    const rDef = roles.find(r => r.key === roleKey);
+    let supplierName = '';
+    if (rDef && rDef.supplierRole) { supplierName = $('#ufSup').value; if (!supplierName) { toast('请选择关联供应商', 'err'); return; } }
+    if (isEdit) {
+      u.name = $('#ufDisplay').value.trim(); u.role = roleKey; u.supplierName = supplierName;
+      DB.set('users', users);
+    } else {
+      const pwd = $('#ufPwd').value; if (pwd.length < 4) { toast('密码至少4位', 'err'); return; }
+      users.unshift({ id: uid(), username: un, pwd: await hashPwd(pwd), name: $('#ufDisplay').value.trim(), role: roleKey, supplierName, active: true, createdAt: new Date().toISOString() });
+      DB.set('users', users);
+    }
+    closeModal(); toast('用户已保存', 'ok'); renderPage();
+  });
+}
+function adminRoles() {
+  const box = $('#adminBox');
+  const roles = DB.get('roles', []);
+  const pages = PAGES.filter(p => !p.adminOnly);
+  box.innerHTML = '<div style="margin-bottom:12px;display:flex;gap:10px;align-items:center"><button class="btn btn-primary" id="rAdd">＋ 新建角色</button><span class="hint" style="display:inline-block">读写 = 可查看并操作；只读 = 仅查看（不可新增/编辑/删除/导入/清空）；不显示 = 导航菜单中隐藏该模块。「管理员」「供应商」为系统内置角色不可删除</span></div>' +
+    '<div class="tbl-wrap"><table class="perm-matrix"><thead><tr><th style="min-width:120px">模块</th>' + roles.map(r => '<th>' + esc(r.name) + (r.locked ? ' <span style="font-size:10px;color:#94a3b8">内置</span>' : '') + '</th>').join('') + '</tr></thead><tbody>' +
+    pages.map(p => '<tr><td><b>' + esc(p.name) + '</b><span style="font-size:11px;color:#94a3b8"> ' + p.key + '</span></td>' +
+      roles.map(r => {
+        if (r.key === 'admin') return '<td style="text-align:center"><span class="badge b-blue">读写</span></td>';
+        const cur = (r.permissions || {})[p.key];
+        const val = (cur === 'rw' || cur === true) ? 'rw' : (cur === 'r' ? 'r' : 'none');
+        return '<td><select data-role="' + r.id + '" data-page="' + p.key + '">' +
+          '<option value="rw"' + (val === 'rw' ? ' selected' : '') + '>读写</option>' +
+          '<option value="r"' + (val === 'r' ? ' selected' : '') + '>只读</option>' +
+          '<option value="none"' + (val === 'none' ? ' selected' : '') + '>不显示</option></select></td>';
+      }).join('') + '</tr>').join('') +
+    '</tbody></table></div>' +
+    '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">' + roles.filter(r => !r.locked).map(r => '<button class="btn btn-outline btn-sm" data-del="' + r.id + '">删除角色：' + esc(r.name) + '</button>').join('') + '</div>';
+  box.querySelectorAll('select[data-role]').forEach(c => c.addEventListener('change', () => {
+    const roles2 = DB.get('roles', []); const r = roles2.find(x => x.id === c.dataset.role);
+    if (!r) return; r.permissions = r.permissions || {}; r.permissions[c.dataset.page] = c.value;
+    DB.set('roles', roles2); toast('权限已保存：' + r.name + ' · ' + c.dataset.page + ' · ' + { rw: '读写', r: '只读', none: '不显示' }[c.value], 'ok');
+  }));
+  box.querySelectorAll('button[data-del]').forEach(b => b.addEventListener('click', () => {
+    const roles2 = DB.get('roles', []); const r = roles2.find(x => x.id === b.dataset.del); if (!r) return;
+    if (DB.get('users', []).find(u => u.role === r.key)) { toast('仍有用户使用该角色，无法删除', 'err'); return; }
+    if (confirm('删除角色「' + r.name + '」？')) { DB.set('roles', roles2.filter(x => x.id !== r.id)); toast('已删除', 'ok'); renderPage(); }
+  }));
+  $('#rAdd').addEventListener('click', () => {
+    const name = prompt('新角色名称：'); if (!name || !name.trim()) return;
+    const roles2 = DB.get('roles', []);
+    const key = 'role_' + Date.now().toString(36);
+    roles2.push({ id: uid(), key, name: name.trim(), locked: false, permissions: Object.fromEntries(PAGES.map(p => [p.key, p.key === 'dashboard' ? 'rw' : 'none'])) });
+    DB.set('roles', roles2); toast('角色已创建，请在权限矩阵中为各模块选择：读写 / 只读 / 不显示', 'ok'); renderPage();
+  });
+}
+function adminCompanies() {
+  const box = $('#adminBox');
+  const comps = DB.get('companies', []);
+  box.innerHTML = '<div style="margin-bottom:12px"><button class="btn btn-primary" id="cAdd">＋ 添加公司抬头</button><span class="hint" style="display:inline-block;margin-left:12px">业务数据按公司主体隔离，切换公司后各模块仅显示当前公司数据</span></div>' +
+    '<div class="tbl-wrap"><table><thead><tr><th>简称</th><th>公司名称</th><th style="width:140px">操作</th></tr></thead><tbody>' +
+    comps.map((c, i) => '<tr><td class="mono">' + esc(c.code) + '</td><td>' + esc(c.name) + '</td>' +
+      '<td><button class="link-op" data-i="' + i + '" data-a="e">编辑</button><button class="link-op danger" data-i="' + i + '" data-a="d">删除</button></td></tr>').join('') +
+    '</tbody></table></div>';
+  $('#cAdd').addEventListener('click', () => companyForm(null));
+  box.querySelectorAll('button[data-a]').forEach(b => b.addEventListener('click', () => {
+    const c = DB.get('companies', [])[+b.dataset.i]; if (!c) return;
+    if (b.dataset.a === 'e') companyForm(c);
+    else if (confirm('删除公司抬头「' + c.name + '」？其名下业务数据将不再显示（数据不删除）。')) { DB.set('companies', DB.get('companies', []).filter(x => x.code !== c.code)); toast('已删除', 'ok'); renderPage(); }
+  }));
+}
+function companyForm(c) {
+  const isEdit = !!c;
+  openModal('<h3>' + (isEdit ? '编辑公司抬头' : '添加公司抬头') + '</h3><form id="cF"><div class="form-grid">' +
+    '<div><label class="req">简称</label><input id="cfCode" required value="' + esc(c ? c.code : '') + '" placeholder="如：龙力 / 普利美"' + (isEdit ? ' readonly' : '') + '></div>' +
+    '<div style="grid-column:1/-1"><label class="req">公司名称</label><input id="cfName" required value="' + esc(c ? c.name : '') + '"></div></div>' +
+    '<div class="modal-foot"><button type="button" class="btn btn-outline" onclick="closeModal()">取消</button><button class="btn btn-primary">保存</button></div></form>');
+  $('#cF').addEventListener('submit', e => {
+    e.preventDefault();
+    const comps = DB.get('companies', []);
+    const data = { code: $('#cfCode').value.trim(), name: $('#cfName').value.trim() };
+    if (isEdit) { const i = comps.findIndex(x => x.code === c.code); comps[i] = data; }
+    else { if (comps.find(x => x.code === data.code)) { toast('简称已存在', 'err'); return; } comps.push(data); }
+    DB.set('companies', comps); closeModal(); toast('公司抬头已保存', 'ok'); renderFrame();
+  });
+}
+function adminData() {
+  const box = $('#adminBox');
+  const env = CloudBase.env();
+  box.innerHTML =
+    '<h3 style="font-size:14px;margin-bottom:10px">本地备份</h3>' +
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">' +
+    '<button class="btn btn-primary" id="dExport">⬇ 备份到电脑（JSON）</button>' +
+    '<label class="btn btn-outline" style="cursor:pointer">⬆ 从电脑恢复<input type="file" id="dImport" accept=".json" style="display:none"></label></div>' +
+    '<div class="hint">备份包含用户、角色、供应商及全部业务数据；恢复将覆盖当前本地数据。</div>' +
+    '<h3 style="font-size:14px;margin:18px 0 10px">腾讯云 CloudBase（预留）</h3>' +
+    '<div class="row-flex"><div style="min-width:260px"><label>环境 ID（Env ID）</label><input id="cbEnv" value="' + esc(env) + '" placeholder="如：your-env-id"></div>' +
+    '<div style="align-self:flex-end"><button class="btn btn-outline" id="cbSaveEnv">保存环境ID</button></div>' +
+    '<div style="align-self:flex-end"><button class="btn btn-success" id="cbPush">⬆ 上传快照到云端</button></div>' +
+    '<div style="align-self:flex-end"><button class="btn btn-primary" id="cbPull">⬇ 从云端下载快照</button></div></div>' +
+    '<div class="hint">迁移步骤：① 引入 CloudBase JS-SDK（<span class="mono">https://static.cloudbase.net/cloudbase-js-sdk/&lt;ver&gt;/cloudbase.full.js</span>）；② 填入环境ID并保存；③ 在云数据库创建集合 <span class="mono">pis_snapshots</span>；④ 点击上传/下载进行全量快照同步。数据层（DB/Data）已按集合抽象，后续可直接切换为云数据库逐集合读写，业务代码无需改动。</div>' +
+    '<div class="hint" id="cbStatus">当前状态：' + (CloudBase.ready() ? '<b style="color:var(--green)">SDK 已加载，环境 ' + esc(env) + '</b>' : (env ? '环境ID已保存，等待引入 SDK' : '未配置')) + '</div>' +
+    '<h3 style="font-size:14px;margin:18px 0 10px;color:var(--red)">危险操作</h3>' +
+    '<button class="btn btn-danger" id="dClear">清空本地业务数据</button><span class="hint" style="display:inline-block;margin-left:10px">仅保留用户 / 角色 / 公司 / 供应商结构，业务单据全部清空，请先备份！</span>';
+  $('#dExport').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(DB.snapshot(), null, 2)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = '采购一体化系统备份_' + todayStr() + '.json'; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 800); toast('备份已下载', 'ok');
+  });
+  $('#dImport').addEventListener('change', e => {
+    const f = e.target.files[0]; if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => { try { DB.restore(JSON.parse(rd.result)); toast('恢复成功，即将刷新', 'ok'); setTimeout(() => location.reload(), 800); } catch (err) { toast('恢复失败：' + err.message, 'err'); } };
+    rd.readAsText(f);
+  });
+  $('#cbSaveEnv').addEventListener('click', () => { CloudBase.setEnv($('#cbEnv').value); toast('环境ID已保存', 'ok'); renderPage(); });
+  $('#cbPush').addEventListener('click', async () => {
+    try { await CloudBase.push(); toast('快照已上传到 CloudBase', 'ok'); } catch (e) { toast(e.message, 'err'); }
+  });
+  $('#cbPull').addEventListener('click', async () => {
+    try { await CloudBase.pull(); toast('快照已下载，即将刷新', 'ok'); setTimeout(() => location.reload(), 800); } catch (e) { toast(e.message, 'err'); }
+  });
+  $('#dClear').addEventListener('click', () => {
+    if (!confirm('⚠️ 此操作将清空全部业务单据（合同/发货/收货/退货/发票/付款），且不可恢复！是否继续？')) return;
+    if (!confirm('再次确认：请确保已备份！确定清空？')) return;
+    DB.clearBiz(); toast('业务数据已清空', 'ok'); renderPage();
+  });
+}
+
+initPage('admin', pageAdmin);
+</script>
+</body>
+</html>

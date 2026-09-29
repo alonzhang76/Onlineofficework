@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>工作台 · 采购一体化系统</title>
+<link rel="stylesheet" href="css/common.css">
+</head>
+<body>
+<header>
+  <div class="logo"><span class="mark"><svg width="18" height="18" viewBox="0 0 48 48"><use href="#rrlogo"/></svg></span>采购一体化系统</div>
+  <div class="nav-wrap">
+    <button class="nav-btn" id="navMenuBtn" type="button">菜单 <span class="caret">▾</span></button>
+    <div class="nav-menu" id="navMenu"></div>
+  </div>
+  <span class="hspace"></span>
+  <div class="company-select" id="companySelectWrap">
+    <span>公司主体</span><select id="companySelect"></select>
+  </div>
+  <div class="userbox">
+    <b class="uname" id="whoName">—</b>
+    <button class="btn-exit" id="logoutBtn">退出</button>
+  </div>
+</header>
+<div class="layout">
+  <main id="main"></main>
+</div>
+<div class="modal-mask" id="modalMask"><div class="modal" id="modalBox"></div></div>
+<div class="toast" id="toastBox"></div>
+<div id="printArea"></div>
+<script src="js/common.js"></script>
+<script src="js/auth-guard.js"></script>
+<script>
+'use strict';
+/* ==========================================================
+   工作台
+   ========================================================== */
+function pageDashboard(root) {
+  const orders = Data.list('orders');
+  const invs = Data.list('invoices'), pays = Data.list('payments'), sups = Data.list('suppliers');
+  const totalAmount = orders.reduce((s, o) => s + (+o.totalAmount || 0), 0);
+  const invoiced = invs.reduce((s, v) => s + (+v.amount || 0), 0);
+  const paid = pays.reduce((s, p) => s + (+p.amount || 0), 0);
+  const unInv = Math.max(0, totalAmount - invoiced);
+  const cards = [
+    { l: '采购合同', v: orders.length + ' 份', s: '合同总金额 ' + fmtMoney(totalAmount), c: 'hl' },
+    { l: '已开票', v: fmtMoney(invoiced), s: '发票 ' + invs.length + ' 张', c: '' },
+    { l: '已付款', v: fmtMoney(paid), s: '付款 ' + pays.length + ' 笔', c: 'good' },
+    { l: Session.isSupplier() ? '待对账余额' : '未开票金额', v: fmtMoney(Session.isSupplier() ? invoiced - paid : unInv), s: Session.isSupplier() ? '开票合计 − 付款合计' : '建议及时向供应商索票', c: Session.isSupplier() ? (invoiced - paid > 0.005 ? 'bad' : 'good') : 'warn' }
+  ];
+  const recents = [];
+  [['orders', '采购'], ['shipments', '发货'], ['receipts', '收货'], ['returns', '退货'], ['invoices', '开票'], ['payments', '付款']].forEach(([c, tag]) => {
+    Data.list(c).slice(0, 3).forEach(r => recents.push({ t: r.createdAt || '', tag, no: r.contractNumber || r.receiptNumber || r.returnNumber || r.shipNumber || r.invoiceNumber || r.paymentNumber || '', txt: tag + ' · ' + (r.supplier || '') + ' · ' + (r.product || '') }));
+  });
+  recents.sort((a, b) => (b.t || '').localeCompare(a.t || ''));
+  const quick = PAGES.filter(p => !['dashboard', 'admin'].includes(p.key) && Session.can(p.key) && !(Session.isSupplier() && p.key === 'suppliers'));
+  root.innerHTML =
+    '<div class="page-head"><h2>工作台</h2><span class="desc">' + (Session.isSupplier() ? '供应商门户 · ' + esc(Session.mySupplier()) : esc(curCoName())) + '</span></div>' +
+    '<div class="stat-grid">' + cards.map(c => '<div class="stat-card ' + c.c + '"><div class="l">' + c.l + '</div><div class="v">' + c.v + '</div><div class="s">' + c.s + '</div></div>').join('') + '</div>' +
+    '<div class="card"><h3>快捷入口</h3><div class="quick-grid">' +
+      quick.map(p => '<div class="quick-item" data-goto="' + p.key + '"><div class="qi">' + p.ico + '</div><div class="qn">' + esc(p.name) + '</div><div class="qd">' + esc(p.group) + '</div></div>').join('') +
+    '</div></div>' +
+    '<div class="card"><h3>最近动态</h3>' +
+      (recents.length ? '<div class="tbl-wrap"><table><thead><tr><th>模块</th><th>单号 / 合同号</th><th>摘要</th><th>时间</th></tr></thead><tbody>' +
+        recents.slice(0, 10).map(r => '<tr><td><span class="badge b-blue">' + r.tag + '</span></td><td class="mono">' + esc(r.no) + '</td><td>' + esc(r.txt) + '</td><td style="color:var(--muted);white-space:nowrap">' + fmtDate((r.t || '').slice(0, 10)) + '</td></tr>').join('') +
+        '</tbody></table></div>' : '<div class="empty">暂无动态，从上方快捷入口开始录入业务数据</div>') +
+    '</div>';
+  $$('#page-dashboard .quick-item').forEach(el => el.addEventListener('click', () => goto(el.dataset.goto)));
+}
+
+initPage('dashboard', pageDashboard);
+</script>
+</body>
+</html>
