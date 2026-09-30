@@ -49,6 +49,10 @@ jobs:
           find _deploy -type d -name 'cloudfunctions' -prune -exec rm -rf {} +
           find _deploy -type d -name 'scripts' -prune -exec rm -rf {} +
           find _deploy -type f \( -name '*.bak' -o -name '*.zip' -o -name '*.sql' -o -name '*.mjs' \) -delete
+          # 备份文件和种子数据（本地开发用，不需要部署到静态托管）
+          find _deploy -type f -name '*备份*.json' -delete
+          find _deploy -path '*/wage/seed_data.js' -delete
+          find _deploy -path '*/wage/excel_data.json' -delete
 
           echo '===== 待部署文件清单 ====='
           find _deploy -type f | sort
@@ -62,18 +66,20 @@ jobs:
           # 并关闭 COS SDK keep-alive 长连接（socket hang up / ECONNRESET 时的对策）
           export COS_SDK_KEEPALIVE=false
           # 整命令级重试：tcb hosting deploy 按文件 hash 跳过已上传项，
-          # 失败/超时后重试只补传未完成的文件，避免一次卡死整次部署
-          for i in 1 2 3 4 5; do
-            echo "===== 部署尝试 $i/5 ====="
+          # 失败/超时后重试只补传未完成的文件，避免一次卡死整次部署。
+          # 并发降到 3 减少网络拥塞，单文件重试提到 8 次、间隔 3 秒，
+          # 给慢速链路更多恢复时间，避免 "User network is too slow" 误判
+          for i in 1 2 3 4 5 6 7; do
+            echo "===== 部署尝试 $i/7 ====="
             if tcb hosting deploy _deploy / -e "$TCB_ENV_ID" \
-              --concurrency 5 --retry-count 4 --retry-interval 2000; then
+              --concurrency 3 --retry-count 8 --retry-interval 3000; then
               echo "✅ 部署成功（第 $i 次尝试）"
               break
             else
               code=$?
-              echo "⚠️ 第 $i 次尝试失败（exit $code），tcb 会跳过已传文件，5 秒后重试..."
-              [ "$i" -eq 5 ] && { echo "❌ 5 次均失败，部署终止"; exit 1; }
-              sleep 5
+              echo "⚠️ 第 $i 次尝试失败（exit $code），tcb 会跳过已传文件，8 秒后重试..."
+              [ "$i" -eq 7 ] && { echo "❌ 7 次均失败，部署终止"; exit 1; }
+              sleep 8
             fi
           done
 

@@ -1,2 +1,0 @@
-# wicketproduct
-wc
