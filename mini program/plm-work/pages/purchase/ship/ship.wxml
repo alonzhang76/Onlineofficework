@@ -1,0 +1,183 @@
+<view class="page">
+  <view class="sync-float sync-badge sync-badge-{{__syncState}}">
+    <view class="sync-dot"></view>
+    <text class="sync-text">{{__syncState === 'idle' ? '已同步' : __syncState === 'pending' ? '上传中' : __syncState === 'error' ? '上传失败' : '未连接'}}</text>
+  </view>
+
+  <view wx:if="{{denied}}" class="card">
+    <view class="deny"><view class="deny-ico">🔒</view>当前角色无权访问「发货管理」</view>
+  </view>
+
+  <block wx:if="{{ready && !denied}}">
+    <view class="pg-hero">
+      <view class="pg-hero-title">发货管理</view>
+      <view class="pg-hero-sub">SHIPMENT</view>
+    </view>
+
+    <view class="co-bar">
+      <text class="co-name">{{isSupplier ? '供应商门户 · ' + mySupplier : '按公司主体隔离'}}</text>
+      <text class="co-role">{{canWrite ? '可登记' : '只读'}}</text>
+    </view>
+
+    <view class="kpi-grid">
+      <view class="kpi-card"><text class="kpi-label">发货单</text><text class="kpi-value">{{stat.all}}</text></view>
+      <view class="kpi-card"><text class="kpi-label">待确认</text><text class="kpi-value orange">{{stat.pending}}</text></view>
+      <view class="kpi-card"><text class="kpi-label">部分确认</text><text class="kpi-value">{{stat.partial}}</text></view>
+      <view class="kpi-card"><text class="kpi-label">已确认</text><text class="kpi-value green">{{stat.confirmed}}</text></view>
+    </view>
+
+    <view class="card">
+      <view class="form-item">
+        <text class="f-label">🔍</text>
+        <input value="{{kw}}" placeholder="发货单号/合同号/供应商/产品/物流" bindinput="onSearch" />
+      </view>
+      <picker range="{{statusOptions}}" value="{{statusIdx}}" bindchange="onStatus">
+        <view class="form-item"><text class="f-label">状态</text><text class="f-value">{{statusOptions[statusIdx]}}</text></view>
+      </picker>
+      <view class="toolbar">
+        <view class="btn btn-outline btn-sm" bindtap="resetFilter">重置</view>
+        <view class="btn btn-outline btn-sm" bindtap="exportCSV">导出</view>
+        <view class="btn btn-outline btn-sm" bindtap="importCSV" wx:if="{{canWrite && !isSupplier}}">导入</view>
+        <view class="btn btn-danger-ghost btn-sm" bindtap="clearAll" wx:if="{{canWrite && !isSupplier}}">清空</view>
+      </view>
+    </view>
+
+    <view wx:if="{{!list.length}}" class="card">
+      <view class="empty"><view class="empty-icon">🚚</view>暂无匹配的发货记录</view>
+    </view>
+
+    <view class="card" wx:for="{{list}}" wx:key="id" wx:for-item="o">
+      <view class="card-head">
+        <view class="ch-l">
+          <view class="ch-title">{{o.shipNumber}}</view>
+          <view class="ch-sub">{{o.contractNumber}} · {{o.supplier}}</view>
+        </view>
+        <view class="ch-r"><text class="badge {{o.statusClass}}">{{o.status}}</text></view>
+      </view>
+
+      <view class="mini-grid">
+        <view class="mini"><view class="ml">产品</view><view class="mv sm">{{o.product || '-'}}</view></view>
+        <view class="mini"><view class="ml">本次发货</view><view class="mv sm blue">{{o.quantity}}</view></view>
+        <view class="mini"><view class="ml">已确认收货</view><view class="mv sm green">{{o.done}}</view></view>
+        <view class="mini"><view class="ml">差异</view><view class="mv sm {{o.diff > 0 ? 'orange' : ''}}">{{o.diff}}</view></view>
+      </view>
+
+      <view class="prog-line">发货日期 {{o.shipDate || '-'}}{{o.carrier ? ' ｜ 物流 ' + o.carrier : ''}}{{o.trackingNo ? ' ' + o.trackingNo : ''}}</view>
+      <view class="prog-line subtle" wx:if="{{o.remark}}">备注：{{o.remark}}</view>
+      <view class="prog-line subtle" wx:if="{{o.receiveRemark}}">需方反馈：{{o.receiveRemark}}</view>
+
+      <view class="card-acts">
+        <view class="btn btn-outline btn-sm" data-id="{{o.id}}" bindtap="openDetail">明细</view>
+        <view class="btn btn-outline btn-sm" data-id="{{o.id}}" bindtap="openMsg" wx:if="{{isSupplier}}">需方消息</view>
+        <view class="btn btn-outline btn-sm" data-id="{{o.id}}" bindtap="editItem" wx:if="{{canWrite && (!isSupplier || o.status !== '已确认')}}">编辑</view>
+        <view class="btn btn-danger-ghost btn-sm" data-id="{{o.id}}" bindtap="delItem" wx:if="{{canWrite && (!isSupplier || o.status !== '已确认')}}">删除</view>
+      </view>
+    </view>
+
+    <view class="fab" bindtap="openAdd" wx:if="{{canWrite}}">＋</view>
+    <view class="page-foot"></view>
+  </block>
+
+  <!-- 登记 / 编辑发货 -->
+  <view catchtouchmove="noop" class="mask" wx:if="{{modal}}" bindtap="closeModal">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">{{editId ? '编辑发货' : '登记发货'}}<text class="sheet-close" bindtap="closeModal">×</text></view>
+      <scroll-view scroll-y class="sheet-body">
+        <view class="form-item">
+          <text class="f-label">发货单号</text>
+          <input value="{{form.shipNumber}}" data-k="shipNumber" bindinput="onField" placeholder="自动生成" />
+        </view>
+        <picker range="{{contractOptions}}" value="{{contractIdx}}" bindchange="onContract">
+          <view class="form-item"><text class="f-label">合同号 <text class="req">*</text></text><text class="f-value">{{contractOptions[contractIdx]}}</text></view>
+        </picker>
+        <picker range="{{productOptions}}" value="{{productIdx}}" bindchange="onProduct">
+          <view class="form-item"><text class="f-label">产品 <text class="req">*</text></text><text class="f-value">{{productOptions[productIdx]}}</text></view>
+        </picker>
+        <view class="form-row2">
+          <view class="form-item"><text class="f-label">发货数量 <text class="req">*</text></text><input type="digit" value="{{form.quantity}}" data-k="quantity" bindinput="onField" /></view>
+          <picker mode="date" value="{{form.shipDate}}" data-k="shipDate" bindchange="onDate">
+            <view class="form-item"><text class="f-label">发货日期</text><text class="f-value">{{form.shipDate || '选择'}}</text></view>
+          </picker>
+        </view>
+        <view class="form-row2">
+          <view class="form-item"><text class="f-label">物流公司</text><input value="{{form.carrier}}" data-k="carrier" bindinput="onField" /></view>
+          <view class="form-item"><text class="f-label">物流单号</text><input value="{{form.trackingNo}}" data-k="trackingNo" bindinput="onField" /></view>
+        </view>
+        <view class="form-item ta">
+          <text class="f-label">备注</text>
+          <textarea value="{{form.remark}}" data-k="remark" bindinput="onField" auto-height maxlength="-1" />
+        </view>
+        <view class="hint">登记后状态为「待确认」，由采购员核对实收数量；确认结果会以「需方消息」通知供应商。</view>
+        <view class="btn-row">
+          <view class="btn btn-plain" bindtap="closeModal">取消</view>
+          <view class="btn btn-primary" bindtap="save">保存</view>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+
+  <!-- 发货明细 -->
+  <view catchtouchmove="noop" class="mask" wx:if="{{detail}}" bindtap="closeDetail">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">发货明细<text class="sheet-close" bindtap="closeDetail">×</text></view>
+      <scroll-view scroll-y class="sheet-body">
+        <view class="card">
+          <view class="card-head">
+            <view class="ch-l">
+              <view class="ch-title">{{detail.shipNumber}}</view>
+              <view class="ch-sub">{{detail.contractNumber}} · {{detail.supplier}}</view>
+            </view>
+            <text class="badge {{detail.statusClass}}">{{detail.status}}</text>
+          </view>
+          <view class="kv"><text class="k">产品</text><text class="v">{{detail.product}}</text></view>
+          <view class="kv"><text class="k">本次发货</text><text class="v strong">{{detail.quantity}}</text></view>
+          <view class="kv"><text class="k">已确认收货 / 差异</text><text class="v">{{detail.done}} / {{detail.diff}}</text></view>
+          <view class="kv"><text class="k">发货日期</text><text class="v">{{detail.shipDate || '-'}}</text></view>
+          <view class="kv"><text class="k">物流</text><text class="v">{{detail.carrier || '-'}}{{detail.trackingNo ? ' ' + detail.trackingNo : ''}}</text></view>
+          <view class="kv" wx:if="{{detail.remark}}"><text class="k">备注</text><text class="v">{{detail.remark}}</text></view>
+          <view class="kv" wx:if="{{detail.receiveRemark}}"><text class="k">需方反馈</text><text class="v">{{detail.receiveRemark}}</text></view>
+          <view class="kv" wx:if="{{detail.contractTotal}}"><text class="k">合同总额</text><text class="v">¥{{detail.contractTotal}}</text></view>
+        </view>
+
+        <view class="card">
+          <view class="sec-title">收货记录</view>
+          <view wx:if="{{!detail.receipts.length}}" class="empty">需方尚未确认收货</view>
+          <view class="dline" wx:for="{{detail.receipts}}" wx:key="index" wx:for-item="r">
+            <view class="dl-top">
+              <text class="dl-name">{{r.receiptNumber}}</text>
+              <text class="dl-amt">{{r.quantity}}</text>
+            </view>
+            <view class="dl-sub">{{r.receiptDate}} ｜ {{r.person || '—'}}{{r.remark ? ' ｜ ' + r.remark : ''}}</view>
+          </view>
+        </view>
+
+        <view class="btn-row"><view class="btn btn-plain" bindtap="closeDetail">关闭</view></view>
+      </scroll-view>
+    </view>
+  </view>
+
+  <!-- 需方消息 -->
+  <view catchtouchmove="noop" class="mask" wx:if="{{msg}}" bindtap="closeMsg">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">需方消息 · {{msg.shipNumber}}<text class="sheet-close" bindtap="closeMsg">×</text></view>
+      <scroll-view scroll-y class="sheet-body">
+        <view class="card">
+          <view class="mini-grid">
+            <view class="mini"><view class="ml">本次发货</view><view class="mv sm">{{msg.quantity}}</view></view>
+            <view class="mini"><view class="ml">实收确认</view><view class="mv sm blue">{{msg.done}}</view></view>
+            <view class="mini"><view class="ml">差异</view><view class="mv sm orange">{{msg.diff}}</view></view>
+            <view class="mini"><view class="ml">合同号</view><view class="mv sm">{{msg.contractNumber}}</view></view>
+          </view>
+          <view style="margin-top:16rpx"><text class="badge {{msg.cls}}">{{msg.head}}</text></view>
+          <view class="hint" style="margin-top:14rpx">{{msg.tips}}</view>
+          <view class="hint warn" wx:if="{{msg.receiveRemark}}">需方反馈：{{msg.receiveRemark}}</view>
+          <view class="prog-line subtle" wx:if="{{msg.contractTotal}}">合同总额 ¥{{msg.contractTotal}}（如收货数量与合同有差异，需方会同步调整合同数量与金额）</view>
+        </view>
+        <view class="btn-row">
+          <view class="btn btn-plain" bindtap="closeMsg">关闭</view>
+          <view class="btn btn-primary" bindtap="ackMsg">我知道了</view>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+</view>

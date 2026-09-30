@@ -1023,6 +1023,616 @@ function renderScheduleNotice(data) {
   return page;
 }
 
+// ============================================================
+// 采购合同 — A4 纵向
+// 1:1 复刻桌面版 apps/purchase-integrated/procurement contract.html 版面：
+//   买方抬头（居中 + 下划线）/ 居中大标题「采购合同」/ 右上「合同号·签约地·合同日期」/
+//   买卖双方信息两栏 / 二、产品清单（7 列）/ 订单备注 / 数量合计·总金额（含税）·大写金额 /
+//   三、合同条款（10 条，交货期由订单带入）/ 签章区（买方加盖公司印章图片）/ 合同生成日期
+// ============================================================
+var CONTRACT_TERMS = [
+  '合同有效期：自合同签订之日起至全部货物交付并验收合格之日止。',
+  '交货地点：买方工厂或指定仓库。',
+  '交货期：{delivery}前完成全部货物交付。',
+  '交货方式：卖方安排并承担所有包装和运输费用。',
+  '交货技术参数：货物的技术参数以买方订单及技术资料为准，卖方须严格按照双方确认的图纸、样品及技术要求进行生产和交付。',
+  '货物验收：买方在收到货物后7个工作日内完成验收，如发现质量问题需及时通知卖方。',
+  '付款方式：验收合格后30个工作日内支付全额货款。',
+  '违约责任：如一方违约，需承担合同总金额5%的违约金。',
+  '争议解决：双方协商解决，协商不成的提交合同签订地法院诉讼解决。',
+  '其他：本合同一式两份，买卖双方各执一份，具有同等法律效力。'
+];
+
+function renderPurchaseContract(data) {
+  data = data || {};
+  var M = 40;
+  var page = cv.createPage('portrait');
+  var W = page.width, H = page.height;
+  var ctx = page.ctx;
+  var tableW = W - M * 2;
+  var footerY = H - 30;
+  var contentBottom = footerY - 16;
+  var pages = [page];
+  var y = 0;
+
+  function newPage() {
+    page = cv.createPage('portrait');
+    pages.push(page);
+    ctx = page.ctx;
+    y = 44;
+  }
+
+  /* ---- 印章图片预加载（买方公司章） ---- */
+  var chopImg = null;
+  var chopReady = new Promise(function (resolve) {
+    var file = data.chopFile;
+    if (!file) { resolve(); return; }
+    try {
+      var buf = wx.getFileSystemManager().readFileSync('/assets/logos/' + file);
+      var img = page.canvas.createImage();
+      img.onload = function () { chopImg = img; resolve(); };
+      img.onerror = function () { resolve(); };
+      img.src = 'data:image/png;base64,' + wx.arrayBufferToBase64(buf);
+    } catch (e) { resolve(); }
+  });
+
+  function wrapAt(text, maxWidth, font) {
+    ctx.font = font || 'normal 10px sans-serif';
+    return qWrap(ctx, text, maxWidth);
+  }
+
+  /* ---- 买卖双方信息栏 ---- */
+  function partyBox(x, rows, boxW) {
+    var labelW = 60, padX = 12;
+    var valW = boxW - padX * 2 - labelW;
+    var font = 'normal 10px sans-serif';
+    ctx.font = font;
+    var laid = rows.map(function (r) {
+      var val = r[1] || '';
+      var lines = val ? qWrap(ctx, val, valW) : ['—'];
+      return { label: r[0], lines: lines, bold: !!r[2] };
+    });
+    var totalLines = laid.reduce(function (s, r) { return s + r.lines.length; }, 0);
+    var boxH = 14 + totalLines * 15 + 8;
+    cv.fillRect(ctx, x, y, boxW, boxH, '#fafafa');
+    qRoundRect(ctx, x, y, boxW, boxH, 6);
+    ctx.strokeStyle = '#d1d5db';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    var ty = y + 10;
+    laid.forEach(function (r) {
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.font = 'bold 10px sans-serif';
+      ctx.fillStyle = '#374151';
+      ctx.fillText(r.label, x + padX, ty);
+      ctx.font = r.bold ? 'bold 10.5px sans-serif' : 'normal 10px sans-serif';
+      ctx.fillStyle = '#111827';
+      r.lines.forEach(function (l, li) {
+        ctx.fillText(l, x + padX + labelW, ty + li * 15, valW);
+      });
+      ty += r.lines.length * 15;
+    });
+    return boxH;
+  }
+
+  function sectionTitle(t) {
+    if (y + 28 > contentBottom) newPage();
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.font = 'bold 12.5px sans-serif';
+    ctx.fillStyle = '#111827';
+    ctx.fillText(t, M, y);
+    y += 8;
+    cv.drawHLine(ctx, M, y, tableW, '#e5e7eb', 0.8);
+    y += 12;
+  }
+
+  /* ---- 产品清单表 ---- */
+  var pCols = [0.20, 0.18, 0.11, 0.09, 0.07, 0.13, 0.22];
+  var pHeads = ['产品名称', '规格型号', '单价', '数量', '单位', '金额', '说明'];
+  var pAligns = ['left', 'left', 'right', 'right', 'center', 'right', 'left'];
+  var pWidths = pCols.map(function (p) { return tableW * p; });
+  var pHF = 'normal 10px sans-serif';
+  var pHeadH = 26, pRowMin = 24, pPadX = 5, pLineH = 13;
+
+  function drawProdHead(ty) {
+    cv.fillRect(ctx, M, ty, tableW, pHeadH, '#f3f4f6');
+    var cx = M;
+    for (var i = 0; i < pHeads.length; i++) {
+      ctx.font = 'bold 10px sans-serif';
+      ctx.fillStyle = '#111827';
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = pAligns[i] === 'center' ? 'center' : (pAligns[i] === 'right' ? 'right' : 'left');
+      var tx = pAligns[i] === 'center' ? cx + pWidths[i] / 2
+        : (pAligns[i] === 'right' ? cx + pWidths[i] - pPadX : cx + pPadX);
+      ctx.fillText(pHeads[i], tx, ty + pHeadH / 2, pWidths[i] - 2);
+      cx += pWidths[i];
+    }
+    ctx.strokeStyle = '#9ca3af';
+    ctx.lineWidth = 0.7;
+    ctx.strokeRect(M, ty, tableW, pHeadH);
+    var lx = M;
+    for (var j = 0; j < pWidths.length - 1; j++) {
+      lx += pWidths[j];
+      ctx.beginPath(); ctx.moveTo(lx, ty); ctx.lineTo(lx, ty + pHeadH); ctx.stroke();
+    }
+    return ty + pHeadH;
+  }
+
+  function drawProducts() {
+    var products = data.products || [];
+    var laid = products.map(function (p) {
+      var vals = [
+        p.productName || '', p.specification || '',
+        '¥' + qThousand(p.unitPrice), qQty(p.quantity), p.unit || '只',
+        '¥' + qThousand(p.amount), p.remark || ''
+      ];
+      ctx.font = pHF;
+      var lines = vals.map(function (v, ci) { return qWrap(ctx, v, pWidths[ci] - pPadX * 2); });
+      var maxL = 1;
+      lines.forEach(function (ls) { if (ls.length > maxL) maxL = ls.length; });
+      return { lines: lines, h: Math.max(pRowMin, maxL * pLineH + 10) };
+    });
+
+    if (y + pHeadH + pRowMin > contentBottom) newPage();
+    var cy = drawProdHead(y);
+
+    laid.forEach(function (r, ri) {
+      if (cy + r.h > contentBottom) {
+        newPage();
+        ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+        ctx.font = 'bold 9px sans-serif';
+        ctx.fillStyle = '#6b7280';
+        ctx.fillText('产品清单（续）', M, 24);
+        cy = drawProdHead(36);
+      }
+      if (ri % 2 === 1) cv.fillRect(ctx, M, cy, tableW, r.h, '#fafafa');
+      var cx = M;
+      for (var ci = 0; ci < pWidths.length; ci++) {
+        ctx.font = pHF;
+        ctx.fillStyle = '#1f2937';
+        ctx.textBaseline = 'top';
+        ctx.textAlign = pAligns[ci] === 'center' ? 'center' : (pAligns[ci] === 'right' ? 'right' : 'left');
+        var tx = pAligns[ci] === 'center' ? cx + pWidths[ci] / 2
+          : (pAligns[ci] === 'right' ? cx + pWidths[ci] - pPadX : cx + pPadX);
+        r.lines[ci].forEach(function (l, li) {
+          ctx.fillText(l, tx, cy + 5 + li * pLineH, pWidths[ci] - pPadX * 2);
+        });
+        cx += pWidths[ci];
+      }
+      ctx.strokeStyle = '#e5e7eb';
+      ctx.lineWidth = 0.6;
+      ctx.strokeRect(M, cy, tableW, r.h);
+      var lx = M;
+      for (var j = 0; j < pWidths.length - 1; j++) {
+        lx += pWidths[j];
+        ctx.beginPath(); ctx.moveTo(lx, cy); ctx.lineTo(lx, cy + r.h); ctx.stroke();
+      }
+      cy += r.h;
+    });
+
+    if (!laid.length) {
+      cv.fillRect(ctx, M, cy, tableW, 30, '#ffffff');
+      ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 0.6;
+      ctx.strokeRect(M, cy, tableW, 30);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = 'normal 10px sans-serif'; ctx.fillStyle = '#9ca3af';
+      ctx.fillText('（暂无产品明细）', M + tableW / 2, cy + 15);
+      cy += 30;
+    }
+    y = cy + 12;
+  }
+
+  /* ---- 主绘制 ---- */
+  function paint() {
+    /* 1. 买方抬头 */
+    y = 40;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillStyle = '#111827';
+    ctx.fillText(data.companyName || '', W / 2, y, tableW);
+    y += 22;
+    cv.drawHLine(ctx, M, y, tableW, '#111827', 1.4);
+    y += 16;
+
+    /* 2. 大标题 */
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 24px sans-serif';
+    ctx.fillStyle = '#111827';
+    ctx.fillText('采 购 合 同', W / 2, y);
+    y += 40;
+
+    /* 3. 右上合同信息（合同号/签约地/合同日期） */
+    var infoW = 250, infoX = W - M - infoW;
+    var infoRows = [
+      ['合同号：', data.contractNumber || ''],
+      ['签约地：', '常州'],
+      ['合同日期：', data.orderDate || '']
+    ];
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    infoRows.forEach(function (r, i) {
+      var ry = y + i * 19;
+      ctx.font = 'bold 10.5px sans-serif';
+      ctx.fillStyle = '#111827';
+      ctx.fillText(r[0], infoX, ry);
+      ctx.font = 'normal 10.5px sans-serif';
+      ctx.fillText(r[1], infoX + 62, ry, infoW - 62);
+    });
+    y += infoRows.length * 19 + 12;
+
+    /* 4. 买卖双方信息两栏 */
+    var colGap = 14;
+    var colW = (tableW - colGap) / 2;
+    var sup = data.supplierInfo || {};
+    var lRows = [
+      ['买方：', data.companyName || '', true],
+      ['地址：', data.buyerCompanyAddress || ''],
+      ['联系人：', data.buyerContactPerson || ''],
+      ['联系电话：', data.buyerPhoneNumber || '']
+    ];
+    var rRows = [
+      ['卖方：', sup.supplierName || '', true],
+      ['地址：', sup.companyAddress || ''],
+      ['联系人：', sup.contactPerson || ''],
+      ['联系电话：', sup.phoneNumber || ''],
+      ['邮箱：', sup.email || ''],
+      ['开户行：', sup.bankName || ''],
+      ['行号：', sup.bankCode || ''],
+      ['账号：', sup.bankAccount || '']
+    ];
+    var startY = y;
+    var hL = partyBox(M, lRows, colW);
+    y = startY;
+    var hR = partyBox(M + colW + colGap, rRows, colW);
+    y = startY + Math.max(hL, hR) + 16;
+
+    /* 5. 二、产品清单 */
+    sectionTitle('二、产品清单');
+    drawProducts();
+
+    /* 6. 订单备注 */
+    if (y + 46 > contentBottom) newPage();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.font = 'bold 10.5px sans-serif';
+    ctx.fillStyle = '#111827';
+    ctx.fillText('订单备注：', M, y);
+    y += 17;
+    var remarkLines = data.orderRemark ? wrapAt(data.orderRemark, tableW - 8, 'normal 10px sans-serif') : [];
+    if (!remarkLines.length) remarkLines = ['（无）'];
+    remarkLines.forEach(function (l) {
+      cv.drawHLine(ctx, M, y + 14, tableW, '#e5e7eb', 0.6);
+      ctx.font = 'normal 10px sans-serif';
+      ctx.fillStyle = '#374151';
+      ctx.textAlign = 'left';
+      ctx.fillText(l, M + 2, y, tableW - 8);
+      y += 19;
+    });
+    y += 10;
+
+    /* 7. 数量合计 / 总金额 / 大写 */
+    var totalQty = (data.products || []).reduce(function (s, p) { return s + (parseFloat(p.quantity) || 0); }, 0);
+    if (y + 70 > contentBottom) newPage();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillStyle = '#111827';
+    ctx.fillText('数量合计：', M, y);
+    ctx.font = 'normal 11px sans-serif';
+    ctx.fillText(qQty(totalQty), M + 70, y);
+    y += 21;
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillStyle = '#111827';
+    ctx.fillText('总金额（含税）：', M, y);
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillStyle = '#b91c1c';
+    ctx.fillText('¥' + qThousand(data.totalAmount), M + 100, y);
+    y += 21;
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillStyle = '#111827';
+    ctx.fillText('总金额（大写）：', M, y);
+    ctx.font = 'normal 11px sans-serif';
+    ctx.fillText(data.totalAmountCn || '', M + 100, y, tableW - 100);
+    y += 24;
+
+    /* 8. 三、合同条款 */
+    sectionTitle('三、合同条款');
+    var delivery = data.deliveryDate || '____年____月____日';
+    CONTRACT_TERMS.forEach(function (t, i) {
+      var text = t.replace('{delivery}', delivery);
+      var lines = wrapAt(text, tableW - 20, 'normal 10px sans-serif');
+      if (y + lines.length * 15 + 4 > contentBottom) newPage();
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.font = 'normal 10px sans-serif';
+      ctx.fillStyle = '#1f2937';
+      lines.forEach(function (l, li) {
+        if (li === 0) ctx.fillText(String(i + 1) + '.', M, y);
+        ctx.fillText(l, M + 18, y, tableW - 20);
+        y += 15;
+      });
+      y += 4;
+    });
+    y += 6;
+
+    /* 9. 签章区 */
+    var signH = 158;
+    if (y + signH + 30 > contentBottom) newPage();
+    var sGap = 14;
+    var sW = (tableW - sGap) / 2;
+    var sTop = y;
+    [M, M + sW + sGap].forEach(function (sx) {
+      cv.fillRect(ctx, sx, sTop, sW, signH, '#ffffff');
+      qRoundRect(ctx, sx, sTop, sW, signH, 6);
+      ctx.strokeStyle = '#d1d5db'; ctx.lineWidth = 1; ctx.stroke();
+    });
+    // 买方
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.font = 'bold 11.5px sans-serif';
+    ctx.fillStyle = '#111827';
+    ctx.fillText('买方（盖章）：', M + 14, sTop + 14);
+    ctx.font = 'normal 11px sans-serif';
+    ctx.fillStyle = '#374151';
+    ctx.fillText('授权代表：', M + 14, sTop + 100);
+    ctx.fillText('日期：______年______月______日', M + 14, sTop + 126);
+    // 印章（圆形裁剪，叠在买方盖章区）
+    if (chopImg) {
+      var chopSize = 112;
+      var chopX = M + 130, chopY = sTop + 16;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(chopX + chopSize / 2, chopY + chopSize / 2, chopSize / 2, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+      cv.drawImage({ ctx: ctx, img: chopImg, x: chopX, y: chopY, maxW: chopSize, maxH: chopSize });
+      ctx.restore();
+    }
+    // 卖方
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.font = 'bold 11.5px sans-serif';
+    ctx.fillStyle = '#111827';
+    ctx.fillText('卖方（盖章）：', M + sW + sGap + 14, sTop + 14);
+    ctx.font = 'normal 11px sans-serif';
+    ctx.fillStyle = '#374151';
+    ctx.fillText('授权代表：', M + sW + sGap + 14, sTop + 100);
+    ctx.fillText('日期：______年______月______日', M + sW + sGap + 14, sTop + 126);
+    y = sTop + signH + 16;
+
+    /* 10. 合同生成日期 */
+    if (y + 20 > contentBottom) newPage();
+    ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+    ctx.font = 'normal 10px sans-serif';
+    ctx.fillStyle = '#6b7280';
+    ctx.fillText('合同生成日期：' + fmt.today(), W - M, y);
+
+    /* 11. 页脚 */
+    pages.forEach(function (p, pi) {
+      var c = p.ctx;
+      c.textAlign = 'left'; c.textBaseline = 'top';
+      c.font = 'normal 9px sans-serif';
+      c.fillStyle = '#9ca3af';
+      c.fillText('采购合同 ' + (data.contractNumber || ''), M, footerY);
+      c.textAlign = 'right';
+      c.fillText('第 ' + (pi + 1) + ' / ' + pages.length + ' 页', W - M, footerY);
+    });
+  }
+
+  return chopReady.then(function () {
+    paint();
+    return pages;
+  });
+}
+
+// ============================================================
+// 供应商对账单 — A4 纵向
+// 1:1 复刻桌面版 apps/purchase-integrated/recon.html 打印区：
+//   居中标题「对 账 单」+ 右上编号 / 需方·供方 / 对账期间·制单日期 /
+//   8 列流水表（序号·日期·类型·单据号·合同号·开票金额·付款金额·累计余额）/
+//   开票合计·付款合计·未付余额 / 异议提示 / 双方确认盖章行
+// ============================================================
+function renderReconStatement(data) {
+  data = data || {};
+  var M = 40;
+  var page = cv.createPage('portrait');
+  var W = page.width, H = page.height;
+  var ctx = page.ctx;
+  var tableW = W - M * 2;
+  var footerY = H - 30;
+  var contentBottom = footerY - 16;
+  var pages = [page];
+  var y = 0;
+
+  var sCols = [0.06, 0.13, 0.09, 0.18, 0.16, 0.13, 0.13, 0.12];
+  var sHeads = ['序号', '日期', '类型', '单据号', '合同号', '开票金额(元)', '付款金额(元)', '累计余额(元)'];
+  var sAligns = ['center', 'left', 'left', 'left', 'left', 'right', 'right', 'right'];
+  var sWidths = sCols.map(function (p) { return tableW * p; });
+  var sFont = 'normal 10px sans-serif';
+  var sHeadH = 28, sRowH = 22, sPadX = 5;
+
+  function drawHead(cont) {
+    cv.fillRect(ctx, M, y, tableW, sHeadH, '#f3f4f6');
+    var cx = M;
+    for (var i = 0; i < sHeads.length; i++) {
+      ctx.font = 'bold 9.5px sans-serif';
+      ctx.fillStyle = '#111827';
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = sAligns[i] === 'center' ? 'center' : (sAligns[i] === 'right' ? 'right' : 'left');
+      var tx = sAligns[i] === 'center' ? cx + sWidths[i] / 2
+        : (sAligns[i] === 'right' ? cx + sWidths[i] - sPadX : cx + sPadX);
+      ctx.fillText(sHeads[i], tx, y + sHeadH / 2, sWidths[i] - 2);
+      cx += sWidths[i];
+    }
+    ctx.strokeStyle = '#9ca3af';
+    ctx.lineWidth = 0.7;
+    ctx.strokeRect(M, y, tableW, sHeadH);
+    var lx = M;
+    for (var j = 0; j < sWidths.length - 1; j++) {
+      lx += sWidths[j];
+      ctx.beginPath(); ctx.moveTo(lx, y); ctx.lineTo(lx, y + sHeadH); ctx.stroke();
+    }
+    y += sHeadH;
+    void cont;
+  }
+
+  function drawTitleBlock() {
+    y = 44;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.font = 'bold 19px sans-serif';
+    ctx.fillStyle = '#111827';
+    ctx.fillText('对  账  单', W / 2, y - 4);
+    ctx.textAlign = 'right';
+    ctx.font = 'normal 10px sans-serif';
+    ctx.fillStyle = '#374151';
+    ctx.fillText('编号：' + (data.docNo || ''), W - M, y);
+    y += 30;
+
+    var colW = (tableW - 16) / 2;
+    var lx = M, rx = M + colW + 16;
+    function infoRow(x, label, val) {
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.font = 'bold 10px sans-serif';
+      ctx.fillStyle = '#374151';
+      ctx.fillText(label, x, y);
+      ctx.font = 'normal 10px sans-serif';
+      ctx.fillStyle = '#111827';
+      ctx.fillText(val || '—', x + ctx.measureText(label).width + 2, y, colW - 90);
+    }
+    infoRow(lx, '需方（对账方）：', data.buyerName);
+    infoRow(rx, '供方（供应商）：', data.supplier);
+    y += 19;
+    infoRow(lx, '对账期间：', (data.dateFrom || '起始') + ' 至 ' + (data.dateTo || fmt.today()));
+    infoRow(rx, '制单日期：', fmt.today());
+    y += 19;
+    cv.drawHLine(ctx, M, y, tableW, '#d1d5db', 1);
+    y += 10;
+  }
+
+  var rows = data.rows || [];
+  drawTitleBlock();
+  drawHead(false);
+
+  if (!rows.length) {
+    cv.fillRect(ctx, M, y, tableW, 40, '#ffffff');
+    ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 0.6;
+    ctx.strokeRect(M, y, tableW, 40);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = 'normal 10px sans-serif'; ctx.fillStyle = '#9ca3af';
+    ctx.fillText('本期间内暂无往来流水。', M + tableW / 2, y + 20);
+    y += 40;
+  } else {
+    rows.forEach(function (r, ri) {
+      if (y + sRowH > contentBottom) {
+        page = cv.createPage('portrait');
+        pages.push(page);
+        ctx = page.ctx;
+        y = 36;
+        ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+        ctx.font = 'bold 9.5px sans-serif';
+        ctx.fillStyle = '#6b7280';
+        ctx.fillText('对账单 ' + (data.docNo || '') + '（续）', M, 20);
+        drawHead(true);
+      }
+      if (ri % 2 === 1) cv.fillRect(ctx, M, y, tableW, sRowH, '#fafafa');
+      var vals = [
+        String(r.seq == null ? ri + 1 : r.seq), r.date || '', r.type || '', r.docNo || '',
+        r.contractNumber || '',
+        r.invoice ? qThousand(r.invoice) : '',
+        r.payment ? qThousand(r.payment) : '',
+        qThousand(r.balance)
+      ];
+      var cx = M;
+      for (var ci = 0; ci < sWidths.length; ci++) {
+        ctx.font = sFont;
+        ctx.fillStyle = '#1f2937';
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = sAligns[ci] === 'center' ? 'center' : (sAligns[ci] === 'right' ? 'right' : 'left');
+        var tx = sAligns[ci] === 'center' ? cx + sWidths[ci] / 2
+          : (sAligns[ci] === 'right' ? cx + sWidths[ci] - sPadX : cx + sPadX);
+        ctx.fillText(String(vals[ci]), tx, y + sRowH / 2, sWidths[ci] - 2);
+        cx += sWidths[ci];
+      }
+      ctx.strokeStyle = '#e5e7eb';
+      ctx.lineWidth = 0.6;
+      ctx.strokeRect(M, y, tableW, sRowH);
+      var lx = M;
+      for (var j = 0; j < sWidths.length - 1; j++) {
+        lx += sWidths[j];
+        ctx.beginPath(); ctx.moveTo(lx, y); ctx.lineTo(lx, y + sRowH); ctx.stroke();
+      }
+      y += sRowH;
+    });
+  }
+
+  /* 汇总条 */
+  if (y + 40 > contentBottom) { page = cv.createPage('portrait'); pages.push(page); ctx = page.ctx; y = 44; }
+  cv.fillRect(ctx, M, y, tableW, 30, '#f9fafb');
+  ctx.strokeStyle = '#d1d5db'; ctx.lineWidth = 0.8;
+  ctx.strokeRect(M, y, tableW, 30);
+  var totalInv = +data.totalInvoice || 0;
+  var totalPay = +data.totalPayment || 0;
+  var bal = (data.balance == null ? totalInv - totalPay : +data.balance);
+  var stat = [
+    ['开票合计：', totalInv],
+    ['付款合计：', totalPay],
+    ['未付余额：', bal]
+  ];
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  for (var si = 0; si < stat.length; si++) {
+    var sx = M + 16 + si * (tableW / 3);
+    ctx.font = 'normal 10.5px sans-serif';
+    ctx.fillStyle = '#374151';
+    ctx.fillText(stat[si][0], sx, y + 15);
+    ctx.font = 'bold 11.5px sans-serif';
+    ctx.fillStyle = stat[si][0].indexOf('未付') === 0 ? '#b91c1c' : '#111827';
+    ctx.fillText('¥' + qThousand(stat[si][1]), sx + 60, y + 15);
+  }
+  y += 42;
+
+  /* 异议提示 */
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  ctx.font = 'normal 10px sans-serif';
+  ctx.fillStyle = '#111827';
+  var hint = '经双方核对，以上数据与双方账目相符。如有异议，请于收到本对账单后 5 个工作日内书面提出。';
+  qWrap(ctx, hint, tableW).forEach(function (l) {
+    ctx.fillText(l, M, y);
+    y += 15;
+  });
+  y += 14;
+
+  /* 双方确认盖章行 */
+  if (y + 60 > contentBottom) { page = cv.createPage('portrait'); pages.push(page); ctx = page.ctx; y = 44; }
+  var signGap = 20;
+  var signW = (tableW - signGap) / 2;
+  [M, M + signW + signGap].forEach(function (sx, i) {
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillStyle = '#111827';
+    ctx.fillText(i === 0 ? '需方确认（盖章）：' : '供方确认（盖章）：', sx, y);
+    cv.drawHLine(ctx, sx, y + 46, signW - 20, '#9ca3af', 1);
+    ctx.font = 'normal 10px sans-serif';
+    ctx.fillStyle = '#6b7280';
+    ctx.fillText('日期：', sx + signW - 130, y + 50);
+  });
+
+  /* 页脚 */
+  pages.forEach(function (p, pi) {
+    var c = p.ctx;
+    c.textAlign = 'left'; c.textBaseline = 'top';
+    c.font = 'normal 9px sans-serif';
+    c.fillStyle = '#9ca3af';
+    c.fillText('对账单 ' + (data.docNo || ''), M, footerY);
+    c.textAlign = 'center';
+    c.fillText(String(data.supplier || ''), W / 2, footerY);
+    c.textAlign = 'right';
+    c.fillText('第 ' + (pi + 1) + ' / ' + pages.length + ' 页', W - M, footerY);
+  });
+
+  return pages;
+}
+
 module.exports = {
   renderProductionNotice: renderProductionNotice,
   renderScheduleNotice: renderScheduleNotice,
@@ -1030,5 +1640,7 @@ module.exports = {
   renderInvoice: renderInvoice,
   renderPackingList: renderPackingList,
   renderCustoms: renderCustoms,
-  renderQuotation: renderQuotation
+  renderQuotation: renderQuotation,
+  renderPurchaseContract: renderPurchaseContract,
+  renderReconStatement: renderReconStatement
 };

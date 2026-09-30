@@ -1,84 +1,159 @@
 <view class="page">
-  <view class="brand">
-    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
-    <view class="brand-text">
-      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
-      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
-    </view>
+  <view class="sync-float sync-badge sync-badge-{{__syncState}}">
+    <view class="sync-dot"></view>
+    <text class="sync-text">{{__syncState === 'idle' ? '已同步' : __syncState === 'pending' ? '上传中' : __syncState === 'error' ? '上传失败' : '未连接'}}</text>
   </view>
 
-  <view class="filter-card">
-    <view class="form-row2">
-      <view class="form-item"><text class="f-label">供应商</text><input class="f-value" value="{{fSupplier}}" bindinput="f" data-k="fSupplier" /></view>
-      <picker range="{{typeOptions}}" data-k="typeIdx" bindchange="onPick">
-        <view class="form-item"><text class="f-label">付款模式</text><view class="f-value {{typeIdx === 0 ? 'placeholder' : ''}}">{{typeOptions[typeIdx]}}</view></view>
-      </picker>
-    </view>
-    <view class="form-row2">
-      <view class="form-item"><text class="f-label">从</text><input class="f-value" value="{{dateFrom}}" placeholder="YYYY-MM-DD" bindinput="f" data-k="dateFrom" /></view>
-      <view class="form-item"><text class="f-label">至</text><input class="f-value" value="{{dateTo}}" placeholder="YYYY-MM-DD" bindinput="f" data-k="dateTo" /></view>
-    </view>
-    <view class="btn-row">
-      <view class="btn btn-primary btn-sm" bindtap="search">查询</view>
-      <view class="btn btn-plain btn-sm" bindtap="resetFilter">重置</view>
-    </view>
+  <view wx:if="{{denied}}" class="card">
+    <view class="deny"><view class="deny-ico">🔒</view>当前角色无权访问「付款管理」</view>
   </view>
 
-  <view class="list-head"><text class="list-count">{{companyName}} · 共 {{list.length}} 笔</text><text class="list-sum">合计 ¥{{sumText}}</text></view>
-
-  <view class="empty" wx:if="{{list.length === 0}}"><text class="empty-icon">💳</text><text>暂无付款记录</text></view>
-
-  <view class="card" wx:for="{{list}}" wx:key="id">
-    <view class="og-head">
-      <text class="og-no">{{item.paymentNumber}}</text>
-      <text class="badge badge-purple">{{item.typeName}}</text>
+  <block wx:if="{{ready && !denied}}">
+    <view class="pg-hero">
+      <view class="pg-hero-title">付款管理</view>
+      <view class="pg-hero-sub">PAYMENT (READ-ONLY)</view>
     </view>
-    <view class="og"><text class="og-label">供应商</text><text class="og-val">{{item.supplier || '-'}}</text></view>
-    <view class="og"><text class="og-label">{{item.contractLabel}}</text><text class="og-val">{{item.contractValue || '-'}}</text></view>
-    <view class="og"><text class="og-label">付款日期</text><text class="og-val">{{item.paymentDate || '-'}}</text></view>
-    <view class="og"><text class="og-label">金额</text><text class="og-val strong">¥{{item.amountText}}</text></view>
-    <view class="og" wx:if="{{item.paymentMethod}}"><text class="og-label">付款方式</text><text class="og-val">{{item.paymentMethod}}</text></view>
-    <view class="og" wx:if="{{item.remark}}"><text class="og-label">备注</text><text class="og-val">{{item.remark}}</text></view>
-    <view class="og-actions">
-      <view class="btn btn-outline btn-sm" data-id="{{item.id}}" bindtap="edit">编辑</view>
-      <view class="btn btn-danger-ghost btn-sm" data-id="{{item.id}}" bindtap="del">删除</view>
+
+    <view class="co-bar">
+      <text class="co-name">只读映射视图</text>
+      <text class="co-role">{{isSupplier ? '供应商视角：' + kpi.supValue : '数据来自报销台账'}}</text>
     </view>
-  </view>
 
-  <view class="page-foot"></view>
-  <view class="fab" bindtap="openNew">＋</view>
+    <view class="hint">数据来自报销系统（收票付款统计 + 付款记录）· 合同 / 发票 / 付款关联核对 · 只读。付款登记请在报销系统中完成，本页自动同步。</view>
 
-  <view catchtouchmove="noop" class="mask" wx:if="{{showForm}}" bindtap="closeForm">
-    <view class="sheet" catchtap="noop">
-      <view class="sheet-title">{{form.id ? '编辑付款' : '新增付款'}}<text class="sheet-close" bindtap="closeForm">✕</text></view>
-        <scroll-view scroll-y class="sheet-body">
-
-      <view class="segment">
-        <view class="segment-item {{form.paymentType === 'contract-first' ? 'active' : ''}}" data-t="contract-first" bindtap="onType">凭合同付款</view>
-        <view class="segment-item {{form.paymentType === 'invoice-first' ? 'active' : ''}}" data-t="invoice-first" bindtap="onType">凭发票付款</view>
+    <!-- ============ KPI ============ -->
+    <view class="kpi-grid">
+      <view class="kpi-card">
+        <view class="kpi-label">{{kpi.supLabel}}</view>
+        <view class="kpi-value">{{kpi.supValue}}</view>
       </view>
+      <view class="kpi-card">
+        <view class="kpi-label">价税合计</view>
+        <view class="kpi-value">¥{{kpi.total}}</view>
+      </view>
+      <view class="kpi-card">
+        <view class="kpi-label">已付款</view>
+        <view class="kpi-value green">¥{{kpi.paid}}</view>
+      </view>
+      <view class="kpi-card">
+        <view class="kpi-label">未付欠款</view>
+        <view class="kpi-value red">¥{{kpi.owed}}</view>
+      </view>
+      <view class="kpi-card wide">
+        <view class="kpi-label">付款进度</view>
+        <view class="kpi-value">{{kpi.pct}}%</view>
+        <view class="kpi-sub">{{kpi.doneTxt}}</view>
+        <view class="bar-track" style="margin-top:12rpx"><view class="bar-fill green" style="width:{{kpi.pct}}%"></view></view>
+      </view>
+    </view>
 
-      <view class="form-item" wx:if="{{form.paymentType === 'invoice-first'}}"><text class="f-label">关联发票号</text><input class="f-value" value="{{form.invoiceNumbers}}" placeholder="多个用英文逗号分隔" bindinput="onInput" data-k="invoiceNumbers" /></view>
-      <view class="form-item" wx:if="{{form.paymentType === 'contract-first'}}"><text class="f-label">合同编号</text><input class="f-value" value="{{form.contractNumber}}" placeholder="多个用英文逗号分隔" bindinput="onInput" data-k="contractNumber" /></view>
-
-      <view class="form-item"><text class="f-label">供应商</text>
-        <picker range="{{supplierNames}}" bindchange="onSupplier">
-          <view class="f-value {{form.supplier ? '' : 'placeholder'}}">{{form.supplier || '选择供应商'}}</view>
-        </picker>
+    <!-- ============ 筛选 ============ -->
+    <view class="card">
+      <view class="form-item">
+        <text class="f-label">🔍</text>
+        <input value="{{kw}}" placeholder="供应商 / 发票号 / 合同号 / 品名" bindinput="onSearch" />
       </view>
       <view class="form-row2">
-        <view class="form-item"><text class="f-label">付款日期</text><picker mode="date" value="{{form.paymentDate}}" bindchange="onDate" data-k="paymentDate"><view class="f-value {{form.paymentDate ? '' : 'placeholder'}}">{{form.paymentDate || '选择'}}</view></picker></view>
-        <view class="form-item"><text class="f-label">金额 <text class="req">*</text></text><input class="f-value" type="digit" value="{{form.amount}}" bindinput="onInput" data-k="amount" /></view>
+        <picker range="{{payOptions}}" value="{{payIdx}}" bindchange="onPay">
+          <view class="form-item"><text class="f-label">付款状态</text><text class="f-value">{{payOptions[payIdx]}}</text></view>
+        </picker>
+        <view class="form-item"><text class="f-label">涉及供应商</text><text class="f-value">{{groupCount}} 家</text></view>
       </view>
-      <view class="form-item"><text class="f-label">付款方式</text><input class="f-value" value="{{form.paymentMethod}}" placeholder="如 银行转账 / 承兑" bindinput="onInput" data-k="paymentMethod" /></view>
-      <view class="form-item ta"><text class="f-label">备注</text><textarea class="f-value" value="{{form.remark}}" bindinput="onInput" data-k="remark" auto-height /></view>
+      <view class="toolbar">
+        <view class="btn btn-outline btn-sm" bindtap="resetFilter">重置</view>
+        <view class="btn btn-outline btn-sm" bindtap="refresh">⟳ 刷新</view>
+        <view class="btn btn-outline btn-sm" bindtap="goRecon">⚖️ 对账</view>
+        <view class="btn btn-outline btn-sm" bindtap="goInvoice">🧾 开票</view>
+      </view>
+    </view>
 
-      <view class="btn-row">
-        <view class="btn btn-success" bindtap="save">保存</view>
-        <view class="btn btn-plain" bindtap="closeForm">取消</view>
+    <!-- ============ 供应商付款总览 ============ -->
+    <view class="sec-title">供应商付款总览<text class="sec-sub">（口径同报销系统收票付款统计：正常付款、非驳回的进项发票；点击「明细」逐张核对）</text></view>
+
+    <view wx:if="{{!groups.length}}" class="card">
+      <view class="empty"><view class="empty-icon">💳</view>
+        {{isSupplier ? '报销系统中暂无与您相关的发票付款数据' : '暂无数据'}}
       </view>
-    
-        </scroll-view>
+    </view>
+
+    <view class="card" wx:for="{{groups}}" wx:key="supplier" wx:for-item="g">
+      <view class="card-head">
+        <view class="ch-l">
+          <view class="ch-title">{{g.supplier}}</view>
+          <view class="ch-sub">{{g.cnt}} 张发票{{g.last ? ' · 最近付款 ' + g.last : ''}}</view>
+        </view>
+        <view class="ch-r"><text class="badge {{g.statusClass}}">{{g.statusText}}</text></view>
       </view>
-  </view>
+
+      <view class="mini-grid">
+        <view class="mini"><view class="ml">价税合计</view><view class="mv sm blue">¥{{g.total}}</view></view>
+        <view class="mini"><view class="ml">已付款</view><view class="mv sm green">¥{{g.paid}}</view></view>
+        <view class="mini"><view class="ml">未付欠款</view><view class="mv sm {{g.owed === '0.00' ? '' : 'red'}}">¥{{g.owed}}</view></view>
+        <view class="mini"><view class="ml">付款进度</view><view class="mv sm">{{g.pct}}%</view></view>
+      </view>
+
+      <view class="prog">
+        <view class="bar-track"><view class="bar-fill green" style="width:{{g.pct}}%"></view></view>
+        <text class="prog-txt">{{g.pct}}%</text>
+      </view>
+      <view class="prog-line subtle" wx:if="{{g.contractsText}}">关联合同：{{g.contractsText}}</view>
+
+      <view class="card-acts">
+        <view class="btn btn-outline btn-sm" data-name="{{g.supplier}}" bindtap="toggleGroup">{{g.open ? '收起 ▲' : '明细 ▼'}}</view>
+      </view>
+
+      <!-- 展开：逐张发票核对 -->
+      <block wx:if="{{g.open}}">
+        <view class="sec-title-sm">逐张核对（{{g.children.length}} 张）</view>
+        <view class="dline" wx:for="{{g.children}}" wx:for-item="c" wx:key="invoiceNumber">
+          <view class="dl-top">
+            <text class="dl-name">{{c.invoiceNumber}}</text>
+            <text class="dl-amt">¥{{c.total}}</text>
+          </view>
+          <view class="dl-sub">{{c.invoiceType}}{{c.invoiceDate ? ' · ' + c.invoiceDate : ''}}{{c.itemName ? ' · ' + c.itemName : ''}}</view>
+          <view class="dl-sub">已付 ¥{{c.paid}}{{c.left ? ' · 未付 ¥' + c.left : ''}} · {{c.statusText}}</view>
+          <view class="dl-sub" wx:if="{{c.payDate || c.method}}">付款 {{c.payDate || '-'}}{{c.method ? ' · ' + c.method : ''}}</view>
+          <view class="dl-sub" wx:if="{{c.contractNumber}}">合同 {{c.contractNumber}}</view>
+        </view>
+      </block>
+    </view>
+
+    <view class="toolbar" style="margin-bottom:20rpx">
+      <view class="btn btn-outline btn-sm" bindtap="exportGroups">📤 导出总览CSV</view>
+    </view>
+
+    <!-- ============ 付款记录明细 ============ -->
+    <view class="sec-title">付款记录明细<text class="sec-sub">（口径同报销系统付款记录：已登记付款的发票）</text></view>
+
+    <view wx:if="{{!rows.length}}" class="card">
+      <view class="empty"><view class="empty-icon">📄</view>暂无付款记录</view>
+    </view>
+
+    <view class="card" wx:for="{{rows}}" wx:key="paymentNumber" wx:for-item="r">
+      <view class="card-head">
+        <view class="ch-l">
+          <view class="ch-title">{{r.paymentNumber}}</view>
+          <view class="ch-sub">{{r.paymentDate || '无付款日期'}}{{r.method ? ' · ' + r.method : ''}}</view>
+        </view>
+        <view class="ch-r"><text class="badge {{r.statusClass}}">{{r.statusText}}</text></view>
+      </view>
+      <view class="mini-grid">
+        <view class="mini"><view class="ml">已付金额</view><view class="mv sm green">¥{{r.amount}}</view></view>
+        <view class="mini"><view class="ml">价税合计</view><view class="mv sm blue">¥{{r.total}}</view></view>
+        <view class="mini"><view class="ml">未付差额</view><view class="mv sm {{r.left ? 'red' : ''}}">{{r.left ? '¥' + r.left : '—'}}</view></view>
+        <view class="mini"><view class="ml">开票日期</view><view class="mv sm">{{r.invoiceDate || '-'}}</view></view>
+      </view>
+      <view class="kv"><text class="k">收款对象</text><text class="v">{{r.payeeLabel}}{{r.payee ? ' · ' + r.payee : ''}}</text></view>
+      <view class="kv"><text class="k">发票 / 类型</text><text class="v">{{r.paymentNumber}}{{r.invoiceType ? ' · ' + r.invoiceType : ''}}</text></view>
+      <view class="kv" wx:if="{{r.itemName}}"><text class="k">品名</text><text class="v">{{r.itemName}}</text></view>
+      <view class="kv" wx:if="{{r.contractNumber}}"><text class="k">关联合同</text><text class="v">{{r.contractNumber}}</text></view>
+      <view class="kv" wx:if="{{r.remark}}"><text class="k">备注</text><text class="v">{{r.remark}}</text></view>
+    </view>
+
+    <view class="toolbar" wx:if="{{rows.length}}">
+      <view class="btn btn-outline btn-sm" bindtap="exportRows">📤 导出明细CSV（{{rowCount}} 笔 · 已付 ¥{{rowPaid}}）</view>
+    </view>
+
+    <view class="page-foot"></view>
+  </block>
 </view>

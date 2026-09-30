@@ -1,72 +1,209 @@
 <view class="page">
-  <view class="brand">
-    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
-    <view class="brand-text">
-      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
-      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
-    </view>
+  <view class="sync-float sync-badge sync-badge-{{__syncState}}">
+    <view class="sync-dot"></view>
+    <text class="sync-text">{{__syncState === 'idle' ? '已同步' : __syncState === 'pending' ? '上传中' : __syncState === 'error' ? '上传失败' : '未连接'}}</text>
   </view>
 
-  <view class="filter-card">
-    <view class="form-row2">
-      <view class="form-item"><text class="f-label">发票号</text><input class="f-value" value="{{kw}}" bindinput="f" data-k="kw" /></view>
-      <view class="form-item"><text class="f-label">供应商</text><input class="f-value" value="{{fSupplier}}" bindinput="f" data-k="fSupplier" /></view>
-    </view>
-    <picker range="{{statusOptions}}" data-k="statusIdx" bindchange="onPick">
-      <view class="form-item"><text class="f-label">付款状态</text><view class="f-value {{statusIdx === 0 ? 'placeholder' : ''}}">{{statusOptions[statusIdx]}}</view></view>
-    </picker>
-    <view class="btn-row">
-      <view class="btn btn-primary btn-sm" bindtap="search">查询</view>
-      <view class="btn btn-plain btn-sm" bindtap="resetFilter">重置</view>
-    </view>
+  <view wx:if="{{denied}}" class="card">
+    <view class="deny"><view class="deny-ico">🔒</view>当前角色无权访问「开票管理」</view>
   </view>
 
-  <view class="list-head"><text class="list-count">{{companyName}} · 共 {{list.length}} 张</text><text class="list-sum">合计 ¥{{sumText}}</text></view>
-
-  <view class="empty" wx:if="{{list.length === 0}}"><text class="empty-icon">🧾</text><text>暂无发票记录</text></view>
-
-  <view class="card" wx:for="{{list}}" wx:key="id">
-    <view class="og-head">
-      <text class="og-no">{{item.invoiceNumber || '-'}}</text>
-      <text class="badge {{item.statusClass}}">{{item.status}}</text>
+  <block wx:if="{{ready && !denied}}">
+    <view class="pg-hero">
+      <view class="pg-hero-title">开票管理</view>
+      <view class="pg-hero-sub">INVOICE LEDGER</view>
     </view>
-    <view class="og"><text class="og-label">供应商</text><text class="og-val">{{item.supplier || '-'}}</text></view>
-    <view class="og"><text class="og-label">关联合同</text><text class="og-val">{{item.purchaseOrder || '-'}}</text></view>
-    <view class="og"><text class="og-label">开票日期</text><text class="og-val">{{item.invoiceDate || '-'}}</text></view>
-    <view class="og"><text class="og-label">金额</text><text class="og-val strong">¥{{item.amountText}}</text></view>
-    <view class="og" wx:if="{{item.remark}}"><text class="og-label">备注</text><text class="og-val">{{item.remark}}</text></view>
-    <view class="og-actions">
-      <view class="btn btn-outline btn-sm" data-id="{{item.id}}" bindtap="edit">编辑</view>
-      <view class="btn btn-danger-ghost btn-sm" data-id="{{item.id}}" bindtap="del">删除</view>
+
+    <view class="co-bar">
+      <text class="co-name">{{canWrite ? '采购 / 财务开票台' : '只读视图'}}</text>
+      <text class="co-role">报销台账 {{reimCount}} 张</text>
     </view>
-  </view>
 
-  <view class="page-foot"></view>
-  <view class="fab" bindtap="openNew">＋</view>
+    <!-- 页签 -->
+    <view class="tabs">
+      <view class="tab {{tab === 0 ? 'active' : ''}}" data-i="0" bindtap="onTab">{{tabNames[0]}}</view>
+      <view class="tab {{tab === 1 ? 'active' : ''}}" data-i="1" bindtap="onTab">{{tabNames[1]}}</view>
+    </view>
 
-  <view catchtouchmove="noop" class="mask" wx:if="{{showForm}}" bindtap="closeForm">
-    <view class="sheet" catchtap="noop">
-      <view class="sheet-title">{{form.id ? '编辑发票' : '新增发票'}}<text class="sheet-close" bindtap="closeForm">✕</text></view>
-        <scroll-view scroll-y class="sheet-body">
-      <view class="form-item"><text class="f-label">发票号 <text class="req">*</text></text><input class="f-value" value="{{form.invoiceNumber}}" bindinput="onInput" data-k="invoiceNumber" /></view>
-      <view class="form-row2">
-        <view class="form-item"><text class="f-label">开票日期</text><picker mode="date" value="{{form.invoiceDate}}" bindchange="onDate" data-k="invoiceDate"><view class="f-value {{form.invoiceDate ? '' : 'placeholder'}}">{{form.invoiceDate || '选择'}}</view></picker></view>
-        <view class="form-item"><text class="f-label">金额 <text class="req">*</text></text><input class="f-value" type="digit" value="{{form.amount}}" bindinput="onInput" data-k="amount" /></view>
-      </view>
-      <view class="form-item"><text class="f-label">关联合同号</text><input class="f-value" value="{{form.purchaseOrder}}" placeholder="多个用英文逗号分隔" bindinput="onInput" data-k="purchaseOrder" /></view>
-      <view class="form-item"><text class="f-label">供应商</text>
-        <picker range="{{supplierNames}}" bindchange="onSupplier">
-          <view class="f-value {{form.supplier ? '' : 'placeholder'}}">{{form.supplier || '选择供应商'}}</view>
+    <!-- ================= 登记发票 ================= -->
+    <block wx:if="{{tab === 0}}">
+      <view class="hint" wx:if="{{!canWrite}}">当前角色为只读，仅可查看发票台账（请切换到「发票台账」页签）。</view>
+      <view class="hint" wx:else>付款状态 / 付款日期 / 审核状态均来自报销系统，本页无需手工登记付款。提交后状态变为「待审核」。</view>
+
+      <view class="card">
+        <view class="form-item">
+          <text class="f-label">发票号码 <text class="req">*</text></text>
+          <input value="{{form.invoiceNumber}}" data-k="invoiceNumber" bindinput="onField" placeholder="价税合计为必填" />
+        </view>
+        <view class="form-row2">
+          <picker mode="date" value="{{form.invoiceDate}}" bindchange="onDate">
+            <view class="form-item"><text class="f-label">开票日期</text><text class="f-value">{{form.invoiceDate || '选择'}}</text></view>
+          </picker>
+          <picker range="{{typeOptions}}" value="{{typeIdx}}" bindchange="onType">
+            <view class="form-item"><text class="f-label">发票类型</text><text class="f-value">{{typeOptions[typeIdx]}}</text></view>
+          </picker>
+        </view>
+        <view class="form-item">
+          <text class="f-label">销售方 <text class="req">*</text></text>
+          <input value="{{form.supplier}}" data-k="supplier" bindinput="onField" placeholder="供应商名称" />
+          <text class="pick-btn" catchtap="pickSupplier">选</text>
+        </view>
+        <view class="form-item">
+          <text class="f-label">购买方</text>
+          <input value="{{form.buyerName}}" data-k="buyerName" bindinput="onField" placeholder="留空则用公司抬头" />
+        </view>
+        <view class="form-item">
+          <text class="f-label">货物 / 品名</text>
+          <input value="{{form.itemName}}" data-k="itemName" bindinput="onField" placeholder="影响会计科目自动归类" />
+        </view>
+        <view class="form-item">
+          <text class="f-label">关联合同</text>
+          <input value="{{form.contractNumber}}" data-k="contractNumber" bindinput="onField" placeholder="可多个，逗号分隔" />
+          <text class="pick-btn" catchtap="pickContract">选</text>
+        </view>
+
+        <view class="form-row2">
+          <view class="form-item"><text class="f-label">不含税金额</text><input type="digit" value="{{form.netAmount}}" data-k="netAmount" bindinput="onField" /></view>
+          <view class="form-item"><text class="f-label">税额</text><input type="digit" value="{{form.taxAmount}}" data-k="taxAmount" bindinput="onField" /></view>
+        </view>
+        <view class="form-row2">
+          <view class="form-item"><text class="f-label">价税合计 <text class="req">*</text></text><input type="digit" value="{{form.amount}}" data-k="amount" bindinput="onField" /></view>
+          <view class="form-item"><text class="f-label">税率</text><input value="{{form.taxRate}}" data-k="taxRate" bindinput="onField" placeholder="如 13%" /></view>
+        </view>
+        <view class="prog-line subtle">不含税 / 税额 / 价税合计 三者自动互推：改动任一项会补齐其余两项（无明细时可按税率反推）。</view>
+
+        <picker range="{{subjectOptions}}" value="{{subjectIdx}}" bindchange="onSubject">
+          <view class="form-item"><text class="f-label">会计科目</text><text class="f-value">{{subjectOptions[subjectIdx]}}</text></view>
         </picker>
+        <view class="prog-line subtle" wx:if="{{form.subjectCode}}">已归类：{{form.subjectCode}} {{form.subjectName}}</view>
+
+        <view class="form-item ta">
+          <text class="f-label">备注</text>
+          <textarea value="{{form.remark}}" data-k="remark" bindinput="onField" auto-height maxlength="-1" />
+        </view>
+
+        <view class="btn-row">
+          <view class="btn btn-plain" bindtap="cancelForm">重置</view>
+          <view class="btn btn-primary" bindtap="saveInvoice" wx:if="{{canWrite}}">{{form.id ? '保存修改' : '登记发票'}}</view>
+        </view>
       </view>
-      <view class="form-item ta"><text class="f-label">备注</text><textarea class="f-value" value="{{form.remark}}" bindinput="onInput" data-k="remark" auto-height /></view>
-      <view class="calc-line">付款状态由「付款管理」按发票号自动回写</view>
-      <view class="btn-row">
-        <view class="btn btn-success" bindtap="save">保存</view>
-        <view class="btn btn-plain" bindtap="closeForm">取消</view>
+
+      <view class="card" wx:if="{{openContracts.length}}">
+        <view class="sec-title-sm">未开票合同参考 <text class="sec-sub">（供「关联合同」选择）</text></view>
+        <view class="dline" wx:for="{{openContracts}}" wx:key="contractNumber" wx:for-item="o">
+          <view class="dl-top"><text class="dl-name">{{o.contractNumber}}</text><text class="dl-amt">待开 ¥{{o.left}}</text></view>
+          <view class="dl-sub">{{o.supplier}} · 合同 ¥{{o.totalAmount}} · 已开 ¥{{o.invoiced}}</view>
+        </view>
       </view>
-    
-        </scroll-view>
+    </block>
+
+    <!-- ================= 发票台账 ================= -->
+    <block wx:else>
+      <view class="card">
+        <view class="form-item">
+          <text class="f-label">🔍</text>
+          <input value="{{kw}}" placeholder="发票号/供应商/品名/合同号/科目" bindinput="onSearch" />
+        </view>
+        <view class="form-row2">
+          <picker range="{{payOptions}}" value="{{payIdx}}" bindchange="onPay">
+            <view class="form-item"><text class="f-label">付款状态</text><text class="f-value">{{payOptions[payIdx]}}</text></view>
+          </picker>
+          <picker range="{{auditOptions}}" value="{{auditIdx}}" bindchange="onAudit">
+            <view class="form-item"><text class="f-label">审核状态</text><text class="f-value">{{auditOptions[auditIdx]}}</text></view>
+          </picker>
+        </view>
+        <view class="mini-grid">
+          <view class="mini"><view class="ml">筛出张数</view><view class="mv sm">{{total}}</view></view>
+          <view class="mini"><view class="ml">价税合计</view><view class="mv blue sm">¥{{sumAmount}}</view></view>
+          <view class="mini"><view class="ml">已付款</view><view class="mv green sm">¥{{sumPaid}}</view></view>
+          <view class="mini"><view class="ml">未付差额</view><view class="mv red sm">¥{{sumWait}}</view></view>
+        </view>
+        <view class="toolbar">
+          <view class="btn btn-outline btn-sm" bindtap="resetFilter">重置</view>
+          <view class="btn btn-outline btn-sm" bindtap="exportCSV">导出CSV</view>
+          <view class="btn btn-outline btn-sm" bindtap="importCSV" wx:if="{{canWrite}}">导入CSV</view>
+          <view class="btn btn-outline btn-sm" bindtap="pullReim">⟳ 同步报销</view>
+          <view class="btn btn-outline btn-sm" bindtap="goPayment">💳 付款管理</view>
+          <view class="btn btn-danger-ghost btn-sm" bindtap="clearAll" wx:if="{{canWrite}}">清空</view>
+        </view>
       </view>
+
+      <view wx:if="{{!list.length}}" class="card">
+        <view class="empty"><view class="empty-icon">🧾</view>暂无匹配的发票</view>
+      </view>
+
+      <view class="card" wx:for="{{list}}" wx:key="id" wx:for-item="v">
+        <view class="card-head">
+          <view class="ch-l">
+            <view class="ch-title">{{v.invoiceNumber}}</view>
+            <view class="ch-sub">{{v.supplier}}{{v.invoiceType ? ' · ' + v.invoiceType : ''}}</view>
+          </view>
+          <view class="ch-r">
+            <text class="badge {{v.payClass}}">{{v.payText}}</text>
+            <view class="prog-line subtle" style="margin-top:6rpx"><text class="badge {{v.auditClass}}">{{v.audit}}</text></view>
+          </view>
+        </view>
+
+        <view class="mini-grid">
+          <view class="mini"><view class="ml">开票日期</view><view class="mv sm">{{v.invoiceDate || '-'}}</view></view>
+          <view class="mini"><view class="ml">价税合计</view><view class="mv blue sm">¥{{v.amount}}</view></view>
+          <view class="mini"><view class="ml">已付款</view><view class="mv green sm">¥{{v.paid}}</view></view>
+          <view class="mini"><view class="ml">未付差额</view><view class="mv {{v.waitCls}}">¥{{v.wait}}</view></view>
+        </view>
+
+        <view class="prog-line">不含税 ¥{{v.netAmount}} ｜ 税额 ¥{{v.taxAmount}}{{v.taxRate ? ' ｜ 税率 ' + v.taxRate : ''}}</view>
+        <view class="prog-line">科目 {{v.subjectCode || '-'}} {{v.subjectName}}{{v.contractNumber ? ' ｜ 合同 ' + v.contractNumber : ''}}</view>
+        <view class="prog-line subtle" wx:if="{{v.payDate || v.payMethod}}">付款 {{v.payDate || '-'}}{{v.payMethod ? ' · ' + v.payMethod : ''}}{{v.payNote ? ' · ' + v.payNote : ''}}</view>
+        <view class="prog-line subtle" wx:if="{{v.reimComment}}">驳回原因：{{v.reimComment}}</view>
+
+        <view class="card-acts">
+          <view class="btn btn-outline btn-sm" data-id="{{v.id}}" bindtap="openDetail">明细</view>
+          <view class="btn btn-outline btn-sm" data-id="{{v.id}}" bindtap="editRow" wx:if="{{canWrite}}">编辑</view>
+          <view class="btn btn-primary btn-sm" data-id="{{v.id}}" bindtap="submitReim" wx:if="{{canWrite && v.canSubmit}}">提交报销</view>
+          <view class="btn btn-danger-ghost btn-sm" data-id="{{v.id}}" bindtap="delRow" wx:if="{{canWrite}}">删除</view>
+        </view>
+      </view>
+
+      <view class="page-foot"></view>
+    </block>
+  </block>
+
+  <!-- 明细弹层 -->
+  <view catchtouchmove="noop" class="mask" wx:if="{{detail}}" bindtap="closeDetail">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">发票明细<text class="sheet-close" bindtap="closeDetail">×</text></view>
+      <scroll-view scroll-y class="sheet-body">
+        <view class="card">
+          <view class="card-head">
+            <view class="ch-l">
+              <view class="ch-title">{{detail.invoiceNumber}}</view>
+              <view class="ch-sub">{{detail.supplier}}</view>
+            </view>
+            <text class="badge {{detail.payClass}}">{{detail.payText}}</text>
+          </view>
+          <view class="kv"><text class="k">发票类型</text><text class="v">{{detail.invoiceType || '-'}}</text></view>
+          <view class="kv"><text class="k">开票日期</text><text class="v">{{detail.invoiceDate || '-'}}</text></view>
+          <view class="kv"><text class="k">购买方</text><text class="v">{{detail.buyerName || '-'}}</text></view>
+          <view class="kv"><text class="k">货物 / 品名</text><text class="v">{{detail.itemName || '-'}}</text></view>
+          <view class="kv"><text class="k">不含税金额</text><text class="v">¥{{detail.netAmount}}</text></view>
+          <view class="kv"><text class="k">税额</text><text class="v">¥{{detail.taxAmount}}{{detail.taxRate ? ' (' + detail.taxRate + ')' : ''}}</text></view>
+          <view class="kv"><text class="k">价税合计</text><text class="v strong">¥{{detail.amount}}</text></view>
+          <view class="kv"><text class="k">已付款 / 未付</text><text class="v">¥{{detail.paid}} / ¥{{detail.wait}}</text></view>
+          <view class="kv"><text class="k">付款日期</text><text class="v">{{detail.payDate || '-'}}</text></view>
+          <view class="kv"><text class="k">付款方式</text><text class="v">{{detail.payMethod || '-'}}</text></view>
+          <view class="kv"><text class="k">付款备注</text><text class="v">{{detail.payNote || '-'}}</text></view>
+          <view class="kv"><text class="k">会计科目</text><text class="v">{{detail.subjectCode || '-'}} {{detail.subjectName}}</text></view>
+          <view class="kv"><text class="k">关联合同</text><text class="v">{{detail.contractNumber || '-'}}</text></view>
+          <view class="kv"><text class="k">审核状态</text><text class="v">{{detail.audit}}</text></view>
+          <view class="kv" wx:if="{{detail.reimComment}}"><text class="k">驳回原因</text><text class="v">{{detail.reimComment}}</text></view>
+          <view class="kv"><text class="k">数据来源</text><text class="v">{{detail.source || '手工录入'}}</text></view>
+          <view class="kv" wx:if="{{detail.remark}}"><text class="k">备注</text><text class="v">{{detail.remark}}</text></view>
+        </view>
+        <view class="btn-row">
+          <view class="btn btn-primary" data-id="{{detail.id}}" bindtap="submitReim" wx:if="{{canWrite && detail.canSubmit}}">提交报销</view>
+          <view class="btn btn-plain" bindtap="closeDetail">关闭</view>
+        </view>
+      </scroll-view>
+    </view>
   </view>
 </view>

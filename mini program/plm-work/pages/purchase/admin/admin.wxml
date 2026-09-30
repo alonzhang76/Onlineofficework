@@ -1,0 +1,216 @@
+<view class="page">
+  <view class="sync-float sync-badge sync-badge-{{__syncState}}">
+    <view class="sync-dot"></view>
+    <text class="sync-text">{{__syncState === 'idle' ? '已同步' : __syncState === 'pending' ? '上传中' : __syncState === 'error' ? '上传失败' : '未连接'}}</text>
+  </view>
+
+  <view wx:if="{{denied}}" class="card">
+    <view class="deny"><view class="deny-ico">🔒</view>仅管理员可访问「系统管理」</view>
+  </view>
+
+  <block wx:if="{{ready && !denied}}">
+    <view class="pg-hero">
+      <view class="pg-hero-title">系统管理</view>
+      <view class="pg-hero-sub">ADMIN CONSOLE</view>
+    </view>
+
+    <view class="co-bar">
+      <text class="co-name">用户 · 角色权限 · 公司抬头 · 数据与云</text>
+      <text class="co-role">{{cloudOn ? '云端已连接' : '未配置云端'}}</text>
+    </view>
+
+    <view class="tabs">
+      <view class="tab {{tab === 'user' ? 'active' : ''}}" data-i="0" bindtap="onTab">{{tabNames[0]}}</view>
+      <view class="tab {{tab === 'role' ? 'active' : ''}}" data-i="1" bindtap="onTab">{{tabNames[1]}}</view>
+    </view>
+    <view class="tabs">
+      <view class="tab {{tab === 'company' ? 'active' : ''}}" data-i="2" bindtap="onTab">{{tabNames[2]}}</view>
+      <view class="tab {{tab === 'data' ? 'active' : ''}}" data-i="3" bindtap="onTab">{{tabNames[3]}}</view>
+    </view>
+
+    <!-- ==================== 用户管理 ==================== -->
+    <block wx:if="{{tab === 'user'}}">
+      <view class="hint">共 {{users.length}} 个用户 · 供应商角色用户只能查看自己名下数据。</view>
+
+      <view class="toolbar">
+        <view class="btn btn-primary btn-sm" bindtap="openUserAdd">＋ 新建用户</view>
+      </view>
+
+      <view wx:if="{{!users.length}}" class="card"><view class="empty"><view class="empty-icon">👤</view>暂无用户</view></view>
+
+      <view class="card" wx:for="{{users}}" wx:key="id" wx:for-item="u">
+        <view class="card-head">
+          <view class="ch-l">
+            <view class="ch-title">{{u.name}}</view>
+            <view class="ch-sub">@{{u.username}}{{u.supplierName ? ' · ' + u.supplierName : ''}}</view>
+          </view>
+          <view class="ch-r">
+            <text class="badge {{u.roleClass}}">{{u.roleName}}</text>
+          </view>
+        </view>
+        <view class="kv"><text class="k">状态</text><text class="v"><text class="badge {{u.activeClass}}">{{u.activeText}}</text></text></view>
+        <view class="kv"><text class="k">创建时间</text><text class="v">{{u.createdAt || '-'}}</text></view>
+        <view class="card-acts">
+          <view class="btn btn-outline btn-sm" data-id="{{u.id}}" bindtap="openUserEdit">编辑</view>
+          <view class="btn btn-outline btn-sm" data-id="{{u.id}}" bindtap="resetPwd">重置密码</view>
+          <view class="btn btn-outline btn-sm" data-id="{{u.id}}" bindtap="toggleActive">{{u.active ? '停用' : '启用'}}</view>
+          <view class="btn btn-danger-ghost btn-sm" data-id="{{u.id}}" bindtap="delUser" wx:if="{{u.canDelete}}">删除</view>
+        </view>
+      </view>
+
+      <view class="page-foot"></view>
+    </block>
+
+    <!-- ==================== 角色权限 ==================== -->
+    <block wx:elif="{{tab === 'role'}}">
+      <view class="hint">读写 = 可查看并操作；只读 = 仅查看（不可新增/编辑/删除/导入/清空）；不显示 = 导航菜单中隐藏该模块。「管理员」「供应商」为系统内置角色不可删除。</view>
+
+      <view class="toolbar" style="margin-bottom:20rpx">
+        <view class="btn btn-primary btn-sm" bindtap="addRole">＋ 新建角色</view>
+      </view>
+
+      <view class="tb-wrap">
+        <view class="perm-matrix">
+          <view class="pm-row pm-head">
+            <view class="pm-cell pm-mod">模块</view>
+            <view class="pm-cell" wx:for="{{roleCols}}" wx:key="id" wx:for-item="rc">
+              {{rc.name}}<text class="pm-lock" wx:if="{{rc.locked}}">内置</text>
+              <view class="pm-del" wx:if="{{!rc.locked}}" data-id="{{rc.id}}" bindtap="delRole">删除</view>
+            </view>
+          </view>
+
+          <view class="pm-row" wx:for="{{matrix}}" wx:key="key" wx:for-item="row">
+            <view class="pm-cell pm-mod">{{row.name}}</view>
+            <view class="pm-cell" wx:for="{{row.cells}}" wx:key="roleId" wx:for-item="c">
+              <text class="pm-ro" wx:if="{{c.roleKey === 'admin'}}">读写</text>
+              <picker wx:else range="{{permOptions}}" value="{{c.idx}}" data-rid="{{c.roleId}}" data-pkey="{{row.key}}" bindchange="onPerm">
+                <view class="pm-sel {{c.value}}">{{c.label}}</view>
+              </picker>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <view class="page-foot"></view>
+    </block>
+
+    <!-- ==================== 公司抬头 ==================== -->
+    <block wx:elif="{{tab === 'company'}}">
+      <view class="hint">业务数据按公司主体隔离，切换公司后各模块仅显示当前公司数据。</view>
+
+      <view class="toolbar" style="margin-bottom:20rpx">
+        <view class="btn btn-primary btn-sm" bindtap="openCompanyAdd">＋ 添加公司抬头</view>
+      </view>
+
+      <view class="card" wx:for="{{companies}}" wx:key="code" wx:for-item="c">
+        <view class="card-head">
+          <view class="ch-l">
+            <view class="ch-title">{{c.code}}<text class="pm-lock" wx:if="{{c.isCurrent}}">当前</text></view>
+            <view class="ch-sub">{{c.name}}</view>
+          </view>
+          <view class="ch-r"><text class="badge badge-blue">{{c.contracts}} 份合同</text></view>
+        </view>
+        <view class="card-acts">
+          <view class="btn btn-outline btn-sm" data-code="{{c.code}}" bindtap="switchCompany" wx:if="{{!c.isCurrent}}">切换</view>
+          <view class="btn btn-outline btn-sm" data-code="{{c.code}}" bindtap="openCompanyEdit">编辑</view>
+          <view class="btn btn-danger-ghost btn-sm" data-code="{{c.code}}" bindtap="delCompany">删除</view>
+        </view>
+      </view>
+
+      <view class="page-foot"></view>
+    </block>
+
+    <!-- ==================== 数据与云 ==================== -->
+    <block wx:else>
+      <view class="card">
+        <view class="sec-title">云端数据<text class="sec-sub">（自动同步约每 15 秒轮询）</text></view>
+        <view class="kv"><text class="k">云端配置</text><text class="v">{{cloudOn ? '已配置' : '未配置（仅本地使用）'}}</text></view>
+        <view class="kv"><text class="k">同步状态</text><text class="v">{{syncState === 'idle' ? '已同步' : syncState === 'pending' ? '上传中' : syncState === 'error' ? '上传失败' : '未连接'}}</text></view>
+        <view class="prog-line subtle">{{backupInfo}}</view>
+        <view class="toolbar">
+          <view class="btn btn-outline btn-sm" bindtap="cloudPull">⬇️ 云端下载</view>
+          <view class="btn btn-outline btn-sm" bindtap="cloudPush">💾 提交上传</view>
+        </view>
+      </view>
+
+      <view class="card">
+        <view class="sec-title">本地备份<text class="sec-sub">（JSON，与电脑端互通）</text></view>
+        <view class="prog-line subtle">备份包含用户、角色、供应商及全部业务数据；恢复将覆盖当前本地数据，并自动重新上传云端。</view>
+        <view class="toolbar">
+          <view class="btn btn-primary btn-sm" bindtap="exportBackup">⬇ 备份到文件（JSON）</view>
+          <view class="btn btn-outline btn-sm" bindtap="importBackup">⬆ 从备份恢复</view>
+        </view>
+      </view>
+
+      <view class="card">
+        <view class="sec-title">业务数据概览</view>
+        <view class="kv" wx:for="{{counts}}" wx:key="key" wx:for-item="c">
+          <text class="k">{{c.label}}</text><text class="v">{{c.n}} 条</text>
+        </view>
+      </view>
+
+      <view class="card danger-card">
+        <view class="sec-title danger-title">危险操作</view>
+        <view class="prog-line subtle">仅保留用户 / 角色 / 公司 / 供应商结构，业务单据全部清空，请先备份！</view>
+        <view class="toolbar">
+          <view class="btn btn-danger btn-sm" bindtap="clearBiz">清空本地业务数据</view>
+        </view>
+      </view>
+
+      <view class="page-foot"></view>
+    </block>
+  </block>
+
+  <!-- 用户表单 -->
+  <view catchtouchmove="noop" class="mask" wx:if="{{userModal}}" bindtap="closeUserModal">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">{{userIsEdit ? '编辑用户' : '新建用户'}}<text class="sheet-close" bindtap="closeUserModal">×</text></view>
+      <scroll-view scroll-y class="sheet-body">
+        <view class="form-item">
+          <text class="f-label">用户名 <text class="req">*</text></text>
+          <input value="{{userForm.username}}" data-k="username" bindinput="onUserField" disabled="{{userIsEdit}}" />
+        </view>
+        <view class="form-item">
+          <text class="f-label">姓名</text>
+          <input value="{{userForm.name}}" data-k="name" bindinput="onUserField" />
+        </view>
+        <view class="form-item" wx:if="{{!userIsEdit}}">
+          <text class="f-label">初始密码 <text class="req">*</text></text>
+          <input value="{{userForm.pwdPlain}}" data-k="pwdPlain" bindinput="onUserField" placeholder="至少4位" />
+        </view>
+        <picker range="{{roleOptions}}" value="{{roleIdx}}" bindchange="onUserRole">
+          <view class="form-item"><text class="f-label">角色 <text class="req">*</text></text><text class="f-value">{{roleOptions[roleIdx]}}</text></view>
+        </picker>
+        <picker wx:if="{{showSupplier}}" range="{{supplierOptions}}" value="{{supplierIdx}}" bindchange="onUserSupplier">
+          <view class="form-item"><text class="f-label">关联供应商 <text class="req">*</text></text><text class="f-value {{supplierIdx > 0 ? '' : 'placeholder'}}">{{supplierOptions[supplierIdx]}}</text></view>
+        </picker>
+        <view class="hint">供应商角色用户登录后，仅能看到其关联供应商名下的合同、发货、收货、发票、付款与对账数据。</view>
+        <view class="btn-row">
+          <view class="btn btn-plain" bindtap="closeUserModal">取消</view>
+          <view class="btn btn-primary" bindtap="saveUser">保存</view>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+
+  <!-- 公司抬头表单 -->
+  <view catchtouchmove="noop" class="mask" wx:if="{{companyModal}}" bindtap="closeCompanyModal">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">{{companyIsEdit ? '编辑公司抬头' : '添加公司抬头'}}<text class="sheet-close" bindtap="closeCompanyModal">×</text></view>
+      <scroll-view scroll-y class="sheet-body">
+        <view class="form-item">
+          <text class="f-label">简称 <text class="req">*</text></text>
+          <input value="{{companyForm.code}}" data-k="code" bindinput="onCompanyField" disabled="{{companyIsEdit}}" placeholder="如：龙力 / 普利美" />
+        </view>
+        <view class="form-item">
+          <text class="f-label">公司名称 <text class="req">*</text></text>
+          <input value="{{companyForm.name}}" data-k="name" bindinput="onCompanyField" />
+        </view>
+        <view class="btn-row">
+          <view class="btn btn-plain" bindtap="closeCompanyModal">取消</view>
+          <view class="btn btn-primary" bindtap="saveCompany">保存</view>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+</view>

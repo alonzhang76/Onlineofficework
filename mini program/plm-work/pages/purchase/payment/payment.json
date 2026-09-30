@@ -1,5 +1,5 @@
 {
-  "navigationBarTitleText": "采购 · 付款管理",
-  "navigationBarBackgroundColor": "#F2F2F7",
-  "backgroundColor": "#F2F2F7"
+  "navigationBarTitleText": "付款管理",
+  "enablePullDownRefresh": true,
+  "backgroundTextStyle": "dark"
 }

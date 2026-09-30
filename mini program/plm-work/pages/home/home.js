@@ -87,7 +87,10 @@ Page({
     const tradeDebts = tradeDb.generateDebtStatistics();
     const tradeDebtCNY = tradeDb.getTotalDebtCNY(tradeDebts);
     const schedOrders = scheduleDb.data.production_orders_data.length;
-    const purchTotal = purchaseDb.getStats('companyA').purchaseTotal + purchaseDb.getStats('companyB').purchaseTotal;
+    // 采购总额：直接统计全部采购合同（跨公司主体，不按当前所选主体过滤）
+    const purchOrders = purchaseDb.all('orders');
+    const purchTotal = purchOrders.reduce((s, o) => s + purchaseDb.num(o.totalAmount), 0);
+    const purchCount = purchOrders.length;
     const incStatsA = incomeDb.getStats('company1');
     const incStatsB = incomeDb.getStats('company2');
     const incBalance = incStatsA.balance + incStatsB.balance;
@@ -117,7 +120,7 @@ Page({
         o.locked = !(app.globalData && app.globalData.scheduleUnlocked);
       } else if (a.key === 'purchase') {
         o.stat = fmt.fmtMoney(purchTotal);
-        o.statLabel = '采购总额(双公司)';
+        o.statLabel = '采购总额(' + purchCount + '份合同)';
       } else if (a.key === 'income') {
         o.stat = fmt.fmtMoney(incBalance);
         o.statLabel = '账户结余(双公司)';
@@ -143,6 +146,7 @@ Page({
       { app: 'trade', label: '欠款(CNY)', value: fmt.fmtMoney(tradeDebtCNY), color: '#FF9500' },
       { app: 'schedule', label: '排程订单', value: schedOrders, color: '#FF9500' },
       { app: 'purchase', label: '采购总额', value: fmt.fmtMoney(purchTotal), color: '#5856D6' },
+      { app: 'purchase', label: '采购合同', value: purchCount + ' 份', color: '#5856D6' },
       { app: 'income', label: '收支结余', value: fmt.fmtMoney(incBalance), color: '#00C7BE' },
       { app: 'reimbursement', label: '报销总额', value: fmt.fmtMoney(reimStats.total), color: '#FF6B35' },
       { app: 'reimbursement', label: '待审核发票', value: reimPending.count + ' 笔', color: '#FF9500' }

@@ -82,10 +82,45 @@ function chooseCSV(callback) {
   });
 }
 
+/** 通用文本文件导出（分享失败退剪贴板） */
+function exportText(fileName, content, done) {
+  exportFile(fileName, content, done);
+}
+
+/** 导出 JSON 备份文件（与桌面端「备份到电脑」格式一致） */
+function exportJSON(fileName, obj, done) {
+  exportText(fileName, JSON.stringify(obj, null, 2), done);
+}
+
+/** 选择会话中的 JSON 文件并解析，callback(objOrNull, fileName) */
+function chooseJSON(callback) {
+  wx.chooseMessageFile({
+    count: 1,
+    type: 'file',
+    extension: ['json'],
+    success(res) {
+      const f = res.tempFiles && res.tempFiles[0];
+      if (!f) return;
+      const fs = wx.getFileSystemManager();
+      fs.readFile({
+        filePath: f.path,
+        encoding: 'utf8',
+        success(r) {
+          let obj = null;
+          try { obj = JSON.parse(r.data); } catch (e) { obj = null; }
+          callback(obj, f.name);
+        },
+        fail() { wx.showToast({ title: '文件读取失败', icon: 'none' }); }
+      });
+    },
+    fail() { /* 用户取消 */ }
+  });
+}
+
 /** Excel 风格日期单元格解析（兼容序列号与字符串） */
 function parseCellDate(v) {
   if (typeof v === 'number') return fmt.excelDate(v);
   return fmt.fmtDate(v);
 }
 
-module.exports = { toCSV, parseCSV, exportFile, chooseCSV, parseCellDate };
+module.exports = { toCSV, parseCSV, exportFile, exportText, exportJSON, chooseCSV, chooseJSON, parseCellDate };

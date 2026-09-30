@@ -10,7 +10,7 @@ PostgreSQL 数据库与云存储中。
 | AA服装外贸系统 | `apps/saintysys/` | 邮箱登录 + `app_data_store` |
 | 计件工资管理 | `apps/wage/` | 邮箱登录（auth-guard 强制）+ `app_data_store`（裸 `wage_*` 键） |
 | 炉架订单管理 | `apps/wicketorders/` | 共享账号静默登录，`wicketorders__*` 键 |
-| 采购管理 | `apps/purchase/` | 共享账号静默登录，`purchase__*` 键 |
+| 采购管理 | `apps/purchase-integrated/` | 共享账号静默登录，`purchase-integrated__*` 键（11 模块一体化） |
 | 订单统计 | `apps/orderschedule/` | 共享账号静默登录，`orderschedule__*` 键 |
 | 收支表 | `apps/incomeexpense/` | 共享账号静默登录，`incomeexpense__*` 键 |
 | 不锈钢贸易管理 | `apps/stainlessbusiness/` | 共享账号静默登录，`stainlessbusiness__*` 键 |

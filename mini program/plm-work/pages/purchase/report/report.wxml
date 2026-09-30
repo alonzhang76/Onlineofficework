@@ -1,41 +1,100 @@
 <view class="page">
-  <view class="brand">
-    <view class="brand-logo"><text class="brand-logo-text">普</text></view>
-    <view class="brand-text">
-      <view class="brand-name">普利美（常州）环境工程科技有限公司</view>
-      <view class="brand-name-en">PULIMEI (CHANGZHOU) ENVIRONMENTAL ENGINEERING TECHNOLOGY CO., LTD.</view>
+  <view class="sync-float sync-badge sync-badge-{{__syncState}}">
+    <view class="sync-dot"></view>
+    <text class="sync-text">{{__syncState === 'idle' ? '已同步' : __syncState === 'pending' ? '上传中' : __syncState === 'error' ? '上传失败' : '未连接'}}</text>
+  </view>
+
+  <view wx:if="{{denied}}" class="card">
+    <view class="deny"><view class="deny-ico">🔒</view>当前角色无权访问「数据统计」</view>
+  </view>
+
+  <block wx:if="{{ready && !denied}}">
+    <view class="pg-hero">
+      <view class="pg-hero-title">数据统计</view>
+      <view class="pg-hero-sub">ANALYTICS</view>
     </view>
-  </view>
 
-  <view class="kpi-grid">
-    <view class="kpi-card"><text class="kpi-label">采购总额</text><text class="kpi-value">¥{{stats.purchaseTotalText}}</text></view>
-    <view class="kpi-card"><text class="kpi-label">发票总额</text><text class="kpi-value orange">¥{{stats.invoiceTotalText}}</text></view>
-    <view class="kpi-card"><text class="kpi-label">付款总额</text><text class="kpi-value green">¥{{stats.paymentTotalText}}</text></view>
-    <view class="kpi-card"><text class="kpi-label">应付净额</text><text class="kpi-value {{stats.payable > 0 ? 'red' : ''}}">¥{{stats.payableText}}</text></view>
-  </view>
+    <view class="co-bar">
+      <text class="co-name">合同 · 开票 · 付款 · 供应商维度汇总</text>
+      <text class="co-role">当前公司主体</text>
+    </view>
 
-  <view class="card">
-    <view class="sec-title">单据统计</view>
-    <view class="cell"><view class="cell-label">采购订单</view><view class="cell-value strong">{{stats.orderCount}} 单</view></view>
-    <view class="cell"><view class="cell-label">合同台账</view><view class="cell-value strong">{{stats.contractCount}} 份</view></view>
-    <view class="cell"><view class="cell-label">发票记录</view><view class="cell-value strong">{{stats.invoiceCount}} 张</view></view>
-    <view class="cell"><view class="cell-label">付款记录</view><view class="cell-value strong">{{stats.paymentCount}} 笔</view></view>
-  </view>
-
-  <view class="card">
-    <view class="sec-title">按供应商汇总（应付 = 发票 − 付款）</view>
-    <view class="empty" wx:if="{{stats.bySupplier.length === 0}}"><text class="empty-icon">📈</text><text>暂无数据</text></view>
-    <view class="rank-row" wx:for="{{stats.bySupplier}}" wx:key="name">
-      <view class="rank-main">
-        <text class="rank-name">{{item.name}}</text>
-        <text class="rank-sub">{{item.orderCount}} 单 · 采购 ¥{{item.purchaseTotalText}}</text>
+    <!-- KPI -->
+    <view class="kpi-grid">
+      <view class="kpi-card">
+        <view class="kpi-label">合同总金额</view>
+        <view class="kpi-value">¥{{kpi.totalAmount}}</view>
+        <view class="kpi-sub">{{kpi.orderCount}} 份合同</view>
       </view>
-      <view class="rank-side">
-        <text class="rank-amt">应付 ¥{{item.unpaidText}}</text>
-        <text class="rank-sub">发票 ¥{{item.invoiceTotalText}} · 付款 ¥{{item.paymentTotalText}}</text>
+      <view class="kpi-card">
+        <view class="kpi-label">开票总额</view>
+        <view class="kpi-value">¥{{kpi.invoiced}}</view>
+        <view class="kpi-sub">开票率 {{kpi.invoiceRate}}%</view>
+      </view>
+      <view class="kpi-card">
+        <view class="kpi-label">付款总额</view>
+        <view class="kpi-value green">¥{{kpi.paid}}</view>
+        <view class="kpi-sub">待付 ¥{{kpi.waitPay}}</view>
+      </view>
+      <view class="kpi-card">
+        <view class="kpi-label">收退货数量</view>
+        <view class="kpi-value orange">{{kpi.recvTotal}} / {{kpi.retTotal}}</view>
+        <view class="kpi-sub">累计收货 / 退货</view>
       </view>
     </view>
-  </view>
 
-  <view class="page-foot"></view>
+    <view class="toolbar">
+      <view class="btn btn-outline btn-sm" bindtap="goRecon">⚖️ 对账管理</view>
+      <view class="btn btn-outline btn-sm" bindtap="goPayment">💳 付款管理</view>
+    </view>
+
+    <!-- 供应商维度汇总 -->
+    <view class="sec-title">供应商维度汇总<text class="sec-sub">（按合同金额降序）</text></view>
+
+    <view wx:if="{{!bySupplier.length}}" class="card">
+      <view class="empty"><view class="empty-icon">📊</view>暂无数据</view>
+    </view>
+
+    <view class="card" wx:else>
+      <view class="bar-row" wx:for="{{bySupplier}}" wx:key="name" wx:for-item="s">
+        <view class="br-top">
+          <text class="br-name">{{s.name}}<text class="br-cnt">{{s.cnt}}单</text></text>
+          <text class="br-val">¥{{s.amount}}</text>
+        </view>
+        <view class="bar-track"><view class="bar-fill" style="width:{{s.pct}}%"></view></view>
+        <view class="br-sub">开票 ¥{{s.inv}} ｜ 付款 ¥{{s.pay}} ｜ 待付 ¥{{s.wait}}</view>
+      </view>
+    </view>
+
+    <view class="toolbar" wx:if="{{bySupplier.length}}">
+      <view class="btn btn-outline btn-sm" bindtap="exportCSV">📤 导出供应商汇总</view>
+    </view>
+
+    <!-- 月度趋势 -->
+    <view class="sec-title">月度趋势<text class="sec-sub">（最近 12 个月，倒序）</text></view>
+
+    <view wx:if="{{!months.length}}" class="card">
+      <view class="empty"><view class="empty-icon">📈</view>暂无数据</view>
+    </view>
+
+    <block wx:else>
+      <view class="card" wx:for="{{months}}" wx:key="month" wx:for-item="m">
+        <view class="card-head">
+          <view class="ch-l"><view class="ch-title">{{m.month}}</view></view>
+          <view class="ch-r"><text class="badge badge-blue">合同 ¥{{m.amt}}</text></view>
+        </view>
+        <view class="mini-grid">
+          <view class="mini"><view class="ml">合同金额</view><view class="mv sm blue">¥{{m.amt}}</view></view>
+          <view class="mini"><view class="ml">开票金额</view><view class="mv sm">{{m.inv ? '¥' + m.inv : '—'}}</view></view>
+          <view class="mini"><view class="ml">付款金额</view><view class="mv sm green">{{m.pay ? '¥' + m.pay : '—'}}</view></view>
+        </view>
+      </view>
+
+      <view class="toolbar">
+        <view class="btn btn-outline btn-sm" bindtap="exportMonths">📤 导出月度趋势</view>
+      </view>
+    </block>
+
+    <view class="page-foot"></view>
+  </block>
 </view>

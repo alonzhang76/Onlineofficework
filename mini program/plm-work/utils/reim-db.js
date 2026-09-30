@@ -368,6 +368,11 @@ function saveInvoice(form) {
     settle: form.settle || (old && old.settle) || '正常付款',
     payee: form.payee || (old && old.payee) || '销售方',
     paid_amount: num(form.paid_amount !== undefined ? form.paid_amount : (old ? old.paid_amount : 0)) || 0,
+    // 付款流水字段由电脑端报销系统写入（付款登记）；小程序无付款入口，
+    // 编辑发票时必须原样保留，否则会把电脑端登记过的付款日期/方式/备注清空。
+    payment_date: old ? (old.payment_date || null) : null,
+    payment_method: old ? (old.payment_method || null) : null,
+    payment_note: old ? (old.payment_note || null) : null,
     cloud_path: form.cloud_path || (old && old.cloud_path) || null,
     file_path: (old && old.file_path) || null,
     created_at: old ? old.created_at : now,

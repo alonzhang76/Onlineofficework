@@ -1,0 +1,258 @@
+<view class="page">
+  <view class="sync-float sync-badge sync-badge-{{__syncState}}">
+    <view class="sync-dot"></view>
+    <text class="sync-text">{{__syncState === 'idle' ? '已同步' : __syncState === 'pending' ? '上传中' : __syncState === 'error' ? '上传失败' : '未连接'}}</text>
+  </view>
+
+  <view wx:if="{{denied}}" class="card">
+    <view class="deny"><view class="deny-ico">🔒</view>当前角色无权访问「收货管理」</view>
+  </view>
+
+  <block wx:if="{{ready && !denied}}">
+    <view class="pg-hero">
+      <view class="pg-hero-title">收货管理</view>
+      <view class="pg-hero-sub">GOODS RECEIPT</view>
+    </view>
+
+    <view class="co-bar">
+      <text class="co-name">{{canWrite ? '采购员工作台' : '只读视图'}}</text>
+      <text class="co-role">待确认 {{stat.pending}} ｜ 差异 {{stat.diff}}</text>
+    </view>
+
+    <!-- 页签 -->
+    <scroll-view scroll-x class="tabs-scroll">
+      <view class="tabs-inline">
+        <view class="tab-pill {{tabIdx === index ? 'active' : ''}}" wx:for="{{tabs}}" wx:key="key" data-i="{{index}}" bindtap="onTab">
+          {{item.name}}{{index === 0 && stat.pending ? ' ' + stat.pending : ''}}
+        </view>
+      </view>
+    </scroll-view>
+
+    <view class="card">
+      <view class="form-item">
+        <text class="f-label">🔍</text>
+        <input value="{{kw}}" placeholder="单号/合同号/供应商/产品/收货人" bindinput="onSearch" />
+      </view>
+      <view class="toolbar">
+        <view class="btn btn-outline btn-sm" bindtap="exportCSV">导出本页签</view>
+        <view class="btn btn-outline btn-sm" bindtap="importReceiptCSV" wx:if="{{canWrite && tab === 'receipt'}}">导入收货</view>
+        <view class="btn btn-danger-ghost btn-sm" bindtap="clearReceipts" wx:if="{{canWrite && tab === 'receipt'}}">清空收货</view>
+      </view>
+    </view>
+
+    <!-- ============ 待确认到货 ============ -->
+    <block wx:if="{{tab === 'pending'}}">
+      <view wx:if="{{!pendingList.length}}" class="card"><view class="empty"><view class="empty-icon">✅</view>没有待确认的到货</view></view>
+      <view class="card" wx:for="{{pendingList}}" wx:key="id" wx:for-item="o">
+        <view class="card-head">
+          <view class="ch-l">
+            <view class="ch-title">{{o.shipNumber}}<text class="dot-new" wx:if="{{o.isNew}}">新</text></view>
+            <view class="ch-sub">{{o.contractNumber}} · {{o.supplier}}</view>
+          </view>
+          <text class="badge {{o.statusClass}}">{{o.status}}</text>
+        </view>
+        <view class="mini-grid">
+          <view class="mini"><view class="ml">产品</view><view class="mv sm">{{o.product}}</view></view>
+          <view class="mini"><view class="ml">发货数量</view><view class="mv sm blue">{{o.quantity}}</view></view>
+          <view class="mini"><view class="ml">已确认</view><view class="mv sm green">{{o.done}}</view></view>
+          <view class="mini"><view class="ml">待收</view><view class="mv sm orange">{{o.remain}}</view></view>
+        </view>
+        <view class="prog-line">发货日期 {{o.shipDate || '-'}}</view>
+        <view class="card-acts">
+          <view class="btn btn-primary btn-sm" data-id="{{o.id}}" bindtap="openConfirm" wx:if="{{canWrite}}">确认到货</view>
+        </view>
+      </view>
+    </block>
+
+    <!-- ============ 收货记录 ============ -->
+    <block wx:if="{{tab === 'receipt'}}">
+      <view wx:if="{{!receiptList.length}}" class="card"><view class="empty"><view class="empty-icon">📥</view>暂无收货记录</view></view>
+      <view class="card" wx:for="{{receiptList}}" wx:key="id" wx:for-item="r">
+        <view class="card-head">
+          <view class="ch-l">
+            <view class="ch-title">{{r.receiptNumber}}</view>
+            <view class="ch-sub">{{r.contractNumber}} · {{r.supplier}}</view>
+          </view>
+          <view class="ch-r"><text class="badge badge-green">{{r.quantity}}</text></view>
+        </view>
+        <view class="kv"><text class="k">产品</text><text class="v">{{r.product}}</text></view>
+        <view class="kv"><text class="k">收货日期 / 收货人</text><text class="v">{{r.receiptDate || '-'}} ｜ {{r.person || '—'}}</text></view>
+        <view class="kv"><text class="k">来源</text><text class="v">{{r.sourceText}}{{r.shipNumber ? ' · ' + r.shipNumber : ''}}</text></view>
+        <view class="kv" wx:if="{{r.remark}}"><text class="k">备注</text><text class="v">{{r.remark}}</text></view>
+        <view class="card-acts">
+          <view class="btn btn-outline btn-sm" data-id="{{r.id}}" bindtap="editReceipt" wx:if="{{canWrite}}">编辑</view>
+          <view class="btn btn-danger-ghost btn-sm" data-id="{{r.id}}" bindtap="delReceipt" wx:if="{{canWrite}}">删除</view>
+        </view>
+      </view>
+      <view class="fab" bindtap="openReceiptAdd" wx:if="{{canWrite}}">＋</view>
+    </block>
+
+    <!-- ============ 数量差异 ============ -->
+    <block wx:if="{{tab === 'diff'}}">
+      <view wx:if="{{!diffList.length}}" class="card"><view class="empty"><view class="empty-icon">⚖️</view>实收与合同数量一致，无差异</view></view>
+      <view class="card" wx:for="{{diffList}}" wx:key="id" wx:for-item="d">
+        <view class="card-head">
+          <view class="ch-l">
+            <view class="ch-title">{{d.product}}</view>
+            <view class="ch-sub">{{d.contractNumber}} · {{d.supplier}}</view>
+          </view>
+          <view class="ch-r">
+            <text class="badge {{d.diff > 0 ? 'badge-orange' : 'badge-red'}}">{{d.type}}</text>
+          </view>
+        </view>
+        <view class="mini-grid">
+          <view class="mini"><view class="ml">合同数量</view><view class="mv sm">{{d.ordered}}</view></view>
+          <view class="mini"><view class="ml">实收合计</view><view class="mv sm blue">{{d.received}}</view></view>
+          <view class="mini"><view class="ml">退货</view><view class="mv sm">{{d.returned}}</view></view>
+          <view class="mini"><view class="ml">差异</view><view class="mv sm {{d.diff > 0 ? 'orange' : 'red'}}">{{d.diff}}</view></view>
+        </view>
+        <view class="card-acts">
+          <view class="btn btn-outline btn-sm" data-id="{{d.id}}" bindtap="adjustFromDiff" wx:if="{{canWrite}}">按实收调整合同</view>
+        </view>
+      </view>
+    </block>
+
+    <!-- ============ 退货记录 ============ -->
+    <block wx:if="{{tab === 'return'}}">
+      <view wx:if="{{!returnList.length}}" class="card"><view class="empty"><view class="empty-icon">↩️</view>暂无退货记录</view></view>
+      <view class="card" wx:for="{{returnList}}" wx:key="id" wx:for-item="r">
+        <view class="card-head">
+          <view class="ch-l">
+            <view class="ch-title">{{r.returnNumber}}</view>
+            <view class="ch-sub">{{r.contractNumber}} · {{r.supplier}}</view>
+          </view>
+          <view class="ch-r"><text class="badge badge-red">-{{r.quantity}}</text></view>
+        </view>
+        <view class="kv"><text class="k">产品</text><text class="v">{{r.product}}</text></view>
+        <view class="kv"><text class="k">退货日期</text><text class="v">{{r.returnDate || '-'}}</text></view>
+        <view class="kv" wx:if="{{r.reason}}"><text class="k">退货原因</text><text class="v">{{r.reason}}</text></view>
+        <view class="card-acts">
+          <view class="btn btn-outline btn-sm" data-id="{{r.id}}" bindtap="editReturn" wx:if="{{canWrite}}">编辑</view>
+          <view class="btn btn-danger-ghost btn-sm" data-id="{{r.id}}" bindtap="delReturn" wx:if="{{canWrite}}">删除</view>
+        </view>
+      </view>
+      <view class="fab" bindtap="openReturnAdd" wx:if="{{canWrite}}">＋</view>
+    </block>
+
+    <!-- ============ 库存统计 ============ -->
+    <block wx:if="{{tab === 'inventory'}}">
+      <view class="card">
+        <view class="sec-title">结存合计 <text class="sec-sub">已收货 − 已退货</text></view>
+        <view class="sum-line"><text>当前范围结存数量</text><text class="sl-val">{{stat.balance}}</text></view>
+      </view>
+      <view wx:if="{{!inventoryList.length}}" class="card"><view class="empty"><view class="empty-icon">📦</view>暂无库存数据</view></view>
+      <view class="card" wx:for="{{inventoryList}}" wx:key="id" wx:for-item="r">
+        <view class="card-head">
+          <view class="ch-l">
+            <view class="ch-title">{{r.product}}</view>
+            <view class="ch-sub">{{r.contractNumber}} · {{r.supplier}}</view>
+          </view>
+          <view class="ch-r"><text class="badge badge-blue">结存 {{r.balance}}{{r.unit}}</text></view>
+        </view>
+        <view class="mini-grid">
+          <view class="mini"><view class="ml">合同数量</view><view class="mv sm">{{r.ordered}}</view></view>
+          <view class="mini"><view class="ml">已收货</view><view class="mv sm green">{{r.received}}</view></view>
+          <view class="mini"><view class="ml">已退货</view><view class="mv sm">{{r.returned}}</view></view>
+          <view class="mini"><view class="ml">收货进度</view><view class="mv sm blue">{{r.progress}}%</view></view>
+        </view>
+        <view class="prog"><view class="bar-track"><view class="bar-fill {{r.progress >= 100 ? 'green' : ''}}" style="width:{{r.progress}}%"></view></view></view>
+      </view>
+    </block>
+
+    <view class="page-foot"></view>
+  </block>
+
+  <!-- 确认到货 -->
+  <view catchtouchmove="noop" class="mask" wx:if="{{cf}}" bindtap="closeConfirm">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">确认到货<text class="sheet-close" bindtap="closeConfirm">×</text></view>
+      <scroll-view scroll-y class="sheet-body">
+        <view class="card">
+          <view class="kv"><text class="k">发货单号</text><text class="v mono">{{cf.shipNumber}}</text></view>
+          <view class="kv"><text class="k">合同号 / 供应商</text><text class="v">{{cf.contractNumber}} · {{cf.supplier}}</text></view>
+          <view class="kv"><text class="k">产品</text><text class="v">{{cf.product}}</text></view>
+          <view class="kv"><text class="k">发货 / 已确认 / 待收</text><text class="v">{{cf.shipQty}} / {{cf.done}} / {{cf.remain}}</text></view>
+        </view>
+        <view class="form-item">
+          <text class="f-label">本次实收数量 <text class="req">*</text></text>
+          <input type="digit" value="{{cf.qty}}" data-k="qty" bindinput="cfField" />
+        </view>
+        <picker mode="date" value="{{cf.date}}" bindchange="cfDate">
+          <view class="form-item"><text class="f-label">收货日期</text><text class="f-value">{{cf.date}}</text></view>
+        </picker>
+        <view class="form-item"><text class="f-label">收货人</text><input value="{{cf.person}}" data-k="person" bindinput="cfField" /></view>
+        <view class="form-item ta">
+          <text class="f-label">差异 / 反馈</text>
+          <textarea value="{{cf.remark}}" data-k="remark" bindinput="cfField" auto-height maxlength="-1" placeholder="将同步给供应商（如缺少数量、包装破损等）" />
+        </view>
+        <view class="hint">支持分批到货：实收小于发货数量时状态为「部分确认」，剩余仍在待确认列表。实收超过合同时会询问是否按实收调整合同。</view>
+        <view class="btn-row">
+          <view class="btn btn-plain" bindtap="closeConfirm">取消</view>
+          <view class="btn btn-primary" bindtap="saveConfirm">确认收货</view>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+
+  <!-- 收货记录表单 -->
+  <view catchtouchmove="noop" class="mask" wx:if="{{rcModal}}" bindtap="closeReceipt">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">{{rcEditId ? '编辑收货记录' : '登记收货'}}<text class="sheet-close" bindtap="closeReceipt">×</text></view>
+      <scroll-view scroll-y class="sheet-body">
+        <view class="form-item"><text class="f-label">收货单号</text><input value="{{rc.receiptNumber}}" data-k="receiptNumber" bindinput="rcField" placeholder="自动生成" /></view>
+        <picker range="{{rcContractOptions}}" value="{{rcContractIdx}}" bindchange="rcContract">
+          <view class="form-item"><text class="f-label">合同号 <text class="req">*</text></text><text class="f-value">{{rcContractOptions[rcContractIdx]}}</text></view>
+        </picker>
+        <picker range="{{rcProductOptions}}" value="{{rcProductIdx}}" bindchange="rcProduct">
+          <view class="form-item"><text class="f-label">产品 <text class="req">*</text></text><text class="f-value">{{rcProductOptions[rcProductIdx]}}</text></view>
+        </picker>
+        <view class="form-row2">
+          <view class="form-item"><text class="f-label">实收数量 <text class="req">*</text></text><input type="digit" value="{{rc.quantity}}" data-k="quantity" bindinput="rcField" /></view>
+          <picker mode="date" value="{{rc.receiptDate}}" bindchange="rcDate">
+            <view class="form-item"><text class="f-label">收货日期</text><text class="f-value">{{rc.receiptDate}}</text></view>
+          </picker>
+        </view>
+        <view class="form-item"><text class="f-label">收货人</text><input value="{{rc.person}}" data-k="person" bindinput="rcField" /></view>
+        <view class="form-item ta">
+          <text class="f-label">备注</text>
+          <textarea value="{{rc.remark}}" data-k="remark" bindinput="rcField" auto-height maxlength="-1" />
+        </view>
+        <view class="btn-row">
+          <view class="btn btn-plain" bindtap="closeReceipt">取消</view>
+          <view class="btn btn-primary" bindtap="saveReceipt">保存</view>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+
+  <!-- 退货表单 -->
+  <view catchtouchmove="noop" class="mask" wx:if="{{rtModal}}" bindtap="closeReturn">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">{{rtEditId ? '编辑退货记录' : '登记退货'}}<text class="sheet-close" bindtap="closeReturn">×</text></view>
+      <scroll-view scroll-y class="sheet-body">
+        <view class="form-item"><text class="f-label">退货单号</text><input value="{{rt.returnNumber}}" data-k="returnNumber" bindinput="rtField" placeholder="自动生成" /></view>
+        <picker range="{{rtContractOptions}}" value="{{rtContractIdx}}" bindchange="rtContract">
+          <view class="form-item"><text class="f-label">合同号 <text class="req">*</text></text><text class="f-value">{{rtContractOptions[rtContractIdx]}}</text></view>
+        </picker>
+        <picker range="{{rtProductOptions}}" value="{{rtProductIdx}}" bindchange="rtProduct">
+          <view class="form-item"><text class="f-label">产品 <text class="req">*</text></text><text class="f-value">{{rtProductOptions[rtProductIdx]}}</text></view>
+        </picker>
+        <view class="form-row2">
+          <view class="form-item"><text class="f-label">退货数量 <text class="req">*</text></text><input type="digit" value="{{rt.quantity}}" data-k="quantity" bindinput="rtField" /></view>
+          <picker mode="date" value="{{rt.returnDate}}" bindchange="rtDate">
+            <view class="form-item"><text class="f-label">退货日期</text><text class="f-value">{{rt.returnDate}}</text></view>
+          </picker>
+        </view>
+        <view class="form-item ta">
+          <text class="f-label">退货原因</text>
+          <textarea value="{{rt.reason}}" data-k="reason" bindinput="rtField" auto-height maxlength="-1" />
+        </view>
+        <view class="hint">退货数量会在「库存统计」中冲减结存，并在「数量差异」中计入净收货。</view>
+        <view class="btn-row">
+          <view class="btn btn-plain" bindtap="closeReturn">取消</view>
+          <view class="btn btn-primary" bindtap="saveReturn">保存</view>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,250 @@
+<view class="page">
+  <view class="sync-float sync-badge sync-badge-{{__syncState}}">
+    <view class="sync-dot"></view>
+    <text class="sync-text">{{__syncState === 'idle' ? '已同步' : __syncState === 'pending' ? '上传中' : __syncState === 'error' ? '上传失败' : '未连接'}}</text>
+  </view>
+
+  <view wx:if="{{denied}}" class="card">
+    <view class="deny"><view class="deny-ico">🔒</view>当前角色无权访问「对账管理」</view>
+  </view>
+
+  <block wx:if="{{ready && !denied}}">
+    <view class="pg-hero">
+      <view class="pg-hero-title">对账管理</view>
+      <view class="pg-hero-sub">RECONCILIATION</view>
+    </view>
+
+    <view class="co-bar">
+      <text class="co-name">合同三流对账（货 / 票 / 款）</text>
+      <text class="co-role">{{isSupplier ? '供应商视角' : '全公司视角'}}</text>
+    </view>
+
+    <view class="tabs">
+      <view class="tab {{tab === 'ledger' ? 'active' : ''}}" data-i="0" bindtap="onTab">{{tabNames[0]}}</view>
+      <view class="tab {{tab === 'statement' ? 'active' : ''}}" data-i="1" bindtap="onTab">{{tabNames[1]}}</view>
+    </view>
+
+    <!-- ==================== 合同对账总表 ==================== -->
+    <block wx:if="{{tab === 'ledger'}}">
+      <view class="kpi-grid">
+        <view class="kpi-card">
+          <view class="kpi-label">合同总数</view>
+          <view class="kpi-value">{{kpi.total}}</view>
+          <view class="kpi-sub">金额 ¥{{kpi.totalAmt}}</view>
+        </view>
+        <view class="kpi-card">
+          <view class="kpi-label">未执行</view>
+          <view class="kpi-value">{{kpi.idle}}</view>
+          <view class="kpi-sub">¥{{kpi.idleAmt}} · 未送货未开票未付款</view>
+        </view>
+        <view class="kpi-card">
+          <view class="kpi-label">执行中</view>
+          <view class="kpi-value orange">{{kpi.run}}</view>
+          <view class="kpi-sub">金额 ¥{{kpi.runAmt}}</view>
+        </view>
+        <view class="kpi-card">
+          <view class="kpi-label">已执行完</view>
+          <view class="kpi-value green">{{kpi.done}}</view>
+          <view class="kpi-sub">金额 ¥{{kpi.doneAmt}}</view>
+        </view>
+        <view class="kpi-card">
+          <view class="kpi-label">待开票（货到票未到）</view>
+          <view class="kpi-value">¥{{kpi.waitInv}}</view>
+          <view class="kpi-sub">仅统计执行中 / 已执行完</view>
+        </view>
+        <view class="kpi-card">
+          <view class="kpi-label">待付款（票到款未付）</view>
+          <view class="kpi-value red">¥{{kpi.waitPay}}</view>
+          <view class="kpi-sub">仅统计执行中 / 已执行完</view>
+        </view>
+      </view>
+
+      <view class="card">
+        <view class="form-item">
+          <text class="f-label">🔍</text>
+          <input value="{{kw}}" placeholder="合同号 / 供应商" bindinput="onSearch" />
+        </view>
+        <view class="form-row2">
+          <picker range="{{stateOptions}}" value="{{stateIdx}}" bindchange="onState">
+            <view class="form-item"><text class="f-label">执行状态</text><text class="f-value">{{stateOptions[stateIdx]}}</text></view>
+          </picker>
+          <view class="form-item"><text class="f-label">筛出</text><text class="f-value">{{rowCount}} 份</text></view>
+        </view>
+        <view class="toolbar">
+          <view class="btn btn-outline btn-sm" bindtap="resetFilter">重置</view>
+          <view class="btn btn-outline btn-sm" bindtap="exportLedger">📤 导出CSV</view>
+        </view>
+      </view>
+
+      <view wx:if="{{!groups.length}}" class="card">
+        <view class="empty"><view class="empty-icon">⚖️</view>没有符合条件的合同</view>
+      </view>
+
+      <!-- 分组 -->
+      <block wx:for="{{groups}}" wx:key="key" wx:for-item="g">
+        <view class="sec-title">{{g.title}}<text class="sec-sub">　{{g.count}} 份 · ¥{{g.amount}}</text></view>
+
+        <view class="card {{g.key === 'idle' ? 'dim' : ''}}" wx:for="{{g.rows}}" wx:for-item="r" wx:key="contractNumber">
+          <view class="card-head">
+            <view class="ch-l">
+              <view class="ch-title">{{r.contractNumber}}</view>
+              <view class="ch-sub">{{r.supplier}} · 合同 ¥{{r.totalAmount}}</view>
+            </view>
+            <view class="ch-r"><text class="badge {{r.stateClass}}">{{r.stateText}}</text></view>
+          </view>
+
+          <block wx:if="{{!r.isIdle}}">
+            <view class="flow-row">
+              <view class="flow-cell">
+                <view class="fc-label">货流（收货）</view>
+                <text class="badge {{r.goodsClass}}">{{r.goodsText}}</text>
+              </view>
+              <view class="flow-cell">
+                <view class="fc-label">票流（开票）</view>
+                <text class="badge {{r.billClass}}">{{r.billText}}</text>
+                <view class="fc-sub">{{r.billSub}}</view>
+              </view>
+              <view class="flow-cell">
+                <view class="fc-label">款流（付款）</view>
+                <text class="badge {{r.moneyClass}}">{{r.moneyText}}</text>
+                <view class="fc-sub">{{r.moneySub}}</view>
+              </view>
+              <view class="flow-cell">
+                <view class="fc-label">对账差异</view>
+                <text class="diff-tag {{r.diffClass}}">{{r.diffText}}</text>
+              </view>
+            </view>
+          </block>
+          <view wx:else class="prog-line subtle">已签订但尚未执行：无收货、无发票、无付款，不产生应收应付，不参与三流对账。</view>
+
+          <view class="card-acts">
+            <view class="btn btn-outline btn-sm" data-cno="{{r.contractNumber}}" bindtap="toggleDetail">{{r.open ? '收起 ▲' : '明细 ▼'}}</view>
+          </view>
+
+          <!-- 展开明细 -->
+          <block wx:if="{{r.open && r.detail}}">
+            <!-- 未执行：产品表 -->
+            <block wx:if="{{r.detail.idle}}">
+              <view class="sec-title-sm">产品明细</view>
+              <view class="dline" wx:for="{{r.detail.products}}" wx:for-item="p" wx:key="product">
+                <view class="dl-top"><text class="dl-name">{{p.product || '-'}}</text><text class="dl-amt">¥{{p.amount}}</text></view>
+                <view class="dl-sub">订购 {{p.ordered}} ｜ 单价 ¥{{p.unitPrice}} ｜ 已收 {{p.received}} ｜ {{p.shipStatus}}</view>
+              </view>
+              <view class="hint warn" wx:if="{{!r.detail.products.length}}">合同无产品明细</view>
+            </block>
+
+            <!-- 执行中 / 已执行完：发票清单 + 付款清单 -->
+            <block wx:else>
+              <view class="sec-title-sm">发票清单（{{r.detail.invoices.length}} 张）</view>
+              <view wx:if="{{!r.detail.invoices.length}}" class="hint">暂无发票</view>
+              <view class="dline" wx:for="{{r.detail.invoices}}" wx:for-item="iv" wx:key="invoiceNumber">
+                <view class="dl-top"><text class="dl-name">{{iv.invoiceNumber}}</text><text class="dl-amt">¥{{iv.amount}}</text></view>
+                <view class="dl-sub">{{iv.invoiceDate || '-'}}{{iv.itemName ? ' · ' + iv.itemName : ''}}</view>
+              </view>
+
+              <view class="sec-title-sm">付款清单（{{r.detail.pays.length}} 笔，来自报销系统）</view>
+              <view wx:if="{{!r.detail.pays.length}}" class="hint">暂无付款</view>
+              <view class="dline" wx:for="{{r.detail.pays}}" wx:for-item="pay" wx:key="paymentNumber">
+                <view class="dl-top"><text class="dl-name">{{pay.paymentDate || '无日期'}} · {{pay.paymentNumber}}</text><text class="dl-amt">¥{{pay.amount}}</text></view>
+                <view class="dl-sub">关联发票 {{pay.invoiceNumbers}}{{pay.method ? ' · ' + pay.method : ''}}</view>
+              </view>
+
+              <view class="hint err" wx:if="{{r.detail.overPay > 0.005}}">注意：该合同付款已超过开票金额（超付 ¥{{r.detail.overPay}}），请核对是否存在预付或重复付款。</view>
+            </block>
+          </block>
+        </view>
+      </block>
+
+      <view class="page-foot"></view>
+    </block>
+
+    <!-- ==================== 供应商对账单 ==================== -->
+    <block wx:else>
+      <view class="card">
+        <view class="hint">按供应商 + 起止日期生成对账单流水（开票为正、付款为负、逐行累计余额），可导出 A4 PDF。</view>
+        <picker wx:if="{{!isSupplier}}" range="{{supOptions}}" value="{{supIdx}}" bindchange="onSup">
+          <view class="form-item"><text class="f-label">供应商 <text class="req">*</text></text><text class="f-value {{supIdx > 0 ? '' : 'placeholder'}}">{{supOptions[supIdx]}}</text></view>
+        </picker>
+        <view class="form-item" wx:else>
+          <text class="f-label">供应商</text>
+          <text class="f-value">{{supOptions[1]}}</text>
+        </view>
+        <view class="form-row2">
+          <picker mode="date" value="{{dateFrom}}" bindchange="onFrom">
+            <view class="form-item"><text class="f-label">开始日期</text><text class="f-value {{dateFrom ? '' : 'placeholder'}}">{{dateFrom || '不限'}}</text></view>
+          </picker>
+          <picker mode="date" value="{{dateTo}}" bindchange="onTo">
+            <view class="form-item"><text class="f-label">结束日期</text><text class="f-value {{dateTo ? '' : 'placeholder'}}">{{dateTo || '不限'}}</text></view>
+          </picker>
+        </view>
+        <view class="toolbar">
+          <view class="btn btn-primary btn-sm" bindtap="genStatement">生成对账单</view>
+          <view class="btn btn-outline btn-sm" bindtap="buildStatementPdf" wx:if="{{stmt && stmt.rows.length}}">🖨 生成A4 PDF</view>
+          <view class="btn btn-outline btn-sm" bindtap="exportStatement" wx:if="{{stmt && stmt.rows.length}}">📤 导出CSV</view>
+        </view>
+      </view>
+
+      <block wx:if="{{stmt}}">
+        <view class="card">
+          <view class="card-head">
+            <view class="ch-l">
+              <view class="ch-title">对账单 {{stmt.docNo}}</view>
+              <view class="ch-sub">供方：{{stmt.supplier}}</view>
+            </view>
+          </view>
+          <view class="kv"><text class="k">对账期间</text><text class="v">{{stmt.dateFrom}} 至 {{stmt.dateTo}}</text></view>
+          <view class="kv"><text class="k">需方（对账方）</text><text class="v">{{stmt.buyerName}}</text></view>
+        </view>
+
+        <view class="kpi-grid">
+          <view class="kpi-card">
+            <view class="kpi-label">开票合计（应付）</view>
+            <view class="kpi-value">¥{{stmt.totalInvoice}}</view>
+            <view class="kpi-sub">{{stmt.cnt}} 条流水</view>
+          </view>
+          <view class="kpi-card">
+            <view class="kpi-label">付款合计（已付）</view>
+            <view class="kpi-value green">¥{{stmt.totalPayment}}</view>
+            <view class="kpi-sub">{{stmt.payCnt}} 笔付款</view>
+          </view>
+          <view class="kpi-card wide">
+            <view class="kpi-label">未付余额</view>
+            <view class="kpi-value red">¥{{stmt.balance}}</view>
+            <view class="kpi-sub">开票 − 付款</view>
+          </view>
+        </view>
+
+        <view wx:if="{{!stmt.rows.length}}" class="card">
+          <view class="empty"><view class="empty-icon">📄</view>该期间内暂无开票 / 付款记录</view>
+        </view>
+
+        <view class="card" wx:for="{{stmt.rows}}" wx:for-item="r" wx:key="seq">
+          <view class="card-head">
+            <view class="ch-l">
+              <view class="ch-title">{{r.seq}}. {{r.date || '无日期'}}</view>
+              <view class="ch-sub">单据号 {{r.docNo}}{{r.contractNumber ? ' · 合同 ' + r.contractNumber : ''}}</view>
+            </view>
+            <view class="ch-r"><text class="badge {{r.type === '开票' ? 'badge-purple' : 'badge-green'}}">{{r.type}}</text></view>
+          </view>
+          <view class="mini-grid">
+            <view class="mini"><view class="ml">开票金额</view><view class="mv sm blue">{{r.invoice ? '¥' + r.invoice : '—'}}</view></view>
+            <view class="mini"><view class="ml">付款金额</view><view class="mv sm green">{{r.payment ? '¥' + r.payment : '—'}}</view></view>
+            <view class="mini"><view class="ml">累计余额</view><view class="mv sm">¥{{r.balance}}</view></view>
+          </view>
+        </view>
+
+        <view class="card">
+          <view class="sum-line"><text>开票合计</text><text class="sl-val">¥{{stmt.totalInvoice}}</text></view>
+          <view class="sum-line"><text>付款合计</text><text class="sl-val">¥{{stmt.totalPayment}}</text></view>
+          <view class="sum-line"><text>未付余额</text><text class="sl-val">¥{{stmt.balance}}</text></view>
+          <view class="prog-line subtle" style="margin-top:16rpx">经双方核对，以上数据与双方账目相符。如有异议，请于收到本对账单后 5 个工作日内书面提出。</view>
+        </view>
+      </block>
+
+      <view class="page-foot"></view>
+    </block>
+  </block>
+
+  <!-- 生成后：发送 PDF（需在 tap 内同步触发） -->
+  <view class="pdf-float" wx:if="{{pdfReady}}" bindtap="sendPdf">📤 发送对账单PDF</view>
+</view>

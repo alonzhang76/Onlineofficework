@@ -58,6 +58,14 @@ const CONFIG = {
     ],
     schedule: ['production_orders_data', 'calendarNotes', 'memos'],
     purchase: ['purchaseOrders_companyA', 'purchaseOrders_companyB', 'companyA-invoices', 'companyB-invoices', 'companyA-payments', 'companyB-payments', 'contracts_companyA', 'contracts_companyB', 'receipts_companyA', 'receipts_companyB', 'returns_companyA', 'returns_companyB', 'suppliers', 'companyNames', 'units'],
+    // 采购一体化（与网页版 apps/purchase-integrated 共用；网页端 CLOUDBASE_APP_ID='purchase-integrated'，
+    // 云端 store_key = purchase-integrated__ + 桌面端 localStorage 键名，即图中的 pis_* 裸键）
+    purchaseint: [
+      'pis_companies', 'pis_units', 'pis_terms', 'pis_roles', 'pis_users',
+      'pis_suppliers', 'pis_curCompany',
+      'pis_orders', 'pis_shipments', 'pis_receipts', 'pis_returns', 'pis_invoices', 'pis_payments',
+      'pis_tool_records', 'pis_poPageSize', 'pis_plyPaste'
+    ],
     incomeexpense: ['transactions_company1', 'transactions_company2', 'lastUpdated_company1', 'lastUpdated_company2', 'todos', 'currentCompany', 'currentCompany_statement'],
     // 发票报销（与网页版 apps/reimbursement-system 共用；电脑端 store.js
     // 直接以裸键读写 app_data_store，故此处不加前缀）
@@ -76,6 +84,8 @@ const CONFIG = {
     trade: 'wicketorders__',
     schedule: 'orderschedule__',
     purchase: 'purchase__',
+    // 采购一体化（apps/purchase-integrated）：云端键名 = purchase-integrated__ + pis_* 裸键
+    purchaseint: 'purchase-integrated__',
     // 收支表网页版经通用 cloudbase-sync.js 同步，APP_ID='incomeexpense'，
     // 云端键名为 incomeexpense__ + 裸键。
     incomeexpense: 'incomeexpense__',
@@ -758,6 +768,9 @@ const WEB_APP_ID_MAP = {
   wicketorders: 'trade',
   orderschedule: 'schedule',
   purchase: 'purchase',
+  // 新版桌面端采购应用（apps/purchase-integrated）的 CLOUDBASE_APP_ID，
+  // 与旧版 apps/purchase 均归一到小程序的 purchase 应用
+  'purchase-integrated': 'purchase',
   incomeexpense: 'income',
   reimbursement: 'reimbursement'
 };

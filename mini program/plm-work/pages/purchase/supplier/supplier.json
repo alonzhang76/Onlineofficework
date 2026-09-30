@@ -1,5 +1,5 @@
 {
-  "navigationBarTitleText": "采购 · 供应商",
-  "navigationBarBackgroundColor": "#F2F2F7",
-  "backgroundColor": "#F2F2F7"
+  "navigationBarTitleText": "供应商管理",
+  "enablePullDownRefresh": true,
+  "backgroundTextStyle": "dark"
 }
