@@ -863,9 +863,9 @@ body {
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label" for="email">邮箱</label>
-        <input type="email" class="form-input" id="email" name="email"
-               placeholder="请输入邮箱地址" autocomplete="email" required>
+        <label class="form-label" for="email">账号</label>
+        <input type="text" class="form-input" id="email" name="email"
+               placeholder="请输入用户名或邮箱" autocomplete="username" required>
       </div>
       <div class="form-group">
         <label class="form-label" for="password">密码</label>
@@ -1072,9 +1072,9 @@ function togglePassword() {
 }
 
 /* ===== 保存/恢复自动登录信息 ===== */
-function saveAutoLogin(role, email, password) {
+function saveAutoLogin(role, account, password) {
   try {
-    localStorage.setItem('portal_autologin', JSON.stringify({ role, email, password }));
+    localStorage.setItem('portal_autologin', JSON.stringify({ role, account, password }));
   } catch (e) { /* 忽略 */ }
 }
 function clearAutoLogin() {
@@ -1086,7 +1086,10 @@ function restoreAutoLogin() {
   try {
     const raw = localStorage.getItem('portal_autologin');
     if (!raw) return null;
-    return JSON.parse(raw);
+    const saved = JSON.parse(raw);
+    // 兼容旧版用 email 字段持久化的自动登录
+    if (saved && !saved.account && saved.email) saved.account = saved.email;
+    return saved;
   } catch (e) {
     return null;
   }
@@ -1097,16 +1100,12 @@ async function handleLogin(event) {
   if (event && event.preventDefault) event.preventDefault();
 
   const role = roleSelect.value;
-  const email = document.getElementById('email').value.trim();
+  const account = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value;
   const autoLogin = document.getElementById('autoLogin').checked;
 
-  if (!email || !password) {
-    setMessage('请输入邮箱和密码', 'error');
-    return false;
-  }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    setMessage('请输入正确的邮箱地址', 'error');
+  if (!account || !password) {
+    setMessage('请输入账号和密码', 'error');
     return false;
   }
 
@@ -1117,14 +1116,14 @@ async function handleLogin(event) {
 
   try {
     if (!supabaseClient) await whenCloudbaseReady();
-    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ username: account, password });
 
     if (error) {
       const em = (error.message || '').toLowerCase();
       if (em.includes('invalid login') || em.includes('invalid_credentials')
           || em.includes('密码') || em.includes('用户名或密码') || em.includes('password')
           || em.includes('credential') || em.includes('user not found') || em.includes('不存在')) {
-        setMessage('邮箱或密码错误', 'error');
+        setMessage('账号或密码错误', 'error');
       } else if (em.includes('email not confirmed') || em.includes('not confirmed') || em.includes('验证')) {
         setMessage('邮箱尚未验证，请先去邮箱确认', 'error');
       } else if (em.includes('rate limit') || em.includes('too many') || em.includes('频繁')) {
@@ -1160,7 +1159,7 @@ async function handleLogin(event) {
 
     // 保存或清除自动登录信息
     if (autoLogin) {
-      saveAutoLogin(role, email, password);
+      saveAutoLogin(role, account, password);
     } else {
       clearAutoLogin();
     }
@@ -1207,9 +1206,9 @@ function showLogin() {
 
   // 恢复自动登录信息
   const saved = restoreAutoLogin();
-  if (saved && saved.email) {
+  if (saved && (saved.account || saved.email)) {
     roleSelect.value = saved.role || 'user';
-    document.getElementById('email').value = saved.email || '';
+    document.getElementById('email').value = saved.account || saved.email || '';
     document.getElementById('password').value = saved.password || '';
     document.getElementById('autoLogin').checked = true;
   } else {
@@ -1226,9 +1225,11 @@ function showDashboard(user) {
   loginView.style.display = 'none';
   dashboardView.style.display = 'block';
 
-  const email = user.email || 'user@example.com';
-  userEmail.textContent = email;
-  userAvatar.textContent = email.charAt(0).toUpperCase();
+  // 展示名优先用用户名，退化到邮箱本地名
+  const email = user.email || '';
+  const username = user.username || (email ? email.split('@')[0] : 'user');
+  userEmail.textContent = username;
+  userAvatar.textContent = username.charAt(0).toUpperCase();
 
   // 管理员按钮
   adminBtn.style.display = isAdmin ? 'block' : 'none';
@@ -1241,7 +1242,7 @@ function showDashboard(user) {
     : hour < 18 ? '下午好'
     : '晚上好';
   const roleText = isAdmin ? '（管理员）' : '';
-  welcomeTitle.textContent = `${greeting}，${email.split('@')[0]}${roleText}`;
+  welcomeTitle.textContent = `${greeting}，${username}${roleText}`;
 
   // 加载应用列表
   loadUserApps(user);
@@ -1263,16 +1264,42 @@ async function loadUserApps(user) {
 
   // 普通用户从 CloudBase 读取权限
   // 权限表 user_app_permissions（PG：{id, data jsonb}），每个用户一行：
-  //   id = 'perm::<小写邮箱>'，data.perms = { appId: 'read'|'write'|'none' }
+  //   id = 'perm::<小写用户名>'，data.perms = { appId: 'read'|'write'|'none' }
+  //   迁移：若 perm::<用户名> 不存在但 perm::<邮箱> 存在，回填一份到用户名键
   try {
-    const docId = 'perm::' + (user.email || '').toLowerCase();
+    const usernameKey = (user.username || '').toLowerCase();
+    const emailKey = (user.email || '').toLowerCase();
+    const docId = 'perm::' + (usernameKey || emailKey);
     console.log('[perms] doc id =', docId);
-    const { data, error } = await supabaseClient
+    let { data, error } = await supabaseClient
       .from('user_app_permissions')
       .select('*')
       .eq('id', docId);
 
     console.log('[perms] query result:', { data, error });
+
+    let row = (data || [])[0];
+
+    // 回填：用户名键缺失时，尝试从旧邮箱键复制一份到用户名键
+    if (!row && usernameKey && emailKey && usernameKey !== emailKey) {
+      const { data: legacy } = await supabaseClient
+        .from('user_app_permissions')
+        .select('*')
+        .eq('id', 'perm::' + emailKey);
+      const legacyRow = (legacy || [])[0];
+      if (legacyRow && legacyRow.perms) {
+        try {
+          await supabaseClient.from('user_app_permissions').upsert({
+            id: 'perm::' + usernameKey,
+            user_username: usernameKey,
+            user_email: emailKey,
+            perms: legacyRow.perms
+          });
+          row = legacyRow;
+          console.log('[perms] 已从邮箱键回填到用户名键', usernameKey);
+        } catch (e) { console.warn('[perms] 回填失败', e); }
+      }
+    }
 
     if (error) {
       console.warn('[perms] 读取权限失败:', error.message);
@@ -1282,7 +1309,6 @@ async function loadUserApps(user) {
 
     // 构建权限映射
     const permMap = {};
-    const row = (data || [])[0];
     if (row && row.perms && typeof row.perms === 'object') {
       Object.keys(row.perms).forEach(appId => {
         permMap[appId] = row.perms[appId];
@@ -1452,40 +1478,39 @@ async function loadUserList() {
   }
 }
 
-/* ===== 用户列表：输入邮箱模式 ===== */
+/* ===== 用户列表：输入用户名模式 ===== */
 function renderUserListInputMode() {
   userListEl.innerHTML = `
     <div style="display:flex; gap:8px; margin-bottom:12px;">
-      <input type="email" class="form-input" id="userEmailInput" 
-             placeholder="输入用户邮箱后按回车" 
+      <input type="text" class="form-input" id="userEmailInput"
+             placeholder="输入用户名后按回车"
              style="flex:1; background:#fff; border:1px solid #cbd5e1; color:#1e293b; font-size:14px;"
-             onkeydown="if(event.key==='Enter'){event.preventDefault(); findUserByEmail();}">
-      <button class="admin-btn-primary" onclick="findUserByEmail()" style="padding:10px 16px; white-space:nowrap;">查找</button>
+             onkeydown="if(event.key==='Enter'){event.preventDefault(); findUserByAccount();}">
+      <button class="admin-btn-primary" onclick="findUserByAccount()" style="padding:10px 16px; white-space:nowrap;">查找</button>
     </div>
     <div style="font-size:12px; color:#64748b; margin-bottom:8px;">
-      💡 提示：输入用户邮箱来设置其权限。用户需已在 CloudBase「身份认证 → 用户管理」中创建。
+      💡 提示：输入 CloudBase「身份认证」中设置的用户名来配置其权限（兼容输入邮箱查找旧记录）。用户需已在 CloudBase「身份认证 → 用户管理」中创建。
     </div>
   `;
 }
 
-/* ===== 根据邮箱查找用户并读取权限 ===== */
-async function findUserByEmail() {
+/* ===== 根据用户名查找用户并读取权限 ===== */
+async function findUserByAccount() {
   const emailInput = document.getElementById('userEmailInput');
-  const email = emailInput.value.trim().toLowerCase();
-  if (!email) return;
+  const key = emailInput.value.trim().toLowerCase();
+  if (!key) return;
 
   adminStatus.textContent = '查找用户中…';
   adminStatus.className = 'admin-footer-status';
 
   try {
     if (!supabaseClient) await whenCloudbaseReady();
-    const emailKey = email.toLowerCase();
 
-    // 直接读取该用户的权限文档：id = 'perm::<邮箱>'
+    // 直接读取该用户的权限文档：id = 'perm::<用户名>'（兼容邮箱查找旧 perm::<邮箱>）
     const { data, error } = await supabaseClient
       .from('user_app_permissions')
       .select('*')
-      .eq('id', 'perm::' + emailKey);
+      .eq('id', 'perm::' + key);
 
     if (error) {
       adminStatus.textContent = '查找失败：' + (error.message || '未知错误');
@@ -1503,9 +1528,9 @@ async function findUserByEmail() {
     if (row && row.perms && typeof row.perms === 'object') {
       Object.keys(row.perms).forEach(appId => { permMap[appId] = row.perms[appId]; });
     }
-    permissionCache[emailKey] = permMap;
+    permissionCache[key] = permMap;
 
-    showPermissionEditorForEmail(emailKey);
+    showPermissionEditor(key);
     adminStatus.textContent = '已加载权限设置';
     adminStatus.className = 'admin-footer-status success';
 
@@ -1537,14 +1562,14 @@ function showSetupHint() {
   `;
 }
 
-/* ===== 显示指定邮箱的权限编辑器 ===== */
-function showPermissionEditorForEmail(email) {
-  selectedUserId = email; // 临时用邮箱当标识
-  selectedUserLabel.textContent = `— ${email}`;
+/* ===== 显示指定用户的权限编辑器 ===== */
+function showPermissionEditor(userKey) {
+  selectedUserId = userKey; // 用户名（或兼容的邮箱）作为权限文档标识
+  selectedUserLabel.textContent = `— ${userKey}`;
 
   const apps = APP_CONFIG.apps || [];
   const categories = APP_CONFIG.categories || [];
-  const cached = permissionCache[email] || {};
+  const cached = permissionCache[userKey] || {};
 
   let rowsHtml = '';
   categories.forEach(cat => {
@@ -1630,8 +1655,8 @@ async function savePermissions() {
 
   try {
     if (!supabaseClient) await whenCloudbaseReady();
-    const email = selectedUserId;
-    const allPerms = permissionCache[email] || {};
+    const key = selectedUserId; // 用户名（或兼容的邮箱）
+    const allPerms = permissionCache[key] || {};
     // 仅保留 read/write，none 直接从文档中移除（读取时缺失即视为无权限）
     const perms = {};
     Object.keys(allPerms).forEach(appId => {
@@ -1640,12 +1665,14 @@ async function savePermissions() {
       }
     });
 
-    // upsert 权限文档：id='perm::<邮箱>'，data 内含 perms（PG jsonb）
+    // upsert 权限文档：id='perm::<用户名>'，data 内含 perms（PG jsonb）
+    const isEmail = /@/.test(key);
     const { error } = await supabaseClient
       .from('user_app_permissions')
       .upsert({
-        id: 'perm::' + email,
-        user_email: email,
+        id: 'perm::' + key,
+        user_username: isEmail ? null : key,
+        user_email: isEmail ? key : null,
         perms: perms,
         updated_at: new Date().toISOString()
       }, { onConflict: 'id' });
@@ -1653,7 +1680,7 @@ async function savePermissions() {
     if (error) {
       throw new Error(error.message || '保存失败');
     }
-    permissionCache[email] = perms;
+    permissionCache[key] = perms;
 
     hasUnsavedChanges = false;
     savePermBtn.disabled = true;
@@ -1702,9 +1729,9 @@ function hexToRgba(hex, alpha) {
     } else {
       // 尝试自动登录
       const saved = restoreAutoLogin();
-      if (saved && saved.email && saved.password) {
+      if (saved && (saved.account || saved.email) && saved.password) {
         roleSelect.value = saved.role || 'user';
-        document.getElementById('email').value = saved.email;
+        document.getElementById('email').value = saved.account || saved.email || '';
         document.getElementById('password').value = saved.password;
         document.getElementById('autoLogin').checked = true;
         // 自动提交登录
