@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>开票管理 · 采购一体化系统</title>
-<link rel="stylesheet" href="css/common.css">
+<link rel="stylesheet" href="css/common.css?v=20260930b">
 </head>
 <body>
 <header>
@@ -37,7 +37,7 @@ window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
 </script>
 <script src="../cloudbase-sync.js?v=20260924f"></script>
 <script src="../cloudbase-admin.js?v=20260930a"></script>
-<script src="js/common.js?v=20260930b"></script>
+<script src="js/common.js?v=20260930c"></script>
 <script src="js/auth-guard.js"></script>
 <!-- 内嵌 CMap / 标准字体数据：数电票的号码/日期/金额/公司名使用 CID 字体，
      缺 CMap 时整段值解码失败（表现为"未找到发票号码"）。内嵌后离线 / file:// /
@@ -475,7 +475,7 @@ function renderInvoiceQueueItem() {
   const val = (k, d) => (f[k] !== undefined && f[k] !== null && f[k] !== '') ? f[k] : (p[k] !== undefined && p[k] !== null && p[k] !== '' ? p[k] : d);
 
   const sup = matchSupplier(f.seller_name || p.seller_name);
-  const orders = Data.list('orders');
+  const orders = Data.list('orders').slice().sort((a, b) => ((b.orderDate || b.createdAt || '').localeCompare((a.orderDate || a.createdAt || ''))) || (b.contractNumber || '').localeCompare(a.contractNumber || ''));
   const supOrders = sup ? orders.filter(o => o.supplier === sup.supplierName) : [];
   const dup = DB.get('invoices', []).find(v => v.invoiceNumber === val('invoice_no'));
   const type = normInvType(val('invoice_type', '增值税专用发票'));
@@ -594,7 +594,7 @@ function renderInvoiceQueueItem() {
 }
 function invoiceForm(rec) {
   const isEdit = !!rec;
-  const orders = Data.list('orders');
+  const orders = Data.list('orders').slice().sort((a, b) => ((b.orderDate || b.createdAt || '').localeCompare((a.orderDate || a.createdAt || ''))) || (b.contractNumber || '').localeCompare(a.contractNumber || ''));
   openModal('<h3>' + (isEdit ? '编辑发票' : '登记发票') + '</h3><form id="ivF">' +
     '<div class="form-grid">' +
     '<div><label class="req">发票号码</label><input id="ivNo" required value="' + esc(rec ? rec.invoiceNumber : '') + '" placeholder="发票右上角号码"></div>' +

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>付款管理 · 采购一体化系统</title>
-<link rel="stylesheet" href="css/common.css">
+<link rel="stylesheet" href="css/common.css?v=20260930b">
 </head>
 <body>
 <header>
@@ -37,7 +37,7 @@ window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
 </script>
 <script src="../cloudbase-sync.js?v=20260924f"></script>
 <script src="../cloudbase-admin.js?v=20260930a"></script>
-<script src="js/common.js?v=20260930b"></script>
+<script src="js/common.js?v=20260930c"></script>
 <script src="js/auth-guard.js"></script>
 <script>
 'use strict';
@@ -187,7 +187,7 @@ function pagePayment(root) {
       g.paid += Math.min(+v.paid_amount || 0, +v.total_amount || 0);
       if ((v.payment_date || '') > g.last) g.last = v.payment_date || '';
     });
-    const groups = Object.values(bySup).sort((a, b) => b.total - a.total);
+    const groups = Object.values(bySup).sort((a, b) => (b.last || '').localeCompare(a.last || '') || (b.total - a.total));
     const supContracts = sup => {
       const cs = [];
       fInv.filter(v => v.seller_name === sup).forEach(v =>

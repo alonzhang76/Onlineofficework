@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>发货管理 · 采购一体化系统</title>
-<link rel="stylesheet" href="css/common.css">
+<link rel="stylesheet" href="css/common.css?v=20260930b">
 </head>
 <body>
 <header>
@@ -37,7 +37,7 @@ window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
 </script>
 <script src="../cloudbase-sync.js?v=20260924f"></script>
 <script src="../cloudbase-admin.js?v=20260930a"></script>
-<script src="js/common.js?v=20260930b"></script>
+<script src="js/common.js?v=20260930c"></script>
 <script src="js/auth-guard.js"></script>
 <script>
 'use strict';
@@ -193,7 +193,7 @@ function openSupplierMsgCenter() {
 }
 function shipForm(rec) {
   const isEdit = !!rec;
-  const orders = Data.list('orders');
+  const orders = Data.list('orders').slice().sort((a, b) => ((b.orderDate || b.createdAt || '').localeCompare((a.orderDate || a.createdAt || ''))) || (b.contractNumber || '').localeCompare(a.contractNumber || ''));
   const opts = orders.map(o => '<option value="' + esc(o.contractNumber) + '"' + (rec && rec.contractNumber === o.contractNumber ? ' selected' : '') + '>' + esc(o.contractNumber) + '（' + esc(o.supplier) + '）</option>').join('');
   openModal('<h3>' + (isEdit ? '编辑发货记录' : '登记发货') + '</h3><form id="shipF">' +
     '<div class="form-grid">' +

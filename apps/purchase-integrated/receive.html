@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>收货管理 · 采购一体化系统</title>
-<link rel="stylesheet" href="css/common.css">
+<link rel="stylesheet" href="css/common.css?v=20260930b">
 </head>
 <body>
 <header>
@@ -37,7 +37,7 @@ window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
 </script>
 <script src="../cloudbase-sync.js?v=20260924f"></script>
 <script src="../cloudbase-admin.js?v=20260930a"></script>
-<script src="js/common.js?v=20260930b"></script>
+<script src="js/common.js?v=20260930c"></script>
 <script src="js/auth-guard.js"></script>
 <script>
 'use strict';
@@ -145,7 +145,7 @@ function pendingShipRows() {
       // isNew：尚未确认过的到货（未读）视为「新」，提示采购员优先处理
       remark: s.remark || '', isNew: !s.supplierReadAt && deriveShipStatus(s) === SHIP_PENDING });
   });
-  rows.sort((a, b) => String(a.shipDate).localeCompare(String(b.shipDate)) || String(a.shipNumber).localeCompare(String(b.shipNumber)));
+  rows.sort((a, b) => String(b.shipDate).localeCompare(String(a.shipDate)) || String(b.shipNumber).localeCompare(String(a.shipNumber)));
   return rows;
 }
 /* ---------- 数量差异：合同数量 vs 实收合计（无退货影响，直面付款口径） ---------- */
@@ -210,6 +210,7 @@ function drawReceive() {
     if (canW) box.querySelectorAll('button[data-a="fix"]').forEach(b => b.addEventListener('click', () => adjustContractQty(rows[+b.dataset.i])));
   } else if (State.receiveTab === 'return') {
     const list = Data.list('returns');
+    list.sort((a, b) => (b.returnDate || '').localeCompare(a.returnDate || '') || (b.returnNumber || '').localeCompare(a.returnNumber || ''));
     box.innerHTML = list.length ? '<div class="tbl-wrap" style="max-height:60vh"><table><thead><tr><th>退货单号</th><th>合同号</th><th>供应商</th><th>产品</th><th class="num">数量</th><th>退货日期</th><th>退货原因</th>' + (canW ? '<th>操作</th>' : '') + '</tr></thead><tbody>' +
       list.map(r => '<tr><td class="mono">' + esc(r.returnNumber) + '</td><td class="mono">' + esc(r.contractNumber) + '</td><td>' + esc(r.supplier) + '</td><td>' + esc(r.product) + '</td><td class="num"><b>' + fmtNum(r.quantity) + '</b></td><td>' + esc(r.returnDate || '') + '</td><td>' + esc(r.reason || '') + '</td>' +
         (canW ? '<td><button class="link-op" data-id="' + r.id + '" data-a="e">编辑</button><button class="link-op danger" data-id="' + r.id + '" data-a="d">删除</button></td>' : '') + '</tr>').join('') + '</tbody></table></div>'
@@ -255,7 +256,7 @@ function adjustContractQty(row) {
   renderPage();
 }
 function contractProductSelect(id, selCno) {
-  const orders = Data.list('orders');
+  const orders = Data.list('orders').slice().sort((a, b) => ((b.orderDate || b.createdAt || '').localeCompare((a.orderDate || a.createdAt || ''))) || (b.contractNumber || '').localeCompare(a.contractNumber || ''));
   return '<select id="' + id + '" required><option value="">请选择合同</option>' +
     orders.map(o => '<option value="' + esc(o.contractNumber) + '"' + (selCno === o.contractNumber ? ' selected' : '') + '>' + esc(o.contractNumber) + '（' + esc(o.supplier) + '）</option>').join('') + '</select>';
 }

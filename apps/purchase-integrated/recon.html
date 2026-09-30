@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>对账管理 · 采购一体化系统</title>
-<link rel="stylesheet" href="css/common.css">
+<link rel="stylesheet" href="css/common.css?v=20260930b">
 </head>
 <body>
 <header>
@@ -37,7 +37,7 @@ window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
 </script>
 <script src="../cloudbase-sync.js?v=20260924f"></script>
 <script src="../cloudbase-admin.js?v=20260930a"></script>
-<script src="js/common.js?v=20260930b"></script>
+<script src="js/common.js?v=20260930c"></script>
 <script src="js/auth-guard.js"></script>
 <script>
 'use strict';
@@ -66,17 +66,19 @@ function recvAmtOfContract(o) {
 function contractRecon(o) {
   const cno = o.contractNumber;
   const ordered = orderOrderedQty(o);
+  const shipped = orderShippedTotal(o);
   const recv = Math.max(0, orderReceivedTotal(o) - orderReturnTotal(o));
   const recvAmt = recvAmtOfContract(o);
   const contractTotal = +o.totalAmount || orderProducts(o).reduce((s, p) => s + (+p.quantity || 0) * (+p.price || 0), 0);
   const invoiced = invoicedOfContract(cno);
   const paid = paidOfContract(cno);
-  const idle = recv <= 0 && invoiced <= 0.005 && paid <= 0.005;              // 未执行：三无
+  // 未执行：未发货 + 未收货 + 未开票 + 未付款（已发货即视为进入执行）
+  const idle = shipped <= 0 && recv <= 0 && invoiced <= 0.005 && paid <= 0.005;
   const done = !idle && ordered > 0 && recv >= ordered
     && invoiced >= recvAmt - 0.005 && paid >= invoiced - 0.005;              // 三清
   const status = idle ? 'idle' : (done ? 'done' : 'running');
   return {
-    o, cno, supplier: o.supplier, contractTotal, ordered, recv, recvAmt, invoiced, paid, status,
+    o, cno, supplier: o.supplier, contractTotal, ordered, shipped, recv, recvAmt, invoiced, paid, status,
     waitInv: Math.max(0, recvAmt - invoiced),   // 货到票未到 → 待开票
     waitPay: Math.max(0, invoiced - paid),      // 票到款未付 → 待付款
     overPay: Math.max(0, paid - invoiced)       // 款超票 → 预付/超付预警
@@ -87,6 +89,16 @@ const flowBadge = (cur, total, noneText, partText, fullText) => {
   if (cur >= total - 0.005) return '<span class="badge b-green">' + fullText + '</span>';
   if (cur > 0.005) return '<span class="badge b-amber">' + partText + '</span>';
   return '<span class="badge b-gray">' + noneText + '</span>';
+};
+/* 货流徽章：发货/收货全进度（未发货 → 部分发货 → 已发货 → 部分收货 → 已收齐）
+   已发货但未收货时显示发货进度，便于对账方掌握在途状态 */
+const goodsFlowBadge = r => {
+  const o = r.ordered, sh = r.shipped, rc = r.recv;
+  if (o > 0 && rc >= o - 0.005) return '<span class="badge b-green">已收齐 ' + fmtNum(rc) + '/' + fmtNum(o) + '</span>';
+  if (rc > 0.005) return '<span class="badge b-amber">部分收货 ' + fmtNum(rc) + '/' + fmtNum(o) + '</span>';
+  if (sh >= o - 0.005) return '<span class="badge b-blue">已发货 ' + fmtNum(sh) + '/' + fmtNum(o) + '</span>';
+  if (sh > 0.005) return '<span class="badge b-blue">部分发货 ' + fmtNum(sh) + '/' + fmtNum(o) + '</span>';
+  return '<span class="badge b-gray">未发货</span>';
 };
 
 function pageRecon(root) {
@@ -145,6 +157,9 @@ function renderLedger(box) {
     const kw = ($('#rcSearch').value || '').trim().toLowerCase();
     const stf = $('#rcStatus').value;
     let all = Data.list('orders').map(contractRecon);
+    // 按合同日期倒序（最新合同在前，无日期按创建时间）
+    all.sort((a, b) => ((b.o.orderDate || b.o.createdAt || '').localeCompare((a.o.orderDate || a.o.createdAt || ''))) ||
+      (b.cno || '').localeCompare(a.cno || ''));
     if (kw) all = all.filter(r => (r.cno + ' ' + r.supplier).toLowerCase().includes(kw));
     if (stf) all = all.filter(r => r.status === stf);
     /* 统计卡（全量口径，不随筛选变化） */
@@ -174,7 +189,7 @@ function renderLedger(box) {
             : r.waitInv > 0.005 ? '<td><span class="badge b-blue">待开票 ' + fmtMoney(r.waitInv) + '</span></td>'
             : '<td><span class="badge b-green">三流一致</span></td>');
         const goodsCell = st === 'idle' ? dash :
-          '<td' + dim + '>' + flowBadge(r.recv, r.ordered, '未收货', '部分收货 ' + r.recv + '/' + r.ordered, '已收齐 ' + r.recv + '/' + r.ordered) + '</td>';
+          '<td' + dim + '>' + goodsFlowBadge(r) + '</td>';
         const invCell = st === 'idle' ? dash :
           '<td' + dim + '>' + flowBadge(r.invoiced, r.recvAmt, '未开票', '部分开票', '票齐') +
           (r.recvAmt > 0.005 ? '<div style="font-size:11.5px;color:var(--muted,#888)">应收票 ' + fmtMoney(r.recvAmt) + ' / 已开 ' + fmtMoney(r.invoiced) + '</div>' : '') + '</td>';

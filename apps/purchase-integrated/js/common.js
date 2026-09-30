@@ -251,7 +251,7 @@ const Session = {
   can(page) { return this.permOf(page) !== 'none'; },   // 可访问（菜单可见）；'不显示'的模块整个隐藏
   canWrite(page) {
     if (this.permOf(page) !== 'rw') return false;       // 只读角色不能新增/编辑/删除/导入/清空
-    if (this.isSupplier()) return page === 'ship';      // 供应商仅发货管理可写
+    if (this.isSupplier()) return page === 'ship' || page === 'invoice'; // 供应商：发货 + 发票录入可写
     return true;
   },
   mySupplier() { return this.isSupplier() ? this.user.supplierName : ''; }
@@ -575,6 +575,7 @@ const returnedQty = (cno, pn) => sumQty(Data.list('returns'), cno, pn, 'quantity
 const shippedQty = (cno, pn) => sumQty(Data.list('shipments'), cno, pn, 'quantity', 'shipDate');
 function orderOrderedQty(o) { return orderProducts(o).reduce((s, p) => s + (+p.quantity || 0), 0); }
 function orderReceivedTotal(o) { return orderProducts(o).reduce((s, p) => s + receivedQty(o.contractNumber, p.name), 0); }
+function orderShippedTotal(o) { return orderProducts(o).reduce((s, p) => s + shippedQty(o.contractNumber, p.name), 0); }
 function orderReturnTotal(o) { return orderProducts(o).reduce((s, p) => s + returnedQty(o.contractNumber, p.name), 0); }
 function orderStatus(o) {
   const ordered = orderOrderedQty(o), recv = Math.max(0, orderReceivedTotal(o) - orderReturnTotal(o));
