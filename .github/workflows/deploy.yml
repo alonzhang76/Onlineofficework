@@ -13,8 +13,9 @@ concurrency:
 
 jobs:
   deploy:
-    # 使用本地 self-hosted runner（境内网络直连腾讯云 COS，避免跨境链路超时）
-    runs-on: [self-hosted, windows]
+    # 使用本机 self-hosted runner（macOS / Apple Silicon，境内网络直连腾讯云 COS，避免跨境链路超时）
+    # tcb-deploy 为注册时指定的自定义标签，确保只调度到这台部署机
+    runs-on: [self-hosted, macos, ARM64, tcb-deploy]
     defaults:
       run:
         shell: bash
