@@ -4837,11 +4837,23 @@
         try {
             var files = await _dwListPdfs();
             var matches = _dwMatches(files, drawing);
-            if (matches.length === 1) { CFB.previewByPath(_dwPath(matches[0])); return; }
+            if (matches.length === 1) { await _dwOpen(matches[0]); return; }
             if (matches.length > 1) { openDrawingChooser(drawing, matches); return; }
             openDrawingNotFound(drawing);
         } catch (e) {
             showToast('图纸检索失败：' + ((e && e.message) || e), 'error');
+        }
+    }
+
+    // 取签名 URL 并在新浏览器标签页打开（PDF 交给浏览器原生查看器，可下载/打印）
+    async function _dwOpen(name) {
+        try {
+            var url = await CFB._signed(_dwPath(name), 7200);
+            if (!url) throw new Error('获取访问地址失败');
+            var w = window.open(url, '_blank');
+            if (!w) showToast('浏览器拦截了新窗口，请允许弹出窗口后重试', 'error');
+        } catch (e) {
+            showToast('图纸打开失败：' + ((e && e.message) || e), 'error');
         }
     }
 
@@ -4874,7 +4886,7 @@
         var name = (window.__dwgMatches || [])[i];
         if (!name) return;
         _dwModalClose();
-        CFB.previewByPath(_dwPath(name));
+        _dwOpen(name);
     }
 
     function downloadDrawingFile(i) {
