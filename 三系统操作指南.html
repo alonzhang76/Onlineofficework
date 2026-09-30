@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>三系统操作指南 · 采购 / 发票与付款 / 收支表</title>
+<style>
+  :root{
+    --primary:#1a56db; --primary-dark:#1346b8;
+    --text:#1a2233; --text-muted:#5b6577; --border:#e3e7ee;
+    --surface:#fff; --surface-muted:#f6f7f9;
+    --brand:#16a34a; --brand-text:#16a34a; --brand-on:#fff;
+    --manual:#9aa4b2; --accent:#2563eb;
+    --radius:8px; --radius-card:12px;
+    --font-sans:system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:var(--font-sans);color:var(--text);background:#f0f2f5;line-height:1.6;font-size:14px}
+  .wrap{max-width:960px;margin:0 auto;padding:32px 20px 60px}
+  header.doc-head{background:linear-gradient(135deg,#1a56db,#2563eb);color:#fff;padding:32px 28px;border-radius:var(--radius-card);margin-bottom:24px;box-shadow:0 4px 14px rgba(26,86,219,.18)}
+  header.doc-head h1{margin:0 0 6px;font-size:24px;font-weight:700}
+  header.doc-head p{margin:0;opacity:.92;font-size:13px}
+  header.doc-head .meta{margin-top:14px;font-size:12px;opacity:.8}
+  section.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:22px 24px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+  section.card h2{margin:0 0 4px;color:var(--primary);font-size:18px;font-weight:700;border-left:4px solid var(--primary);padding-left:10px;line-height:1.4}
+  section.card .desc{color:var(--text-muted);font-size:12.5px;margin:0 0 14px 14px}
+  section.card h3{margin:18px 0 6px;font-size:15px;color:var(--text)}
+  section.card p{margin:8px 0}
+  section.card ul,section.card ol{margin:8px 0;padding-left:22px}
+  section.card li{margin:4px 0}
+  .diagram{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin:10px 0}
+  .diagram svg{width:100%;height:auto;display:block}
+  .diagram .cap{font-size:12px;color:var(--text-muted);margin-top:8px;text-align:center}
+  table.matrix{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0}
+  table.matrix th,table.matrix td{border:1px solid var(--border);padding:9px 11px;text-align:left;vertical-align:top}
+  table.matrix thead th{background:var(--surface-muted);font-weight:700;color:var(--text);font-size:13.5px}
+  table.matrix .role{font-weight:700;color:var(--brand-text);white-space:nowrap}
+  table.matrix td.none{color:var(--text-muted);text-align:center;font-style:italic}
+  .tag{display:inline-block;padding:1px 7px;border-radius:4px;background:var(--surface-muted);border:1px solid var(--border);font-size:11.5px;margin:2px 2px}
+  .tag.b{color:var(--brand-text);border-color:var(--brand)}
+  .tag.p{color:var(--primary);border-color:var(--primary)}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--text-muted)}
+  .legend .k{display:inline-flex;align-items:center;gap:5px}
+  .legend .sw{width:20px;height:0;border-top:2.5px solid var(--brand);display:inline-block}
+  .legend .sw.dash{border-top:2.5px dashed var(--manual)}
+  .legend .dot{width:10px;height:10px;border-radius:50%;background:var(--brand);display:inline-block}
+  .legend .dot.m{background:var(--manual)}
+  .note{background:#fff7e6;border:1px solid #ffd591;border-radius:var(--radius);padding:10px 14px;font-size:12.5px;color:#874d00;margin:10px 0}
+  .bridge{background:var(--surface-muted);border-left:3px solid var(--brand);padding:10px 14px;margin:8px 0;border-radius:0 var(--radius) var(--radius) 0}
+  .bridge b{color:var(--brand-text)}
+  code{background:var(--surface-muted);padding:1px 5px;border-radius:3px;font-size:12.5px;color:#c41d7f;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .footer{text-align:center;color:var(--text-muted);font-size:12px;margin-top:24px;padding-top:16px;border-top:1px solid var(--border)}
+  @media print{
+    body{background:#fff}
+    .wrap{max-width:none;padding:0}
+    header.doc-head{box-shadow:none;border-radius:0}
+    section.card{box-shadow:none;break-inside:avoid;page-break-inside:avoid}
+    .diagram{break-inside:avoid}
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--text:#e7ebf2;--text-muted:#9aa4b2;--border:#2a3038;--surface:#15181d;--surface-muted:#1c2026;--brand:#34d399;--brand-text:#4ade80;--accent:#60a5fa;--primary:#60a5fa}
+    body{background:#0f1115}
+    header.doc-head{background:linear-gradient(135deg,#1346b8,#1d4ed8)}
+    .note{background:#2a2118;border-color:#5b3a00;color:#ffd591}
+    code{background:#1c2026;color:#f0abfc}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc-head">
+  <h1>三系统操作指南</h1>
+  <p>采购一体化系统 · 发票与付款系统 · 收支表 —— 数据链路与角色分工</p>
+  <div class="meta">适用对象：供应商 / 采购员 / 财务 / 管理员 · AlonZhang Designed</div>
+</header>
+
+<!-- ============ 一、三系统架构 ============ -->
+<section class="card">
+  <h2>一、三系统架构总览</h2>
+  <p class="desc">三个系统通过自动桥衔接，数据沿「采购 → 报销 → 收支表」单向流动</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 720 250" role="img" aria-label="三系统架构">
+      <defs>
+        <marker id="br1" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto">
+          <path d="M1 1 L7 4 L1 7 Z" fill="var(--brand)"/>
+        </marker>
+      </defs>
+      <rect x="20" y="46" width="190" height="130" rx="10" fill="var(--surface-muted)" stroke="var(--border)" stroke-width="1.2"/>
+      <text x="115" y="72" text-anchor="middle" font-size="15" font-weight="700" fill="var(--text)">采购一体化系统</text>
+      <text x="115" y="92" text-anchor="middle" font-size="11.5" fill="var(--text-muted)">供应商·采购员·管理员</text>
+      <text x="115" y="114" text-anchor="middle" font-size="11" fill="var(--text-muted)">合同·发货·收货·对账</text>
+      <text x="115" y="132" text-anchor="middle" font-size="11" fill="var(--text-muted)">发票台账·供应商档案</text>
+
+      <rect x="265" y="46" width="190" height="130" rx="10" fill="var(--surface-muted)" stroke="var(--border)" stroke-width="1.2"/>
+      <text x="360" y="72" text-anchor="middle" font-size="15" font-weight="700" fill="var(--text)">发票与付款系统</text>
+      <text x="360" y="92" text-anchor="middle" font-size="11.5" fill="var(--text-muted)">财务 AP·Flask 8686</text>
+      <text x="360" y="114" text-anchor="middle" font-size="11" fill="var(--text-muted)">发票识别·审核流转</text>
+      <text x="360" y="132" text-anchor="middle" font-size="11" fill="var(--text-muted)">付款登记·状态回写</text>
+
+      <rect x="510" y="46" width="190" height="130" rx="10" fill="var(--surface-muted)" stroke="var(--brand)" stroke-width="1.4"/>
+      <text x="605" y="72" text-anchor="middle" font-size="15" font-weight="700" fill="var(--text)">收支表</text>
+      <text x="605" y="92" text-anchor="middle" font-size="11.5" fill="var(--text-muted)">财务 GL·独立云空间</text>
+      <text x="605" y="114" text-anchor="middle" font-size="11" fill="var(--text-muted)">收支记账·银行对账</text>
+      <text x="605" y="132" text-anchor="middle" font-size="11" fill="var(--text-muted)">读 transactions_company1/2</text>
+
+      <path d="M210 96 L265 96" fill="none" stroke="var(--brand)" stroke-width="2.4" marker-end="url(#br1)"/>
+      <rect x="214" y="76" width="48" height="16" rx="8" fill="var(--surface)" stroke="var(--brand)" stroke-width="1"/>
+      <text x="238" y="88" text-anchor="middle" font-size="10.5" font-weight="600" fill="var(--brand-text)">①提交</text>
+
+      <path d="M265 128 L210 128" fill="none" stroke="var(--brand)" stroke-width="2.4" marker-end="url(#br1)"/>
+      <rect x="206" y="134" width="64" height="16" rx="8" fill="var(--surface)" stroke="var(--brand)" stroke-width="1"/>
+      <text x="238" y="146" text-anchor="middle" font-size="10.5" font-weight="600" fill="var(--brand-text)">②回写</text>
+
+      <path d="M455 112 L510 112" fill="none" stroke="var(--brand)" stroke-width="2.4" marker-end="url(#br1)"/>
+      <rect x="443" y="92" width="80" height="16" rx="8" fill="var(--surface)" stroke="var(--brand)" stroke-width="1"/>
+      <text x="483" y="104" text-anchor="middle" font-size="10.5" font-weight="600" fill="var(--brand-text)">③付款云推送</text>
+
+      <text x="360" y="210" text-anchor="middle" font-size="11.5" fill="var(--text-muted)">采购 → 收支表 无直连：发票经报销中转后，付款才写入收支表</text>
+    </svg>
+    <div class="legend">
+      <span class="k"><span class="sw"></span>自动桥（HTTP API 或云端 upsert）</span>
+    </div>
+  </div>
+
+  <h3>三条数据链路</h3>
+  <div class="bridge"><b>① 提交发票</b>（采购 → 报销）：供应商在采购侧录入发票后点「提交」，通过 HTTP <code>POST /api/invoices/external</code> 进入报销系统「待审核」。</div>
+  <div class="bridge"><b>② 付款/审核回写</b>（报销 → 采购）：报销系统付款与审核状态经 <code>GET /api/payments/external</code> + <code>syncInvoices</code> 自动回写采购侧发票台账；报销侧进项发票按「销售方↔供应商」模糊匹配（阈值 0.45）自动同步到采购台账。</div>
+  <div class="bridge"><b>③ 付款云推送</b>（报销 → 收支表）：财务在报销系统点「付款」后，计算本次付款增量，弹出分类选择框；确认后生成收支记录（进项=支出 / 销项=收入），写入 <code>transactions_&lt;company&gt;</code> 并 upsert 到云端 <code>incomeexpense__transactions_&lt;company&gt;</code>，收支表 <code>loadTransactions()</code> 自动读取显示。</div>
+
+  <div class="note">公司主体映射：龙力 → <code>company2</code>、普利美 → <code>company1</code>。三个系统均按「普利美 / 无锡龙力」两套主体分别核算，财务对账时按主体分别汇总。</div>
+</section>
+
+<!-- ============ 二、供应商操作链路 ============ -->
+<section class="card">
+  <h2>二、供应商操作链路（7 步）</h2>
+  <p class="desc">绿色步骤为供应商自己操作 · 灰色步骤为需方/财务动作，供应商需等待</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 720 500" role="img" aria-label="供应商操作流程">
+      <line x1="44" y1="50" x2="44" y2="454" stroke="var(--border)" stroke-width="2"/>
+      <!-- 1 -->
+      <circle cx="44" cy="50" r="14" fill="var(--brand)"/>
+      <text x="44" y="55" text-anchor="middle" font-size="13" font-weight="700" fill="var(--brand-on)">1</text>
+      <rect x="78" y="28" width="610" height="44" rx="8" fill="var(--surface-muted)" stroke="var(--border)" stroke-width="1"/>
+      <text x="94" y="50" font-size="14" font-weight="600" fill="var(--text)">登录采购系统</text>
+      <text x="94" y="66" font-size="11.5" fill="var(--text-muted)">login.html · 供应商账号（由管理员在【系统管理→用户管理】开通）</text>
+      <!-- 2 -->
+      <circle cx="44" cy="116" r="14" fill="var(--brand)"/>
+      <text x="44" y="121" text-anchor="middle" font-size="13" font-weight="700" fill="var(--brand-on)">2</text>
+      <rect x="78" y="94" width="610" height="44" rx="8" fill="var(--surface-muted)" stroke="var(--border)" stroke-width="1"/>
+      <text x="94" y="116" font-size="14" font-weight="600" fill="var(--text)">发货管理 → 登记发货</text>
+      <text x="94" y="132" font-size="11.5" fill="var(--text-muted)">ship.html · 选合同/产品·填发货数量·物流单号·保存后进入「待确认」</text>
+      <!-- 3 -->
+      <circle cx="44" cy="182" r="14" fill="var(--manual)"/>
+      <text x="44" y="187" text-anchor="middle" font-size="13" font-weight="700" fill="var(--brand-on)">3</text>
+      <rect x="78" y="160" width="610" height="44" rx="8" fill="var(--surface-muted)" stroke="var(--border)" stroke-width="1" stroke-dasharray="4 3"/>
+      <text x="94" y="182" font-size="14" font-weight="600" fill="var(--text-muted)">需方确认收货（采购员操作）</text>
+      <text x="94" y="198" font-size="11.5" fill="var(--text-muted)">receive.html · 采购员核实实收数量·差异会以「需方消息」回馈供应商</text>
+      <!-- 4 -->
+      <circle cx="44" cy="248" r="14" fill="var(--brand)"/>
+      <text x="44" y="253" text-anchor="middle" font-size="13" font-weight="700" fill="var(--brand-on)">4</text>
+      <rect x="78" y="226" width="610" height="44" rx="8" fill="var(--surface-muted)" stroke="var(--border)" stroke-width="1"/>
+      <text x="94" y="248" font-size="14" font-weight="600" fill="var(--text)">开票管理 → 发票录入</text>
+      <text x="94" y="264" font-size="11.5" fill="var(--text-muted)">invoice.html「发票录入」tab · 上传 PDF 自动识别·销售方自动匹配供应商</text>
+      <!-- 5 -->
+      <circle cx="44" cy="314" r="14" fill="var(--brand)"/>
+      <text x="44" y="319" text-anchor="middle" font-size="13" font-weight="700" fill="var(--brand-on)">5</text>
+      <rect x="78" y="292" width="610" height="44" rx="8" fill="var(--surface-muted)" stroke="var(--border)" stroke-width="1"/>
+      <text x="94" y="314" font-size="14" font-weight="600" fill="var(--text)">提交报销系统（进入待审核）</text>
+      <text x="94" y="330" font-size="11.5" fill="var(--text-muted)">invoice.html 点「提交」· POST /api/invoices/external · 自动桥到 8686</text>
+      <!-- 6 -->
+      <circle cx="44" cy="380" r="14" fill="var(--manual)"/>
+      <text x="44" y="385" text-anchor="middle" font-size="13" font-weight="700" fill="var(--brand-on)">6</text>
+      <rect x="78" y="358" width="610" height="44" rx="8" fill="var(--surface-muted)" stroke="var(--border)" stroke-width="1" stroke-dasharray="4 3"/>
+      <text x="94" y="380" font-size="14" font-weight="600" fill="var(--text-muted)">财务审核 + 登记付款（报销系统）</text>
+      <text x="94" y="396" font-size="11.5" fill="var(--text-muted)">发票与付款系统 · 审核通过/驳回·登记付款·付款自动云推送至收支表·状态回写采购侧</text>
+      <!-- 7 -->
+      <circle cx="44" cy="446" r="14" fill="var(--brand)"/>
+      <text x="44" y="451" text-anchor="middle" font-size="13" font-weight="700" fill="var(--brand-on)">7</text>
+      <rect x="78" y="424" width="610" height="44" rx="8" fill="var(--surface-muted)" stroke="var(--brand)" stroke-width="1.4"/>
+      <text x="94" y="446" font-size="14" font-weight="600" fill="var(--text)">查看付款状态 / 需方消息</text>
+      <text x="94" y="462" font-size="11.5" fill="var(--text-muted)">payment.html · ship.html「需方消息」· 回写后即可见付款金额与状态</text>
+    </svg>
+    <div class="legend">
+      <span class="k"><span class="dot"></span>供应商操作</span>
+      <span class="k"><span class="dot m"></span>需方/财务动作（供应商等待）</span>
+    </div>
+  </div>
+
+  <h3>供应商操作要点</h3>
+  <ul>
+    <li>7 步里只有 5 步是供应商动手：<b>登录 → 登记发货 → 录入发票 → 提交 → 查看付款</b>。</li>
+    <li>第 3 步「需方确认收货」和第 6 步「财务付款」是对方动作，供应商在「需方消息」里看反馈即可。</li>
+    <li>提交发票后流程<b>自动走完</b>，供应商无需登录报销系统或收支表。</li>
+    <li>如发票被驳回，按反馈修改后可重新提交（报销系统按发票号去重 upsert）。</li>
+  </ul>
+</section>
+
+<!-- ============ 三、角色×系统矩阵 ============ -->
+<section class="card">
+  <h2>三、角色 × 系统操作矩阵</h2>
+  <p class="desc">对号入座 · 每个角色在哪个系统干什么</p>
+
+  <table class="matrix">
+    <thead>
+      <tr>
+        <th style="width:14%">角色</th>
+        <th style="width:30%">采购一体化系统</th>
+        <th style="width:28%">发票与付款系统（报销）</th>
+        <th style="width:28%">收支表</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="role">供应商</td>
+        <td><span class="tag b">登记发货</span> <span class="tag b">录入发票</span> <span class="tag b">提交报销</span><br><span class="tag">查看付款/需方消息</span></td>
+        <td class="none">不登录（自动桥接）</td>
+        <td class="none">不使用</td>
+      </tr>
+      <tr>
+        <td class="role">采购员</td>
+        <td><span class="tag b">签合同</span> <span class="tag b">确认收货</span> <span class="tag b">对账</span><br><span class="tag">供应商管理</span> <span class="tag">工具箱</span></td>
+        <td class="none">不登录</td>
+        <td class="none">不使用</td>
+      </tr>
+      <tr>
+        <td class="role">财务</td>
+        <td><span class="tag">查看发票台账/付款/对账（只读）</span></td>
+        <td><span class="tag b">审核发票</span> <span class="tag b">登记付款</span><br><span class="tag">驳回/通过</span></td>
+        <td><span class="tag b">收支记账</span> <span class="tag b">银行对账</span><br><span class="tag">待办事项</span></td>
+      </tr>
+      <tr>
+        <td class="role">管理员</td>
+        <td><span class="tag b">用户管理</span> <span class="tag b">角色权限</span><br><span class="tag">开通供应商账号</span> <span class="tag">公司主体</span></td>
+        <td><span class="tag">配置接口地址/令牌</span></td>
+        <td><span class="tag">公司主体/分类</span></td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="cap" style="font-size:12px;color:var(--text-muted);margin-top:8px">付款登记时仅需选一下支出/收入分类，该笔付款即自动写入收支表对应公司主体的账本。</div>
+</section>
+
+<!-- ============ 四、补充说明 ============ -->
+<section class="card">
+  <h2>四、补充说明</h2>
+  <h3>云端数据归属</h3>
+  <ul>
+    <li><b>采购一体化系统</b>：独立命名空间 <code>purchase-integrated</code>，键前缀 <code>pis_</code>（合同/发货/收货/退货/发票/付款/供应商/用户/角色 等）。</li>
+    <li><b>发票与付款系统</b>：Flask 8686 后端 + CloudBase 共享环境 <code>onlineofficework-d4e93l98bdf879e</code>，发票/付款记录存 SQLite + 云端。</li>
+    <li><b>收支表</b>：独立命名空间 <code>incomeexpense</code>，键含 <code>currentCompany</code>/<code>todos</code>/<code>reconciliation_transactions</code>/<code>categories</code> 及 <code>transactions_company1|company2</code>。</li>
+  </ul>
+  <h3>依赖关系</h3>
+  <ul>
+    <li>采购侧「提交发票」「查看付款」依赖报销系统 8686 在线（<code>ReimPay</code> 桥 30 秒拉取一次）。</li>
+    <li>报销系统「付款云推送」依赖 CloudBase 云端可写；收支表下次加载即自动读取新付款记录。</li>
+    <li>采购与收支表之间无直接依赖；采购数据须经报销付款后才进入收支表。</li>
+  </ul>
+  <h3>异常分支</h3>
+  <ul>
+    <li><b>发票被驳回</b>：报销系统审核反馈会回写采购侧发票台账「报销状态=已驳回」并附驳回原因；供应商修改后重新提交，按发票号 upsert 覆盖。</li>
+    <li><b>部分发货补发</b>：供应商在发货管理对同一合同多次登记发货，每条独立发货单；对账表「货流」列会显示「部分发货 X/Y」「已发货 X/Y」「部分收货」「已收齐」进度。</li>
+    <li><b>销售方未匹配供应商</b>：报销侧进项发票若销售方与采购侧供应商名称模糊匹配分 &lt; 0.45，不会自动同步到采购台账，需人工核对。</li>
+  </ul>
+</section>
+
+<div class="footer">
+  采购一体化系统 · 供应商协同平台 · AlonZhang Designed &nbsp;|&nbsp; 本指南基于代码实证整理，随系统迭代更新
+</div>
+
+</div>
+</body>
+</html>

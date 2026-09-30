@@ -14,8 +14,8 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # 降低并发后上传变慢，放宽超时上限
-    timeout-minutes: 20
+    # 降低并发后上传变慢，放宽超时上限（境外 Runner→腾讯云 COS 链路不稳，留足余量）
+    timeout-minutes: 35
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -61,8 +61,21 @@ jobs:
           # 文件上传时会长时间挂起；按 CloudBase 官方建议降低并发、增加重试，
           # 并关闭 COS SDK keep-alive 长连接（socket hang up / ECONNRESET 时的对策）
           export COS_SDK_KEEPALIVE=false
-          tcb hosting deploy _deploy / -e "$TCB_ENV_ID" \
-            --concurrency 5 --retry-count 4 --retry-interval 2000
+          # 整命令级重试：tcb hosting deploy 按文件 hash 跳过已上传项，
+          # 失败/超时后重试只补传未完成的文件，避免一次卡死整次部署
+          for i in 1 2 3 4 5; do
+            echo "===== 部署尝试 $i/5 ====="
+            if tcb hosting deploy _deploy / -e "$TCB_ENV_ID" \
+              --concurrency 5 --retry-count 4 --retry-interval 2000; then
+              echo "✅ 部署成功（第 $i 次尝试）"
+              break
+            else
+              code=$?
+              echo "⚠️ 第 $i 次尝试失败（exit $code），tcb 会跳过已传文件，5 秒后重试..."
+              [ "$i" -eq 5 ] && { echo "❌ 5 次均失败，部署终止"; exit 1; }
+              sleep 5
+            fi
+          done
 
       # 云函数 tcb-file-list（可选增强，已在线上）不在 CI 中部署。
       # 函数代码变更时在本机手动部署（cloudbaserc.json 已锁定 Event 类型/入口，
