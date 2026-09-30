@@ -3542,10 +3542,21 @@
             const allOrderNos = selectedOrderNos.join(',');
             
             // 查找匹配的orderLabelRecords
-            const matchedOrderLabelRecords = orderLabelsData.filter(label => {
-                return selectedOrderNos.some(orderNo => 
-                    label.po && (label.po.toLowerCase() === orderNo.toLowerCase() || label.po.toLowerCase().startsWith(orderNo.toLowerCase()))
-                );
+            /* 标签 PO 归属：精确相等或“订单号+修订后缀（2602274A / 2504679-R）”；纯数字延伸（260230≠2602305）不算，防止误带邻近订单箱贴 */
+            const matchedOrderLabelRecords = [];
+            const __seenLabelIds = new Set();
+            orderLabelsData.forEach(label => {
+                const lp = String(label.po || '').trim().toUpperCase();
+                const hit = selectedOrderNos.some(orderNo => {
+                    const o = String(orderNo || '').trim().toUpperCase();
+                    if (!lp || !o) return false;
+                    if (lp === o) return true;
+                    return lp.length > o.length && lp.indexOf(o) === 0 && !/^\d/.test(lp.slice(o.length));
+                });
+                if (hit) {
+                    if (label.id != null) { if (__seenLabelIds.has(label.id)) return; __seenLabelIds.add(label.id); }
+                    matchedOrderLabelRecords.push(label);
+                }
             });
             
             const data = {

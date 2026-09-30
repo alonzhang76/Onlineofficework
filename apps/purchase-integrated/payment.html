@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>付款管理 · 采购一体化系统</title>
-<link rel="stylesheet" href="css/common.css?v=20260930b">
+<link rel="stylesheet" href="css/common.css?v=20260930c">
 </head>
 <body>
 <header>
@@ -37,18 +37,20 @@ window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
 </script>
 <script src="../cloudbase-sync.js?v=20260924f"></script>
 <script src="../cloudbase-admin.js?v=20260930a"></script>
-<script src="js/common.js?v=20260930c"></script>
+<script src="js/common.js?v=20260930g"></script>
 <script src="js/auth-guard.js"></script>
 <script>
 'use strict';
 /* ==========================================================
    付款管理（只读映射视图）
-   数据源：报销系统「收票付款统计（付给销售方）」+「付款记录」
-     GET /api/payments/external（请求头 X-Reim-Token，只读）
+   数据源：报销系统云端「收票付款统计（付给销售方）」+「付款记录」
+     首选云端直连 CloudBase（reim_invoices 行，任意电脑联网可查），
+     云端不可达时兜底本机报销服务 GET /api/payments/external（X-Reim-Token）。
    本页不提供任何付款录入/编辑操作（原「新建付款」已下线，
    付款登记统一在报销系统侧完成）。
    三方关联：报销发票(project=合同号) ↔ 采购本地发票(contractNumber) ↔ 合同
-   供应商登录后自动只看自己的数据（Session.mySupplier 过滤）。
+   供应商登录后自动只看自己的数据（Session.mySupplier 过滤）；
+   我司内部人员可查看全部供应商的付款情况。
    ========================================================== */
 /* 接口地址 / 令牌 / 拉取缓存统一走 common.js 的 ReimPay 桥 */
 
@@ -85,7 +87,7 @@ function pagePayment(root) {
     (sub ? '<div class="l" style="margin-top:4px">' + esc(sub) + '</div>' : '') + '</div>';
   root.innerHTML =
     '<div class="page-head"><h2>付款管理</h2>' +
-    '<span class="desc">数据来自报销系统（收票付款统计 + 付款记录）· 合同 / 发票 / 付款关联核对 · 只读</span>' +
+    '<span class="desc">数据来自报销系统云端（收票付款统计 + 付款记录）· 任意电脑联网可查 · 合同 / 发票 / 付款关联核对 · 只读</span>' +
     (isSup ? '<span class="badge b-purple">供应商视角：' + esc(me) + '</span>' : '') +
     '<span id="payConn"></span><span class="spacer"></span>' +
     '<button class="btn btn-outline" id="payRefresh">⟳ 刷新</button></div>' +
@@ -104,7 +106,8 @@ function pagePayment(root) {
 
   const localInvs = Data.all('invoices'); // 本地全量发票（跨公司/跨供应商），用于合同反查
   const setConn = st => {
-    $('#payConn').innerHTML = st === 'ok' ? '<span class="badge b-green">● 已连接</span>'
+    $('#payConn').innerHTML = st === 'cloud' ? '<span class="badge b-green">☁️ 云端已连接</span>'
+      : st === 'local' ? '<span class="badge b-amber">🖥 本机服务已连接</span>'
       : st === 'loading' ? '<span class="badge b-gray">连接中…</span>'
       : '<span class="badge b-red">● 未连接</span>';
   };
@@ -112,20 +115,21 @@ function pagePayment(root) {
     setConn('loading');
     $('#payErr').innerHTML = '';
     try {
-      // 复用 common.js ReimPay 桥（带缓存、并发去重；force=true 为手动刷新）
+      // 复用 common.js ReimPay 桥（云端优先 / 本机兜底，带缓存、并发去重；force=true 为手动刷新）
       const d = await ReimPay.load(!!force);
       payData = d;
       payExpanded = {};
-      setConn('ok');
+      setConn(ReimPay.source === 'local' ? 'local' : 'cloud');
     } catch (e) {
-      // 离线时退回本机缓存展示（顶部保持「未连接」提示）
+      // 云端与本机服务都不可用时退回本机缓存展示（顶部保持「未连接」提示）
       payData = ReimPay.raw();
       setConn('err');
       if (!payData) {
         $('#payErr').innerHTML =
-          '<div class="card" style="border-left:4px solid var(--red);margin-bottom:12px"><b>无法连接报销系统</b>' +
-          '<div class="hint">' + esc(e.message || String(e)) + ' · 请先启动报销系统（运行 reimbursement-system/start.bat，默认 ' +
-          esc(ReimPay.base()) + '），启动后点「刷新」。</div></div>';
+          '<div class="card" style="border-left:4px solid var(--red);margin-bottom:12px"><b>暂时无法获取报销系统付款数据</b>' +
+          '<div class="hint">' + esc(e.message || String(e)) +
+          ' · 付款数据取自报销系统云端，请检查本机网络后点「刷新」；若您在办公机使用，也可启动本机报销系统（运行 reimbursement-system/start.bat，默认 ' +
+          esc(ReimPay.base()) + '）作为备用。</div></div>';
         $('#payStats').innerHTML = '';
         $('#payGroupBox').innerHTML = '';
         $('#payRecBox').innerHTML = '';

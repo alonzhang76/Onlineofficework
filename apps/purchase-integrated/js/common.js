@@ -203,7 +203,14 @@ const DEFAULT_TERMS = [
   '本合同一式两份，双方各执一份，经双方签字盖章后生效，传真件具有同等法律效力。'
 ];
 
+/* 种子闸门：云端首拉落定前禁止写默认数据。
+   否则新设备打开时 seed 的默认 admin/角色/公司时间戳比云端新：
+   ① processCloudRows 的 LWW 保护会挡住云端真实数据落地；
+   ② 默认值还会经上传队列无版本保护地 upsert 覆盖云端（全量用户被清成 admin）。
+   登录页（PIS_NO_AUTO_SEED）自行在云端确认空租户后调用 PIS_bootstrapSeed。 */
+const SeedGate = { blocked: !!window.PIS_NO_AUTO_SEED };
 function seed() {
+  if (SeedGate.blocked) return;
   if (!DB.get('companies', null)) DB.set('companies', DEFAULT_COMPANIES);
   if (!DB.get('units', null)) DB.set('units', DEFAULT_UNITS);
   if (!DB.get('terms', null)) DB.set('terms', DEFAULT_TERMS);
@@ -213,6 +220,25 @@ function seed() {
   }
   if (!DB.get('suppliers', null)) DB.set('suppliers', []);
 }
+/* 云端就绪后：仅当云端未带来任何用户数据（全新租户首台设备）时才播种；
+   云端已有数据则一切以云端为准。20 秒超时为离线/异常兜底（此时本机无数据才播种）。 */
+(function installSeedGate() {
+  if (window.PIS_NO_AUTO_SEED) {
+    window.PIS_bootstrapSeed = function () { SeedGate.blocked = false; seed(); };
+    return;
+  }
+  if (typeof window.CloudbaseSync === 'undefined') return; // 无同步层：直接 seed
+  SeedGate.blocked = true;
+  let done = false;
+  const release = () => {
+    if (done) return; done = true; SeedGate.blocked = false;
+    if (DB.get('users', null) == null) seed();
+  };
+  window.addEventListener('cloud-data-updated', e => {
+    if (e && e.detail && e.detail.initial) release();
+  });
+  setTimeout(release, 20000);
+})();
 
 /* ---------- 密码 ---------- */
 async function hashPwd(pwd) {
@@ -294,11 +320,16 @@ const curCoName = () => State.company === ALL_COMPANIES ? '全部公司' : getCo
 
 /* ---------- 报销系统数据桥（只读，付款/审核状态唯一数据源） ----------
    付款登记统一在 reimbursement-system 完成；本系统已无本地付款写入点，
-   台账 / 对账 / 工作台 / 统计的付款金额、付款日期、发票审核状态均取自报销侧
-   GET /api/payments/external（令牌 purchase-link-2026）。
+   台账 / 对账 / 工作台 / 统计的付款金额、付款日期、发票审核状态均取自报销侧。
+   取数顺序（不依赖某一台电脑开着服务）：
+   ① 云端直连（首选）：报销系统的正式数据就在 CloudBase app_data_store
+      （reim_invoices / reim_review_log 行），复用本页 cloudbase-sync 的共享
+      账号登录态，任何电脑 / 任何浏览器联网即可查询，供应商也能自助查自己的数据；
+   ② 本机报销系统服务（兜底）：GET {pis_reim_api}/api/payments/external
+      （令牌 purchase-link-2026），供云端不可达时降级。
    - 接口地址存本机 pis_reim_api、快照存 pis_reim_cache（均不参与云端业务键同步）
    - 进入业务页时静默后台拉取，成功后派发 reim-pay-updated 触发非打断式重渲染
-   - 首次渲染先读本机缓存，保证离线 / 报销服务未启动时仍能显示上次数据 */
+   - 首次渲染先读本机缓存，保证离线时仍能显示上次数据 */
 const REIM_TOKEN = 'purchase-link-2026';
 const REIM_TTL_MS = 30000; // 后台静默拉取节流：30 秒内不重复请求（手动刷新走 force）
 
@@ -364,6 +395,7 @@ const ReimPay = {
   data: null,
   inflight: null,
   lastOkAt: 0,
+  source: null,   // 本次数据来源：'cloud'（报销系统云端）| 'local'（本机 Flask 服务）
   init() {
     if (this.data) return this.data;
     try { this.data = JSON.parse(localStorage.getItem('pis_reim_cache') || 'null'); } catch (e) { this.data = null; }
@@ -432,6 +464,305 @@ const ReimPay = {
     out.sort((a, b) => String(b.paymentDate || '').localeCompare(String(a.paymentDate || '')));
     return out;
   },
+  /* ===== 云端直连报销系统（首选数据源，任意电脑联网可查） =====
+     报销前端（reimbursement-system/static）把发票 / 流转记录直接写在
+     CloudBase app_data_store 的 reim_invoices / reim_review_log 行里。
+     这里复用页面 cloudbase-sync.js 已引导好的共享账号登录态走 rdb REST，
+     按行精确读取（store_key=eq.xxx），不把报销数据混入本应用同步缓存。 */
+  async _cloudCtx(waitMs) {
+    const deadline = Date.now() + waitMs;
+    while (Date.now() < deadline) {
+      if (typeof window.CloudbaseGetAccessToken === 'function' && window.CLOUDBASE_ENV) {
+        if (typeof window.CloudbaseWhenReady === 'function') {
+          await Promise.race([
+            window.CloudbaseWhenReady(),
+            new Promise(r => setTimeout(r, 15000))
+          ]);
+        }
+        const token = await Promise.race([
+          window.CloudbaseGetAccessToken(),
+          new Promise(r => setTimeout(r, 15000, null))
+        ]);
+        if (token) return { env: window.CLOUDBASE_ENV, token: token };
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    throw new Error('云端登录态未就绪');
+  },
+  async _cloudRow(storeKey) {
+    const ctx = await this._cloudCtx(20000);
+    const url = 'https://' + ctx.env + '.api.tcloudbasegateway.com/v1/rdb/rest/app_data_store'
+      + '?select=id,data&data-%3E%3Estore_key=eq.' + encodeURIComponent(storeKey);
+    let res;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 30000);
+      try {
+        res = await fetch(url, {
+          method: 'GET',
+          headers: { 'Authorization': 'Bearer ' + ctx.token },
+          signal: ctrl.signal,
+          cache: 'no-store'
+        });
+        break;
+      } catch (e) {
+        if (attempt === 0 && /aborted|timeout/i.test(String(e && e.message || e))) continue;
+        throw e;
+      } finally { clearTimeout(timer); }
+    }
+    if (!res.ok) throw new Error('云端读取 HTTP ' + res.status);
+    const rows = await res.json();
+    if (!Array.isArray(rows) || !rows.length) return null;
+    // 历史 upsert 可能留下同 store_key 多行：取 updated_at 最新者
+    let best = null;
+    rows.forEach(r => {
+      const d = r && typeof r.data === 'object' ? r.data : null;
+      if (!d) return;
+      if (!best || String(d.updated_at || '') > String(best.updated_at || '')) best = d;
+    });
+    if (!best) return null;
+    return best.payload !== undefined && best.payload !== null ? best.payload
+      : (best.data !== undefined && best.data !== null ? best.data : null);
+  },
+  /* 云端行 → 与 Flask GET /api/payments/external 同构的 payload。
+     口径与 reimbursement-system/app.py payments_external 完全一致：
+       direction='进项' 且 total_amount 非空 且 settle='正常付款'
+       且 status!='已驳回' 且 payee='销售方'
+     records 额外要求 paid_amount 非空且 > 0。 */
+  _buildCloudPayload(list, logs) {
+    const num = x => { const n = parseFloat(x); return isFinite(n) ? n : 0; };
+    const hasNum = x => x !== null && x !== undefined && x !== '' && isFinite(parseFloat(x));
+    const payInfo = (total, paid) => {
+      const bal = Math.round((total - paid) * 100) / 100;
+      if (paid <= 0.005) return { status: '未付款', balance: bal };
+      if (bal > 0.005) return { status: '部分付款', balance: bal };
+      return { status: '已付清', balance: 0 };
+    };
+    const all = Array.isArray(list) ? list : [];
+    // 每张票最近一条非空审核意见（对应 SQL 子查询 last_comment）
+    const commentMap = new Map();
+    (Array.isArray(logs) ? logs : []).forEach(l => {
+      if (!l || !l.invoice_id || !l.comment) return;
+      const k = String(l.invoice_id);
+      const prev = commentMap.get(k);
+      if (!prev || String(l.created_at || '') > String(prev.created_at || '')) commentMap.set(k, l);
+    });
+    const base = all.filter(r => r && r.direction === '进项' && hasNum(r.total_amount) &&
+      (r.settle || '正常付款') === '正常付款' && r.status !== '已驳回' &&
+      (r.payee || '销售方') === '销售方');
+    const decorate = r => {
+      const d = Object.assign({}, r);
+      ['amount', 'tax_amount', 'total_amount', 'paid_amount'].forEach(f => { d[f] = num(d[f]); });
+      const pi = payInfo(d.total_amount, d.paid_amount);
+      d.payment_status = pi.status;
+      d.balance = pi.balance;
+      return d;
+    };
+    const invRows = base
+      .slice()
+      .sort((a, b) => String(a.seller_name || '').localeCompare(String(b.seller_name || '')) ||
+        String(b.invoice_date || '').localeCompare(String(a.invoice_date || '')) ||
+        String(b.id || '').localeCompare(String(a.id || '')))
+      .map(decorate);
+    const recRows = base.filter(r => hasNum(r.paid_amount) && num(r.paid_amount) > 0)
+      .slice()
+      .sort((a, b) => String(b.payment_date || '').localeCompare(String(a.payment_date || '')) ||
+        String(b.id || '').localeCompare(String(a.id || '')))
+      .slice(0, 2000)
+      .map(decorate);
+    // 供应商分组（SQL GROUP BY seller_name ... ORDER BY t DESC）
+    const gmap = {};
+    base.forEach(r => {
+      const name = r.seller_name || '';
+      const g = gmap[name] || (gmap[name] = { seller_name: name, count: 0, total: 0, paid: 0, last_pay: '' });
+      g.count++;
+      g.total += num(r.total_amount);
+      g.paid += num(r.paid_amount);
+      if (String(r.payment_date || '') > String(g.last_pay || '')) g.last_pay = r.payment_date || '';
+    });
+    const groups = Object.values(gmap).map(g => ({
+      seller_name: g.seller_name, count: g.count,
+      total: Math.round(g.total * 100) / 100,
+      paid: Math.round(g.paid * 100) / 100,
+      owed: Math.round((g.total - g.paid) * 100) / 100,
+      last_pay: g.last_pay || ''
+    })).sort((a, b) => b.total - a.total);
+    const totalN = groups.reduce((s, g) => s + g.count, 0);
+    const totalT = groups.reduce((s, g) => s + g.total, 0);
+    const totalP = groups.reduce((s, g) => s + g.paid, 0);
+    // 审核状态回写源：云端每张票自带 status；驳回原因取最近一条非空意见
+    const submissions = all.filter(r => r && r.id != null && r.invoice_no != null).map(r => {
+      const l = commentMap.get(String(r.id));
+      return {
+        id: r.id, invoice_no: r.invoice_no, status: r.status || '',
+        updated_at: r.updated_at || '', last_comment: l ? (l.comment || '') : ''
+      };
+    });
+    const p2 = n => Math.round(n * 100) / 100;
+    return {
+      ok: true,
+      generated_at: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      source: 'cloud',
+      summary: { suppliers: groups.length, invoices: totalN, total: p2(totalT), paid: p2(totalP), owed: p2(totalT - totalP) },
+      groups: groups,
+      invoices: invRows,
+      records: recRows,
+      submissions: submissions
+    };
+  },
+  async loadFromCloud() {
+    const [invs, logs] = await Promise.all([
+      this._cloudRow('reim_invoices'),
+      this._cloudRow('reim_review_log')
+    ]);
+    if (!Array.isArray(invs)) throw new Error('报销云端发票数据（reim_invoices）不可用');
+    return this._buildCloudPayload(invs, Array.isArray(logs) ? logs : []);
+  },
+  /* ===== 本机报销系统服务（兜底数据源） =====
+     办公机启动 reimbursement-system/start.bat（Flask，默认 127.0.0.1:8686）时可用；
+     8 秒快速失败，确保未启动服务的电脑立即转云端而不是长时间卡住。 */
+  async loadFromHttp() {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    let resp;
+    try {
+      resp = await fetch(this.base() + '/api/payments/external', {
+        headers: { 'X-Reim-Token': REIM_TOKEN }, cache: 'no-store', signal: ctrl.signal
+      });
+    } finally { clearTimeout(timer); }
+    if (!resp.ok) throw new Error('报销系统接口 HTTP ' + resp.status);
+    const j = await resp.json();
+    if (!j || j.ok === false) throw new Error((j && j.msg) || '报销系统返回异常');
+    return j;
+  },
+  /* ===== 发票提交：直接写入报销/付款系统云端（待审核） =====
+     与本机 Flask POST /api/invoices/external 同规则，但写入点是公司审核端
+     实际读取的云端 reim_invoices，保证供应商在任意电脑提交后，我司人员
+     下拉云端即可在「待审核」清单看到（写入点 = 读取点，单一事实源）。
+     - 发票号已存在且非「已驳回」→ 拒绝重复提交
+     - 「已驳回」→ 覆盖更新为待审核（保留发票 id / 已付金额 / PDF 路径），记重新提交日志
+     - 新发票 → 追加待审核记录 + 「采购系统提交」流转日志 */
+  async _cloudSave(storeKey, payload) {
+    await this._cloudCtx(20000);
+    const sb = window.supabase;
+    if (!sb || !sb.from) throw new Error('云端数据接口未就绪');
+    const r = await sb.from('app_data_store').upsert({
+      store_key: storeKey,
+      payload: payload,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'store_key' });
+    if (r && r.error) throw r.error;
+    return true;
+  },
+  /* 与报销系统 static/store.js matchCompany 同规则：购方命中 → 进项，销方命中 → 销项 */
+  _matchReimCompany(companies, buyer, seller) {
+    const norm = s => String(s || '').replace(/\s+/g, '');
+    const b = norm(buyer), s = norm(seller);
+    if (!b && !s) return { company_id: null, direction: null, company_short: null };
+    for (const c of companies) {
+      if (!c.active) continue;
+      const n = norm(c.name);
+      if (n && b && (n.indexOf(b) >= 0 || b.indexOf(n) >= 0)) {
+        return { company_id: c.id, direction: '进项', company_short: c.short_name || c.name };
+      }
+    }
+    for (const c2 of companies) {
+      if (!c2.active) continue;
+      const n2 = norm(c2.name);
+      if (n2 && s && (n2.indexOf(s) >= 0 || s.indexOf(n2) >= 0)) {
+        return { company_id: c2.id, direction: '销项', company_short: c2.short_name || c2.name };
+      }
+    }
+    return { company_id: null, direction: null, company_short: null };
+  },
+  async submitInvoice(p) {
+    const no = String((p && p.invoice_no) == null ? '' : p.invoice_no).trim();
+    if (!no) throw new Error('缺少发票号码');
+    const [invsRaw, compsRaw, logsRaw] = await Promise.all([
+      this._cloudRow('reim_invoices'),
+      this._cloudRow('reim_companies'),
+      this._cloudRow('reim_review_log')
+    ]);
+    const invs = Array.isArray(invsRaw) ? invsRaw.slice() : [];
+    const comps = Array.isArray(compsRaw) ? compsRaw : [];
+    const logs = Array.isArray(logsRaw) ? logsRaw.slice() : [];
+    const exist = invs.find(x => String(x.invoice_no) === no);
+    if (exist && exist.status !== '已驳回') {
+      const e = new Error('发票 ' + no + ' 已在付款系统中（' + (exist.status || '') + '），不可重复提交');
+      e.duplicate = true;
+      throw e;
+    }
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const m = this._matchReimCompany(comps, p.buyer_name, p.seller_name);
+    // 采购侧提交的发票购方即我司；公司档案未命中时按进项兜底，保证进入待审核与付款统计
+    const direction = m.direction || '进项';
+    const fields = {
+      invoice_no: no,
+      invoice_code: p.invoice_code || null,
+      invoice_type: p.invoice_type || null,
+      invoice_date: p.invoice_date || null,
+      buyer_name: p.buyer_name || null,
+      seller_name: p.seller_name || null,
+      item_name: p.item_name || null,
+      amount: (p.amount === undefined || p.amount === null || p.amount === '') ? null : +p.amount,
+      tax_rate: p.tax_rate || null,
+      tax_amount: (p.tax_amount === undefined || p.tax_amount === null || p.tax_amount === '') ? null : +p.tax_amount,
+      total_amount: (p.total_amount === undefined || p.total_amount === null || p.total_amount === '') ? null : +p.total_amount,
+      subject_code: p.subject_code || null,
+      subject_name: p.subject_name || null,
+      claimant: p.claimant || '采购系统',
+      department: p.department || '',
+      project: p.project || null,
+      status: '待审核',
+      remark: p.remark || null,
+      check_code: p.check_code || null,
+      settle: '正常付款',
+      payee: '销售方',
+      company_id: m.company_id,
+      direction: direction,
+      company_short: m.company_short,
+      updated_at: now
+    };
+    let iid, resubmitted = false;
+    if (exist) {
+      // 驳回后重新提交：保留 id / 建档时间 / 已付与付款信息 / PDF 路径，仅刷新票面字段
+      iid = exist.id;
+      resubmitted = true;
+      Object.assign(exist, fields);
+    } else {
+      // 云端前端（static/index.html saveInvoice）用 Date.now() 作数字 id；防同毫秒撞号
+      iid = Date.now();
+      while (invs.some(x => x.id === iid)) iid++;
+      invs.push(Object.assign({
+        id: iid,
+        user_id: null,
+        paid_amount: 0,
+        payment_date: null,
+        payment_method: null,
+        payment_note: null,
+        cloud_path: null,
+        file_path: null,
+        created_at: now
+      }, fields));
+    }
+    logs.push({
+      id: now.slice(0, 10).replace(/-/g, '') + iid + Math.random().toString(36).slice(2, 6),
+      invoice_id: iid,
+      reviewer_id: 0,
+      reviewer_name: '采购系统',
+      action: resubmitted ? '采购系统重新提交' : '采购系统提交',
+      comment: null,
+      created_at: now
+    });
+    // 发票与日志分两次写：发票落库是关键路径；日志失败不阻断（审核列表只认 status）
+    await this._cloudSave('reim_invoices', invs);
+    try { await this._cloudSave('reim_review_log', logs); }
+    catch (e) { console.warn('[ReimPay] 流转日志写入失败（不影响待审核）:', e && e.message ? e.message : e); }
+    // 立即刷新本应用付款缓存，让审核状态 / 付款数据近实时更新
+    this.lastOkAt = 0;
+    try { await this.load(true); } catch (e) {}
+    return { ok: true, id: iid, invoice_no: no, status: '待审核', resubmitted: resubmitted };
+  },
   async load(force) {
     if (this.inflight) return this.inflight;
     // TTL 内且已有数据：直接用缓存（防止 reim-pay-updated 重渲染后形成拉取循环）
@@ -439,12 +770,30 @@ const ReimPay = {
       return Promise.resolve(this.data);
     }
     const p = (async () => {
-      const resp = await fetch(this.base() + '/api/payments/external', {
-        headers: { 'X-Reim-Token': REIM_TOKEN }, cache: 'no-store'
-      });
-      if (!resp.ok) throw new Error('报销系统接口 HTTP ' + resp.status);
-      const j = await resp.json();
-      if (!j || j.ok === false) throw new Error((j && j.msg) || '报销系统返回异常');
+      let j = null;
+      let cloudErr = null;
+      // ① 云端优先：报销系统正式数据在云端，任意电脑联网可查，不依赖本机服务
+      try {
+        j = await this.loadFromCloud();
+        this.source = 'cloud';
+      } catch (e) {
+        cloudErr = e;
+        console.warn('[ReimPay] 云端读取失败，尝试本机报销服务:', e && e.message ? e.message : e);
+      }
+      // ② 兜底：本机 Flask 服务（办公机已启动时）
+      if (!j) {
+        try {
+          j = await this.loadFromHttp();
+          this.source = 'local';
+        } catch (e2) {
+          const msg = '云端与本机报销服务均不可用' +
+            (cloudErr ? '（云端：' + (cloudErr.message || cloudErr) + '）' : '');
+          const err = new Error(msg);
+          err.cloudError = cloudErr;
+          err.localError = e2;
+          throw err;
+        }
+      }
       this.data = j;
       this.lastOkAt = Date.now();
       localStorage.setItem('pis_reim_cache', JSON.stringify(j));
@@ -773,6 +1122,10 @@ function renderFrame() {
   const u = Session.user; if (!u) return;
   if ($('#whoName')) $('#whoName').textContent = u.username;
   if ($('#companySelectWrap')) $('#companySelectWrap').style.display = Session.isSupplier() ? 'none' : 'flex';
+  /* 供应商角色标记：CSS 据此隐藏页首工具条「备份到电脑 / 从电脑恢复」
+     （供应商不得导出全量数据，更不能用本机 JSON 覆盖云端）。
+     按钮由多应用共用的 cloudbase-admin.js 注入，故用角色 class 控制，不改共享件。 */
+  document.documentElement.classList.toggle('pis-supplier', Session.isSupplier());
   const deps = {};
   const origGet = DB.get;
   DB.get = function (k, d) {
@@ -918,6 +1271,7 @@ migrateCompanyCodes();
    ========================================================== */
 /* 顶部冻结工具条「📥 备份到电脑」入口：导出全量 pis_* 数据 JSON */
 window.backupData = function () {
+  if (Session.isSupplier()) { toast('供应商账号无权备份数据', 'err'); return; }
   try {
     const blob = new Blob([JSON.stringify(DB.snapshot(), null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
@@ -931,6 +1285,7 @@ window.backupData = function () {
 /* 顶部冻结工具条「📤 从电脑恢复」入口：选择 JSON → 覆盖本机 → 启动导入保护（防云端旧数据回灌）→ 刷新。
    恢复写入会经 cloudbase-sync 拦截器自动上传，保护期只屏蔽"云端→本地"拉取。 */
 window.restoreData = function () {
+  if (Session.isSupplier()) { toast('供应商账号无权恢复数据', 'err'); return; }
   const input = document.createElement('input');
   input.type = 'file'; input.accept = '.json,application/json';
   input.onchange = e => {

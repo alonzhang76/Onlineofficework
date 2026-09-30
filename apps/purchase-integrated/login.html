@@ -4,7 +4,42 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>登录 · 采购一体化系统</title>
-<link rel="stylesheet" href="css/common.css?v=20260930b">
+<link rel="stylesheet" href="css/common.css?v=20260930c">
+<style>
+/* 云端连接状态（登录页） */
+#cloudState{margin-top:10px;font-size:12px;line-height:1.5;text-align:center;min-height:18px}
+.cs-loading{color:#8a94a6}.cs-ok{color:#16a34a}.cs-warn{color:#d97706}
+#loginBtn[disabled]{opacity:.6;cursor:not-allowed}
+/* 登录页使用专用云端状态行，隐藏同步层自动注入的悬浮徽标/圆点 */
+#__cb_sync_badge,.__cs_fallback_badge{display:none!important}
+</style>
+<script>
+/* 云端数据（与业务页同一套 cloudbase-sync 机制）：
+   供应商 / 员工分布在全国各地，账号表 pis_users 在云端 —— 新电脑打开登录页时
+   必须先拉云端账号再校验登录，否则本机只有种子 admin，其他账号全部登录失败。
+   登录页不拉工具条（cloudbase-admin.js），仅做只读首拉 + 必要的本机写入同步。 */
+window.CLOUDBASE_APP_ID='purchase-integrated';
+window.CLOUDBASE_APP_KEYS=['pis_companies','pis_units','pis_terms','pis_roles','pis_users','pis_suppliers','pis_curCompany','pis_orders','pis_shipments','pis_receipts','pis_returns','pis_invoices','pis_payments','pis_tool_records','pis_poPageSize','pis_plyPaste'];
+window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
+/* 云端首拉完成前禁止 common.js 播种默认 admin/角色：
+   否则默认数据的时间戳比云端新会挡住云端账号落地，甚至被反向上传覆盖云端用户表。
+   首拉确认云端为空（全新租户）后由本页调用 PIS_bootstrapSeed() 初始化。 */
+window.PIS_NO_AUTO_SEED=true;
+</script>
+<script src="../cloudbase-sync.js?v=20260924f"></script>
+<script>
+/* 记录云端首拉结果（监听必须紧跟 sync 脚本注册，避免错过 initial 事件） */
+window.__pisCloud = { settled:false, ok:false };
+window.addEventListener('cloud-data-updated', function (e) {
+  if (e && e.detail && e.detail.initial) { window.__pisCloud.settled = true; window.__pisCloud.ok = true; }
+});
+window.addEventListener('cloud-sync-status', function (e) {
+  var st = e && e.detail && e.detail.state;
+  if (st === 'error' || st === 'offline') { window.__pisCloud.settled = true; window.__pisCloud.ok = false; }
+});
+/* 硬兜底：25 秒后无论事件是否到达都放行（允许本机账号离线登录） */
+setTimeout(function () { window.__pisCloud.settled = true; }, 25000);
+</script>
 </head>
 <body>
 
@@ -63,6 +98,7 @@
       </div>
       <button class="lg-btn" id="loginBtn">登 录</button>
       <div class="login-err" id="loginErr"></div>
+      <div id="cloudState" class="cs-loading">正在连接云端，同步账号数据…</div>
       <div class="login-hint">供应商请联系AlonZhang开通账号</div>
     </div>
   </div>
@@ -71,7 +107,7 @@
 
 <div class="toast" id="toastBox"></div>
 
-<script src="js/common.js?v=20260930c"></script>
+<script src="js/common.js?v=20260930g"></script>
 <script>
 /* ==========================================================
    登录逻辑（多模块版：登录成功 → purchase.html 采购管理）
@@ -88,14 +124,62 @@
   } catch (e) { /* 忽略 */ }
 })();
 
+/* 等待云端账号首拉（成功 / 失败 / 25 秒兜底后放行；失败时仅本机账号可登录） */
+function waitCloudUsers() {
+  return new Promise(resolve => {
+    const t0 = Date.now();
+    (function tick() {
+      const c = window.__pisCloud;
+      if (c.settled || Date.now() - t0 > 26000) return resolve(!!c.ok);
+      setTimeout(tick, 200);
+    })();
+  });
+}
+/* 云端连接成功且本地仍无账号数据 = 全新租户首台设备 → 播种初始 admin 等默认数据
+   （会正常上传云端，成为该租户的初始化数据）；云端已有账号时绝不播种。 */
+let bootstrapped = false;
+function maybeBootstrapSeed() {
+  if (bootstrapped) return;
+  const c = window.__pisCloud || {};
+  if (!c.settled || !c.ok) return;
+  bootstrapped = true;
+  try {
+    if (localStorage.getItem('pis_users') == null && typeof window.PIS_bootstrapSeed === 'function') {
+      window.PIS_bootstrapSeed();
+    }
+  } catch (e) { console.warn('初始化默认数据失败', e); }
+}
+function paintCloudState() {
+  const el = $('#cloudState'); if (!el) return;
+  const c = window.__pisCloud || {};
+  if (!c.settled) { el.className = 'cs-loading'; el.textContent = '正在连接云端，同步账号数据…'; }
+  else if (c.ok) { el.className = 'cs-ok'; el.textContent = '云端已连接，可使用账号登录'; }
+  else { el.className = 'cs-warn'; el.textContent = '云端未连接：仅可登录本机已有账号，请检查网络后刷新'; }
+  maybeBootstrapSeed();
+}
+setInterval(paintCloudState, 500); paintCloudState();
+
 async function doLogin() {
   const un = $('#loginUser').value.trim(), pwd = $('#loginPwd').value;
   if (!un || !pwd) { $('#loginErr').textContent = '请输入用户名和密码'; return; }
+  const btn = $('#loginBtn');
+  // 首次点击时云端可能还在拉取：等待账号表落地后再校验，避免新电脑误报"用户名或密码错误"
+  if (!window.__pisCloud.settled) {
+    btn.disabled = true; const oldTxt = btn.textContent; btn.textContent = '正在同步云端账号…';
+    try { await waitCloudUsers(); } finally { btn.disabled = false; btn.textContent = oldTxt; }
+  }
   await ensureAdminHash();
   const users = DB.get('users', []);
   const u = users.find(x => x.username.toLowerCase() === un.toLowerCase());
   const h = await hashPwd(pwd);
-  if (!u || u.pwd !== h) { $('#loginErr').textContent = '用户名或密码错误'; return; }
+  if (!u || u.pwd !== h) {
+    $('#loginErr').textContent = (!window.__pisCloud.ok && !window.__pisCloud.settled)
+      ? '云端账号尚未同步完成，请稍候再试'
+      : (!window.__pisCloud.ok
+        ? '用户名或密码错误（云端未连接，当前仅校验本机账号，请检查网络后刷新重试）'
+        : '用户名或密码错误');
+    return;
+  }
   if (u.active === false) { $('#loginErr').textContent = '该账号已被停用，请联系管理员'; return; }
   Session.user = u; saveSession();
   $('#loginErr').textContent = ''; $('#loginPwd').value = '';
