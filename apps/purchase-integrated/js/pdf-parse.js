@@ -207,8 +207,9 @@
   function extractInvoiceNo(text) {
     var m = text.match(/发\s*票\s*号\s*码[:：\s]*([0-9]{8,20})/);
     if (m) return m[1];
-    /* 兜底：个别数电票版式号码独立成行（20 位纯数字） */
-    m = text.match(/(?:^|\n)\s*(\d{20})\s*(?:\n|$)/);
+    /* 兜底：新版数电票标签与号码被拆散到不同行时，号码（20 位）可能游离在
+       监制章文字旁，按独立 20 位数字全局查找（前后不得紧挨数字） */
+    m = text.match(/(?:^|[^0-9])([0-9]{20})(?![0-9])/);
     return m ? m[1] : null;
   }
 
@@ -221,6 +222,9 @@
     var m = text.match(/开\s*票\s*日\s*期[:：\s]*(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
     if (m) return m[1] + '-' + String(parseInt(m[2], 10)).padStart(2, '0') + '-' + String(parseInt(m[3], 10)).padStart(2, '0');
     m = text.match(/开\s*票\s*日\s*期[:：\s]*(\d{4})[-/年.](\d{1,2})[-/月.](\d{1,2})/);
+    if (m) return m[1] + '-' + String(parseInt(m[2], 10)).padStart(2, '0') + '-' + String(parseInt(m[3], 10)).padStart(2, '0');
+    /* 兜底：标签与日期值被拆散到不同行（新版数电票）时全文取第一个「YYYY年M月D日」 */
+    m = text.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
     if (m) return m[1] + '-' + String(parseInt(m[2], 10)).padStart(2, '0') + '-' + String(parseInt(m[3], 10)).padStart(2, '0');
     return null;
   }
@@ -237,22 +241,46 @@
     return s || null;
   }
 
+  /* 兜底识别企业名称（标签与公司名被拆散到不同行的新版数电票版式）：
+     按阅读顺序发现企业/经营主体，左栏购买方在前、右栏销售方在后 */
+  var ORG_SUFFIX = '(?:有限责任公司|股份有限公司|个人独资企业|个体工商户|农民专业合作社|' +
+    '合伙企业|有限公司|分公司|合作社|研究所|研究院|事务所|经营部|经销部|' +
+    '门市部|加工厂|制造厂|商行|门店|工厂|中心|工作室|宾馆|酒店|商店|医院)';
+  var ORG_NAME_RE = new RegExp('[一-龥A-Za-z0-9（）()·]{2,40}?' + ORG_SUFFIX, 'g');
+  var ORG_NOISE = ['税务总局', '税务局', '国务院', '财政部', '海关', '人民政府', '人民法院',
+    '市场监督管理局', '公安局', '住建局', '教育局', '卫生局'];
+  function discoverOrgs(t) {
+    var out = [], mm;
+    ORG_NAME_RE.lastIndex = 0;
+    while ((mm = ORG_NAME_RE.exec(t)) !== null) {
+      var name = cleanPartyName(mm[0]);
+      if (!name) continue;
+      var noise = false;
+      for (var i = 0; i < ORG_NOISE.length; i++) if (name.indexOf(ORG_NOISE[i]) >= 0) { noise = true; break; }
+      if (noise) continue;
+      if (out.indexOf(name) < 0) out.push(name);
+    }
+    return out;
+  }
+
   function extractParties(text) {
     /* 数电票按坐标重建后两栏同行："名称：购方公司 销 名称：销方公司" */
     var m = text.match(/名\s*称\s*[:：]\s*(.+?)\s*[购销售]\s*名\s*称\s*[:：]\s*([^\n]+)/);
     if (!m) m = text.match(/名\s*称\s*[:：]\s*([^\n:：]+?)\s{1,}名\s*称\s*[:：]\s*([^\n]+)/);
+    var buyer = null, seller = null;
     if (m) {
-      var b1 = cleanPartyName(m[1].split(/统一社会信用代码|纳税人识别号/)[0]);
-      var s1 = cleanPartyName(m[2].split(/统一社会信用代码|纳税人识别号/)[0]);
-      if (b1 || s1) return { buyer: b1, seller: s1 };
+      buyer = cleanPartyName(m[1].split(/统一社会信用代码|纳税人识别号/)[0]);
+      seller = cleanPartyName(m[2].split(/统一社会信用代码|纳税人识别号/)[0]);
     }
-    /* 数电票两栏同行版式（竖排前缀未并入名称行） */
-    m = text.match(/[购买]\s*名\s*称\s*[:：]\s*(.+?)\s*[销售]\s*名\s*称\s*[:：]\s*([^\n]+)/);
-    if (m) {
-      return {
-        buyer: cleanPartyName(m[1].split(/统一社会信用代码|纳税人识别号/)[0]),
-        seller: cleanPartyName(m[2].split(/统一社会信用代码|纳税人识别号/)[0])
-      };
+    /* 数电票两栏同行版式（竖排前缀未并入名称行）——仅当上方未拿到完整双方时尝试 */
+    if (!buyer || !seller) {
+      m = text.match(/[购买]\s*名\s*称\s*[:：]\s*(.+?)\s*[销售]\s*名\s*称\s*[:：]\s*([^\n]+)/);
+      if (m) {
+        var b2 = cleanPartyName(m[1].split(/统一社会信用代码|纳税人识别号/)[0]);
+        var s2 = cleanPartyName(m[2].split(/统一社会信用代码|纳税人识别号/)[0]);
+        if (b2 && b2 !== '售' && b2 !== '销') buyer = buyer || b2;
+        if (s2) seller = seller || s2;
+      }
     }
     /* 传统版式 */
     function party(role) {
@@ -261,10 +289,15 @@
       if (!mm) return null;
       return cleanPartyName(mm[1].split(/统一社会信用代码|纳税人识别号|登记号/)[0]);
     }
-    return {
-      buyer: party('购(?:买|货)方') || party('购买方'),
-      seller: party('销(?:售|货)方') || party('销售方')
-    };
+    buyer = buyer || party('购(?:买|货)方') || party('购买方');
+    seller = seller || party('销(?:售|货)方') || party('销售方');
+    /* 兜底：标签行无值（如只剩"名称：  名称："），按阅读顺序发现企业名 */
+    if (!buyer || !seller) {
+      var orgs = discoverOrgs(text);
+      if (!buyer && orgs.length) buyer = orgs[0];
+      if (!seller) for (var k = 0; k < orgs.length; k++) { if (orgs[k] !== buyer) { seller = orgs[k]; break; } }
+    }
+    return { buyer: buyer, seller: seller };
   }
 
   function extractTitle(text) {

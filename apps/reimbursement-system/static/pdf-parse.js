@@ -11,8 +11,22 @@
  */
 window.REIM_PDF_LOADED = true;
 
+/* 本脚本所在目录（static/），vendor 资源一律相对它加载——页面在根路径时
+   写死的 'vendor/...' 会解析成 /vendor/ 而 404，静默退回 CDN（离线即失败） */
+var _SELF_SRC = (function () {
+  if (typeof document === 'undefined') return '';
+  var s = document.currentScript;
+  if (s && s.src) return s.src;
+  var list = document.querySelectorAll('script[src]');
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].src.indexOf('pdf-parse.js') >= 0) return list[i].src;
+  }
+  return '';
+})();
+var _SCRIPT_DIR = _SELF_SRC.replace(/[^/]*$/, '');
+
 var PDFJS_SOURCES = [
-  { lib: 'vendor/pdf.min.js', worker: 'vendor/pdf.worker.min.js', inline: true,
+  { lib: _SCRIPT_DIR + 'vendor/pdf.min.js', worker: _SCRIPT_DIR + 'vendor/pdf.worker.min.js', inline: true,
     /* 内嵌表覆盖全部 CMap；未命中才回退 CDN fetch（本地不放原始 cmaps 目录） */
     cmaps: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
     fonts: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/' },
@@ -109,8 +123,8 @@ function loadPdfJs() {
         if (window.pdfjsLib) {
           try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = src.worker; } catch (e) { /* 忽略 */ }
           if (src.inline) {
-            try { if (!window.PisCMapData) await _loadScript('vendor/cmaps-data.js'); } catch (e) { /* 缺数据走 fetch 回退 */ }
-            try { if (!window.PisFontData) await _loadScript('vendor/fonts-data.js'); } catch (e) { /* 同上 */ }
+            try { if (!window.PisCMapData) await _loadScript(_SCRIPT_DIR + 'vendor/cmaps-data.js'); } catch (e) { /* 缺数据走 fetch 回退 */ }
+            try { if (!window.PisFontData) await _loadScript(_SCRIPT_DIR + 'vendor/fonts-data.js'); } catch (e) { /* 同上 */ }
           }
           _activeSource = src;
           return window.pdfjsLib;
@@ -208,8 +222,9 @@ function cleanLines(text) {
 function extractInvoiceNo(text) {
   var m = text.match(/发\s*票\s*号\s*码[:：\s]*([0-9]{8,20})/);
   if (m) return m[1];
-  // 兜底：个别数电票版式号码独立成行（20 位纯数字）
-  m = text.match(/(?:^|\n)\s*(\d{20})\s*(?:\n|$)/);
+  // 兜底：新版数电票标签与号码被拆散到不同行时，号码（20 位）可能游离在
+  // 监制章文字旁，按独立 20 位数字全局查找（前后不得紧挨数字）
+  m = text.match(/(?:^|[^0-9])([0-9]{20})(?![0-9])/);
   return m ? m[1] : null;
 }
 
@@ -222,6 +237,9 @@ function extractDate(text) {
   var m = text.match(/开\s*票\s*日\s*期[:：\s]*(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
   if (m) return m[1] + '-' + String(parseInt(m[2])).padStart(2, '0') + '-' + String(parseInt(m[3])).padStart(2, '0');
   m = text.match(/开\s*票\s*日\s*期[:：\s]*(\d{4})[-/年.](\d{1,2})[-/月.](\d{1,2})/);
+  if (m) return m[1] + '-' + String(parseInt(m[2])).padStart(2, '0') + '-' + String(parseInt(m[3])).padStart(2, '0');
+  // 兜底：标签与日期值被拆散到不同行（新版数电票）时全文取第一个「YYYY年M月D日」
+  m = text.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
   if (m) return m[1] + '-' + String(parseInt(m[2])).padStart(2, '0') + '-' + String(parseInt(m[3])).padStart(2, '0');
   return null;
 }
@@ -238,22 +256,47 @@ function cleanPartyName(name) {
   return s || null;
 }
 
+/* 兜底识别企业名称（标签与公司名被拆散到不同行的新版数电票版式）：
+   按阅读顺序发现企业/经营主体，左栏购买方在前、右栏销售方在后 */
+var ORG_SUFFIX = '(?:有限责任公司|股份有限公司|个人独资企业|个体工商户|农民专业合作社|' +
+  '合伙企业|有限公司|分公司|合作社|研究所|研究院|事务所|经营部|经销部|' +
+  '门市部|加工厂|制造厂|商行|门店|工厂|中心|工作室|宾馆|酒店|商店|医院)';
+var ORG_NAME_RE = new RegExp('[一-龥A-Za-z0-9（）()·]{2,40}?' + ORG_SUFFIX, 'g');
+var ORG_NOISE = ['税务总局', '税务局', '国务院', '财政部', '海关', '人民政府', '人民法院',
+  '市场监督管理局', '公安局', '住建局', '教育局', '卫生局'];
+function discoverOrgs(t) {
+  var out = [], mm;
+  ORG_NAME_RE.lastIndex = 0;
+  while ((mm = ORG_NAME_RE.exec(t)) !== null) {
+    var name = cleanPartyName(mm[0]);
+    if (!name) continue;
+    var noise = false;
+    for (var i = 0; i < ORG_NOISE.length; i++) if (name.indexOf(ORG_NOISE[i]) >= 0) { noise = true; break; }
+    if (noise) continue;
+    if (out.indexOf(name) < 0) out.push(name);
+  }
+  return out;
+}
+
 function extractParties(text) {
   // 数电票按坐标重建后两栏同行："名称：购方公司 销 名称：销方公司"
   // （购/销/售可能是竖排"购买方/销售方"标签残留在同一行）
   var m = text.match(/名\s*称\s*[:：]\s*(.+?)\s*[购销售]\s*名\s*称\s*[:：]\s*([^\n]+)/);
   if (!m) m = text.match(/名\s*称\s*[:：]\s*([^\n:：]+?)\s{1,}名\s*称\s*[:：]\s*([^\n]+)/);
+  var buyer = null, seller = null;
   if (m) {
-    var buyer2 = cleanPartyName(m[1].split(/统一社会信用代码|纳税人识别号/)[0]);
-    var seller2 = cleanPartyName(m[2].split(/统一社会信用代码|纳税人识别号/)[0]);
-    if (buyer2 || seller2) return { buyer: buyer2, seller: seller2 };
+    buyer = cleanPartyName(m[1].split(/统一社会信用代码|纳税人识别号/)[0]);
+    seller = cleanPartyName(m[2].split(/统一社会信用代码|纳税人识别号/)[0]);
   }
-  // 数电票两栏同行版式（竖排前缀未并入名称行）
-  m = text.match(/[购买]\s*名\s*称\s*[:：]\s*(.+?)\s*[销售]\s*名\s*称\s*[:：]\s*([^\n]+)/);
-  if (m) {
-    var buyer = cleanPartyName(m[1].split(/统一社会信用代码|纳税人识别号/)[0]);
-    var seller = cleanPartyName(m[2].split(/统一社会信用代码|纳税人识别号/)[0]);
-    return { buyer: buyer, seller: seller };
+  // 数电票两栏同行版式（竖排前缀未并入名称行）——仅当上方未拿到完整双方时尝试
+  if (!buyer || !seller) {
+    m = text.match(/[购买]\s*名\s*称\s*[:：]\s*(.+?)\s*[销售]\s*名\s*称\s*[:：]\s*([^\n]+)/);
+    if (m) {
+      var b2 = cleanPartyName(m[1].split(/统一社会信用代码|纳税人识别号/)[0]);
+      var s2 = cleanPartyName(m[2].split(/统一社会信用代码|纳税人识别号/)[0]);
+      if (b2 && b2 !== '售' && b2 !== '销') buyer = buyer || b2;
+      if (s2) seller = seller || s2;
+    }
   }
   // 传统版式
   function party(role) {
@@ -263,8 +306,14 @@ function extractParties(text) {
     var name = mm[1].split(/统一社会信用代码|纳税人识别号|登记号/)[0];
     return cleanPartyName(name);
   }
-  var buyer = party('购(?:买|货)方') || party('购买方');
-  var seller = party('销(?:售|货)方') || party('销售方');
+  buyer = buyer || party('购(?:买|货)方') || party('购买方');
+  seller = seller || party('销(?:售|货)方') || party('销售方');
+  // 兜底：标签行无值（如只剩"名称：  名称："），按阅读顺序发现企业名
+  if (!buyer || !seller) {
+    var orgs = discoverOrgs(text);
+    if (!buyer && orgs.length) buyer = orgs[0];
+    if (!seller) for (var k = 0; k < orgs.length; k++) { if (orgs[k] !== buyer) { seller = orgs[k]; break; } }
+  }
   return { buyer: buyer, seller: seller };
 }
 

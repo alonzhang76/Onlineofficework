@@ -604,7 +604,14 @@
     suppliers: '供应商', favoriteContacts: '常用联系人', washes: '水洗单', shippings: '出货单',
     maintFabrics: '面料维护', maintAccessories: '辅料维护',
     express_delivery_data_v2: '快递记录', pl_records_v1: '装箱记录',
-    sht_sample_data_v2: '样衣单', sht_size_tables_v2: '尺寸表', sizeSheets: '尺寸单'
+    sht_sample_data_v2: '样衣单', sht_size_tables_v2: '尺寸表', sizeSheets: '尺寸单',
+    // purchase-integrated（采购一体化系统，localStorage 带 pis_ 前缀）
+    pis_companies: '公司主体', pis_units: '计量单位', pis_terms: '合同条款',
+    pis_roles: '角色权限', pis_users: '用户账号', pis_suppliers: '供应商档案',
+    pis_curCompany: '当前公司', pis_orders: '采购合同', pis_shipments: '发货记录',
+    pis_receipts: '收货记录', pis_returns: '退货记录', pis_invoices: '发票',
+    pis_payments: '付款记录', pis_tool_records: '工具记录',
+    pis_poPageSize: '合同分页设置', pis_plyPaste: '木箱粘贴板'
   };
   var COMPANY_LABELS = {
     company1: '公司1', company2: '公司2', companyA: '公司A', companyB: '公司B'

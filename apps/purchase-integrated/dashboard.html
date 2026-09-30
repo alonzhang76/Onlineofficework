@@ -28,6 +28,15 @@
 <div class="modal-mask" id="modalMask"><div class="modal" id="modalBox"></div></div>
 <div class="toast" id="toastBox"></div>
 <div id="printArea"></div>
+<script>
+/* 云端数据（与其它应用同一套 cloudbase-sync 机制）：独立命名空间 purchase-integrated，
+   仅同步本应用业务键；pis_reim_api 等本机配置、会话信息不同步 */
+window.CLOUDBASE_APP_ID='purchase-integrated';
+window.CLOUDBASE_APP_KEYS=['pis_companies','pis_units','pis_terms','pis_roles','pis_users','pis_suppliers','pis_curCompany','pis_orders','pis_shipments','pis_receipts','pis_returns','pis_invoices','pis_payments','pis_tool_records','pis_poPageSize','pis_plyPaste'];
+window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
+</script>
+<script src="../cloudbase-sync.js?v=20260924f"></script>
+<script src="../cloudbase-admin.js?v=20260930a"></script>
 <script src="js/common.js"></script>
 <script src="js/auth-guard.js"></script>
 <script>
@@ -37,7 +46,8 @@
    ========================================================== */
 function pageDashboard(root) {
   const orders = Data.list('orders');
-  const invs = Data.list('invoices'), pays = Data.list('payments'), sups = Data.list('suppliers');
+  // 付款数据来自报销系统（ReimPay 桥，已套用当前公司/供应商隔离）
+  const invs = Data.list('invoices'), pays = ReimPay.payRows(), sups = Data.list('suppliers');
   const totalAmount = orders.reduce((s, o) => s + (+o.totalAmount || 0), 0);
   const invoiced = invs.reduce((s, v) => s + (+v.amount || 0), 0);
   const paid = pays.reduce((s, p) => s + (+p.amount || 0), 0);
@@ -49,9 +59,11 @@ function pageDashboard(root) {
     { l: Session.isSupplier() ? '待对账余额' : '未开票金额', v: fmtMoney(Session.isSupplier() ? invoiced - paid : unInv), s: Session.isSupplier() ? '开票合计 − 付款合计' : '建议及时向供应商索票', c: Session.isSupplier() ? (invoiced - paid > 0.005 ? 'bad' : 'good') : 'warn' }
   ];
   const recents = [];
-  [['orders', '采购'], ['shipments', '发货'], ['receipts', '收货'], ['returns', '退货'], ['invoices', '开票'], ['payments', '付款']].forEach(([c, tag]) => {
-    Data.list(c).slice(0, 3).forEach(r => recents.push({ t: r.createdAt || '', tag, no: r.contractNumber || r.receiptNumber || r.returnNumber || r.shipNumber || r.invoiceNumber || r.paymentNumber || '', txt: tag + ' · ' + (r.supplier || '') + ' · ' + (r.product || '') }));
+  [['orders', '采购'], ['shipments', '发货'], ['receipts', '收货'], ['returns', '退货'], ['invoices', '开票']].forEach(([c, tag]) => {
+    Data.list(c).slice(0, 3).forEach(r => recents.push({ t: r.createdAt || '', tag, no: r.contractNumber || r.receiptNumber || r.returnNumber || r.shipNumber || r.invoiceNumber || '', txt: tag + ' · ' + (r.supplier || '') + ' · ' + (r.product || '') }));
   });
+  // 付款动态取自报销侧付款流水（一张票的付款进度对应一条）
+  pays.slice(0, 5).forEach(p => recents.push({ t: p.paymentDate || '', tag: '付款', no: p.paymentNumber || p.invoiceNumbers || '', txt: '付款 · ' + (p.supplier || '') + (p.method ? ' · ' + p.method : '') }));
   recents.sort((a, b) => (b.t || '').localeCompare(a.t || ''));
   const quick = PAGES.filter(p => !['dashboard', 'admin'].includes(p.key) && Session.can(p.key) && !(Session.isSupplier() && p.key === 'suppliers'));
   root.innerHTML =

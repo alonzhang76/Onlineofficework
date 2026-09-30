@@ -40,6 +40,11 @@ def _extract_invoice_no(text):
     m = re.search(r"发\s*票\s*号\s*码[:：\s]*([0-9]{8,20})", text)
     if m:
         return m.group(1)
+    # 兜底：新版数电票（部分开票方版式）pdfplumber 抽取后标签与值不在同一行，
+    # 号码（20 位）游离到监制章附近，按独立 20 位数字全局查找
+    m = re.search(r"(?<![0-9])([0-9]{20})(?![0-9])", text)
+    if m:
+        return m.group(1)
     return None
 
 
@@ -53,6 +58,10 @@ def _extract_date(text):
     if m:
         return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
     m = re.search(r"开\s*票\s*日\s*期[:：\s]*(\d{4})[-/年.](\d{1,2})[-/月.](\d{1,2})", text)
+    if m:
+        return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+    # 兜底：标签与日期值被拆散到不同行时（新版数电票），全文取第一个「YYYY年M月D日」
+    m = re.search(r"(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日", text)
     if m:
         return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
     return None
@@ -81,6 +90,32 @@ def _clean_party_name(name):
     return s or None
 
 
+# 兜底识别企业名称用的组织后缀（长后缀在前，避免提前截断）
+_ORG_SUFFIX = (
+    r"(?:有限责任公司|股份有限公司|个人独资企业|个体工商户|农民专业合作社|"
+    r"合伙企业|有限公司|分公司|合作社|研究所|研究院|事务所|经营部|经销部|"
+    r"门市部|加工厂|制造厂|商行|门店|工厂|中心|工作室|宾馆|酒店|商店|医院)"
+)
+_ORG_NAME_RE = re.compile(r"[\u4e00-\u9fffA-Za-z0-9（）()·]{2,40}?" + _ORG_SUFFIX)
+# 行政/税务机关等非交易主体噪声（新数电票监制/税务局文字会被一起抽出）
+_ORG_NOISE = ("税务总局", "税务局", "国务院", "财政部", "海关", "人民政府", "人民法院",
+              "市场监督管理局", "公安局", "住建局", "教育局", "卫生局")
+
+
+def _discover_orgs(text):
+    """从全文按阅读顺序发现企业/经营主体名称（去重、去行政机关）。
+    用于新版数电票"名称："标签与公司名被拆散到不同行的版式：
+    左栏（购买方）先出现、右栏（销售方）后出现。"""
+    out = []
+    for raw in _ORG_NAME_RE.findall(text):
+        name = _clean_party_name(raw)
+        if not name or any(n in name for n in _ORG_NOISE):
+            continue
+        if name not in out:
+            out.append(name)
+    return out
+
+
 def _extract_parties(text):
     """
     兼容多种版式提取购买方/销售方名称：
@@ -89,13 +124,16 @@ def _extract_parties(text):
        "买 名称:普利美（常州）环境工程科技有限公司 售 名称:无锡惠山山姆零售有限公司"
     2) 传统版式：
        "购买方 名称：xxx" / "销售方 名称：yyy"
+    3) 标签与值完全错位的新版式：名称行只剩"名称：  名称："，
+       两个公司名另起一行（左购买方、右销售方）→ 按企业名发现兜底。
     """
     # 数电票两栏同行版式：购买方前缀为 购/买，销售方前缀为 销/售（竖排拆行导致不一致）
     m = re.search(r"[购买]\s*名\s*称\s*[:：]\s*(.+?)\s*[销售]\s*名\s*称\s*[:：]\s*([^\n]+)", text)
     if m:
         buyer = _clean_party_name(re.split(r"统一社会信用代码|纳税人识别号", m.group(1))[0])
         seller = _clean_party_name(re.split(r"统一社会信用代码|纳税人识别号", m.group(2))[0])
-        return buyer, seller
+        if buyer and seller:
+            return buyer, seller
     # 传统版式
     def _party(role):
         m = re.search(role + r"\s*名\s*称[:：\s]*([^\n]+)", text)
@@ -105,6 +143,13 @@ def _extract_parties(text):
         return _clean_party_name(name)
     buyer = _party(r"购(?:买|货)方") or _party("购买方")
     seller = _party(r"销(?:售|货)方") or _party("销售方")
+    # 兜底：标签行无值时，按阅读顺序发现企业名（左栏购方在前）
+    if not buyer or not seller:
+        orgs = _discover_orgs(text)
+        if not buyer and orgs:
+            buyer = orgs[0]
+        if not seller:
+            seller = next((n for n in orgs if n != buyer), None)
     return buyer, seller
 
 

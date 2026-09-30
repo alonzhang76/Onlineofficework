@@ -704,11 +704,8 @@ def invoice_external():
         return _external_cors(make_response(jsonify({"ok": False, "msg": "缺少发票号码"}), 422))
     try:
         conn = db()
-        if conn.execute("SELECT id FROM invoices WHERE invoice_no=?", (invoice_no,)).fetchone():
-            conn.close()
-            return _external_cors(make_response(jsonify(
-                {"ok": False, "duplicate": True,
-                 "msg": f"发票 {invoice_no} 已在报销台账中，不可重复提交"}), 409))
+        existed = conn.execute(
+            "SELECT id, status FROM invoices WHERE invoice_no=?", (invoice_no,)).fetchone()
         rec = {
             "invoice_no": invoice_no,
             "invoice_code": d.get("invoice_code"),
@@ -729,14 +726,34 @@ def invoice_external():
             "status": "待审核",
             "remark": d.get("remark"),
             "check_code": d.get("check_code"),
-            "file_path": None,
-            "user_id": None,
             "settle": "正常付款",
             "payee": "销售方",
         }
         if not rec.get("subject_code"):
             code, name, _ = classify(rec["item_name"], rec["seller_name"], rec["tax_rate"])
             rec["subject_code"], rec["subject_name"] = code, name
+        if existed:
+            # 仅允许「已驳回」的发票由采购侧修改后重新提交；其余状态一律拒绝重复提交
+            if existed["status"] != "已驳回":
+                conn.close()
+                return _external_cors(make_response(jsonify(
+                    {"ok": False, "duplicate": True,
+                     "msg": f"发票 {invoice_no} 已在报销台账中（{existed['status']}），不可重复提交"}), 409))
+            iid = existed["id"]
+            rec["updated_at"] = now_str()
+            sets = ",".join(f"{k}=?" for k in rec)
+            conn.execute(f"UPDATE invoices SET {sets} WHERE id=?", tuple(rec.values()) + (iid,))
+            cid, direction = compute_direction(conn, rec["buyer_name"], rec["seller_name"])
+            conn.execute("UPDATE invoices SET company_id=?, direction=? WHERE id=?",
+                         (cid, direction, iid))
+            add_log(conn, iid, {"id": 0, "display_name": "采购系统"}, "采购系统重新提交")
+            conn.commit()
+            conn.close()
+            return _external_cors(make_response(jsonify(
+                {"ok": True, "id": iid, "invoice_no": invoice_no,
+                 "status": "待审核", "subject": rec["subject_name"], "resubmitted": True}), 200))
+        rec["file_path"] = None
+        rec["user_id"] = None
         rec["created_at"] = rec["updated_at"] = now_str()
         cols = ",".join(rec)
         qs = ",".join("?" for _ in rec)
@@ -785,17 +802,26 @@ def payments_external():
                    payment_date, payment_method, status
             FROM invoices WHERE {pay_base} AND payee='销售方'{seller_cond}
             ORDER BY seller_name, invoice_date DESC, id DESC""", sparams).fetchall()
-    # 付款记录：有付款（paid_amount>0）的发票，与「付款记录」页同口径
-    rec_cond, rec_params = ["paid_amount IS NOT NULL", "paid_amount > 0"], []
-    if seller:
-        rec_cond.append("seller_name = ?")
-        rec_params.append(seller)
+    # 付款记录：同上进项 / 正常付款 / 付给销售方 / 非驳回口径，仅取已有付款的票，
+    # 保证采购侧付款流水、欠款与供应商分组口径一致（不混入报销人/客户款项）
     recs = conn.execute(
         f"""SELECT id, invoice_no, invoice_type, invoice_date, seller_name, claimant,
                    payee, settle, project, total_amount, paid_amount,
                    payment_date, payment_method, payment_note, status
-            FROM invoices WHERE {" AND ".join(rec_cond)}
-            ORDER BY payment_date DESC, id DESC LIMIT 2000""", rec_params).fetchall()
+            FROM invoices WHERE {pay_base} AND payee='销售方'
+                 AND paid_amount IS NOT NULL AND paid_amount > 0{seller_cond}
+            ORDER BY payment_date DESC, id DESC LIMIT 2000""", sparams).fetchall()
+    # 采购系统提交单的最新审核状态（以「采购系统提交/重新提交」日志为来源标记），
+    # 供采购侧发票台账回写「待审核/已通过/已入账/已驳回」及驳回原因
+    subs = conn.execute(
+        """SELECT i.id, i.invoice_no, i.status, i.updated_at,
+                  (SELECT g.comment FROM review_log g
+                    WHERE g.invoice_id=i.id AND g.comment IS NOT NULL AND g.comment<>''
+                    ORDER BY g.id DESC LIMIT 1) AS last_comment
+             FROM invoices i
+             WHERE i.id IN (SELECT DISTINCT invoice_id FROM review_log
+                             WHERE action IN ('采购系统提交','采购系统重新提交'))
+             ORDER BY i.updated_at DESC""").fetchall()
     conn.close()
     inv_rows = []
     for r in invs:
@@ -822,6 +848,7 @@ def payments_external():
                     "last_pay": g["last_pay"] or ""} for g in groups],
         "invoices": inv_rows,
         "records": rec_rows,
+        "submissions": [dict(r) for r in subs],
     }), 200))
 
 

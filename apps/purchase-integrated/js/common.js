@@ -123,11 +123,11 @@ function moneyCn(n) {
   return out;
 }
 
-/* ---------- 数据层（CloudBase 预留适配） ---------- */
-/* 说明：后期迁移腾讯 CloudBase（TCB）时：
-   1) 在页面引入 TCB JS SDK 并在【系统管理→数据与云】填入环境 ID；
-   2) CloudBase.push()/pull() 提供全量快照上传/下载（与现有 cloudbase-sync 模式一致）；
-   3) DB.driver 可替换为云数据库逐集合读写，业务代码无需改动（全部经 DB/Data 层）。 */
+/* ---------- 数据层（本地 localStorage + 云端自动同步） ---------- */
+/* 云端同步由页面引入的 ../cloudbase-sync.js 完成（与其它应用同一套机制）：
+   拦截 localStorage 读写，业务数据写入后自动防抖上传、定时从云端拉取，
+   页面顶端 cloudbase-admin.js 工具条提供手动保存/下载/备份/恢复。
+   业务代码只经 DB/Data 层，不直接感知云端。 */
 const DB = {
   prefix: 'pis_',
   get(k, d) { try { const v = localStorage.getItem(this.prefix + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -135,9 +135,11 @@ const DB = {
   del(k) { localStorage.removeItem(this.prefix + k); },
   snapshot() {
     const out = {}; const p = this.prefix;
+    // reim_api 为本机接口地址、reim_cache 为报销侧派生缓存：均不进备份/恢复
+    const SKIP = ['reim_api', 'reim_cache'];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k && k.startsWith(p)) out[k.slice(p.length)] = localStorage.getItem(k);
+      if (k && k.startsWith(p) && SKIP.indexOf(k.slice(p.length)) < 0) out[k.slice(p.length)] = localStorage.getItem(k);
     }
     return { app: 'purchase-integrated', version: 2, exportedAt: new Date().toISOString(), data: out };
   },
@@ -149,30 +151,6 @@ const DB = {
     ['orders','shipments','receipts','returns','invoices','payments','suppliers','tool_records']
       .forEach(c => this.del(c));
     Object.keys(localStorage).filter(k => k.startsWith(this.prefix + 'seq_')).forEach(k => localStorage.removeItem(k));
-  }
-};
-const CloudBase = {
-  env() { return DB.get('cb_env', ''); },
-  setEnv(v) { DB.set('cb_env', String(v || '').trim()); },
-  ready() { return !!this.env() && typeof window.cloudbase !== 'undefined'; },
-  async push() {
-    if (!this.ready()) throw new Error('CloudBase 未就绪：请配置环境 ID 并引入 TCB JS SDK');
-    const app = window.cloudbase.init({ env: this.env() });
-    const db = app.database();
-    const snap = DB.snapshot();
-    const res = await db.collection('pis_snapshots').where({ app: 'purchase-integrated' }).get();
-    if (res.data.length) await db.collection('pis_snapshots').doc(res.data[0]._id).update({ payload: snap, updatedAt: new Date().toISOString() });
-    else await db.collection('pis_snapshots').add({ app: 'purchase-integrated', payload: snap, updatedAt: new Date().toISOString() });
-    return true;
-  },
-  async pull() {
-    if (!this.ready()) throw new Error('CloudBase 未就绪：请配置环境 ID 并引入 TCB JS SDK');
-    const app = window.cloudbase.init({ env: this.env() });
-    const db = app.database();
-    const res = await db.collection('pis_snapshots').where({ app: 'purchase-integrated' }).get();
-    if (!res.data.length) throw new Error('云端暂无快照');
-    DB.restore(res.data[0].payload);
-    return true;
   }
 };
 
@@ -314,6 +292,137 @@ const curCo = () => {
 // 当前公司显示名：全部公司视图显示"全部公司"
 const curCoName = () => State.company === ALL_COMPANIES ? '全部公司' : getCompany(State.company);
 
+/* ---------- 报销系统数据桥（只读，付款/审核状态唯一数据源） ----------
+   付款登记统一在 reimbursement-system 完成；本系统已无本地付款写入点，
+   台账 / 对账 / 工作台 / 统计的付款金额、付款日期、发票审核状态均取自报销侧
+   GET /api/payments/external（令牌 purchase-link-2026）。
+   - 接口地址存本机 pis_reim_api、快照存 pis_reim_cache（均不参与云端业务键同步）
+   - 进入业务页时静默后台拉取，成功后派发 reim-pay-updated 触发非打断式重渲染
+   - 首次渲染先读本机缓存，保证离线 / 报销服务未启动时仍能显示上次数据 */
+const REIM_TOKEN = 'purchase-link-2026';
+const REIM_TTL_MS = 30000; // 后台静默拉取节流：30 秒内不重复请求（手动刷新走 force）
+const ReimPay = {
+  data: null,
+  inflight: null,
+  lastOkAt: 0,
+  init() {
+    if (this.data) return this.data;
+    try { this.data = JSON.parse(localStorage.getItem('pis_reim_cache') || 'null'); } catch (e) { this.data = null; }
+    return this.data;
+  },
+  base() {
+    return (localStorage.getItem('pis_reim_api') || 'http://127.0.0.1:8686').trim().replace(/\/+$/, '');
+  },
+  setBase(v) { localStorage.setItem('pis_reim_api', String(v || '').trim().replace(/\/+$/, '')); },
+  raw() { return this.data; },
+  invoices() { return (this.data && Array.isArray(this.data.invoices)) ? this.data.invoices : []; },
+  records() { return (this.data && Array.isArray(this.data.records)) ? this.data.records : []; },
+  submissions() { return (this.data && Array.isArray(this.data.submissions)) ? this.data.submissions : []; },
+  byNo(no) { return this.invoices().find(r => String(r.invoice_no) === String(no)) || null; },
+  // 单张发票累计已付（与付款页统计口径一致：不超过票面金额）
+  paidOfInvoice(no) {
+    const r = this.byNo(no);
+    return r ? Math.min(+(r.paid_amount) || 0, +(r.total_amount) || 0) : 0;
+  },
+  dateOfInvoice(no) { const r = this.byNo(no); return r ? (r.payment_date || '') : ''; },
+  methodOfInvoice(no) { const r = this.byNo(no); return r ? (r.payment_method || '') : ''; },
+  noteOfInvoice(no) { const r = this.byNo(no); return r ? (r.payment_note || '') : ''; },
+  // 报销侧发票审核状态：待审核 / 已通过 / 已入账 / 已驳回（无记录返回 ''）
+  auditStatusOfInvoice(no) {
+    const s = this.submissions().find(x => String(x.invoice_no) === String(no));
+    return s ? (s.status || '') : '';
+  },
+  // 合同已付：报销侧 project（合同号，支持一单多票分隔）或本地发票合同号命中
+  paidOfContract(cno) {
+    const localNo = new Map();
+    Data.list('invoices').forEach(v => localNo.set(String(v.invoiceNumber), v.contractNumber || ''));
+    return this.invoices().reduce((sum, r) => {
+      const hit = splitMulti(r.project).includes(cno) ||
+        splitMulti(localNo.get(String(r.invoice_no)) || '').includes(cno);
+      return sum + (hit ? Math.min(+(r.paid_amount) || 0, +(r.total_amount) || 0) : 0);
+    }, 0);
+  },
+  /* 已付款流水（采购侧旧 payments 记录形状）：以本地发票台账为基准关联，
+     自动套用当前公司主体 / 供应商隔离；传 cno 时再追加报销侧 project 命中的票。
+     报销侧每张票的 paid_amount 为累计已付，故一行 = 一张票的当前付款进度 */
+  payRows(cno) {
+    const out = [], seen = new Set();
+    const push = (r, v) => {
+      const no = r.invoice_no;
+      if (seen.has(no)) return;
+      seen.add(no);
+      const paid = Math.min(+(r.paid_amount) || 0, +(r.total_amount) || 0);
+      if (paid <= 0) return;
+      out.push({
+        supplier: (v && v.supplier) || r.seller_name || '',
+        contractNumber: (v && v.contractNumber) || r.project || '',
+        invoiceNumbers: no, paymentNumber: no,
+        paymentDate: r.payment_date || '', method: r.payment_method || '',
+        amount: paid, remark: r.payment_note || '',
+        itemName: r.item_name || (v && v.itemName) || ''
+      });
+    };
+    Data.list('invoices').forEach(v => {
+      const r = this.byNo(v.invoiceNumber);
+      if (!r) return;
+      if (!cno || splitMulti(v.contractNumber).includes(cno) || splitMulti(r.project).includes(cno)) push(r, v);
+    });
+    if (cno) this.invoices().forEach(r => {
+      if (!seen.has(r.invoice_no) && splitMulti(r.project).includes(cno)) push(r, null);
+    });
+    out.sort((a, b) => String(b.paymentDate || '').localeCompare(String(a.paymentDate || '')));
+    return out;
+  },
+  async load(force) {
+    if (this.inflight) return this.inflight;
+    // TTL 内且已有数据：直接用缓存（防止 reim-pay-updated 重渲染后形成拉取循环）
+    if (!force && this.data && this.lastOkAt && Date.now() - this.lastOkAt < REIM_TTL_MS) {
+      return Promise.resolve(this.data);
+    }
+    const p = (async () => {
+      const resp = await fetch(this.base() + '/api/payments/external', {
+        headers: { 'X-Reim-Token': REIM_TOKEN }, cache: 'no-store'
+      });
+      if (!resp.ok) throw new Error('报销系统接口 HTTP ' + resp.status);
+      const j = await resp.json();
+      if (!j || j.ok === false) throw new Error((j && j.msg) || '报销系统返回异常');
+      this.data = j;
+      this.lastOkAt = Date.now();
+      localStorage.setItem('pis_reim_cache', JSON.stringify(j));
+      this.reconcile(j);
+      window.dispatchEvent(new Event('reim-pay-updated'));
+      return j;
+    })();
+    this.inflight = p;
+    p.finally(() => { if (this.inflight === p) this.inflight = null; });
+    return p;
+  },
+  /* 审核状态回写本地发票台账：提交后报销侧的通过 / 入账 / 驳回及驳回原因无需人工同步 */
+  reconcile(j) {
+    const subs = Array.isArray(j.submissions) ? j.submissions : [];
+    if (!subs.length) return;
+    const byNo = new Map(subs.map(s => [String(s.invoice_no), s]));
+    const arr = Data.all('invoices');
+    let dirty = false;
+    arr.forEach(v => {
+      const s = byNo.get(String(v.invoiceNumber));
+      if (!s) return;
+      const patch = {};
+      if (s.status && s.status !== v.reimStatus) {
+        patch.reimStatus = s.status;
+        // 驳回原因仅在「已驳回」状态下展示，重新提交 / 通过后清掉旧反馈
+        patch.reimComment = s.status === '已驳回' ? (s.last_comment || '') : '';
+      } else if (s.status === '已驳回' && (s.last_comment || '') !== (v.reimComment || '')) {
+        patch.reimComment = s.last_comment || '';
+      }
+      if (s.id && s.id !== v.reimId) patch.reimId = s.id;
+      if (Object.keys(patch).length) { Object.assign(v, patch); dirty = true; }
+    });
+    if (dirty) DB.set('invoices', arr);
+  }
+};
+ReimPay.init();
+
 /* ---------- 业务统计 ---------- */
 function contractByNo(cno) { return Data.list('orders').find(o => o.contractNumber === cno); }
 function orderProducts(o) { return (o && o.products) || []; }
@@ -360,8 +469,9 @@ function deriveShipStatus(rec) {
   return done + 0.0001 >= (+rec.quantity || 0) ? SHIP_CONFIRMED : SHIP_PARTIAL;
 }
 function invoicedOfContract(cno) { return Data.list('invoices').filter(v => splitMulti(v.contractNumber).includes(cno)).reduce((s, v) => s + (+v.amount || 0), 0); }
-function paidOfContract(cno) { return Data.list('payments').filter(p => splitMulti(p.contractNumber).includes(cno)).reduce((s, p) => s + (+p.amount || 0), 0); }
-function paidOfInvoice(invNo) { return Data.list('payments').filter(p => splitMulti(p.invoiceNumbers).includes(invNo)).reduce((s, p) => s + (+p.amount || 0), 0); }
+// 付款数据源为报销系统（见上方 ReimPay 桥），本地 pis_payments 已停用、无写入点
+function paidOfContract(cno) { return ReimPay.paidOfContract(cno); }
+function paidOfInvoice(invNo) { return ReimPay.paidOfInvoice(invNo); }
 function invoiceStatus(inv) {
   const paid = paidOfInvoice(inv.invoiceNumber);
   if (paid <= 0) return { t: '未付款', c: 'b-gray' };
@@ -532,7 +642,7 @@ function renderNav() {
       html += '<div class="mitem' + (State.page === p.key ? ' active' : '') + '" data-page="' + p.key + '"><span class="ico">' + p.ico + '</span>' + esc(p.name) + '</div>';
     });
   });
-  html += '<div class="mfoot">采购一体化系统 v2.0<br>多模块 · 本地存储 · CloudBase 就绪</div>';
+  html += '<div class="mfoot">采购一体化系统 v2.0<br>多模块 · 云端数据自动同步</div>';
   $('#navMenu').innerHTML = html;
   $$('#navMenu .mitem').forEach(el => el.addEventListener('click', () => { closeNavMenu(); goto(el.dataset.page); }));
 }
@@ -574,6 +684,8 @@ function initPage(pageKey, pageFn) {
   if (!comps.length) State.company = '普利美'; // 无公司档案时不允许停留在哨兵值
   else if (State.company !== ALL_COMPANIES && !comps.find(c => c.code === State.company)) State.company = comps[0].code;
   renderFrame();
+  // 静默拉取报销侧付款/审核状态（失败不打扰：页面继续使用上次缓存）
+  ReimPay.load().catch(() => {});
 }
 
 /* ==========================================================
@@ -633,3 +745,78 @@ function migrateCompanyCodes() {
   if (cur && map[cur]) DB.set('curCompany', map[cur]);
 }
 migrateCompanyCodes();
+
+/* ==========================================================
+   云端数据（cloudbase-sync.js / cloudbase-admin.js）接入桥接
+   ========================================================== */
+/* 顶部冻结工具条「📥 备份到电脑」入口：导出全量 pis_* 数据 JSON */
+window.backupData = function () {
+  try {
+    const blob = new Blob([JSON.stringify(DB.snapshot(), null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '采购一体化系统备份_' + todayStr() + '.json';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 800);
+    toast('备份已下载', 'ok');
+  } catch (e) { toast('备份失败：' + e.message, 'err'); }
+};
+/* 顶部冻结工具条「📤 从电脑恢复」入口：选择 JSON → 覆盖本机 → 启动导入保护（防云端旧数据回灌）→ 刷新。
+   恢复写入会经 cloudbase-sync 拦截器自动上传，保护期只屏蔽"云端→本地"拉取。 */
+window.restoreData = function () {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.json,application/json';
+  input.onchange = e => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      try {
+        const snap = JSON.parse(rd.result);
+        if (!snap || typeof snap.data !== 'object' || snap.data === null) throw new Error('备份文件格式不正确');
+        if (snap.app && snap.app !== 'purchase-integrated') {
+          if (!confirm('该备份文件来自其它应用（' + String(snap.app) + '），强行恢复可能导致数据异常。仍要继续吗？')) return;
+        }
+        if (!confirm('恢复将用备份内容覆盖本机当前数据，确定继续？')) return;
+        DB.restore(snap);
+        if (window.CloudbaseSync && typeof window.CloudbaseSync.setImportProtection === 'function') {
+          window.CloudbaseSync.setImportProtection(600000); // 10 分钟导入保护
+        }
+        toast('恢复成功，即将刷新', 'ok');
+        setTimeout(() => location.reload(), 800);
+      } catch (err) { toast('恢复失败：' + err.message, 'err'); }
+    };
+    rd.readAsText(f);
+  };
+  input.click();
+};
+/* 云端数据到达（自动轮询/手动下载/其它设备更新）后，在不打断用户操作的前提下重渲染当前页 */
+let __pisCloudRefreshTimer;
+window.addEventListener('cloud-data-updated', () => {
+  clearTimeout(__pisCloudRefreshTimer);
+  __pisCloudRefreshTimer = setTimeout(() => {
+    if (!Session.user || !State.page || !$('#main')) return;
+    const mask = $('#modalMask');
+    if (mask && mask.classList.contains('show')) return; // 弹窗录入中：不打断，下次更新再刷
+    const ae = document.activeElement;
+    if (ae && ae.closest && ae.closest('#main') && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return; // 主区域筛选/输入中：不打断
+    const cc = DB.get('curCompany', null);
+    const comps = DB.get('companies', []);
+    if (cc && (cc === ALL_COMPANIES || comps.some(c => c.code === cc))) State.company = cc;
+    renderFrame();
+  }, 500);
+});
+/* 报销侧付款 / 审核状态到达后，同样在不打断用户操作的前提下重渲染当前页 */
+let __pisReimRefreshTimer;
+window.addEventListener('reim-pay-updated', () => {
+  clearTimeout(__pisReimRefreshTimer);
+  __pisReimRefreshTimer = setTimeout(() => {
+    if (!Session.user || !State.page || !$('#main')) return;
+    const mask = $('#modalMask');
+    if (mask && mask.classList.contains('show')) return;
+    const ae = document.activeElement;
+    if (ae && ae.closest && ae.closest('#main') && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
+    renderFrame();
+  }, 500);
+});
+/* cloudbase-admin 工具条消息走本应用 toast */
+window.showToast = (msg, type) => toast(String(msg == null ? '' : msg), type === 'error' ? 'err' : type === 'success' ? 'ok' : 'info');

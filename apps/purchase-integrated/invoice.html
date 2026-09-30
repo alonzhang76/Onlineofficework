@@ -28,8 +28,22 @@
 <div class="modal-mask" id="modalMask"><div class="modal" id="modalBox"></div></div>
 <div class="toast" id="toastBox"></div>
 <div id="printArea"></div>
+<script>
+/* 云端数据（与其它应用同一套 cloudbase-sync 机制）：独立命名空间 purchase-integrated，
+   仅同步本应用业务键；pis_reim_api 等本机配置、会话信息不同步 */
+window.CLOUDBASE_APP_ID='purchase-integrated';
+window.CLOUDBASE_APP_KEYS=['pis_companies','pis_units','pis_terms','pis_roles','pis_users','pis_suppliers','pis_curCompany','pis_orders','pis_shipments','pis_receipts','pis_returns','pis_invoices','pis_payments','pis_tool_records','pis_poPageSize','pis_plyPaste'];
+window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
+</script>
+<script src="../cloudbase-sync.js?v=20260924f"></script>
+<script src="../cloudbase-admin.js?v=20260930a"></script>
 <script src="js/common.js"></script>
 <script src="js/auth-guard.js"></script>
+<!-- 内嵌 CMap / 标准字体数据：数电票的号码/日期/金额/公司名使用 CID 字体，
+     缺 CMap 时整段值解码失败（表现为"未找到发票号码"）。内嵌后离线 / file:// /
+     静态托管屏蔽 .bcmap 扩展名的环境也能识别，无需网络请求 -->
+<script src="vendor/cmaps-data.js"></script>
+<script src="vendor/fonts-data.js"></script>
 <script src="js/pdf-parse.js"></script>
 <script src="js/classifier.js"></script>
 <script>
@@ -87,10 +101,8 @@ function pageInvoice(root) {
 
 /* ---------- 报销系统对接 ----------
    供应商录入的发票点「提交」→ POST 报销系统 /api/invoices/external → 进入其「待审核」。
-   API 地址默认本机 Flask(8686),可用 localStorage.pis_reim_api 覆盖;联网部署时改成
-   服务器地址即可。令牌与报销系统 app.py 的 EXTERNAL_TOKEN 保持一致。 */
-const REIM_API = (localStorage.getItem('pis_reim_api') || 'http://127.0.0.1:8686') + '/api/invoices/external';
-const REIM_TOKEN = 'purchase-link-2026';
+   接口地址 / 令牌统一走 common.js 的 ReimPay 桥（pis_reim_api 可覆盖，默认本机 Flask 8686）。 */
+const REIM_INVOICE_API = () => ReimPay.base() + '/api/invoices/external';
 function normInvType(t) {
   if (/专用/.test(t || '')) return '增值税专用发票';
   if (/普通/.test(t || '')) return '增值税普通发票';
@@ -105,7 +117,9 @@ function subjectOf(v) {
 function reimStatusBadge(v) {
   if (!v.reimStatus) return '<span class="badge b-gray">未提交</span>';
   const cls = { '待审核': 'b-amber', '已通过': 'b-green', '已入账': 'b-blue', '已驳回': 'b-red' }[v.reimStatus] || 'b-gray';
-  return '<span class="badge ' + cls + '">' + esc(v.reimStatus) + '</span>';
+  // 驳回时把报销侧审核反馈作为悬停提示（reimComment 由 ReimPay 桥自动回写）
+  const tip = v.reimStatus === '已驳回' && v.reimComment ? ' title="驳回原因：' + esc(v.reimComment) + '"' : '';
+  return '<span class="badge ' + cls + '"' + tip + '>' + esc(v.reimStatus) + '</span>';
 }
 async function submitToReim(v) {
   const payload = {
@@ -127,16 +141,17 @@ async function submitToReim(v) {
     remark: v.remark || '',
     check_code: v.checkCode || ''
   };
+  const api = REIM_INVOICE_API();
   let res, data;
   try {
-    res = await fetch(REIM_API, {
+    res = await fetch(api, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Reim-Token': REIM_TOKEN },
       body: JSON.stringify(payload)
     });
     data = await res.json().catch(() => ({}));
   } catch (e) {
-    throw new Error('报销系统不在线（' + REIM_API + '），请先启动报销系统');
+    throw new Error('报销系统不在线（' + api + '），请先启动报销系统');
   }
   if (!res.ok || !data.ok) throw new Error(data.msg || ('HTTP ' + res.status));
   return data;
@@ -145,11 +160,8 @@ async function submitToReim(v) {
 /* ---------- 更多菜单功能：导出EXCEL / 导入EXCEL / 清空 ----------
    导出表头与导入映射列保持一致 → 导出的文件可直接再导入（派生列自动忽略） */
 async function exportInvoicesExcel() {
-  const payDateOf = no => {
-    const ds = Data.list('payments').filter(p => splitMulti(p.invoiceNumbers).includes(no))
-      .map(p => p.paymentDate || '').filter(Boolean).sort();
-    return ds.length ? ds[ds.length - 1] : '';
-  };
+  // 付款日期取自报销侧付款登记（ReimPay 桥）
+  const payDateOf = no => ReimPay.dateOfInvoice(no) || '';
   await exportCollExcel('发票台账', '发票台账_' + todayFileTag() + '.xlsx',
     ['发票号码', '类型', '开票日期', '购买方', '销售方', '品名', '不含税', '税率', '税额', '价税合计', '会计科目', '所属项目', '备注', '报销状态', '付款日期', '已付款', '付款状态'],
     Data.list('invoices').map(v => { const p = paidOfInvoice(v.invoiceNumber), stt = invoiceStatus(v);
@@ -196,11 +208,8 @@ function handleInvoiceImport(f) {
 
 /* ---------- 标签页 1：发票台账（表头与报销系统「发票台账」完全一致） ---------- */
 function renderInvoiceLedger(pane, canW) {
-  const payDateOf = no => {
-    const ds = Data.list('payments').filter(p => splitMulti(p.invoiceNumbers).includes(no))
-      .map(p => p.paymentDate || '').filter(Boolean).sort();
-    return ds.length ? ds[ds.length - 1] : '';
-  };
+  // 付款日期取自报销侧付款登记（ReimPay 桥）
+  const payDateOf = no => ReimPay.dateOfInvoice(no) || '';
   pane.innerHTML =
     '<div id="invStats" class="stat-grid"></div>' +
     '<div class="card"><div class="row-flex" style="margin-bottom:12px">' +
@@ -306,8 +315,8 @@ function renderInvoiceLedger(pane, canW) {
         b.disabled = true; b.textContent = '提交中…';
         try {
           const r = await submitToReim(rec);
-          Data.update('invoices', rec.id, { reimStatus: r.status, reimId: r.id });
-          toast('已提交至报销系统：' + r.status, 'ok');
+          Data.update('invoices', rec.id, { reimStatus: r.status, reimId: r.id, reimComment: '' });
+          toast(r.resubmitted ? '已重新提交至报销系统：待审核' : ('已提交至报销系统：' + r.status), 'ok');
         } catch (e) { toast(e.message, 'err'); }
         renderPage();
       }
@@ -325,7 +334,7 @@ function renderInvoiceLedger(pane, canW) {
       const v = Data.list('invoices').find(x => x.id === id);
       try {
         const r = await submitToReim(v);
-        Data.update('invoices', id, { reimStatus: r.status, reimId: r.id });
+        Data.update('invoices', id, { reimStatus: r.status, reimId: r.id, reimComment: '' });
         okN++;
       } catch (e) { errs.push(v.invoiceNumber + '：' + e.message); }
     }

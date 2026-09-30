@@ -28,6 +28,15 @@
 <div class="modal-mask" id="modalMask"><div class="modal" id="modalBox"></div></div>
 <div class="toast" id="toastBox"></div>
 <div id="printArea"></div>
+<script>
+/* 云端数据（与其它应用同一套 cloudbase-sync 机制）：独立命名空间 purchase-integrated，
+   仅同步本应用业务键；pis_reim_api 等本机配置、会话信息不同步 */
+window.CLOUDBASE_APP_ID='purchase-integrated';
+window.CLOUDBASE_APP_KEYS=['pis_companies','pis_units','pis_terms','pis_roles','pis_users','pis_suppliers','pis_curCompany','pis_orders','pis_shipments','pis_receipts','pis_returns','pis_invoices','pis_payments','pis_tool_records','pis_poPageSize','pis_plyPaste'];
+window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
+</script>
+<script src="../cloudbase-sync.js?v=20260924f"></script>
+<script src="../cloudbase-admin.js?v=20260930a"></script>
 <script src="js/common.js"></script>
 <script src="js/auth-guard.js"></script>
 <script>
@@ -41,10 +50,9 @@
    三方关联：报销发票(project=合同号) ↔ 采购本地发票(contractNumber) ↔ 合同
    供应商登录后自动只看自己的数据（Session.mySupplier 过滤）。
    ========================================================== */
-const REIM_PAY_API = (localStorage.getItem('pis_reim_api') || 'http://127.0.0.1:8686') + '/api/payments/external';
-const REIM_TOKEN = 'purchase-link-2026';
+/* 接口地址 / 令牌 / 拉取缓存统一走 common.js 的 ReimPay 桥 */
 
-let payData = null;      // 报销系统返回 { summary, groups, invoices, records }
+let payData = null;      // 报销系统返回 { summary, groups, invoices, records, submissions }
 let payExpanded = {};    // 供应商名 -> 是否展开明细
 
 function payBadge(st) {
@@ -100,29 +108,31 @@ function pagePayment(root) {
       : st === 'loading' ? '<span class="badge b-gray">连接中…</span>'
       : '<span class="badge b-red">● 未连接</span>';
   };
-  async function load() {
+  async function load(force) {
     setConn('loading');
     $('#payErr').innerHTML = '';
     try {
-      const res = await fetch(REIM_PAY_API, { headers: { 'X-Reim-Token': REIM_TOKEN } });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok || !d.ok) throw new Error(d.msg || ('HTTP ' + res.status));
+      // 复用 common.js ReimPay 桥（带缓存、并发去重；force=true 为手动刷新）
+      const d = await ReimPay.load(!!force);
       payData = d;
       payExpanded = {};
       setConn('ok');
     } catch (e) {
-      payData = null;
+      // 离线时退回本机缓存展示（顶部保持「未连接」提示）
+      payData = ReimPay.raw();
       setConn('err');
-      $('#payErr').innerHTML =
-        '<div class="card" style="border-left:4px solid var(--red);margin-bottom:12px"><b>无法连接报销系统</b>' +
-        '<div class="hint">' + esc(e.message || String(e)) + ' · 请先启动报销系统（运行 reimbursement-system/start.bat，默认 ' +
-        esc(REIM_PAY_API.replace('/api/payments/external', '')) + '），启动后点「刷新」。</div></div>';
-      $('#payStats').innerHTML = '';
-      $('#payGroupBox').innerHTML = '';
-      $('#payRecBox').innerHTML = '';
-      $('#paygTop').innerHTML = '';
-      $('#payrTop').innerHTML = '';
-      return;
+      if (!payData) {
+        $('#payErr').innerHTML =
+          '<div class="card" style="border-left:4px solid var(--red);margin-bottom:12px"><b>无法连接报销系统</b>' +
+          '<div class="hint">' + esc(e.message || String(e)) + ' · 请先启动报销系统（运行 reimbursement-system/start.bat，默认 ' +
+          esc(ReimPay.base()) + '），启动后点「刷新」。</div></div>';
+        $('#payStats').innerHTML = '';
+        $('#payGroupBox').innerHTML = '';
+        $('#payRecBox').innerHTML = '';
+        $('#paygTop').innerHTML = '';
+        $('#payrTop').innerHTML = '';
+        return;
+      }
     }
     draw();
   }
@@ -283,8 +293,8 @@ function pagePayment(root) {
 
   $('#paySearch').addEventListener('input', draw);
   $('#payStatus').addEventListener('change', draw);
-  $('#payRefresh').addEventListener('click', load);
-  load();
+  $('#payRefresh').addEventListener('click', () => load(true));
+  load(false);
 }
 
 initPage('payment', pagePayment);

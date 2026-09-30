@@ -28,6 +28,15 @@
 <div class="modal-mask" id="modalMask"><div class="modal" id="modalBox"></div></div>
 <div class="toast" id="toastBox"></div>
 <div id="printArea"></div>
+<script>
+/* 云端数据（与其它应用同一套 cloudbase-sync 机制）：独立命名空间 purchase-integrated，
+   仅同步本应用业务键；pis_reim_api 等本机配置、会话信息不同步 */
+window.CLOUDBASE_APP_ID='purchase-integrated';
+window.CLOUDBASE_APP_KEYS=['pis_companies','pis_units','pis_terms','pis_roles','pis_users','pis_suppliers','pis_curCompany','pis_orders','pis_shipments','pis_receipts','pis_returns','pis_invoices','pis_payments','pis_tool_records','pis_poPageSize','pis_plyPaste'];
+window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
+</script>
+<script src="../cloudbase-sync.js?v=20260924f"></script>
+<script src="../cloudbase-admin.js?v=20260930a"></script>
 <script src="js/common.js"></script>
 <script src="js/auth-guard.js"></script>
 <script>

@@ -28,6 +28,15 @@
 <div class="modal-mask" id="modalMask"><div class="modal" id="modalBox"></div></div>
 <div class="toast" id="toastBox"></div>
 <div id="printArea"></div>
+<script>
+/* 云端数据（与其它应用同一套 cloudbase-sync 机制）：独立命名空间 purchase-integrated，
+   仅同步本应用业务键；pis_reim_api 等本机配置、会话信息不同步 */
+window.CLOUDBASE_APP_ID='purchase-integrated';
+window.CLOUDBASE_APP_KEYS=['pis_companies','pis_units','pis_terms','pis_roles','pis_users','pis_suppliers','pis_curCompany','pis_orders','pis_shipments','pis_receipts','pis_returns','pis_invoices','pis_payments','pis_tool_records','pis_poPageSize','pis_plyPaste'];
+window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
+</script>
+<script src="../cloudbase-sync.js?v=20260924f"></script>
+<script src="../cloudbase-admin.js?v=20260930a"></script>
 <script src="js/common.js"></script>
 <script src="js/auth-guard.js"></script>
 <script>
@@ -180,40 +189,56 @@ function companyForm(c) {
 }
 function adminData() {
   const box = $('#adminBox');
-  const env = CloudBase.env();
   box.innerHTML =
-    '<h3 style="font-size:14px;margin-bottom:10px">本地备份</h3>' +
+    '<h3 style="font-size:14px;margin-bottom:10px">云端数据（页面最上方冻结工具条）</h3>' +
+    '<div class="hint" style="line-height:2">本系统已接入与其它应用一致的云端数据服务，所有按钮固定在页面最顶端：<br>' +
+    '<b>💾 保存</b>：把本机全部数据上传覆盖云端；<b>⬇️ 云端下载</b>：对比后用云端较新数据更新本机；<br>' +
+    '<b>📥 备份到电脑 / 📤 从电脑恢复</b>：本机 JSON 文件备份；右侧胶囊显示「本地 N · 云端 M」数据条数。<br>' +
+    '日常使用中业务数据保存后会<b>自动同步</b>到云端（约每 15 秒轮询），换电脑登录后点「⬇️ 云端下载」即可取回数据。</div>' +
+    '<h3 style="font-size:14px;margin:18px 0 10px">本地备份</h3>' +
     '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">' +
     '<button class="btn btn-primary" id="dExport">⬇ 备份到电脑（JSON）</button>' +
     '<label class="btn btn-outline" style="cursor:pointer">⬆ 从电脑恢复<input type="file" id="dImport" accept=".json" style="display:none"></label></div>' +
-    '<div class="hint">备份包含用户、角色、供应商及全部业务数据；恢复将覆盖当前本地数据。</div>' +
-    '<h3 style="font-size:14px;margin:18px 0 10px">腾讯云 CloudBase（预留）</h3>' +
-    '<div class="row-flex"><div style="min-width:260px"><label>环境 ID（Env ID）</label><input id="cbEnv" value="' + esc(env) + '" placeholder="如：your-env-id"></div>' +
-    '<div style="align-self:flex-end"><button class="btn btn-outline" id="cbSaveEnv">保存环境ID</button></div>' +
-    '<div style="align-self:flex-end"><button class="btn btn-success" id="cbPush">⬆ 上传快照到云端</button></div>' +
-    '<div style="align-self:flex-end"><button class="btn btn-primary" id="cbPull">⬇ 从云端下载快照</button></div></div>' +
-    '<div class="hint">迁移步骤：① 引入 CloudBase JS-SDK（<span class="mono">https://static.cloudbase.net/cloudbase-js-sdk/&lt;ver&gt;/cloudbase.full.js</span>）；② 填入环境ID并保存；③ 在云数据库创建集合 <span class="mono">pis_snapshots</span>；④ 点击上传/下载进行全量快照同步。数据层（DB/Data）已按集合抽象，后续可直接切换为云数据库逐集合读写，业务代码无需改动。</div>' +
-    '<div class="hint" id="cbStatus">当前状态：' + (CloudBase.ready() ? '<b style="color:var(--green)">SDK 已加载，环境 ' + esc(env) + '</b>' : (env ? '环境ID已保存，等待引入 SDK' : '未配置')) + '</div>' +
+    '<div class="hint">备份包含用户、角色、供应商及全部业务数据；恢复将覆盖当前本地数据，并自动重新上传云端。</div>' +
+    '<h3 style="font-size:14px;margin:18px 0 10px">报销系统对接（发票台账 / 付款数据）</h3>' +
+    '<div class="row-flex">' +
+    '<div style="flex:1;max-width:420px"><label>报销系统服务地址</label><input id="dReimApi" placeholder="http://127.0.0.1:8686" value="' + esc(ReimPay.base()) + '"></div>' +
+    '<div style="align-self:flex-end;display:flex;gap:8px"><button class="btn btn-primary" id="dReimSave">保存并测试连接</button>' +
+    '<button class="btn btn-outline" id="dReimReset">恢复默认</button></div></div>' +
+    '<div class="hint">发票提交至报销系统审核，付款登记在报销系统完成；付款金额 / 付款日期 / 审核状态自动回本系统展示。地址仅保存在本机，不同步云端。</div>' +
     '<h3 style="font-size:14px;margin:18px 0 10px;color:var(--red)">危险操作</h3>' +
     '<button class="btn btn-danger" id="dClear">清空本地业务数据</button><span class="hint" style="display:inline-block;margin-left:10px">仅保留用户 / 角色 / 公司 / 供应商结构，业务单据全部清空，请先备份！</span>';
-  $('#dExport').addEventListener('click', () => {
-    const blob = new Blob([JSON.stringify(DB.snapshot(), null, 2)], { type: 'application/json' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = '采购一体化系统备份_' + todayStr() + '.json'; a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 800); toast('备份已下载', 'ok');
-  });
+  $('#dExport').addEventListener('click', () => window.backupData());
   $('#dImport').addEventListener('change', e => {
     const f = e.target.files[0]; if (!f) return;
     const rd = new FileReader();
-    rd.onload = () => { try { DB.restore(JSON.parse(rd.result)); toast('恢复成功，即将刷新', 'ok'); setTimeout(() => location.reload(), 800); } catch (err) { toast('恢复失败：' + err.message, 'err'); } };
+    rd.onload = () => {
+      try {
+        const snap = JSON.parse(rd.result);
+        if (!snap || typeof snap.data !== 'object') throw new Error('备份文件格式不正确');
+        if (!confirm('恢复将用备份内容覆盖本机当前数据，确定继续？')) return;
+        DB.restore(snap);
+        if (window.CloudbaseSync && typeof window.CloudbaseSync.setImportProtection === 'function') {
+          window.CloudbaseSync.setImportProtection(600000);
+        }
+        toast('恢复成功，即将刷新', 'ok'); setTimeout(() => location.reload(), 800);
+      } catch (err) { toast('恢复失败：' + err.message, 'err'); }
+    };
     rd.readAsText(f);
   });
-  $('#cbSaveEnv').addEventListener('click', () => { CloudBase.setEnv($('#cbEnv').value); toast('环境ID已保存', 'ok'); renderPage(); });
-  $('#cbPush').addEventListener('click', async () => {
-    try { await CloudBase.push(); toast('快照已上传到 CloudBase', 'ok'); } catch (e) { toast(e.message, 'err'); }
+  $('#dReimSave').addEventListener('click', async () => {
+    const v = $('#dReimApi').value.trim().replace(/\/+$/, '');
+    if (!v) { toast('请填写服务地址', 'err'); return; }
+    ReimPay.setBase(v);
+    try {
+      const d = await ReimPay.load(true);
+      toast('连接成功：发票 ' + (d.summary && d.summary.invoices != null ? d.summary.invoices : 0) + ' 张，已付 ' + fmtMoney((d.summary && d.summary.paid) || 0), 'ok');
+    } catch (e) { toast('保存成功但连接失败：' + e.message, 'err'); }
   });
-  $('#cbPull').addEventListener('click', async () => {
-    try { await CloudBase.pull(); toast('快照已下载，即将刷新', 'ok'); setTimeout(() => location.reload(), 800); } catch (e) { toast(e.message, 'err'); }
+  $('#dReimReset').addEventListener('click', () => {
+    ReimPay.setBase('http://127.0.0.1:8686');
+    $('#dReimApi').value = ReimPay.base();
+    toast('已恢复默认地址', 'ok');
   });
   $('#dClear').addEventListener('click', () => {
     if (!confirm('⚠️ 此操作将清空全部业务单据（合同/发货/收货/退货/发票/付款），且不可恢复！是否继续？')) return;
