@@ -1,7 +1,0 @@
-@import "../common.wxss";
-
-/* 开票管理：状态徽章在父级 .ch-r 内竖排 */
-.card-head .ch-r .badge { display: inline-block; }
-
-/* 未开票合同参考行的金额强调 */
-.dline .dl-amt { white-space: nowrap; }

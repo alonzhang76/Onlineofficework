@@ -1,5 +1,0 @@
-@import "../common.wxss";
-
-/* 付款管理：逐张核对子列表的紧凑排版 */
-.card .dline + .dline { margin-top: 2rpx; }
-.card .dline .dl-amt { white-space: nowrap; }

@@ -1,4 +1,0 @@
-@import "../common.wxss";
-
-/* 供应商管理：档案卡片键值行更紧凑 */
-.card .kv .v.mono { font-size: 24rpx; }
