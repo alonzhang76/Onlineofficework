@@ -797,9 +797,9 @@ def payments_external():
             GROUP BY seller_name ORDER BY t DESC""", sparams).fetchall()
     # 全部有效进项票明细（含未付款），供应商按张核对付款进度
     invs = conn.execute(
-        f"""SELECT id, invoice_no, invoice_type, invoice_date, seller_name, item_name,
-                   project, payee, settle, total_amount, paid_amount,
-                   payment_date, payment_method, status
+        f"""SELECT id, invoice_no, invoice_type, invoice_date, buyer_name, seller_name,
+                   item_name, project, payee, settle, amount, tax_rate, tax_amount,
+                   total_amount, paid_amount, payment_date, payment_method, status
             FROM invoices WHERE {pay_base} AND payee='销售方'{seller_cond}
             ORDER BY seller_name, invoice_date DESC, id DESC""", sparams).fetchall()
     # 付款记录：同上进项 / 正常付款 / 付给销售方 / 非驳回口径，仅取已有付款的票，

@@ -301,6 +301,65 @@ const curCoName = () => State.company === ALL_COMPANIES ? '全部公司' : getCo
    - 首次渲染先读本机缓存，保证离线 / 报销服务未启动时仍能显示上次数据 */
 const REIM_TOKEN = 'purchase-link-2026';
 const REIM_TTL_MS = 30000; // 后台静默拉取节流：30 秒内不重复请求（手动刷新走 force）
+
+/* ---------- 销售方 ↔ 供应商模糊匹配（与 invoice.html 发票录入同一口径） ----------
+   归一化（去空白/标点/组织后缀）后：完全相等 > 双向包含 > 最长公共子串占比。
+   common.js 不能依赖仅开票页加载的 PisPdf，故在此自带一份等价归一化。 */
+function normOrgName(n) {
+  return n ? String(n).replace(/[\s　()（）·、,，]/g, '').trim() : '';
+}
+function normSupplierKey(n) {
+  return normOrgName(n).replace(/(有限责任公司|股份有限公司|有限公司|公司|厂|经营部|商行|店)$/, '');
+}
+function matchReimSupplier(sellerName, sups) {
+  const target = normSupplierKey(sellerName);
+  if (!target) return null;
+  let best = null, bestScore = 0;
+  (sups || DB.get('suppliers', [])).forEach(s => {
+    const n = normSupplierKey(s && s.supplierName);
+    if (!n) return;
+    let score = 0;
+    if (n === target) score = 1;
+    else if (n.includes(target) || target.includes(n)) score = 0.8;
+    else {
+      /* 最长公共子串占比（至少 4 字，避免短词误配） */
+      let max = 0;
+      for (let i = 0; i < target.length; i++) {
+        for (let j = i + 4; j <= target.length; j++) {
+          const sub = target.slice(i, j);
+          if (n.includes(sub) && sub.length > max) max = sub.length;
+        }
+      }
+      if (max >= 4) score = Math.min(0.7, max / Math.max(target.length, n.length));
+    }
+    if (score > bestScore) { bestScore = score; best = s; }
+  });
+  return bestScore >= 0.45 ? best : null;
+}
+/* 按报销侧购方名称推断本系统公司主体：全称相等 → 去标点包含 → 公司代号包含 → 首主体兜底 */
+function companyOfReimBuyer(buyerName) {
+  const comps = DB.get('companies', []);
+  if (!comps.length) return (State.company && State.company !== ALL_COMPANIES) ? State.company : '';
+  if (buyerName) {
+    let hit = comps.find(c => c.name === buyerName);
+    if (!hit) {
+      const b = normOrgName(buyerName);
+      hit = comps.find(c => {
+        const cn = normOrgName(c.name);
+        return cn === b || cn.includes(b) || b.includes(cn) || (c.code && b.includes(c.code));
+      });
+    }
+    if (hit) return hit.code;
+  }
+  return comps[0].code;
+}
+function normReimInvoiceType(t) {
+  t = t || '';
+  if (/专用/.test(t)) return '增值税专用发票';
+  if (/普通/.test(t)) return '增值税普通发票';
+  return t || '其他发票';
+}
+
 const ReimPay = {
   data: null,
   inflight: null,
@@ -390,6 +449,8 @@ const ReimPay = {
       this.lastOkAt = Date.now();
       localStorage.setItem('pis_reim_cache', JSON.stringify(j));
       this.reconcile(j);
+      // 报销台账中销售方匹配本系统供应商的进项票 → 自动同步进本地发票台账
+      try { this.syncInvoices(j); } catch (e) { console.warn('报销发票同步失败', e); }
       window.dispatchEvent(new Event('reim-pay-updated'));
       return j;
     })();
@@ -419,7 +480,85 @@ const ReimPay = {
       if (Object.keys(patch).length) { Object.assign(v, patch); dirty = true; }
     });
     if (dirty) DB.set('invoices', arr);
-  }
+  },
+  /* 报销台账 → 采购台账自动同步：报销侧进项票中销售方与本系统供应商模糊匹配命中的，
+     自动落入本地「发票台账」（source='报销同步'），随每次拉取近实时更新。
+     - 发票号已存在（任何来源）：不重复建档；仅对「报销同步」来源回写白名单字段，
+       人工录入 / PDF 识别 / Excel 导入的记录绝不覆盖
+     - 匹配不到供应商的票不入库（避免脏数据），供应商档案补全后下次拉取自动同步
+     - 用户事后关联的合同号、备注等本地编辑内容保留，不回写
+     返回新增条数。 */
+  syncInvoices(j) {
+    const invs = Array.isArray(j && j.invoices) ? j.invoices : [];
+    if (!invs.length) return 0;
+    const arr = DB.get('invoices', []);
+    if (!Array.isArray(arr)) return 0;
+    const sups = DB.get('suppliers', []);
+    const orders = DB.get('orders', []);
+    const byNo = new Map(arr.map(v => [String(v.invoiceNumber), v]));
+    const num = x => { const n = parseFloat(x); return isNaN(n) ? 0 : n; };
+    let added = 0, changed = false;
+    invs.forEach(r => {
+      const no = String(r.invoice_no == null ? '' : r.invoice_no);
+      if (!no) return;
+      const exist = byNo.get(no);
+      if (exist) {
+        if (!exist.syncedFromReim) return; // 非同步来源：交给 reconcile / 人工，不覆盖
+        const patch = {};
+        const set = (k, v) => { if (String(exist[k] == null ? '' : exist[k]) !== String(v == null ? '' : v)) patch[k] = v; };
+        set('invoiceDate', r.invoice_date || '');
+        set('invoiceType', normReimInvoiceType(r.invoice_type));
+        set('amount', num(r.total_amount));
+        if (r.amount != null) set('netAmount', num(r.amount));
+        if (r.tax_amount != null) set('taxAmount', num(r.tax_amount));
+        if (r.tax_rate != null) set('taxRate', r.tax_rate || '');
+        set('itemName', r.item_name || '');
+        set('buyerName', r.buyer_name || '');
+        set('reimStatus', r.status || '');
+        if (r.id != null) set('reimId', r.id);
+        if (Object.keys(patch).length) { Object.assign(exist, patch); changed = true; }
+        return;
+      }
+      const sup = matchReimSupplier(r.seller_name, sups);
+      if (!sup) return; // 销售方匹配不到供应商：暂不入库
+      /* 关联合同：仅当报销侧 project 中的合同号确属该供应商合同时挂上，避免污染合同开票额 */
+      let contractNumber = '';
+      splitMulti(r.project).some(cno => {
+        if (orders.some(o => o.contractNumber === cno && o.supplier === sup.supplierName)) { contractNumber = cno; return true; }
+        return false;
+      });
+      const rec = {
+        id: uid(),
+        company: companyOfReimBuyer(r.buyer_name),
+        invoiceNumber: no,
+        invoiceDate: r.invoice_date || '',
+        invoiceType: normReimInvoiceType(r.invoice_type),
+        contractNumber,
+        supplier: sup.supplierName,
+        amount: num(r.total_amount),
+        remark: '',
+        netAmount: r.amount != null ? num(r.amount) : 0,
+        taxAmount: r.tax_amount != null ? num(r.tax_amount) : 0,
+        taxRate: r.tax_rate || '',
+        itemName: r.item_name || '',
+        buyerName: r.buyer_name || '',
+        subjectCode: '', subjectName: '',
+        reimStatus: r.status || '',
+        reimId: r.id != null ? r.id : '',
+        reimComment: '',
+        source: '报销同步',
+        syncedFromReim: true,
+        createdAt: new Date().toISOString()
+      };
+      arr.unshift(rec);
+      byNo.set(no, rec);
+      added++; changed = true;
+    });
+    if (changed) DB.set('invoices', arr);
+    return added;
+  },
+  /* 销售方名 → 供应商档案（供发票录入等页面复用同一匹配口径） */
+  matchSupplier(name) { return matchReimSupplier(name); }
 };
 ReimPay.init();
 
@@ -617,16 +756,38 @@ function clearCollConfirm(coll, label) {
 /* ==========================================================
    渲染：框架（顶栏 + “菜单”下拉导航 + 当前模块页）
    ========================================================== */
+/* 智能重渲染：记录每次 renderFrame 期间实际读取的 DB 键与值快照，
+   云端/报销侧更新到来时只比对这组键，数据未变则跳过重渲染，避免无谓闪烁。 */
+let __renderDeps = null;
+function depsChanged(deps) {
+  if (!deps) return true;
+  for (const k in deps) {
+    let cur;
+    try { cur = JSON.stringify(DB.get(k)); } catch (e) { return true; }
+    if (cur !== deps[k]) return true;
+  }
+  return false;
+}
 function renderFrame() {
   const u = Session.user; if (!u) return;
   if ($('#whoName')) $('#whoName').textContent = u.username;
   if ($('#companySelectWrap')) $('#companySelectWrap').style.display = Session.isSupplier() ? 'none' : 'flex';
-  if ($('#companySelect')) {
-    const comps = DB.get('companies', []);
-    $('#companySelect').innerHTML = '<option value="' + ALL_COMPANIES + '"' + (State.company === ALL_COMPANIES ? ' selected' : '') + '>全部公司</option>' +
-      comps.map(c => '<option value="' + esc(c.code) + '"' + (c.code === State.company ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('');
-  }
-  renderNav(); renderPage();
+  const deps = {};
+  const origGet = DB.get;
+  DB.get = function (k, d) {
+    const v = origGet.call(DB, k, d);
+    try { deps[k] = JSON.stringify(v); } catch (e) {}
+    return v;
+  };
+  try {
+    if ($('#companySelect')) {
+      const comps = DB.get('companies', []);
+      $('#companySelect').innerHTML = '<option value="' + ALL_COMPANIES + '"' + (State.company === ALL_COMPANIES ? ' selected' : '') + '>全部公司</option>' +
+        comps.map(c => '<option value="' + esc(c.code) + '"' + (c.code === State.company ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('');
+    }
+    renderNav(); renderPage();
+  } finally { DB.get = origGet; }
+  __renderDeps = deps;
 }
 function renderNav() {
   if (!$('#navMenu')) return;
@@ -684,8 +845,13 @@ function initPage(pageKey, pageFn) {
   if (!comps.length) State.company = '普利美'; // 无公司档案时不允许停留在哨兵值
   else if (State.company !== ALL_COMPANIES && !comps.find(c => c.code === State.company)) State.company = comps[0].code;
   renderFrame();
-  // 静默拉取报销侧付款/审核状态（失败不打扰：页面继续使用上次缓存）
+  // 静默拉取报销侧付款/审核状态（失败不打扰：页面继续使用上次缓存）。
+  // 报销台账 → 采购台账的销售方匹配同步也挂在同一次拉取上。
   ReimPay.load().catch(() => {});
+  // 近实时：业务页打开期间每 30 秒静默拉取一次（load 内 TTL 同为 30 秒，手动刷新走 force）
+  if (!window.__reimSyncTimer) {
+    window.__reimSyncTimer = setInterval(() => { ReimPay.load().catch(() => {}); }, REIM_TTL_MS);
+  }
 }
 
 /* ==========================================================
@@ -802,6 +968,7 @@ window.addEventListener('cloud-data-updated', () => {
     const cc = DB.get('curCompany', null);
     const comps = DB.get('companies', []);
     if (cc && (cc === ALL_COMPANIES || comps.some(c => c.code === cc))) State.company = cc;
+    if (!depsChanged(__renderDeps)) return; // 数据未变：不重建 DOM，消除闪烁
     renderFrame();
   }, 500);
 });
@@ -815,6 +982,7 @@ window.addEventListener('reim-pay-updated', () => {
     if (mask && mask.classList.contains('show')) return;
     const ae = document.activeElement;
     if (ae && ae.closest && ae.closest('#main') && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
+    if (!depsChanged(__renderDeps)) return; // 数据未变：不重建 DOM，消除闪烁
     renderFrame();
   }, 500);
 });

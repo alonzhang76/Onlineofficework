@@ -49,7 +49,7 @@ button{font-family:inherit}
 .lg-tabs .tab.on::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:3px;border-radius:2px;background:#0d637d}
 .lg-field{margin-bottom:14px;position:relative}
 .lg-field>svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:#98a6b3;pointer-events:none}
-.lg-field input{width:100%;height:46px;border:1px solid transparent;border-radius:8px;padding:0 14px 0 40px;
+#loginMask .lg-field input{width:100%;height:46px;border:1px solid transparent;border-radius:8px;padding:0 14px 0 46px;
   font-size:14px;color:#1f2d3a;background:#f5f7fa;outline:none;transition:border .15s,background .15s,box-shadow .15s}
 .lg-field input::placeholder{color:#a3b1bf}
 .lg-field input:focus{background:#fff;border-color:#0d637d;box-shadow:0 0 0 3px rgba(13,99,125,.12)}

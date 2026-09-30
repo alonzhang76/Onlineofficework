@@ -37,7 +37,7 @@ window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
 </script>
 <script src="../cloudbase-sync.js?v=20260924f"></script>
 <script src="../cloudbase-admin.js?v=20260930a"></script>
-<script src="js/common.js"></script>
+<script src="js/common.js?v=20260930b"></script>
 <script src="js/auth-guard.js"></script>
 <!-- 内嵌 CMap / 标准字体数据：数电票的号码/日期/金额/公司名使用 CID 字体，
      缺 CMap 时整段值解码失败（表现为"未找到发票号码"）。内嵌后离线 / file:// /
@@ -277,7 +277,8 @@ function renderInvoiceLedger(pane, canW) {
         '<td><span class="badge ' + typeCls + '">' + esc(v.invoiceType || '-') + '</span></td>' +
         '<td>' + esc(v.invoiceDate || '-') + '</td>' +
         '<td title="' + esc(buyer) + '">' + esc(cutStr(buyer, 10)) + '</td>' +
-        '<td title="' + esc(v.supplier) + '">' + esc(cutStr(v.supplier, 12)) + '</td>' +
+        '<td title="' + esc(v.supplier) + '">' + esc(cutStr(v.supplier, 12)) +
+          (v.syncedFromReim ? '<div class="subtle" style="font-size:11px;white-space:nowrap">⇦ 报销同步</div>' : '') + '</td>' +
         '<td title="' + esc(v.itemName || '') + '">' + esc(cutStr(v.itemName || '-', 14)) + '</td>' +
         '<td class="num">' + (v.netAmount ? fmtMoney(v.netAmount) : '-') + '</td>' +
         '<td>' + esc(v.taxRate || '-') + '</td>' +
@@ -433,34 +434,9 @@ async function handleInvoiceFiles(files) {
   if (parsedList.length) openInvoiceQueue(parsedList, 0);
 }
 
-/* 供应商模糊匹配：归一化后 双向包含 优先，其次最长公共子串占比 */
-function matchSupplier(sellerName) {
-  if (!sellerName) return null;
-  const target = PisPdf.normPartyName(sellerName);
-  if (!target) return null;
-  const sups = DB.get('suppliers', []);
-  let best = null, bestScore = 0;
-  sups.forEach(s => {
-    const n = PisPdf.normPartyName(s.supplierName);
-    if (!n) return;
-    let score = 0;
-    if (n === target) score = 1;
-    else if (n.includes(target) || target.includes(n)) score = 0.8;
-    else {
-      /* 最长公共子串占比（至少 4 字，避免误配） */
-      let max = 0;
-      for (let i = 0; i < target.length; i++) {
-        for (let j = i + 4; j <= target.length; j++) {
-          const sub = target.slice(i, j);
-          if (n.includes(sub) && sub.length > max) max = sub.length;
-        }
-      }
-      if (max >= 4) score = Math.min(0.7, max / Math.max(target.length, n.length));
-    }
-    if (score > bestScore) { bestScore = score; best = s; }
-  });
-  return bestScore >= 0.45 ? best : null;
-}
+/* 供应商模糊匹配：统一走 common.js ReimPay.matchSupplier，
+   保证「发票录入」与「报销台账自动同步」两处匹配口径完全一致 */
+function matchSupplier(sellerName) { return ReimPay.matchSupplier(sellerName); }
 
 /* ---------- 识别预览队列 ----------
    多张 PDF 依次预览：「上一条 / 下一条」切换（切换前自动暂存已编辑的表单值），
