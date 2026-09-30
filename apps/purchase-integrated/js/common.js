@@ -1194,10 +1194,10 @@ function initPage(pageKey, pageFn) {
   }
   window.__pageRender = pageFn;
   State.page = pageKey;
-  State.company = DB.get('curCompany', '普利美');
+  State.company = DB.get('curCompany', ALL_COMPANIES); // 无记忆值时默认「全部公司」视图
   const comps = DB.get('companies', []);
   if (!comps.length) State.company = '普利美'; // 无公司档案时不允许停留在哨兵值
-  else if (State.company !== ALL_COMPANIES && !comps.find(c => c.code === State.company)) State.company = comps[0].code;
+  else if (State.company !== ALL_COMPANIES && !comps.find(c => c.code === State.company)) State.company = ALL_COMPANIES; // 记忆的公司已删除：回落「全部公司」
   renderFrame();
   // 静默拉取报销侧付款/审核状态（失败不打扰：页面继续使用上次缓存）。
   // 报销台账 → 采购台账的销售方匹配同步也挂在同一次拉取上。

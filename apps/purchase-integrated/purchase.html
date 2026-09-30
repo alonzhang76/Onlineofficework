@@ -37,7 +37,7 @@ window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
 </script>
 <script src="../cloudbase-sync.js?v=20260924f"></script>
 <script src="../cloudbase-admin.js?v=20260930a"></script>
-<script src="js/common.js?v=20260930g"></script>
+<script src="js/common.js?v=20260930h"></script>
 <script src="js/auth-guard.js"></script>
 <script>
 'use strict';
@@ -89,7 +89,7 @@ function coDot(code) {
 function drawPurchaseTable(box, kw) {
   const all = Data.list('orders');
   let orders = all;
-  if (kw) orders = all.filter(o => [o.contractNumber, o.po, o.supplier, o.remark, o.actualDate, (o.products || []).map(p => [p.name, p.spec, p.category, p.remark].join(' ')).join(' ')].join(' ').toLowerCase().includes(kw));
+  if (kw) orders = all.filter(o => [o.contractNumber, o.po, o.supplier, o.remark, o.actualDate, o.category, (o.products || []).map(p => [p.name, p.spec, p.category, p.remark].join(' ')).join(' ')].join(' ').toLowerCase().includes(kw));
   orders.sort((a, b) => (b.orderDate || '').localeCompare(a.orderDate || '') || (b.contractNumber || '').localeCompare(a.contractNumber || ''));
   // 展开为产品明细行（每个产品一行，同参考表格）
   const lines = [];
@@ -134,7 +134,7 @@ function drawPurchaseTable(box, kw) {
       '<td class="num"><b>' + fmtNum(p.quantity) + '</b></td>' +
       '<td class="subtle">' + esc(p.unit || '') + '</td>' +
       '<td class="num"><b>' + fmtMoney(poAmtOf(p)) + '</b></td>' +
-      '<td>' + (p.category ? '<span class="badge b-purple">' + esc(p.category) + '</span>' : '<span class="subtle">—</span>') + '</td>' +
+      '<td>' + ((p.category || o.category) ? '<span class="badge b-purple">' + esc(p.category || o.category) + '</span>' : '<span class="subtle">—</span>') + '</td>' +
       '<td class="subtle" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(p.remark || '') + '">' + esc(p.remark || '') + '</td>' +
       '<td class="subtle" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(o.remark || '') + '">' + esc(o.remark || '') + '</td>' +
       '<td style="white-space:nowrap">' + (first ? '<button class="link-op" data-act="detail" data-id="' + o.id + '">明细</button><button class="link-op" data-act="print" data-id="' + o.id + '">打印</button>' +
@@ -332,7 +332,7 @@ function orderForm(o, isCopy) {
     if (gen && no === gen.no) DB.set(gen.key, gen.n); // 自动单号落号（手动修改过则不消耗）
     const legacyCats = ((isEdit || isCopy) && o.products) || []; // 编辑/复制时按行序保留原产品成本类别
     const products = $$('#modalBox .product-row').map((r, i) => ({
-      name: r.querySelector('.pr-name').value.trim(), spec: r.querySelector('.pr-spec').value.trim(), category: legacyCats[i] ? (legacyCats[i].category || '') : '',
+      name: r.querySelector('.pr-name').value.trim(), spec: r.querySelector('.pr-spec').value.trim(), category: (legacyCats[i] && legacyCats[i].category) || ($('#poCat') ? $('#poCat').value.trim() : ''),
       unit: r.querySelector('.pr-unit').value, unitPrice: +r.querySelector('.pr-price').value || 0,
       quantity: +r.querySelector('.pr-qty').value || 0,
       amount: ((+r.querySelector('.pr-price').value || 0) * (+r.querySelector('.pr-qty').value || 0)).toFixed(2),
@@ -368,7 +368,7 @@ function orderDetail(o) {
   const prods = orderProducts(o).map(p => {
     const rec = receivedQty(cno, p.name), ret = returnedQty(cno, p.name), shp = shippedQty(cno, p.name);
     const stock = rec - ret;
-    return '<tr><td>' + esc(p.name) + '</td><td>' + esc(p.spec || '') + '</td><td class="subtle">' + esc(p.category || '—') + '</td><td>' + esc(p.unit || '') + '</td>' +
+    return '<tr><td>' + esc(p.name) + '</td><td>' + esc(p.spec || '') + '</td><td class="subtle">' + esc(p.category || o.category || '—') + '</td><td>' + esc(p.unit || '') + '</td>' +
       '<td class="num">' + fmtNum(p.quantity) + '</td><td class="num">' + fmtMoney(p.unitPrice) + '</td><td class="num">' + fmtMoney(p.amount) + '</td>' +
       '<td class="num">' + fmtNum(shp) + '</td><td class="num">' + fmtNum(rec) + '</td><td class="num">' + fmtNum(ret) + '</td>' +
       '<td class="num"><b>' + fmtNum(stock) + '</b></td></tr>';
