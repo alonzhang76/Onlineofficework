@@ -476,7 +476,8 @@ function renderInvoiceQueueItem() {
 
   const sup = matchSupplier(f.seller_name || p.seller_name);
   const orders = Data.list('orders').slice().sort((a, b) => ((b.orderDate || b.createdAt || '').localeCompare((a.orderDate || a.createdAt || ''))) || (b.contractNumber || '').localeCompare(a.contractNumber || ''));
-  const supOrders = sup ? orders.filter(o => o.supplier === sup.supplierName) : [];
+  /* 合同列表只显示未开票/部分开票（已开票额 < 合同总额），避免重复挂已票清的合同 */
+  const supOrders = sup ? orders.filter(o => o.supplier === sup.supplierName && (invoicedOfContract(o.contractNumber) < (+o.totalAmount || 0) - 0.005)) : [];
   const dup = DB.get('invoices', []).find(v => v.invoiceNumber === val('invoice_no'));
   const type = normInvType(val('invoice_type', '增值税专用发票'));
   const amt = val('total_amount', p.total_amount || p.amount || '');
@@ -514,12 +515,13 @@ function renderInvoiceQueueItem() {
     '<div><label>会计科目（自动归类，可改）</label><select id="iuSub">' +
     PisClassify.allSubjects().map(s => '<option value="' + esc(s.code) + '"' + (s.code === subCode ? ' selected' : '') + '>' + esc(s.name) + '</option>').join('') +
     '</select><div class="subtle" style="font-size:11.5px;margin-top:4px">依据品名/销售方自动归类' + (autoSub.hit ? '（命中「' + esc(autoSub.hit) + '」）' : '') + '</div></div>' +
-    '<div style="grid-column:1/-1"><label class="req">关联合同</label>' +
+    '<div style="grid-column:1/-1"><label class="req">关联合同（仅未开票/部分开票）</label>' +
     '<select id="iuContracts" multiple size="' + Math.min(6, Math.max(2, supOrders.length || 2)) + '">' +
     (supOrders.length
-      ? supOrders.map(o => '<option value="' + esc(o.contractNumber) + '"' + ((f.contracts || []).includes(o.contractNumber) ? ' selected' : '') + '>' + esc(o.contractNumber) + '（' + fmtMoney(o.totalAmount) + ' · 已开票 ' + fmtMoney(invoicedOfContract(o.contractNumber)) + '）</option>').join('')
-      : '<option value="" disabled>该供应商暂无采购合同</option>') +
+      ? supOrders.map(o => '<option value="' + esc(o.contractNumber) + '"' + ((f.contracts || []).includes(o.contractNumber) ? ' selected' : '') + '>' + esc(o.contractNumber) + '（' + fmtMoney(o.totalAmount) + ' · 未开票 ' + fmtMoney(Math.max(0, (+o.totalAmount || 0) - invoicedOfContract(o.contractNumber))) + '）</option>').join('')
+      : '<option value="" disabled>该供应商暂无未开票/部分开票合同</option>') +
     '</select>' +
+    '<div id="iuContractsSum" class="subtle" style="font-size:12.5px;margin-top:6px">已选 0 个合同，合计 ¥0.00</div>' +
     '<div class="subtle" style="font-size:11.5px;margin-top:4px">可按住 Ctrl / Cmd 多选；一张发票可关联多个合同。未选择时发票不挂合同，仅登记台账。</div></div>' +
     (itemNameVal || p.item_name ? '<div style="grid-column:1/-1"><label>货物或应税劳务名称</label><input id="iuItems" value="' + esc(itemNameVal || p.item_name || '') + '"></div>' : '') +
     '<div style="grid-column:1/-1"><label>备注</label><input id="iuRemark" value="' + esc(f.remark !== undefined ? f.remark : (p._remark || '')) + '"></div>' +
@@ -537,6 +539,20 @@ function renderInvoiceQueueItem() {
     if (invQueueIdx >= invQueue.length) invQueueIdx = invQueue.length - 1;
     renderInvoiceQueueItem();
   });
+  /* 选中合同金额汇总：实时合计所选合同的未开票余额，并与发票额对比 */
+  const updConSum = () => {
+    const sels = Array.from($('#iuContracts').selectedOptions).map(o => o.value).filter(Boolean);
+    const total = sels.reduce((s, cno) => { const oo = contractByNo(cno); return s + (+oo.totalAmount || 0); }, 0);
+    const invAmt = +$('#iuAmount').value || 0;
+    const sumEl = $('#iuContractsSum');
+    if (sumEl) sumEl.innerHTML = '已选 <b>' + sels.length + '</b> 个合同，合同合计 <b>' + fmtMoney(total) + '</b>' +
+      (sels.length ? ' · 发票额 <b>' + fmtMoney(invAmt) + '</b>' +
+        (invAmt > total + 0.005 ? ' <span class="badge b-amber">发票额＞合同合计</span>'
+          : (invAmt < total - 0.005 ? ' <span class="badge b-blue">部分开票</span>' : ' <span class="badge b-green">金额匹配</span>')) : '');
+  };
+  $('#iuContracts').addEventListener('change', updConSum);
+  const _iuAmt = $('#iuAmount'); if (_iuAmt) _iuAmt.addEventListener('input', updConSum);
+  updConSum();
 
   $('#iuF').addEventListener('submit', e => {
     e.preventDefault();
@@ -594,7 +610,8 @@ function renderInvoiceQueueItem() {
 }
 function invoiceForm(rec) {
   const isEdit = !!rec;
-  const orders = Data.list('orders').slice().sort((a, b) => ((b.orderDate || b.createdAt || '').localeCompare((a.orderDate || a.createdAt || ''))) || (b.contractNumber || '').localeCompare(a.contractNumber || ''));
+  /* 合同列表只显示未开票/部分开票；编辑时保留当前已绑合同便于回显 */
+  const orders = Data.list('orders').slice().filter(o => (invoicedOfContract(o.contractNumber) < (+o.totalAmount || 0) - 0.005) || (isEdit && rec.contractNumber === o.contractNumber)).sort((a, b) => ((b.orderDate || b.createdAt || '').localeCompare((a.orderDate || a.createdAt || ''))) || (b.contractNumber || '').localeCompare(a.contractNumber || ''));
   openModal('<h3>' + (isEdit ? '编辑发票' : '登记发票') + '</h3><form id="ivF">' +
     '<div class="form-grid">' +
     '<div><label class="req">发票号码</label><input id="ivNo" required value="' + esc(rec ? rec.invoiceNumber : '') + '" placeholder="发票右上角号码"></div>' +
@@ -606,6 +623,9 @@ function invoiceForm(rec) {
     orders.map(o => '<option value="' + esc(o.contractNumber) + '"' + (rec && rec.contractNumber === o.contractNumber ? ' selected' : '') + '>' + esc(o.contractNumber) + '（' + esc(o.supplier) + '）</option>').join('') + '</select></div>' +
     '<div><label class="req">供应商</label><input id="ivSup" readonly placeholder="选择合同后自动带出"></div>' +
     '<div><label class="req">发票金额</label><input id="ivAmount" type="number" step="0.01" min="0" required value="' + (rec ? rec.amount : '') + '"></div>' +
+    '<div><label>会计科目（自动归类，可改）</label><select id="ivSub">' +
+    PisClassify.allSubjects().map(s => '<option value="' + esc(s.code) + '"' + (rec && rec.subjectCode === s.code ? ' selected' : '') + '>' + esc(s.name) + '</option>').join('') +
+    '</select></div>' +
     '<div style="grid-column:1/-1"><label>备注</label><input id="ivRemark" value="' + esc(rec ? (rec.remark || '') : '') + '"></div></div>' +
     '<div class="amt-hint" id="ivHint"></div>' +
     '<div class="modal-foot"><button type="button" class="btn btn-outline" onclick="closeModal()">取消</button><button class="btn btn-primary">保存</button></div></form>');
@@ -615,6 +635,8 @@ function invoiceForm(rec) {
     $('#ivSup').value = o.supplier;
     const inv = invoicedOfContract(o.contractNumber) - (isEdit ? +rec.amount || 0 : 0);
     $('#ivHint').innerHTML = '合同金额 <b>' + fmtMoney(o.totalAmount) + '</b> · 已开票 <b>' + fmtMoney(inv) + '</b> · 未开票 <b>' + fmtMoney(Math.max(0, o.totalAmount - inv)) + '</b>';
+    /* 新建时按供应商自动归类会计科目（编辑时保留已存值，除非用户手动改） */
+    if (!isEdit) { const as = PisClassify.classify('', o.supplier, ''); if (as.code) $('#ivSub').value = as.code; }
   };
   $('#ivContract').addEventListener('change', upd);
   if (isEdit) upd(); else upd();
@@ -622,11 +644,14 @@ function invoiceForm(rec) {
     e.preventDefault();
     const cno = $('#ivContract').value; const o = contractByNo(cno);
     if (!o) { toast('请选择合同', 'err'); return; }
+    const subSel = $('#ivSub');
     const data = {
       id: isEdit ? rec.id : uid(), company: o.company || curCo(),
       invoiceNumber: $('#ivNo').value.trim(), invoiceDate: $('#ivDate').value,
       invoiceType: $('#ivType').value, contractNumber: cno, supplier: o.supplier,
       amount: +$('#ivAmount').value || 0, remark: $('#ivRemark').value.trim(),
+      subjectCode: subSel ? subSel.value : '',
+      subjectName: subSel ? (subSel.options[subSel.selectedIndex] || {}).text : '',
       createdAt: isEdit ? rec.createdAt : new Date().toISOString()
     };
     if (isEdit) Data.update('invoices', rec.id, data); else Data.add('invoices', data);

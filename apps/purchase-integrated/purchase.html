@@ -297,7 +297,7 @@ function orderForm(o, isCopy) {
     '<div style="grid-column:1/-1"><label>备注</label><input id="poRemark" value="' + esc(o ? (o.remark || '') : '') + '"></div></div>' +
     '<div class="modal-foot"><button type="button" class="btn btn-outline" onclick="closeModal()">取消</button><button class="btn btn-primary">保存合同</button></div></form>', 'wide');
   $('#poAddRow').addEventListener('click', () => { $('#poRows').insertAdjacentHTML('beforeend', productRowHTML()); bindPoRow(); });
-  $('#poPackCalc').addEventListener('click', () => { window.open('ply%20box.html', '_blank'); }); // 独立新标签页打开包装计算器
+  $('#poPackCalc').addEventListener('click', () => { window.open('ply%20box.html?v=20260930a', '_blank'); }); // 独立新标签页打开包装计算器
   $$('#modalBox .product-row').forEach(r => bindPoRow(r));
   updatePoTotal(); // 初始汇总：编辑时按明细重算，新建时显示 0.00
   function bindPoRow(r) {
