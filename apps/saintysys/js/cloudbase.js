@@ -1262,8 +1262,18 @@ function makeClassicStorageAdapter() {
 }
 
 function makeStorageRef(bucketName) {
+  // 业务根前缀：服装业务的文件统一存放在桶内「服装业务/」目录下，
+  // 与炉架业务（炉架业务/）、不锈钢业务、家禽业务物理隔离、互不可见。
+  // 可用 window.STORAGE_ROOT_PREFIX 覆盖（传空串则回到桶根）。
+  var ROOT_PREFIX = (typeof window !== "undefined" && window.STORAGE_ROOT_PREFIX != null)
+    ? String(window.STORAGE_ROOT_PREFIX) : "服装业务/";
   // PG 桶 API 的对象名不允许前导 "/"（经典 API 会自动剥离，新版不会），统一在边界归一化
-  function normKey(p) { return String(p == null ? "" : p).replace(/^\/+/, ""); }
+  function normKey(p) {
+    var k = String(p == null ? "" : p).replace(/^\/+/, "");
+    if (!ROOT_PREFIX) return k;
+    if (k === ROOT_PREFIX || k.indexOf(ROOT_PREFIX) === 0) return k; // 已带前缀不重复加
+    return ROOT_PREFIX + k;
+  }
   async function getFromRef() {
     var app = await getApp();
     if (!app || !app.storage) throw new Error("CloudBase Storage 未初始化");
@@ -1327,9 +1337,13 @@ function makeStorageRef(bucketName) {
           };
         }
         if (ref && typeof ref.list === "function") {
-          // SDK 签名为 list(prefix: string, options)：首参必须是字符串 prefix
-          var lr = await ref.list(String(prefix || ""), options || {});
-          if (lr && !lr.error) return { data: normalizeStorageList(lr, prefix || ""), error: null };
+          // SDK 签名为 list(prefix: string, options)：首参必须是字符串 prefix。
+          // 业务前缀在 normKey 统一添加；PG 桶 API 对带尾斜杠的 prefix 可能
+          // "成功但返回空"（实测 'xxx/' → 空，'xxx' → 有内容）→ 去掉尾斜杠再列。
+          var physPrefix = normKey(String(prefix || ""));
+          var sdkPrefix = physPrefix.replace(/\/+$/, "");
+          var lr = await ref.list(sdkPrefix, options || {});
+          if (lr && !lr.error) return { data: normalizeStorageList(lr, sdkPrefix), error: null };
           sdkErr = (lr && lr.error) || mapError("SDK list 失败");
           console.warn("[cloudbase.js] SDK list 失败，回退云函数 " + FILE_LIST_FUNCTION + ":",
             sdkErr && sdkErr.message ? sdkErr.message : sdkErr);
@@ -1344,7 +1358,7 @@ function makeStorageRef(bucketName) {
         var app = await getApp();
         var fnRes = await app.callFunction({
           name: FILE_LIST_FUNCTION,
-          data: { bucket: bucketName || "", prefix: prefix || "", limit: (options && options.limit) || 1000 },
+          data: { bucket: bucketName || "", prefix: physPrefix.replace(/\/+$/, ""), limit: (options && options.limit) || 1000 },
         });
         var payload = (fnRes && (fnRes.result || fnRes.data)) || {};
         if (payload.error) return { data: null, error: mapError(payload.error) };

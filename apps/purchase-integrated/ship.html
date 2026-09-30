@@ -88,6 +88,7 @@ function pageShip(root) {
           '<td class="num">' + fmtNum(r.quantity) + '</td><td class="num"><b>' + fmtNum(done) + '</b></td><td>' + shipBadge({ status: dst }) + '</td>' +
           '<td>' + esc(r.shipDate || '') + '</td><td class="subtle">' + esc(r.carrier || '') + (r.trackingNo ? '<br><span class="mono" style="font-size:11px">' + esc(r.trackingNo) + '</span>' : '') + '</td>' + tail +
           '<td style="white-space:nowrap"><button class="link-op" data-id="' + r.id + '" data-a="d">明细</button>' +
+          (r.dnote ? '<button class="link-op" data-id="' + r.id + '" data-a="nv" title="查看发货单">发货单</button><button class="link-op" data-id="' + r.id + '" data-a="nd" title="下载发货单">下载单</button>' : '') +
           (isSup ? '<button class="link-op" data-id="' + r.id + '" data-a="m">' + (dst !== SHIP_PENDING || r.receiveRemark ? '查看消息' : '需方反馈') + '</button>' : '') +
           (canW && (!isSup || dst === SHIP_PENDING) ? '<button class="link-op" data-id="' + r.id + '" data-a="e">编辑</button>' : '') +
           '<button class="link-op danger" data-id="' + r.id + '" data-a="x">删除</button></td></tr>';
@@ -100,10 +101,12 @@ function pageShip(root) {
       /* 注意：此处**不再**提供 confirmShipReceive —— 确认收货是采购员在「收货管理」的动作，
          供应商端不应出现该入口。保留分支只为兼容旧调用，实际不会渲染出 data-a="c" 按钮。 */
       else if (a === 'm') showSupplierMsg(rec);
+      else if (a === 'nv') viewShipNote(rec);
+      else if (a === 'nd') downloadShipNote(rec);
       else if (a === 'e') shipForm(rec);
       else if (a === 'x') {
         if (isSup && deriveShipStatus(rec) !== SHIP_PENDING) { toast('已确认或部分确认的发货记录不可删除，请联系采购员', 'err'); return; }
-        if (confirm('删除该发货记录？')) { Data.remove('shipments', rec.id); toast('已删除', 'ok'); renderPage(); }
+        if (confirm('删除该发货记录？')) { Data.remove('shipments', rec.id); removeShipNoteFile(rec.dnote && rec.dnote.path); toast('已删除', 'ok'); renderPage(); }
       }
     }));
   };
@@ -204,7 +207,9 @@ function shipForm(rec) {
     '<div><label class="req">发货日期</label><input id="shDate" type="date" required value="' + esc(rec ? rec.shipDate : todayStr()) + '"></div>' +
     '<div><label>物流公司</label><input id="shCarrier" value="' + esc(rec ? (rec.carrier || '') : '') + '" placeholder="顺丰 / 德邦 / 自送…"></div>' +
     '<div><label>物流单号</label><input id="shTrack" value="' + esc(rec ? (rec.trackingNo || '') : '') + '"></div>' +
-    '<div><label>备注</label><input id="shRemark" value="' + esc(rec ? (rec.remark || '') : '') + '"></div></div>' +
+    '<div><label>备注</label><input id="shRemark" value="' + esc(rec ? (rec.remark || '') : '') + '"></div>' +
+    (isEdit && rec.dnote ? '<div style="grid-column:1/-1"><label>当前发货单</label><div class="hint" style="margin:0">📄 ' + esc(rec.dnote.name) + '（重新选择文件即可替换）<label style="display:inline-flex;align-items:center;gap:4px;margin-left:12px;font-weight:normal"><input type="checkbox" id="shNoteDel"> 删除现有发货单</label></div></div>' : '') +
+    '<div><label>发货单（PDF / 图片，≤' + NOTE_MAX_MB + 'MB）</label><input id="shNoteFile" type="file" accept="' + NOTE_ACCEPT + '"></div></div>' +
     '<div class="amt-hint" id="shHint"></div>' +
     '<div class="modal-foot"><button type="button" class="btn btn-outline" onclick="closeModal()">取消</button><button class="btn btn-primary">保存</button></div></form>');
   const fillProducts = () => {
@@ -225,10 +230,13 @@ function shipForm(rec) {
   $('#shProduct').addEventListener('change', updHint);
   $('#shQty').addEventListener('input', updHint);
   if (isEdit) { fillProducts(); $('#shProduct').value = rec.product; updHint(); } else fillProducts();
-  $('#shipF').addEventListener('submit', e => {
+  $('#shipF').addEventListener('submit', async e => {
     e.preventDefault();
     const cno = $('#shContract').value; const o = contractByNo(cno);
     if (!o) { toast('请选择合同', 'err'); return; }
+    const noteFile = $('#shNoteFile') ? $('#shNoteFile').files[0] : null;
+    if (noteFile) { const ne = _noteErr(noteFile); if (ne) { toast(ne, 'err'); return; } }
+    const noteDel = !!(isEdit && rec.dnote && $('#shNoteDel') && $('#shNoteDel').checked);
     const data = {
       id: isEdit ? rec.id : uid(), company: o.company || curCo(),
       shipNumber: $('#shNo').value.trim(), contractNumber: cno, supplier: o.supplier,
@@ -236,10 +244,24 @@ function shipForm(rec) {
       shipDate: $('#shDate').value, carrier: $('#shCarrier').value.trim(),
       trackingNo: $('#shTrack').value.trim(), remark: $('#shRemark').value.trim(),
       status: isEdit ? (rec.status || SHIP_PENDING) : SHIP_PENDING, // 新登记 / 修改后均回到"待确认"，由采购员复核
+      dnote: (noteDel || noteFile) ? null : (isEdit ? (rec.dnote || null) : null),
       createdAt: isEdit ? rec.createdAt : new Date().toISOString()
     };
     if (isEdit) Data.update('shipments', rec.id, data); else Data.add('shipments', data);
     closeModal(); toast(isEdit ? '发货记录已更新，等待需方确认' : '发货已登记，等待需方确认收货', 'ok'); renderPage();
+    // 发货单上传（记录已保存，失败不影响登记，可稍后编辑重传）
+    if (noteDel && rec.dnote) removeShipNoteFile(rec.dnote.path);
+    if (noteFile) {
+      const oldPath = (isEdit && rec.dnote && !noteDel) ? rec.dnote.path : null;
+      try {
+        const path = await _uploadNote(data, noteFile);
+        Data.update('shipments', data.id, { dnote: { path: path, name: noteFile.name, size: noteFile.size, uploadedAt: new Date().toISOString() } });
+        if (oldPath && oldPath !== path) removeShipNoteFile(oldPath);
+        toast('发货单已上传云端', 'ok'); renderPage();
+      } catch (err) {
+        toast('发货单上传失败：' + (err.message || err) + '（发货记录已保存，可稍后编辑重传）', 'err');
+      }
+    }
   });
 }
 /* ---------- 发货明细（供应商查看需方反馈 / 采购员核对） ---------- */
@@ -258,8 +280,80 @@ function shipDetail(rec) {
     '</tbody></table></div>' +
     (rec.receiveRemark ? '<div class="hint" style="margin-top:10px"><b>需方反馈：</b>' + esc(rec.receiveRemark) + (rec.receivedAt ? ' · ' + esc(rec.receivedAt.slice(0, 10)) : '') + '</div>' : '') +
     (rec.remark ? '<div class="hint" style="margin-top:6px"><b>发货备注：</b>' + esc(rec.remark) + '</div>' : '') +
+    '<div class="hint" style="margin-top:6px"><b>发货单：</b>' + (rec.dnote
+      ? esc(rec.dnote.name) + ' <button class="link-op" onclick="viewShipNoteById(\'' + rec.id + '\')">查看</button> <button class="link-op" onclick="downloadShipNoteById(\'' + rec.id + '\')">下载</button>'
+      : '<span class="subtle">未上传</span>') + '</div>' +
     '<div class="modal-foot"><button class="btn btn-outline" onclick="closeModal()">关闭</button></div>', 'wide');
 }
+
+/* ---------- 发货 · 发货单附件（云端对象存储 app-photos/采购发货单/合同号/） ---------- */
+/* 供应商登记/编辑发货时可上传 PDF/图片发货单；采购员按合同号随时查看或下载。
+   文件实际存放于与其它应用同一 CloudBase 环境的对象存储，记录里只存 dnote 元数据。 */
+const NOTE_DIR = '采购发货单', NOTE_MAX_MB = 20, NOTE_ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp';
+const _sbSt = () => (window.supabase && window.supabase.storage) ? window.supabase.storage : null;
+function _waitStorage(ms) {
+  return new Promise(res => {
+    const t0 = Date.now();
+    const t = setInterval(() => {
+      if (_sbSt()) { clearInterval(t); res(true); }
+      else if (Date.now() - t0 > (ms || 15000)) { clearInterval(t); res(false); }
+    }, 200);
+  });
+}
+const _noteSafe = s => String(s || '').replace(/[\\\/]+/g, '-').trim() || 'file';
+function _notePath(rec, filename) {
+  return NOTE_DIR + '/' + _noteSafe(rec.contractNumber || '未关联') + '/' +
+    _noteSafe(rec.shipNumber || rec.id) + '-' + Date.now() + '-' + _noteSafe(filename);
+}
+async function _uploadNote(rec, file) {
+  if (!(await _waitStorage())) throw new Error('云端存储未就绪，请稍后重试');
+  const path = _notePath(rec, file.name);
+  const r = await _sbSt().from('app-photos').upload(path, file, { upsert: true });
+  if (r && r.error) throw new Error(r.error.message || r.error);
+  return path;
+}
+async function removeShipNoteFile(path) {
+  if (!path || !(await _waitStorage(8000))) return;
+  try { await _sbSt().from('app-photos').remove([path]); } catch (e) { /* 清理失败不影响记录 */ }
+}
+async function _noteSignedUrl(rec) {
+  if (!(await _waitStorage())) throw new Error('云端存储未就绪，请稍后重试');
+  const r = await _sbSt().from('app-photos').createSignedUrl(rec.dnote.path, 3600);
+  if (r && r.error) throw new Error(r.error.message || r.error);
+  const d = r && r.data;
+  return (typeof d === 'string' && d) || (d && d.signedUrl) || (d && d.url) || null;
+}
+function _noteErr(f) { return f.size > NOTE_MAX_MB * 1024 * 1024 ? '文件超过 ' + NOTE_MAX_MB + 'MB 限制' : null; }
+async function viewShipNote(rec) {
+  if (!rec || !rec.dnote) { toast('该发货记录还没有发货单', 'err'); return; }
+  try {
+    const url = await _noteSignedUrl(rec);
+    if (!url) throw new Error('获取访问地址失败');
+    window.open(url, '_blank');
+  } catch (e) { toast('发货单打开失败：' + (e.message || e), 'err'); }
+}
+async function downloadShipNote(rec) {
+  if (!rec || !rec.dnote) { toast('该发货记录还没有发货单', 'err'); return; }
+  try {
+    const url = await _noteSignedUrl(rec);
+    if (!url) throw new Error('获取访问地址失败');
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const blob = await resp.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = rec.dnote.name || '发货单';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  } catch (e) {
+    // 跨域拉取失败时退回新窗口打开（浏览器内可手动另存）
+    const url = await _noteSignedUrl(rec).catch(() => null);
+    if (url) { window.open(url, '_blank'); toast('已在新窗口打开，可手动另存', 'ok'); }
+    else toast('下载失败：' + (e.message || e), 'err');
+  }
+}
+const viewShipNoteById = id => viewShipNote(Data.list('shipments').find(x => x.id === id));
+const downloadShipNoteById = id => downloadShipNote(Data.list('shipments').find(x => x.id === id));
 
 initPage('ship', pageShip);
 </script>
