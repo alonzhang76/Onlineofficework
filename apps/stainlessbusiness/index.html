@@ -2,12 +2,6 @@
 <html lang="zh-CN">
   <head>
     <script src="../auto-scale.js?v=20260917a"></script>
-    <!-- 旧的内置备忘录路由已由全新三栏式备忘录替代：直接访问 #/memo 时跳转 -->
-    <script>
-      if (/#\/memo(\?|$)/.test(location.hash)) {
-        location.replace('../memo/memo.html?app=stainlessbusiness');
-      }
-    </script>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="./vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -55,7 +49,33 @@
         });
       })();
     </script>
-    <script defer src="./assets/index-BUzWo_C6.js?v=20261001b"></script>
+    <!-- 备忘录：/memo 路由渲染内嵌三栏备忘录（iframe 集成在应用内，不跳页；数据为不锈钢独立命名空间） -->
+    <script>
+      (function () {
+        // React 元素本质是带 $$typeof 标记的普通对象，Symbol.for 跨 bundle 一致，无需依赖 React 引用
+        var RE = Symbol.for('react.element');
+        window.__MemoFrame = function () {
+          return {
+            $$typeof: RE, type: 'iframe', key: null, ref: null,
+            props: {
+              src: '../memo/memo.html?app=stainlessbusiness',
+              title: '备忘录',
+              style: {
+                width: '100%',
+                height: 'calc(100vh - 112px)',
+                minHeight: '560px',
+                border: '0',
+                borderRadius: '12px',
+                background: '#fff',
+                display: 'block'
+              }
+            },
+            _owner: null, _store: {}, _self: null, _source: null
+          };
+        };
+      })();
+    </script>
+    <script defer src="./assets/index-BUzWo_C6.js?v=20261001c"></script>
     <link rel="stylesheet" href="./assets/index-D8fI8zIA.css">
     <link rel="stylesheet" href="../tablet-compat.css?v=20260924a">
   </head>

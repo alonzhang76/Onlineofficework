@@ -11,9 +11,13 @@
    ?app=wicketorders（默认）→ 云端 wicketorders__memoRecords */
 (function () {
   var p = new URLSearchParams(location.search);
-  window.SUPABASE_APP_ID =
+  var app =
     p.get('app') === 'stainlessbusiness' ? 'stainlessbusiness' :
     p.get('app') === 'orderschedule' ? 'orderschedule' : 'wicketorders';
+  window.SUPABASE_APP_ID = app;
+  // 备忘录页只同步自己用到的键（嵌入应用时父页面已有一套全量同步，避免重复枚举整命名空间）。
+  // 逻辑键名 memos 在不锈钢/排产应用会经同步层 remap 到 sb_memos/os_memos，云端键名不变。
+  window.CLOUDBASE_APP_KEYS = app === 'wicketorders' ? ['memoRecords'] : ['memos'];
 })();
 </script>
 <script src="../cloudbase-sync.js?v=20261001b"></script>
@@ -167,6 +171,11 @@ input { font-family: inherit; }
 .nb-content b, .nb-content strong { font-weight: 700; }
 .nb-content a { color: #0a7cff; }
 .nb-content img { max-width: 100%; }
+/* 从 Word 粘贴的历史备忘（含 <table> 等标签）自动按 HTML 渲染时的兜底样式 */
+.nb-content table { border-collapse: collapse; width: 100%; max-width: 100%; margin: 8px 0; font-size: 13px; }
+.nb-content th, .nb-content td { border: 1px solid #c9c9cf; padding: 5px 9px; vertical-align: top; text-align: left; }
+.nb-content p { margin: 4px 0; }
+.nb-content font[face], .nb-content span[style] { font-family: inherit; }
 
 .nb-meta-bar {
   flex-shrink: 0; border-top: 1px solid #ececf1; background: #fafafc;
@@ -322,9 +331,13 @@ input { font-family: inherit; }
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
   function plainToHtml(t) { return escapeHtml(t).replace(/\r\n|\r|\n/g, '<br>'); }
+  // 历史备忘可能是纯文本，也可能是从 Word 粘贴的 HTML 源码（未标 fmt）。
+  // 出现常见富文本标签时按 HTML 处理，避免 <table>/<div> 原样显示成文本。
+  var HTML_TAG_RE = /<(br|p|div|table|tbody|thead|tr|td|th|b|strong|i|em|u|s|strike|span|ul|ol|li|font|h[1-6]|a|img)\b[^>]*>/i;
+  function looksLikeHtml(t) { return !!t && HTML_TAG_RE.test(t); }
   function noteText(n) {
     var c = n.content || '';
-    if (n.fmt === 'html') {
+    if (n.fmt === 'html' || looksLikeHtml(c)) {
       var d = document.createElement('div');
       d.innerHTML = c;
       return d.textContent || '';
@@ -580,7 +593,7 @@ input { font-family: inherit; }
 
     editing = true; // 填充期间不触发自动保存
     titleInput.value = n.title || '';
-    contentEl.innerHTML = n.fmt === 'html' ? cleanHtml(n.content || '') : plainToHtml(n.content || '');
+    contentEl.innerHTML = (n.fmt === 'html' || looksLikeHtml(n.content)) ? cleanHtml(n.content || '') : plainToHtml(n.content || '');
     $('titleMeta').textContent = (n.createdAt ? '创建于 ' + fmtDateTime(n.createdAt) : '')
       + (n.updatedAt && n.updatedAt !== n.createdAt ? '　更新于 ' + fmtDateTime(n.updatedAt) : '');
     $('btnPin').classList.toggle('on', !!n.pinned);
