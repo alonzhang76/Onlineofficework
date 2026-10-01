@@ -30,7 +30,13 @@ jobs:
           node-version: '22'
 
       - name: Install CloudBase CLI
-        run: npm install -g @cloudbase/cli
+        run: |
+          # self-hosted runner 常驻本机：已装则跳过，只在缺失/损坏时安装，省去每次 1-2 分钟的全局安装
+          if command -v tcb >/dev/null 2>&1 && tcb -v >/dev/null 2>&1; then
+            echo "✅ CloudBase CLI 已存在（$(tcb -v 2>/dev/null | head -1)），跳过安装"
+          else
+            npm install -g @cloudbase/cli
+          fi
 
       - name: CloudBase Login
         env:
@@ -57,6 +63,9 @@ jobs:
           find _deploy -type f -name '*备份*.json' -delete
           find _deploy -path '*/wage/seed_data.js' -delete
           find _deploy -path '*/wage/excel_data.json' -delete
+          # 运行时产物/缓存，无静态托管价值（db 每次运行都变，白传）
+          find _deploy -type d -name '__pycache__' -prune -exec rm -rf {} +
+          find _deploy -type f \( -name '*.pyc' -o -name '*.db' -o -name '.DS_Store' \) -delete
 
           echo '===== 待部署文件清单 ====='
           find _deploy -type f | sort
@@ -71,7 +80,7 @@ jobs:
           for i in 1 2 3 4 5; do
             echo "===== 部署尝试 $i/5 ====="
             if tcb hosting deploy _deploy / -e "$TCB_ENV_ID" \
-              --concurrency 5 --retry-count 4 --retry-interval 2000; then
+              --concurrency 16 --retry-count 4 --retry-interval 2000; then
               echo "✅ 部署成功（第 $i 次尝试）"
               break
             else
