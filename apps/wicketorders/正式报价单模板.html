@@ -820,6 +820,15 @@
                     useCORS: true,
                     logging: false,
                     onclone: (clonedDoc) => {
+                        // html2canvas 不支持 background-clip:text，会把渐变背景渲染成整片色块；
+                        // 也把所有影响 PDF 视觉的渐变元素替换为安全的深蓝/灰色。
+                        const patchStyle = clonedDoc.createElement('style');
+                        patchStyle.textContent =
+                            '.gradient-text{background:none!important;-webkit-background-clip:initial!important;-webkit-text-fill-color:#2563eb!important;color:#2563eb!important;}' +
+                            '.divider{background:#cbd5e1!important;height:1px!important;}' +
+                            '#terms{padding:4px 8px!important;display:inline-block!important;border-radius:4px!important;line-height:1.3!important;}';
+                        clonedDoc.head.appendChild(patchStyle);
+
                         clonedDoc.getElementById('quotationContent').querySelectorAll('input').forEach(inp => {
                             const span = clonedDoc.createElement('span');
                             span.className = inp.className;
