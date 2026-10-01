@@ -288,6 +288,12 @@
       // 备忘录 memos 与 orderschedule 记事本同名，同样改用 sb_ 前缀
       return { contacts: 'sb_contacts', favoriteContacts: 'sb_favoriteContacts', memos: 'sb_memos' };
     }
+    if (APP_ID === 'orderschedule') {
+      // 记事本/日历记事与不锈钢业务的裸键 memos 同名（同域 localStorage 共享），
+      // 历史上互相串内容。本地改用 os_ 前缀隔离；云端键名仍为 orderschedule__memos /
+      // orderschedule__calendarNotes 不变。页面端在引入本脚本前做一次性迁移复制。
+      return { memos: 'os_memos', calendarNotes: 'os_calendarNotes' };
+    }
     return {};
   })();
   var REMAP_REVERSE = (function () {

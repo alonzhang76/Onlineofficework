@@ -5,8 +5,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>生产订单管理系统</title>
-    <script>window.SUPABASE_APP_ID='orderschedule';</script>
-    <script src="../cloudbase-sync.js?v=20260924f"></script>
+    <script>
+      window.SUPABASE_APP_ID='orderschedule';
+      // 记事本/日历记事本地键迁移（必须在 cloudbase-sync.js 加载拦截 localStorage 前执行）：
+      // 旧裸键 memos / calendarNotes 与不锈钢业务同名串内容，sync 层已把本应用的这两个
+      // 键重映射到 os_memos / os_calendarNotes（云端键名不变）。首次升级时把本机旧数据
+      // 复制到新键兜底；云端有数据时首拉会以云端为准覆盖。
+      (function () {
+        try {
+          if (!localStorage.getItem('__os_note_migrated_v1__')) {
+            if (localStorage.getItem('os_memos') == null && localStorage.getItem('memos') != null) {
+              localStorage.setItem('os_memos', localStorage.getItem('memos'));
+            }
+            if (localStorage.getItem('os_calendarNotes') == null && localStorage.getItem('calendarNotes') != null) {
+              localStorage.setItem('os_calendarNotes', localStorage.getItem('calendarNotes'));
+            }
+            localStorage.setItem('__os_note_migrated_v1__', '1');
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <script src="../cloudbase-sync.js?v=20261001b"></script>
     <script src="../cloudbase-admin.js?v=20260924a"></script>
     <script src="../vendor/xlsx.full.min.js"></script>
     <style>
@@ -383,15 +402,10 @@
         tr:nth-child(even):hover { background: #f0f2f5; }
 
         /* 状态单元格背景色 */
-        td.status-producing { background: #fff3cd !important; }
-        td.status-shipped { background: #d4edda !important; }
-        td.status-in-progress { background: #fff3cd !important; }
-        td.status-delivered { background: #d4edda !important; }
-        td.status-finished { background: #e2e3e5 !important; }
-        td.status-paid { background: #d4edda !important; }
-        td.status-unpaid { background: #f8d7da !important; }
-        td.status-uninvoiced { background: #d1ecf1 !important; }
-        td.status-owing { background: #ffeeba !important; }
+        /* 状态统一由圆角胶囊 .badge 呈现，不再给整格 td 铺底色（避免 badge 背景上叠加背景） */
+        td.status-producing, td.status-shipped, td.status-in-progress,
+        td.status-delivered, td.status-finished, td.status-paid,
+        td.status-unpaid, td.status-uninvoiced, td.status-owing { background: transparent !important; }
         
         /* 负值样式 - 鲜红底白字 */
         td.negative-value { 
@@ -817,7 +831,9 @@
         }
 
         /* 汇总表格 */
-        .summary-table th { background: #1a5276; }
+        .summary-table th { background: #1a5276; color: #fff; }
+        .summary-table th.sortable { color: #fff; }
+        .summary-table th.sortable:hover { color: #d6eaf8; }
         .summary-table .total-row {
             background: #e8f4f8 !important;
             font-weight: bold;
@@ -862,12 +878,129 @@
         }
         .close-btn:hover { color: #333; }
 
+        /* ===== 订单表单（参考 purchase-integrated 新建采购合同表单风格，仅作用于 #order-modal）===== */
+        #order-modal { background: rgba(15,23,42,.45); align-items: flex-start; padding: 32px 16px; }
+        #order-modal .modal {
+            width: min(1200px,96vw); max-width: none; padding: 24px;
+            border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.25);
+            margin: 0 auto;
+        }
+        #order-modal .modal-header { margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9; }
+        #order-modal .modal-header h2 {
+            font-size: 17px; font-weight: 600; color: #1f2937;
+            display: flex; align-items: center; gap: 8px;
+        }
+        #order-modal .modal-header h2::before {
+            content: ""; width: 4px; height: 17px; background: #2e86ab; border-radius: 2px;
+        }
+        #order-modal .close-btn { font-size: 24px; line-height: 1; }
+
+        /* 分区标题：蓝色竖条 + emoji；分区之间绿色渐变分隔条 */
+        #order-modal .os-sec-title {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 14px; font-weight: 600; color: #1a5276;
+            margin: 18px 0 12px; padding-left: 10px; position: relative;
+        }
+        #order-modal .os-sec-title::before {
+            content: ""; position: absolute; left: 0; top: 50%;
+            transform: translateY(-50%); width: 4px; height: 15px;
+            background: #2e86ab; border-radius: 2px;
+        }
+        #order-modal h3.os-sec-title:first-of-type { margin-top: 2px; }
+        #order-modal .os-sec-divider {
+            height: 5px; border-radius: 3px; margin: 20px 0 14px;
+            background: linear-gradient(180deg,#16a34a,#22c55e);
+            box-shadow: inset 0 3px 4px rgba(0,0,0,.32), inset 0 -2px 3px rgba(255,255,255,.45);
+        }
+
+        /* 网格密度：基本信息 4 列 / 产品 3 列 / 生产 3 列 / 财务 4 列（form 直接子 div 顺序：
+           1=基本信息grid, 2=备注, 3=产品grid, 4=生产grid, 5=财务grid, 6=底部按钮区） */
+        #order-modal .form-grid { gap: 12px; margin-bottom: 16px; }
+        #order-form > .form-grid:nth-of-type(1) { grid-template-columns: repeat(4,1fr); }
+        #order-form > .form-grid:nth-of-type(3),
+        #order-form > .form-grid:nth-of-type(4) { grid-template-columns: repeat(3,1fr); }
+        #order-form > .form-grid:nth-of-type(5) { grid-template-columns: repeat(4,1fr); }
+        #order-modal .remark-full-width { margin-bottom: 2px; }
+
+        /* 标签与必填红星 */
+        #order-modal .form-group label,
+        #order-modal .remark-full-width label {
+            font-size: 12px; color: #6b7280; margin-bottom: 5px; font-weight: 500;
+        }
+        #order-modal .req::after { content: " *"; color: #dc2626; }
+
+        /* 输入控件：浅灰底 + 内阴影（与采购合同表单一致） */
+        #order-modal .form-group input:not([type=checkbox]),
+        #order-modal .form-group select,
+        #order-modal .form-group textarea,
+        #order-modal .remark-full-width textarea {
+            border: 1px solid #dfe3e8; border-radius: 7px;
+            padding: 8px 10px; font-size: 13.5px; background: #f2f4f7; color: #1f2937;
+            box-shadow: inset 2px 2px 5px rgba(15,23,42,.08), inset -2px -2px 4px rgba(255,255,255,.9);
+            transition: border-color .15s, box-shadow .15s;
+        }
+        #order-modal .form-group input:focus,
+        #order-modal .form-group select:focus,
+        #order-modal .form-group textarea:focus,
+        #order-modal .remark-full-width textarea:focus {
+            border-color: #2e86ab;
+            box-shadow: inset 2px 2px 5px rgba(15,23,42,.08), inset -2px -2px 4px rgba(255,255,255,.9),
+                        0 0 0 3px rgba(46,134,171,.13);
+        }
+        /* 自动汇总只读字段：淡黄底（同采购合同 .po-ro）；选择器带 .form-group 保证不被基础输入框规则压过 */
+        #order-modal .form-group input.os-ro {
+            background: #fef9c3; border-color: #ece3b4; color: #713f12; cursor: default;
+            box-shadow: inset 1px 2px 4px rgba(15,23,42,.07), inset -1px -1px 2px rgba(255,255,255,.7);
+        }
+        #order-modal .form-group input.os-ro:focus {
+            border-color: #e3d27f;
+            box-shadow: inset 1px 2px 4px rgba(15,23,42,.07), inset -1px -1px 2px rgba(255,255,255,.7),
+                        0 0 0 3px rgba(234,214,110,.25);
+        }
+
+        /* LOGO 选择器与输入框同风格 */
+        #order-modal .logo-picker-btn {
+            background: #f2f4f7; border: 1px solid #dfe3e8; border-radius: 7px;
+            padding: 8px 10px; font-size: 13.5px;
+            box-shadow: inset 2px 2px 5px rgba(15,23,42,.08), inset -2px -2px 4px rgba(255,255,255,.9);
+        }
+        #order-modal .logo-picker-btn:hover,
+        #order-modal .logo-picker-btn:focus { border-color: #2e86ab; }
+
+        /* 自动完成下拉项紧凑化 */
+        #order-modal .autocomplete-list { border-color: #dfe3e8; border-radius: 8px; }
+        #order-modal .autocomplete-item { padding: 8px 10px; font-size: 13px; }
+
+        /* 底部按钮区：右对齐 + 顶部分隔线 */
+        #order-modal .os-modal-foot {
+            display: flex; justify-content: flex-end; gap: 10px;
+            margin-top: 20px; padding-top: 14px; border-top: 1px solid #f1f5f9;
+        }
+        #order-modal .os-btn-cancel {
+            background: #fff; border: 1px solid #d1d5db; color: #374151;
+            border-radius: 7px; padding: 8px 18px; font-size: 13.5px;
+        }
+        #order-modal .os-btn-cancel:hover { border-color: #2e86ab; color: #2e86ab; }
+
+        @media (max-width: 960px) {
+            #order-form > .form-grid:nth-of-type(1),
+            #order-form > .form-grid:nth-of-type(3),
+            #order-form > .form-grid:nth-of-type(4),
+            #order-form > .form-grid:nth-of-type(5) { grid-template-columns: repeat(2,1fr); }
+        }
+        @media (max-width: 560px) {
+            #order-form > .form-grid:nth-of-type(1),
+            #order-form > .form-grid:nth-of-type(3),
+            #order-form > .form-grid:nth-of-type(4),
+            #order-form > .form-grid:nth-of-type(5) { grid-template-columns: 1fr; }
+        }
+
         /* 分页 */
         .pagination {
             display: flex;
             justify-content: center;
             gap: 5px;
-            margin-top: 20px;
+            margin: 0;
         }
         .pagination-container {
             display: flex;
@@ -902,12 +1035,12 @@
             font-size: 14px;
         }
 
-        /* 分页控件容器 */
+        /* 分页控件容器（位于表格上方） */
         .pagination-controls {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-top: 15px;
+            margin: 0 0 12px;
             padding: 10px 15px;
             background: #f8f9fa;
             border-radius: 8px;
@@ -1401,6 +1534,23 @@
         }
         .btn-secondary:hover { background: var(--pi-border-light); border-color: #b6c0cc; }
         .btn-sm { padding: 3px 8px; font-size: 11px; }
+
+        /* 操作列图标按钮：透明底、无边框无阴影，仅保留 emoji 图标；hover 浅灰胶囊反馈 */
+        .table-container td:last-child .btn.btn-sm {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            color: var(--pi-ink, #1f2937);
+            padding: 4px 6px;
+            border-radius: 6px;
+        }
+        .table-container td:last-child .btn.btn-sm:hover {
+            background: #eef2f6;
+            transform: none;
+            box-shadow: none;
+        }
+        .table-container td:last-child .btn.btn-sm.btn-danger { color: #dc2626; }
+        .table-container td:last-child .btn.btn-sm.btn-danger:hover { background: #fdecec; }
 
         /* ===== 表单：细边框、小圆角、紧凑 ===== */
         .form-group label, .remark-full-width label {
@@ -2036,19 +2186,19 @@
             <form id="order-form" onsubmit="saveOrder(event)">
                 <input type="hidden" id="edit-id">
 
-                <h3 style="color:#2e86ab;margin:15px 0 10px;font-size:16px;">📋 基本信息</h3>
+                <h3 class="os-sec-title">📋 基本信息</h3>
                 <div class="form-grid">
                     <div class="form-group">
-                        <label>日期 *</label>
+                        <label class="req">日期</label>
                         <input type="date" id="order-date" required>
                     </div>
                     <div class="form-group autocomplete-wrapper">
-                        <label>客户 *</label>
+                        <label class="req">客户</label>
                         <input type="text" id="order-customer" placeholder="如：KBA" required oninput="showAutocomplete('customer', this.value)">
                         <div class="autocomplete-list" id="autocomplete-customer"></div>
                     </div>
                     <div class="form-group">
-                        <label>订单号 *</label>
+                        <label class="req">订单号</label>
                         <input type="text" id="order-no" placeholder="如：2200387" required>
                     </div>
                     <div class="form-group autocomplete-wrapper">
@@ -2057,12 +2207,12 @@
                         <div class="autocomplete-list" id="autocomplete-drawing"></div>
                     </div>
                     <div class="form-group autocomplete-wrapper">
-                        <label>产品名称 *</label>
+                        <label class="req">产品名称</label>
                         <input type="text" id="order-product" placeholder="如：扁铁炉架" required oninput="showAutocomplete('product', this.value)">
                         <div class="autocomplete-list" id="autocomplete-product"></div>
                     </div>
                     <div class="form-group autocomplete-wrapper">
-                        <label>型号规格 *</label>
+                        <label class="req">型号规格</label>
                         <input type="text" id="order-spec" placeholder="如：518*700" required oninput="showAutocomplete('spec', this.value)">
                         <div class="autocomplete-list" id="autocomplete-spec"></div>
                     </div>
@@ -2086,10 +2236,11 @@
                     <textarea id="order-remark" placeholder="备注信息" rows="3"></textarea>
                 </div>
 
-                <h3 style="color:#2e86ab;margin:15px 0 10px;font-size:16px;">📦 产品信息</h3>
+                <div class="os-sec-divider"></div>
+                <h3 class="os-sec-title">📦 产品信息</h3>
                 <div class="form-grid">
                     <div class="form-group">
-                        <label>货币类型 *</label>
+                        <label class="req">货币类型</label>
                         <select id="order-currency">
                             <option value="USD">USD (美元)</option>
                             <option value="EUR" selected>EUR (欧元)</option>
@@ -2099,11 +2250,11 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>订单数量 *</label>
+                        <label class="req">订单数量</label>
                         <input type="number" id="order-quantity" placeholder="0" min="0" required oninput="calculateOrderAmount()">
                     </div>
                     <div class="form-group">
-                        <label>单价 *</label>
+                        <label class="req">单价</label>
                         <input type="number" id="order-price" placeholder="0.00" min="0" step="0.01" required oninput="calculateOrderAmount()">
                     </div>
                     <div class="form-group">
@@ -2112,7 +2263,7 @@
                     </div>
                     <div class="form-group">
                         <label>订单金额</label>
-                        <input type="number" id="order-amount" placeholder="0.00" step="0.01" readonly style="background:#f5f5f5;">
+                        <input type="number" id="order-amount" class="os-ro" placeholder="0.00" step="0.01" readonly>
                     </div>
                     <div class="form-group">
                         <label>计划交期</label>
@@ -2120,7 +2271,8 @@
                     </div>
                 </div>
 
-                <h3 style="color:#2e86ab;margin:15px 0 10px;font-size:16px;">🏭 生产信息</h3>
+                <div class="os-sec-divider"></div>
+                <h3 class="os-sec-title">🏭 生产信息</h3>
                 <div class="form-grid">
                     <div class="form-group">
                         <label>装柜日期</label>
@@ -2128,7 +2280,7 @@
                     </div>
                     <div class="form-group">
                         <label>实际生产数量</label>
-                        <input type="number" id="order-actual-qty" placeholder="自动计算" readonly style="background:#f5f5f5;">
+                        <input type="number" id="order-actual-qty" class="os-ro" placeholder="自动计算" readonly>
                     </div>
                     <div class="form-group">
                         <label>生产月1</label>
@@ -2160,7 +2312,8 @@
                     </div>
                 </div>
 
-                <h3 style="color:#2e86ab;margin:15px 0 10px;font-size:16px;">💰 财务信息</h3>
+                <div class="os-sec-divider"></div>
+                <h3 class="os-sec-title">💰 财务信息</h3>
                 <div class="form-grid">
                     <div class="form-group">
                         <label>开票日期</label>
@@ -2212,9 +2365,9 @@
                     </div>
                 </div>
 
-                <div style="margin-top: 20px; text-align: center;">
+                <div class="os-modal-foot">
+                    <button type="button" class="btn os-btn-cancel" onclick="closeOrderModal()">取消</button>
                     <button type="submit" class="btn btn-primary">💾 保存订单</button>
-                    <button type="button" class="btn btn-warning" onclick="closeOrderModal()">取消</button>
                 </div>
             </form>
         </div>
@@ -4985,6 +5138,14 @@
     </script>
     <script src="../cloudbase/cfb.js?v=20260928b"></script>
     <script>
+    // 分页栏（每页条数 + 页码）统一从表格下方移到表格上方
+    document.querySelectorAll('.pagination-controls').forEach(function (pc) {
+        var prev = pc.previousElementSibling;
+        if (prev && prev.classList.contains('table-container')) {
+            pc.parentNode.insertBefore(pc, prev);
+        }
+    });
+
     // ==================== 订单图纸查看/下载（云端 炉架业务/PDF 文件/PDF图纸/）====================
     // 依据订单「图纸编号」在 PDF图纸 文件夹中模糊查找 PDF：唯一→直接预览；
     // 多个→弹窗选择；没有→提示上传或取消。查看/下载复用 CFB.previewByPath / CFB.download。
