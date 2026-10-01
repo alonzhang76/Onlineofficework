@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>开票管理 · 采购一体化系统</title>
-<link rel="stylesheet" href="css/common.css?v=20260930b">
+<link rel="stylesheet" href="css/common.css?v=20260930c">
 </head>
 <body>
 <header>
@@ -37,7 +37,7 @@ window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
 </script>
 <script src="../cloudbase-sync.js?v=20260924f"></script>
 <script src="../cloudbase-admin.js?v=20260930a"></script>
-<script src="js/common.js?v=20260930c"></script>
+<script src="js/common.js?v=20260930h"></script>
 <script src="js/auth-guard.js"></script>
 <!-- 内嵌 CMap / 标准字体数据：数电票的号码/日期/金额/公司名使用 CID 字体，
      缺 CMap 时整段值解码失败（表现为"未找到发票号码"）。内嵌后离线 / file:// /
@@ -99,10 +99,9 @@ function pageInvoice(root) {
   renderInvoiceLedger(pane, canW);
 }
 
-/* ---------- 报销系统对接 ----------
-   供应商录入的发票点「提交」→ POST 报销系统 /api/invoices/external → 进入其「待审核」。
-   接口地址 / 令牌统一走 common.js 的 ReimPay 桥（pis_reim_api 可覆盖，默认本机 Flask 8686）。 */
-const REIM_INVOICE_API = () => ReimPay.base() + '/api/invoices/external';
+/* ---------- 付款系统对接 ----------
+   供应商录入的发票点「提交」→ 直接写入付款系统（报销系统）云端 reim_invoices
+   → 我司审核人员在任意电脑下拉云端即可在「待审核」清单看到（common.js ReimPay.submitInvoice）。 */
 function normInvType(t) {
   if (/专用/.test(t || '')) return '增值税专用发票';
   if (/普通/.test(t || '')) return '增值税普通发票';
@@ -141,20 +140,12 @@ async function submitToReim(v) {
     remark: v.remark || '',
     check_code: v.checkCode || ''
   };
-  const api = REIM_INVOICE_API();
-  let res, data;
   try {
-    res = await fetch(api, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Reim-Token': REIM_TOKEN },
-      body: JSON.stringify(payload)
-    });
-    data = await res.json().catch(() => ({}));
+    // 直写付款系统云端（reim_invoices 待审核 + 流转日志），任意电脑提交 / 审核均可
+    return await ReimPay.submitInvoice(payload);
   } catch (e) {
-    throw new Error('报销系统不在线（' + api + '），请先启动报销系统');
+    throw new Error('提交至付款系统失败：' + ((e && e.message) || e) + '（请检查网络后重试）');
   }
-  if (!res.ok || !data.ok) throw new Error(data.msg || ('HTTP ' + res.status));
-  return data;
 }
 
 /* ---------- 更多菜单功能：导出EXCEL / 导入EXCEL / 清空 ----------
@@ -215,7 +206,7 @@ function renderInvoiceLedger(pane, canW) {
     '<div class="card"><div class="row-flex" style="margin-bottom:12px">' +
     '<div style="flex:1;max-width:300px"><label>搜索</label><input id="invSearch" placeholder="发票号 / 合同号 / 供应商"></div>' +
     '<div><label>付款状态</label><select id="invStatus"><option value="">全部</option><option>未付款</option><option>部分付款</option><option>已付清</option></select></div>' +
-    (canW ? '<div style="align-self:flex-end"><button class="btn btn-primary" id="invSubmitReim">⇨ 提交到报销系统</button></div>' : '') +
+    (canW ? '<div style="align-self:flex-end"><button class="btn btn-primary" id="invSubmitReim">⇨ 提交至付款系统</button></div>' : '') +
     '</div>' +
     '<div class="tbl-topbar" id="invPager"></div>' +
     '<div id="invTableBox"></div></div>';
@@ -317,7 +308,7 @@ function renderInvoiceLedger(pane, canW) {
         try {
           const r = await submitToReim(rec);
           Data.update('invoices', rec.id, { reimStatus: r.status, reimId: r.id, reimComment: '' });
-          toast(r.resubmitted ? '已重新提交至报销系统：待审核' : ('已提交至报销系统：' + r.status), 'ok');
+          toast(r.resubmitted ? '已重新提交至付款系统：待审核' : ('已提交至付款系统：' + r.status), 'ok');
         } catch (e) { toast(e.message, 'err'); }
         renderPage();
       }
@@ -339,7 +330,7 @@ function renderInvoiceLedger(pane, canW) {
         okN++;
       } catch (e) { errs.push(v.invoiceNumber + '：' + e.message); }
     }
-    if (okN) toast('已提交 ' + okN + ' 张至报销系统（待审核）', 'ok');
+    if (okN) toast('已提交 ' + okN + ' 张至付款系统（待审核）', 'ok');
     if (errs.length) toast(errs[0] + (errs.length > 1 ? '　等 ' + errs.length + ' 张失败' : ''), 'err');
     renderPage();
   });

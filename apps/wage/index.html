@@ -4767,6 +4767,7 @@ UI.init().then(function() {
 <script>
 window.CFB_CONFIG = {
   app: 'wage',
+  root: '炉架业务',
   // wage 的提示用 UI.toast（const 声明在全局词法作用域，跨脚本块可访问）
   toast: function(msg, type, dur) {
     try { if (typeof UI !== 'undefined' && UI.toast) UI.toast(msg, type); } catch (e) {}

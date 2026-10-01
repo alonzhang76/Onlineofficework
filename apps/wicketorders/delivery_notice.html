@@ -1185,203 +1185,174 @@
             
             const tbody = document.getElementById('cargoTableBody');
             tbody.innerHTML = '';
-            
-            // 优先从订单记录获取完整数据
-            const orderNos = data.orderNo.split(',').map(s => s.trim()).filter(s => s);
+
+            /* 多订单合发：勾选的多条出口记录各自可能自带逗号订单号，先拍平去重（保持出现顺序） */
+            const orderNos = [...new Set(String(data.orderNo || '').split(',').map(s => s.trim()).filter(Boolean))];
             const orderRecords = JSON.parse(localStorage.getItem('orderRecords') || '[]');
             const orderLabelsData = JSON.parse(localStorage.getItem('orderLabelsData') || '[]');
-            
+
+            const norm = s => String(s == null ? '' : s).trim().toUpperCase();
+            /* 标签 PO 归属判定：精确相等，或"订单号 + 修订后缀"（如 2602274A、2504679-R）。
+               纯数字延伸不算同一订单（260230 ≠ 2602305），防止误带邻近订单的箱贴。 */
+            function labelBelongsToPo(labelPo, on) {
+                const lp = norm(labelPo), o = norm(on);
+                if (!lp || !o) return false;
+                if (lp === o) return true;
+                return lp.length > o.length && lp.indexOf(o) === 0 && !/^\d/.test(lp.slice(o.length));
+            }
+            /* 每个订单号自己的候选箱贴（修订版后缀一并归入该 PO） */
+            const labelsByPo = {};
+            orderNos.forEach(on => { labelsByPo[on] = orderLabelsData.filter(L => labelBelongsToPo(L.po, on)); });
+
             console.log('订单号列表:', orderNos);
             console.log('订单记录总数:', orderRecords.length);
-            
-            // 收集所有匹配的订单记录
-            const matchedOrderRecords = [];
-            orderNos.forEach(orderNo => {
-                const records = orderRecords.filter(o => o.orderNo === orderNo);
-                console.log(`订单号 ${orderNo} 找到 ${records.length} 条记录`);
-                matchedOrderRecords.push(...records);
-            });
-            
-            console.log('匹配的订单记录总数:', matchedOrderRecords.length);
-            
-            // 收集所有匹配的orderLabelsData记录
-            const matchedLabels = [];
-            orderNos.forEach(orderNo => {
-                orderLabelsData.forEach(label => {
-                    if (label.po && (label.po === orderNo || label.po.includes(orderNo) || orderNo.includes(label.po))) {
-                        matchedLabels.push(label);
-                    }
-                });
-            });
-            
-            console.log('匹配的标签记录:', matchedLabels);
-            
-            if (matchedOrderRecords.length > 0) {
-                // 按产品分组
-                const productsByKey = {};
-                
-                matchedOrderRecords.forEach(record => {
-                    // 使用 drawingNo + spec 作为唯一键，确保相同规格的产品合并
-                    const key = (record.drawingNo || '') + '|' + (record.spec || '') + '|' + (record.productName || '');
+
+            /* 按 PO × 产品分组（关键：分组键必须含订单号）。
+               同一产品（图号/规格/品名相同）出现在不同订单号下时必须分行展示，
+               只在同一 PO 内合并拆行数量——旧逻辑跨 PO 合并导致其它订单号整行丢失。 */
+            const groups = [];
+            const groupIndex = {};
+            orderNos.forEach(on => {
+                orderRecords.filter(o => norm(o.orderNo) === norm(on)).forEach(record => {
                     const artNo = record.drawingNo || record.spec || record.productName || 'Unknown';
-                    const quantity = parseFloat(record.quantity) || 0;
-                    
-                    if (!productsByKey[key]) {
-                        productsByKey[key] = {
-                            artNo: artNo,
-                            qty: 0,
-                            productName: record.productName,
-                            spec: record.spec,
-                            drawingNo: record.drawingNo,
-                            totalBoxes: '',
-                            qtyPerCtn: '',
-                            po: '' // 存储对应的PO号
-                        };
+                    const key = on + '||' + norm(record.drawingNo) + '|' + norm(record.spec) + '|' + norm(record.productName);
+                    let g = groupIndex[key];
+                    if (!g) {
+                        g = { po: on, artNo: artNo, qty: 0, totalBoxes: '', qtyPerCtn: '' };
+                        groupIndex[key] = g; groups.push(g);
                     }
-                    productsByKey[key].qty += quantity;
+                    g.qty += parseFloat(record.quantity) || 0;
                 });
-                
-                console.log('分组后的产品数量:', Object.keys(productsByKey).length);
-                
-                // 为每个产品匹配标签数据
-                Object.keys(productsByKey).forEach(productKey => {
-                    const product = productsByKey[productKey];
-                    
-                    // 查找匹配的标签
-                    let matchedLabel = null;
-                    matchedLabels.forEach(label => {
-                        // 首先尝试artNo匹配
-                        const artNoMatch = label.artNo && product.artNo && 
-                            (product.artNo === label.artNo || 
-                             product.artNo.includes(label.artNo) || 
-                             label.artNo.includes(product.artNo));
-                        
-                        if (artNoMatch) {
-                            matchedLabel = label;
-                        }
+            });
+            /* 每个 PO 的产品行数、箱贴件号种类数（供"单行 PO 唯一标签"兜底判断） */
+            const poProductCount = {}, poLabelArtCount = {};
+            groups.forEach(g => { poProductCount[g.po] = (poProductCount[g.po] || 0) + 1; });
+            orderNos.forEach(on => {
+                poLabelArtCount[on] = new Set((labelsByPo[on] || []).map(L => norm(L.artNo)).filter(Boolean)).size;
+            });
+
+            console.log('PO×产品 分组数量:', groups.length);
+
+            /* 装箱表达式：每箱数 qpc + 总数量 qty → "250"（整除）或 "250*15/260*1"（尾箱多装） */
+            function packingExpr(qty, qpc) {
+                if (!(qpc > 0) || !(qty > 0)) return '';
+                const remainder = qty % qpc;
+                if (remainder === 0) return String(qpc);
+                const fullCrates = Math.floor(qty / qpc);
+                const lastBoxQty = qpc + remainder;
+                const normalBoxes = fullCrates - 1;
+                return qpc + '*' + normalBoxes + '/' + lastBoxQty + '*1';
+            }
+            /* 只在本 PO 的箱贴中为产品行挑选标签，绝不跨 PO 借用。
+               优先级：artNo 归一精确 > 互相包含模糊 > 单行PO唯一标签兜底；
+               同分标签按"实装数=订单数 → PO精确(非后缀) → 最近创建"排序。
+               箱贴 artNo 常与订单 drawingNo 不同（X6168→A68116）且可能带前导空格，故需归一化。 */
+            function pickLabel(g) {
+                const cands = labelsByPo[g.po] || [];
+                if (!cands.length) return null;
+                const art = norm(g.artNo);
+                const scoreOf = L => {
+                    const la = norm(L.artNo);
+                    if (la && art && la === art) return 3;
+                    if (la && art && (la.indexOf(art) >= 0 || art.indexOf(la) >= 0)) return 2;
+                    return 0;
+                };
+                let scored = cands.map(L => ({ L: L, s: scoreOf(L) })).filter(x => x.s > 0);
+                if (!scored.length) {
+                    // 该 PO 只有一种产品、箱贴去重后也只有一个件号时才允许无 artNo 兜底
+                    if ((poProductCount[g.po] || 0) === 1 && poLabelArtCount[g.po] === 1) {
+                        scored = cands.map(L => ({ L: L, s: 1 }));
+                    } else return null;
+                }
+                const maxS = Math.max.apply(null, scored.map(x => x.s));
+                scored = scored.filter(x => x.s === maxS);
+                const dateVal = L => { const v = String(L.createDate || ''); return /^\d{4}-\d{2}-\d{2}/.test(v) ? v : ''; };
+                scored.sort((a, b) => {
+                    const A = a.L, B = b.L;
+                    const qa = (parseFloat(A.totalQty) || 0) === g.qty ? 1 : 0;
+                    const qb = (parseFloat(B.totalQty) || 0) === g.qty ? 1 : 0;
+                    if (qa !== qb) return qb - qa;
+                    const ea = norm(A.po) === norm(g.po) ? 1 : 0;
+                    const eb = norm(B.po) === norm(g.po) ? 1 : 0;
+                    if (ea !== eb) return eb - ea;
+                    return (dateVal(B) + String(B.id || '')).localeCompare(dateVal(A) + String(A.id || ''));
+                });
+                return scored[0].L;
+            }
+
+            function appendCargoRow(poValue, artNo, qty, crates, expr) {
+                const row = document.createElement('tr');
+                row.innerHTML =
+                    '<td><input type="text" name="container" placeholder="40HC" title="Container Type"></td>' +
+                    '<td><input type="text" name="po" placeholder="PO No." title="Purchase Order Number" value="' + (poValue || '') + '"></td>' +
+                    '<td><input type="text" name="wicker" placeholder="Wicker No." title="Wicker Number" value="' + (artNo || '') + '"></td>' +
+                    '<td><input type="number" name="qty" placeholder="0" title="Quantity" value="' + (qty || '') + '" onchange="calculateTotals()"></td>' +
+                    '<td><input type="number" name="crates" placeholder="0" title="Number of Crates" onchange="calculateTotals()" value="' + (crates === 0 || crates ? crates : '') + '"></td>' +
+                    '<td><input type="text" name="qtyPerCtn" placeholder="" title="Quantity per Carton" value="' + (expr || '') + '"></td>' +
+                    '<td><button type="button" onclick="deleteRow(this)" style="background: #dc3545; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px;">×</button></td>';
+                tbody.appendChild(row);
+            }
+
+            if (groups.length > 0) {
+                groups.forEach(g => {
+                    const label = pickLabel(g);
+                    let qty = g.qty, crates = '', expr = '';
+                    if (label) {
+                        const qpc = parseFloat(label.qty) || 0;
+                        const labelBoxes = parseInt(label.totalBoxes, 10) || 0;
+                        const labelQty = parseInt(label.totalQty, 10) || 0;
+                        // 标签确属本 PO 本产品时，实装数以箱贴为准（允许短装/溢装）
+                        if (labelQty > 0) qty = labelQty;
+                        if (labelBoxes > 0) crates = labelBoxes;
+                        else if (qpc > 0) crates = Math.floor(qty / qpc);
+                        expr = packingExpr(qty, qpc);
+                    }
+                    // PO 列永远用订单自己的订单号，不使用箱贴上可能带修订后缀的 po
+                    appendCargoRow(g.po, g.artNo, qty, crates, expr);
+                });
+                setTimeout(calculateTotals, 0);
+            }
+            // 没有订单记录时：用箱贴数据兜底（URL 传入的 + 本机存储的合并去重）
+            else {
+                const fallbackLabels = [];
+                const seenLabelIds = new Set();
+                (data.orderLabelRecords || []).concat(orderLabelsData.filter(L => orderNos.some(on => labelBelongsToPo(L.po, on)))).forEach(L => {
+                    if (L.id != null && seenLabelIds.has(L.id)) return;
+                    if (L.id != null) seenLabelIds.add(L.id);
+                    fallbackLabels.push(L);
+                });
+                if (fallbackLabels.length > 0) {
+                    console.log('无订单记录，使用箱贴记录:', fallbackLabels.length);
+                    /* 同 PO 同件号同数量的重复修订版标签折叠为一行（2504679R / 2504679-R 等），
+                       件号或数量不同的保留（如 2504679RA 的 689 是另一个产品） */
+                    const picked = {};
+                    const dateVal = L => { const v = String(L.createDate || ''); return /^\d{4}-\d{2}-\d{2}/.test(v) ? v : ''; };
+                    const ownerPo = L => orderNos.find(on => labelBelongsToPo(L.po, on));
+                    fallbackLabels.forEach(L => {
+                        const on = ownerPo(L);
+                        const key = on + '||' + norm(L.artNo) + '||' + (L.totalQty || '') + '||' + (L.totalBoxes || '');
+                        const prev = picked[key];
+                        if (!prev) { picked[key] = L; return; }
+                        // 偏好：精确 PO（无修订后缀）> 创建日期新
+                        const score = x => (norm(x.po) === norm(ownerPo(x)) ? 1 : 0);
+                        if (score(L) > score(prev) || (score(L) === score(prev) && dateVal(L) > dateVal(prev))) picked[key] = L;
                     });
-                    
-                    // 如果没有找到artNo匹配，尝试使用第一个匹配该PO的标签
-                    if (!matchedLabel && matchedLabels.length > 0) {
-                        matchedLabel = matchedLabels[0];
-                    }
-                    
-                    // 如果找到了匹配的标签
-                    if (matchedLabel) {
-                        const qtyPerCtn = parseFloat(matchedLabel.qty) || 0;
-                        const labelTotalBoxes = parseInt(matchedLabel.totalBoxes) || 0;
-                        const labelTotalQty = parseInt(matchedLabel.totalQty) || 0;
-                        
-                        // 设置PO号
-                        product.po = matchedLabel.po || '';
-                        
-                        // 如果标签数据中有totalBoxes，直接使用
-                        if (labelTotalBoxes > 0) {
-                            product.totalBoxes = labelTotalBoxes;
-                        } else if (qtyPerCtn > 0 && product.qty > 0) {
-                            // 计算Total Boxes：向下取整（不额外加1）
-                            const fullCrates = Math.floor(product.qty / qtyPerCtn);
-                            product.totalBoxes = fullCrates;
-                        }
-                        
-                        // 如果标签数据中有totalQty，使用标签数据
-                        if (labelTotalQty > 0) {
-                            product.qty = labelTotalQty;
-                        }
-                        
-                        // 计算QTY显示：
-                        if (qtyPerCtn > 0) {
-                            const currentQty = product.qty;
-                            const remainder = currentQty % qtyPerCtn;
-                            
-                            if (remainder === 0) {
-                                product.qtyPerCtn = qtyPerCtn;
-                            } else {
-                                const fullCrates = Math.floor(currentQty / qtyPerCtn);
-                                const lastBoxQty = qtyPerCtn + remainder;
-                                const normalBoxes = fullCrates - 1;
-                                product.qtyPerCtn = `${qtyPerCtn}*${normalBoxes}/${lastBoxQty}*1`;
-                            }
-                        }
-                    }
-                });
-                
-                // 为每个产品创建一行
-                Object.keys(productsByKey).forEach(key => {
-                    const product = productsByKey[key];
-                    
-                    // 使用产品自己的PO号，如果没有则使用第一个订单号
-                    const poValue = product.po || orderNos[0];
-                    
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td><input type="text" name="container" placeholder="40HC" title="Container Type"></td>
-                        <td><input type="text" name="po" placeholder="PO No." title="Purchase Order Number" value="${poValue}"></td>
-                        <td><input type="text" name="wicker" placeholder="Wicker No." title="Wicker Number" value="${product.artNo}"></td>
-                        <td><input type="number" name="qty" placeholder="0" title="Quantity" value="${product.qty}" onchange="calculateTotals()"></td>
-                        <td><input type="number" name="crates" placeholder="0" title="Number of Crates" onchange="calculateTotals()" value="${product.totalBoxes || ''}"></td>
-                        <td><input type="text" name="qtyPerCtn" placeholder="" title="Quantity per Carton" value="${product.qtyPerCtn || ''}"></td>
-                        <td><button type="button" onclick="deleteRow(this)" style="background: #dc3545; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px;">×</button></td>
-                    `;
-                    tbody.appendChild(row);
-                });
-                
-                setTimeout(calculateTotals, 0);
-            }
-            // 如果没有订单记录，尝试使用orderLabelRecords
-            else if (data.orderLabelRecords && data.orderLabelRecords.length > 0) {
-                console.log('Using orderLabelRecords:', data.orderLabelRecords);
-                
-                data.orderLabelRecords.forEach(label => {
-                    const qty = label.totalQty || 0;
-                    const crates = label.totalBoxes || 0;
-                    const qtyPerCtn = label.qty || 0;
-                    
-                    const remainder = qty % qtyPerCtn;
-                    let displayQtyPerCtn;
-                    if (remainder === 0) {
-                        displayQtyPerCtn = qtyPerCtn;
-                    } else {
-                        const fullCrates = Math.floor(qty / qtyPerCtn);
-                        const remainderCrates = 1;
-                        displayQtyPerCtn = `${qtyPerCtn}*${fullCrates}/${remainder}*${remainderCrates}`;
-                    }
-                    
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td><input type="text" name="container" placeholder="40HC" title="Container Type"></td>
-                        <td><input type="text" name="po" placeholder="PO No." title="Purchase Order Number" value="${label.po || ''}"></td>
-                        <td><input type="text" name="wicker" placeholder="Wicker No." title="Wicker Number" value="${label.artNo || ''}"></td>
-                        <td><input type="number" name="qty" placeholder="0" title="Quantity" value="${qty}" onchange="calculateTotals()"></td>
-                        <td><input type="number" name="crates" placeholder="0" title="Number of Crates" value="${crates}" onchange="calculateTotals()"></td>
-                        <td><input type="text" name="qtyPerCtn" placeholder="0" title="Quantity per Carton" value="${displayQtyPerCtn}"></td>
-                        <td><button type="button" onclick="deleteRow(this)" style="background: #dc3545; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px;">×</button></td>
-                    `;
-                    tbody.appendChild(row);
-                });
-                
-                setTimeout(calculateTotals, 0);
-            }
-            // 如果没有找到订单记录且没有标签记录，为每个订单号创建空行
-            else if (data.orderNo) {
-                console.log('No matching records found, creating empty rows for orderNo:', data.orderNo);
-                const orderNos = data.orderNo.split(',').map(s => s.trim()).filter(s => s);
-                
-                // 为每个订单号创建一行
-                orderNos.forEach((orderNo, index) => {
-                    console.log(`Creating row ${index + 1} for orderNo:`, orderNo);
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td><input type="text" name="container" placeholder="40HC" title="Container Type"></td>
-                        <td><input type="text" name="po" placeholder="PO No." title="Purchase Order Number" value="${orderNo}"></td>
-                        <td><input type="text" name="wicker" placeholder="Wicker No." title="Wicker Number"></td>
-                        <td><input type="number" name="qty" placeholder="0" title="Quantity" onchange="calculateTotals()"></td>
-                        <td><input type="number" name="crates" placeholder="0" title="Number of Crates" onchange="calculateTotals()"></td>
-                        <td><input type="number" name="qtyPerCtn" placeholder="0" title="Quantity per Carton"></td>
-                        <td><button type="button" onclick="deleteRow(this)" style="background: #dc3545; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px;">×</button></td>
-                    `;
-                    tbody.appendChild(row);
-                });
+                    // 按订单号顺序输出
+                    orderNos.forEach(on => {
+                        Object.keys(picked).forEach(k => {
+                            if (k.indexOf(on + '||') !== 0) return;
+                            const L = picked[k];
+                            const qty = parseInt(L.totalQty, 10) || 0;
+                            const crates = parseInt(L.totalBoxes, 10) || 0;
+                            const qpc = parseFloat(L.qty) || 0;
+                            appendCargoRow(L.po || on, L.artNo || '', qty, crates, packingExpr(qty, qpc));
+                        });
+                    });
+                    setTimeout(calculateTotals, 0);
+                } else if (orderNos.length > 0) {
+                    // 订单记录和箱贴都没有：每个订单号留一行空行供手工填写
+                    orderNos.forEach(on => appendCargoRow(on, '', '', '', ''));
+                }
                 console.log('Final tbody rows:', tbody.children.length);
             }
             
