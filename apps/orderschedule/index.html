@@ -1261,6 +1261,225 @@
             margin-top: 12px; padding: 12px;
             border: 1px dashed #d1d5db; border-radius: 10px; background: #fafbff;
         }
+
+        /* ==========================================================================
+           简洁主题覆盖（对齐 purchase-integrated / simple-theme.css）
+           - 主色 #1a56db（替换原 #2e86ab 青蓝）
+           - 去渐变/悬浮上浮/重阴影，改细边框、小圆角、紧凑字号
+           - 仅追加覆盖，不改动上方任何原始规则
+           ========================================================================== */
+        :root {
+            --pi-primary: #1a56db;
+            --pi-primary-hover: #154bb8;
+            --pi-primary-light: #e8f0fe;
+            --pi-primary-tint: #f4f7fe;
+            --pi-success: #16a34a;
+            --pi-warning: #d9883a;
+            --pi-danger: #d44848;
+            --pi-bg: #f7f8fa;
+            --pi-ink: #1f2937;
+            --pi-ink-secondary: #4b5563;
+            --pi-muted: #6b7280;
+            --pi-border: #e5e7eb;
+            --pi-border-light: #f3f4f6;
+            --pi-radius: 4px;
+            --pi-radius-lg: 6px;
+            --pi-shadow: 0 1px 2px rgba(0,0,0,0.04);
+            --pi-shadow-hover: 0 1px 3px rgba(0,0,0,0.07);
+            --pi-shadow-pop: 0 4px 16px rgba(0,0,0,0.12);
+        }
+
+        /* ===== 基础 ===== */
+        html, body {
+            font-size: 12px;
+            color: var(--pi-ink);
+            background: var(--pi-bg);
+        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+
+        /* ===== 头部：去青蓝渐变，改蓝色纯底 ===== */
+        .header {
+            background: var(--pi-primary);
+            border-radius: var(--pi-radius-lg);
+            box-shadow: var(--pi-shadow);
+            padding: 12px 16px;
+        }
+        .header h1 { font-size: 15px; }
+        .header p { font-size: 11px; opacity: 0.85; }
+
+        /* ===== 导航标签：白底卡片 + 蓝色激活态 ===== */
+        .nav-tabs {
+            border-radius: var(--pi-radius-lg);
+            box-shadow: var(--pi-shadow);
+            padding: 6px;
+            gap: 4px;
+        }
+        .nav-tab {
+            padding: 6px 12px;
+            border-radius: var(--pi-radius);
+            font-size: 12px;
+            font-weight: 500;
+            background: transparent;
+            color: var(--pi-ink-secondary);
+            transition: background-color 0.15s, color 0.15s;
+        }
+        .nav-tab:hover { background: var(--pi-border-light); color: var(--pi-primary); }
+        .nav-tab.active {
+            background: var(--pi-primary);
+            color: #fff;
+            box-shadow: none;
+        }
+
+        /* ===== 内容区 / 卡片 ===== */
+        .content-section {
+            border-radius: var(--pi-radius-lg);
+            box-shadow: var(--pi-shadow);
+            padding: 14px;
+            border: 1px solid var(--pi-border);
+        }
+        .section-title { font-size: 14px; }
+
+        /* ===== 统计卡片：去渐变改白底细边框 ===== */
+        .stat-card,
+        .stat-card.green,
+        .stat-card.orange,
+        .stat-card.blue {
+            background: #fff;
+            color: var(--pi-ink);
+            border: 1px solid var(--pi-border);
+            border-radius: var(--pi-radius-lg);
+            box-shadow: var(--pi-shadow);
+            padding: 10px 12px;
+            text-align: left;
+        }
+        .stat-card:hover { box-shadow: var(--pi-shadow-hover); transform: none; }
+        .stat-card h3 { font-size: 18px; color: var(--pi-primary); }
+        .stat-card p { font-size: 11px; color: var(--pi-muted); opacity: 1; }
+
+        /* ===== 按钮：扁平、小圆角、无位移 ===== */
+        .btn, .btn-primary, .btn-secondary, .btn-success,
+        .btn-danger, .btn-warning, .btn-info {
+            border-radius: var(--pi-radius);
+            font-size: 12px;
+            font-weight: 500;
+            padding: 5px 12px;
+            box-shadow: none;
+            transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+        }
+        .btn:hover, .btn-primary:hover, .btn-secondary:hover, .btn-success:hover,
+        .btn-danger:hover, .btn-warning:hover, .btn-info:hover {
+            transform: none;
+            box-shadow: none;
+        }
+        .btn:active, .btn-primary:active, .btn-secondary:active, .btn-success:active,
+        .btn-danger:active { transform: none; box-shadow: none; }
+        .btn-primary {
+            background: var(--pi-primary);
+            border: 1px solid var(--pi-primary);
+        }
+        .btn-primary:hover { background: var(--pi-primary-hover); border-color: var(--pi-primary-hover); }
+        .btn-success {
+            background: var(--pi-success);
+            border: 1px solid var(--pi-success);
+        }
+        .btn-success:hover { background: #15803d; border-color: #15803d; }
+        .btn-danger {
+            background: var(--pi-danger);
+            border: 1px solid var(--pi-danger);
+        }
+        .btn-danger:hover { background: #b91c1c; border-color: #b91c1c; }
+        .btn-warning { background: var(--pi-warning); border: 1px solid var(--pi-warning); }
+        .btn-warning:hover { background: #b96b2b; border-color: #b96b2b; }
+        .btn-info { background: var(--pi-primary); border: 1px solid var(--pi-primary); }
+        .btn-info:hover { background: var(--pi-primary-hover); border-color: var(--pi-primary-hover); }
+        .btn-secondary {
+            background: #fff;
+            color: var(--pi-ink-secondary);
+            border: 1px solid #d1d5db;
+        }
+        .btn-secondary:hover { background: var(--pi-border-light); border-color: #b6c0cc; }
+        .btn-sm { padding: 3px 8px; font-size: 11px; }
+
+        /* ===== 表单：细边框、小圆角、紧凑 ===== */
+        .form-group label, .remark-full-width label {
+            font-size: 12px;
+            color: var(--pi-ink-secondary);
+            margin-bottom: 3px;
+        }
+        .form-group input, .form-group select, .form-group textarea,
+        .remark-full-width textarea,
+        .search-input,
+        .note-input-area textarea,
+        .autocomplete-list {
+            padding: 5px 8px;
+            font-size: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: var(--pi-radius);
+            box-shadow: none;
+            background: #fff;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus,
+        .remark-full-width textarea:focus, .search-input:focus,
+        .note-input-area textarea:focus {
+            outline: none;
+            border-color: var(--pi-primary);
+            box-shadow: 0 0 0 2px rgba(26,86,219,0.12);
+            background: #fff;
+        }
+        .autocomplete-list { border-radius: var(--pi-radius-lg); box-shadow: var(--pi-shadow-pop); padding: 0; }
+        .autocomplete-item { padding: 7px 10px; font-size: 12px; }
+        .autocomplete-item:hover { background: var(--pi-border-light); }
+
+        /* ===== 表格：浅灰表头、紧凑行高 ===== */
+        table { font-size: 12px; }
+        th {
+            background: #f9fafb;
+            color: var(--pi-ink-secondary);
+            font-weight: 600;
+            font-size: 11px;
+            padding: 4px 8px;
+        }
+        td { padding: 3px 8px; font-size: 12px; border-bottom: 1px solid var(--pi-border-light); }
+        tr:hover { background: #f0f5ff; }
+        tr:nth-child(even) { background: #fff; }
+        tr:nth-child(even):hover { background: #f0f5ff; }
+
+        /* ===== 模态框 ===== */
+        .modal-content {
+            border-radius: var(--pi-radius-lg);
+            box-shadow: var(--pi-shadow-pop);
+        }
+        .modal-header { padding: 10px 14px; }
+        .modal-body { padding: 14px; }
+        .modal-footer { padding: 10px 14px; }
+
+        /* ===== 日历 / 记事本配色统一为蓝 ===== */
+        .calendar-header, .calendar-list-column h3, .calendar-note-panel h3 { color: var(--pi-primary); }
+        .calendar-nav-btn { background: var(--pi-primary); border-radius: var(--pi-radius); padding: 5px 10px; font-size: 12px; }
+        .calendar-nav-btn:hover { background: var(--pi-primary-hover); }
+        .calendar-day.selected { background: var(--pi-primary); }
+        .calendar-day.today { border-color: var(--pi-primary); }
+        .calendar-day:hover { background: var(--pi-primary-light); }
+        .note-item { border-left-color: var(--pi-primary); border-radius: var(--pi-radius); }
+        .note-item:hover { background: var(--pi-primary-light); }
+        .note-help-text { background: var(--pi-primary-light); border-left-color: var(--pi-primary); border-radius: var(--pi-radius); }
+
+        /* ===== 下拉菜单 ===== */
+        .dropdown-content {
+            border-radius: var(--pi-radius-lg);
+            box-shadow: var(--pi-shadow-pop);
+            border: 1px solid var(--pi-border);
+        }
+        .dropdown-content a { font-size: 12px; padding: 7px 12px; }
+        .dropdown-content a:hover { background: var(--pi-border-light); }
+
+        /* ===== 汇总/筛选条等杂项去重阴影 ===== */
+        .filter-bar, .action-bar, .table-container {
+            box-shadow: none;
+        }
     </style>
     <link rel="stylesheet" href="../cloudbase/cfb.css?v=20260914b">
     <link rel="stylesheet" href="../tablet-compat.css?v=20260924a">
@@ -1290,8 +1509,8 @@
 
         <!-- 导航标签 -->
         <div class="nav-tabs">
-            <button class="nav-tab active" onclick="showSection('dashboard')">📊 首页概览</button>
-            <button class="nav-tab" onclick="showSection('orders')">📋 订单管理</button>
+            <button class="nav-tab" onclick="showSection('dashboard')">📊 首页概览</button>
+            <button class="nav-tab active" onclick="showSection('orders')">📋 订单管理</button>
             <button class="nav-tab" onclick="showSection('production')">🏭 生产跟踪</button>
             <button class="nav-tab" onclick="showSection('finance')">💰 财务收款</button>
             <button class="nav-tab" onclick="showSection('summary')">📈 汇总统计</button>
@@ -1300,7 +1519,7 @@
         </div>
 
         <!-- 首页概览 -->
-        <div id="dashboard" class="content-section active">
+        <div id="dashboard" class="content-section">
             <h2 class="section-title">📊 数据概览</h2>
             <div class="stats-grid">
                 <div class="stat-card">
@@ -1343,7 +1562,7 @@
         </div>
 
         <!-- 订单管理 -->
-        <div id="orders" class="content-section">
+        <div id="orders" class="content-section active">
             <h2 class="section-title">📋 订单管理</h2>
 
             <div class="action-bar">
@@ -4752,8 +4971,10 @@
             // 初始化记事本
             renderCalendar();
             renderMemos();
-            
-            renderDashboard();
+
+            // 默认加载订单管理
+            resetSelectAll('orders');
+            renderOrders();
         });
     </script>
 

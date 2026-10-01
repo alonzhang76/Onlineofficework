@@ -284,8 +284,9 @@
 
   var LOCAL_KEY_REMAP = (function () {
     if (APP_ID === 'stainlessbusiness') {
-      // 不锈钢业务的通讯录/收藏联系人和服装系统同名，改用 sb_ 前缀存储
-      return { contacts: 'sb_contacts', favoriteContacts: 'sb_favoriteContacts' };
+      // 不锈钢业务的通讯录/收藏联系人和服装系统同名，改用 sb_ 前缀存储；
+      // 备忘录 memos 与 orderschedule 记事本同名，同样改用 sb_ 前缀
+      return { contacts: 'sb_contacts', favoriteContacts: 'sb_favoriteContacts', memos: 'sb_memos' };
     }
     return {};
   })();
