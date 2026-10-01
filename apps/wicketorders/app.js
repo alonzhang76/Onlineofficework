@@ -444,8 +444,9 @@ class PageController {
             // 重新初始化标签筛选功能
             initCustomerTagFilter();
         } else if (tabName === 'memo') {
-            // 渲染备忘录列表
-            renderMemoList();
+            // 备忘录三栏页（独立共享页），首次切换时懒加载，避免每次进应用都起一套云同步
+            const memoFrame = document.getElementById('memoFrame');
+            if (memoFrame && !memoFrame.src) memoFrame.src = memoFrame.dataset.src;
         } else if (tabName === 'calendar') {
             // 渲染日历记事
             if (window.CalendarNotes) CalendarNotes.render();
@@ -933,17 +934,10 @@ class PageController {
                 const customer = allCustomers.find(c => c.id === customerId);
                 
                 if (customer) {
-                    // 构建查询字符串
-                    const queryString = new URLSearchParams({
-                        customerName: customer.customerName || '',
-                        contactPerson: customer.contactName || '',
-                        phone: customer.phone || '',
-                        address: customer.address || '',
-                        email: customer.email || ''
-                    }).toString();
-                    
-                    // 在新窗口打开报价系统.html并传递客户信息
-                    window.open(`报价系统.html?${queryString}`, '_blank');
+                    // 只传 customerId：客户资料（地址等可能含换行/特殊字符，放进 query string
+                    // 会被部分静态主机以 400 Bad Request 拒绝），完整资料由报价页从
+                    // customerRecords（云端同步）读取
+                    window.open(`报价系统.html?customerId=${encodeURIComponent(customerId)}`, '_blank');
                 }
             });
         });

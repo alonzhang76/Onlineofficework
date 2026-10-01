@@ -1825,37 +1825,11 @@
                 </div>
             </div>
 
-            <!-- 备忘录模块 -->
+            <!-- 备忘录模块（macOS Notes 风格三栏，独立共享页 apps/memo/memo.html） -->
             <div id="memoTab" class="tab-content hidden">
-                <!-- 操作按钮区 -->
-                <div class="flex justify-between items-center mb-4" style="position: relative; z-index: 20;">
-                    <h2 class="text-xl font-semibold text-gray-800">备忘录</h2>
-                    <div class="flex gap-2">
-                        <button class="btn btn-primary" onclick="addMemo()">
-                            <span class="mr-2">➕</span>
-                            添加备忘录
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- 搜索区域 -->
-                <div class="filter-card">
-                    <div class="flex justify-between items-center mb-3">
-                        <h3 class="text-lg font-medium text-gray-800">搜索</h3>
-                    </div>
-                    <div class="grid grid-cols-1 gap-4">
-                        <div class="form-group">
-                            <input type="text" id="memoSearch" class="form-input" placeholder="搜索备忘录..." oninput="searchMemos()">
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- 备忘录列表 -->
-                <div class="card">
-                    <div id="memoList">
-                        <!-- 备忘录记录将通过JavaScript动态生成 -->
-                    </div>
-                </div>
+                <iframe id="memoFrame" title="备忘录"
+                        data-src="../memo/memo.html?app=wicketorders"
+                        style="width:100%;height:calc(100vh - 72px);min-height:560px;border:0;border-radius:12px;background:#fff;"></iframe>
             </div>
 
             <!-- 日历记事模块 -->
@@ -5085,7 +5059,7 @@
     </div>
 
     <!-- JavaScript文件 -->
-    <script src="app.js?v=20260924b"></script>
+    <script src="app.js?v=20261001b"></script>
     <!-- 日历记事功能（交货日期同步） -->
     <script src="calendar-notes.js?v=20260923a"></script>
     <!-- Enhanced Payment Functionality -->

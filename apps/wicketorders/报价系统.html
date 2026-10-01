@@ -5023,30 +5023,47 @@
     // 从URL参数中获取客户信息并填充表单
     function populateCustomerInfoFromURL() {
       const urlParams = new URLSearchParams(window.location.search);
-      
-      // 获取参数值
+
+      // 优先方式：customerId —— 客户资料从 customerRecords 读取（与客户管理同一云端数据源）。
+      // 客户地址等字段可能含换行等特殊字符，不能放入 URL query（部分静态主机会返回 400）。
+      const customerId = urlParams.get('customerId');
+      if (customerId) {
+        const fill = function () {
+          let records = [];
+          try { records = JSON.parse(localStorage.getItem('customerRecords') || '[]'); } catch (e) { records = []; }
+          const c = records.find(function (r) { return String(r.id) === String(customerId); });
+          if (!c) return false;
+          if (c.customerName) document.getElementById('customerCompany').value = c.customerName;
+          if (c.contactName) document.getElementById('customerContact').value = c.contactName;
+          if (c.phone) document.getElementById('customerTel').value = c.phone;
+          if (c.address) document.getElementById('customerAddress').value = c.address;
+          if (c.email) document.getElementById('customerEmail').value = c.email;
+          return true;
+        };
+        if (!fill()) {
+          // 新设备/刚打开页面时云端首拉可能尚未落地，等待同步完成后再填一次
+          let tries = 0;
+          const retry = function () { if (!fill() && ++tries < 10) setTimeout(retry, 600); };
+          window.addEventListener('cloud-data-updated', function (e) {
+            if (e.detail && e.detail.initial) { tries = 10; fill(); }
+          });
+          setTimeout(retry, 500);
+        }
+        return;
+      }
+
+      // 兼容旧链接/书签：直接带客户字段参数
       const customerName = urlParams.get('customerName');
       const contactPerson = urlParams.get('contactPerson');
       const phone = urlParams.get('phone');
       const address = urlParams.get('address');
       const email = urlParams.get('email');
-      
-      // 填充到相应字段
-      if (customerName) {
-        document.getElementById('customerCompany').value = customerName;
-      }
-      if (contactPerson) {
-        document.getElementById('customerContact').value = contactPerson;
-      }
-      if (phone) {
-        document.getElementById('customerTel').value = phone;
-      }
-      if (address) {
-        document.getElementById('customerAddress').value = address;
-      }
-      if (email) {
-        document.getElementById('customerEmail').value = email;
-      }
+
+      if (customerName) document.getElementById('customerCompany').value = customerName;
+      if (contactPerson) document.getElementById('customerContact').value = contactPerson;
+      if (phone) document.getElementById('customerTel').value = phone;
+      if (address) document.getElementById('customerAddress').value = address;
+      if (email) document.getElementById('customerEmail').value = email;
     }
     
     // 页面加载完成后初始化
