@@ -15,7 +15,7 @@
 <script>window.CLOUDBASE_SYNC={email:'sync@lori.app',password:'LoriSync2026!'};</script>
 <script type="module" src="../cloudbase/cloudbase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/scrypt-js@3.0.1/scrypt.min.js"></script>
-<script src="static/store.js?v=20260928b"></script>
+<script src="static/store.js?v=20261003a"></script>
 <script src="static/pdf-parse.js?v=20260929a"></script>
 <style>
 :root{
@@ -1621,6 +1621,7 @@ async function openSupPay(mode,name){
   const dir=mode==='buyer'?'销项':'进项';
   let pool=invoices.filter(r=>r.direction===dir&&r.status!=='已驳回'&&r.settle!=='仅做账');
   if(mode==='claimant')pool=pool.filter(r=>r.payee==='报销人');
+  if(mode==='seller')pool=pool.filter(r=>r.payee!=='报销人');
   SUP.rows=pool.filter(r=>r[field]===name)
     .map(r=>{const bal=(r.total_amount||0)-(r.paid_amount||0);return{...r,balance:Math.max(0,bal)};})
     .filter(r=>r.balance>0.004)
@@ -1878,7 +1879,8 @@ async function loadStats(){
   // 收票付款统计（按收款对象分组）——此处必须与上方 eff 的 companyFilter 口径一致
   const payEff=invoices.filter(r=>r.direction==='进项'&&r.status!=='已驳回'&&r.settle!=='仅做账'&&(!companyFilter||r.company_id===companyFilter));
   const bySeller={},byClaimant={};
-  payEff.forEach(r=>{
+  // ① 付给销售方：只统计收款对象为"销售方"的发票（"付报销人"的进项发票归②，避免一张票两边重复出现）
+  payEff.filter(r=>r.payee!=='报销人').forEach(r=>{
     const s=r.seller_name||'未知';if(!bySeller[s])bySeller[s]={seller_name:s,n:0,t:0,p:0};bySeller[s].n++;bySeller[s].t+=r.total_amount||0;bySeller[s].p+=r.paid_amount||0;
   });
   payEff.filter(r=>r.payee==='报销人').forEach(r=>{

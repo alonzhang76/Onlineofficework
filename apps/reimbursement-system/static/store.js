@@ -59,6 +59,7 @@ var INVOICE_NUM_FIELDS = ['amount', 'tax_amount', 'total_amount', 'paid_amount']
 async function getInvoices() {
   var data = await storeGet(STORE_KEYS.invoices);
   var list = Array.isArray(data) ? data : [];
+  await repairMissingDirections(list);
   list.forEach(function (r) {
     INVOICE_NUM_FIELDS.forEach(function (f) {
       var n = parseFloat(r[f]);
@@ -184,7 +185,9 @@ async function saveReviewLogs(list) {
 
 /* ---------- 公司抬头匹配（进项/销项方向） ---------- */
 function _normName(s) {
-  return String(s || '').replace(/\s+/g, '');
+  // NFKC 归一：全角括号（）→半角()、全角英数→半角，再去空白
+  // （发票 OCR/数电票常把购买方括号解析成半角，公司抬头是全角，不统一会匹配失败 → direction=null）
+  return String(s || '').normalize('NFKC').replace(/\s+/g, '');
 }
 
 function matchCompany(companies, buyer, seller) {
@@ -222,6 +225,26 @@ async function recomputeAllDirections() {
   }
   await saveInvoices(invoices);
   return invoices;
+}
+
+/* 自愈：历史发票 direction 为空的（录入时抬头未命中，如全/半角括号差异），
+ * 读取时按当前公司抬头重算一次并回写，保证台账/进销项/付款统计口径一致。
+ * 只补空值，不覆盖已有 direction，无缺失时零写开销。 */
+async function repairMissingDirections(list) {
+  var need = list.filter(function (r) { return !r.direction; });
+  if (!need.length) return;
+  var companies = await getCompanies();
+  var changed = false;
+  need.forEach(function (r) {
+    var m = matchCompany(companies, r.buyer_name, r.seller_name);
+    if (m.direction) {
+      r.direction = m.direction;
+      r.company_id = m.company_id;
+      r.company_short = m.company_short;
+      changed = true;
+    }
+  });
+  if (changed) await saveInvoices(list);
 }
 
 /* ---------- 付款状态计算 ---------- */
