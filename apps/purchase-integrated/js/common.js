@@ -1142,11 +1142,18 @@ function renderFrame() {
     renderNav(); renderPage();
   } finally { DB.get = origGet; }
   __renderDeps = deps;
+  /* 「主页」图标：有权限才显示，停留在工作台页时高亮 */
+  const hb = $('#navHomeBtn');
+  if (hb) {
+    hb.style.display = Session.can('dashboard') ? '' : 'none';
+    hb.classList.toggle('on', State.page === 'dashboard');
+  }
 }
 function renderNav() {
   if (!$('#navMenu')) return;
   const groups = {};
-  PAGES.filter(p => !p.adminOnly || Session.isAdmin()).forEach(p => {
+  // 工作台（dashboard）已改为头部「主页」图标直达，不再出现在下拉中
+  PAGES.filter(p => p.key !== 'dashboard' && (!p.adminOnly || Session.isAdmin())).forEach(p => {
     if (!Session.can(p.key)) return;
     (groups[p.group] = groups[p.group] || []).push(p);
   });
@@ -1159,12 +1166,15 @@ function renderNav() {
   });
   html += '<div class="mfoot">采购一体化系统 v2.0<br>多模块 · 云端数据自动同步</div>';
   $('#navMenu').innerHTML = html;
-  $$('#navMenu .mitem').forEach(el => el.addEventListener('click', () => { closeNavMenu(); goto(el.dataset.page); }));
+  $$('#navMenu .mitem').forEach(el => el.addEventListener('click', () => { cancelNavClose(); closeNavMenu(); goto(el.dataset.page); }));
 }
+let __navCloseTimer = null;
 function closeNavMenu() {
   const m = $('#navMenu'); if (m) m.classList.remove('show');
   const b = $('#navMenuBtn'); if (b) b.classList.remove('on');
 }
+/* 供悬停开关共用：清除待执行的延迟收起（菜单项点击跳转前调用，防止跨页残留） */
+function cancelNavClose() { if (__navCloseTimer) { clearTimeout(__navCloseTimer); __navCloseTimer = null; } }
 function goto(page) {
   if (!Session.can(page)) { toast('当前角色无权访问该模块', 'err'); return; }
   location.href = page + '.html';
@@ -1220,13 +1230,44 @@ function closeModal() { if (!$('#modalMask')) return; $('#modalMask').classList.
 // 注意：表单弹窗不绑定遮罩点击关闭（避免误点表单外部导致填写内容丢失），仅保留 Escape / 取消按钮关闭
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeNavMenu(); } });
 
-/* ---------- “菜单”下拉开关（点击外部关闭） ---------- */
-if ($('#navMenuBtn')) $('#navMenuBtn').addEventListener('click', e => {
-  e.stopPropagation();
-  const m = $('#navMenu'), btn = $('#navMenuBtn');
-  const show = !m.classList.contains('show');
-  m.classList.toggle('show', show); btn.classList.toggle('on', show);
-});
+/* ---------- 「主页」图标：注入到“菜单”旁，点击直达工作台（11 个页面共用，免逐页改 HTML） ---------- */
+(function injectNavHome() {
+  const wrap = document.querySelector('.nav-wrap');
+  const menuBtn = $('#navMenuBtn');
+  if (!wrap || !menuBtn || $('#navHomeBtn')) return;
+  const home = document.createElement('button');
+  home.type = 'button';
+  home.className = 'nav-home';
+  home.id = 'navHomeBtn';
+  home.title = '主页（工作台）';
+  home.setAttribute('aria-label', '主页（工作台）');
+  home.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" ' +
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>';
+  home.addEventListener('click', e => { e.stopPropagation(); goto('dashboard'); });
+  wrap.insertBefore(home, menuBtn);
+})();
+
+/* ---------- “菜单”下拉开关：悬停即展开（鼠标设备）/ 点击切换（触屏兜底）/ 点击外部关闭 ---------- */
+(function setupNavToggle() {
+  const wrap = document.querySelector('.nav-wrap');
+  const btn = $('#navMenuBtn'), m = $('#navMenu');
+  if (!wrap || !btn || !m) return;
+  const setOpen = open => {
+    if (open) cancelNavClose();
+    m.classList.toggle('show', open); btn.classList.toggle('on', open);
+  };
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    setOpen(!m.classList.contains('show'));
+  });
+  /* 进入即开；离开延迟 250ms 再关（慢移/抖动穿过临界区时再进入会取消关闭），
+     与 CSS 透明命中区 .nav-wrap::after 形成双保险 */
+  wrap.addEventListener('mouseenter', () => setOpen(true));
+  wrap.addEventListener('mouseleave', () => {
+    cancelNavClose();
+    __navCloseTimer = setTimeout(() => { __navCloseTimer = null; setOpen(false); }, 250);
+  });
+})();
 if (!window.__navDocClick) {
   window.__navDocClick = true;
   document.addEventListener('click', e => {

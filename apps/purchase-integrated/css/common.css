@@ -89,7 +89,12 @@ header{background:#fff;border-bottom:1px solid var(--border);padding:0 22px;disp
 .layout{display:flex;flex:1;min-height:0}
 .hspace{flex:1}
 /* ===== 头部“菜单”下拉导航（替代原左侧边栏） ===== */
-.nav-wrap{position:relative}
+.nav-wrap{position:relative;display:flex;align-items:center;gap:6px}
+/* 「主页」快捷图标（回工作台） */
+.nav-home{display:flex;align-items:center;justify-content:center;width:34px;height:33px;flex:none;
+  border:1px solid var(--border);background:#fff;border-radius:var(--radius-sm);
+  color:var(--text);cursor:pointer;transition:.15s}
+.nav-home:hover,.nav-home.on{border-color:var(--primary);color:var(--primary)}
 .nav-btn{display:flex;align-items:center;gap:7px;border:1px solid var(--border);background:#fff;border-radius:var(--radius-sm);
   padding:7px 14px;font-size:13.5px;color:var(--text);cursor:pointer;transition:.15s}
 .nav-btn:hover,.nav-btn.on{border-color:var(--primary);color:var(--primary)}
@@ -98,6 +103,14 @@ header{background:#fff;border-bottom:1px solid var(--border);padding:0 22px;disp
 .nav-menu{position:absolute;left:0;top:calc(100% + 8px);background:#fff;border:1px solid var(--border);border-radius:10px;
   box-shadow:0 12px 32px rgba(15,23,42,.16);min-width:236px;padding:6px;display:none;z-index:80;max-height:calc(100vh - 110px);overflow-y:auto}
 .nav-menu.show{display:block}
+/* 鼠标悬停或键盘聚焦到导航区即展开；点击固定展开（.show）仍保留，供触屏使用 */
+.nav-wrap:hover .nav-menu,.nav-wrap:focus-within .nav-menu{display:block}
+.nav-wrap:hover .nav-btn,.nav-wrap:focus-within .nav-btn{border-color:var(--primary);color:var(--primary)}
+.nav-wrap:hover .caret,.nav-wrap:focus-within .caret{transform:rotate(180deg)}
+/* 桥接按钮与菜单间 8px 间隙：透明命中区挂在容器自身（::after 属于 .nav-wrap 而非菜单），
+   鼠标穿过间隙时始终处于 .nav-wrap 范围内，既不会触发 JS mouseleave，:hover 也不断开。
+   不能挂在 .nav-menu::before 上——部分浏览器（Safari）对菜单伪元素命中判定不稳，慢移会闪退 */
+.nav-wrap::after{content:"";position:absolute;left:0;top:100%;width:240px;height:12px;z-index:79}
 .nav-menu .mgroup{font-size:10px;color:#94a3b8;padding:10px 12px 4px;text-transform:uppercase;letter-spacing:.08em}
 .nav-menu .mitem{display:flex;align-items:center;gap:9px;padding:8px 12px;border-radius:7px;cursor:pointer;color:var(--muted);
   font-size:13.5px;user-select:none;white-space:nowrap}
