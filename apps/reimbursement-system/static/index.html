@@ -333,7 +333,10 @@ td.bg-payee-claimant{background:#f3e8ff}
     <div class="card"><h2>按状态 / 发票类型</h2><div id="chartStatus"></div></div>
   </div>
   <div class="card">
-    <h2>收票付款统计 <button class="btn btn-sm btn-primary" onclick="openNoInvPay()" style="margin-left:auto">＋ 无票付款登记</button></h2>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <h2 style="margin:0">收票付款统计</h2>
+      <button class="btn btn-sm btn-primary" onclick="openNoInvPay()">＋ 无票付款登记</button>
+    </div>
     <div class="sumbar" id="paySummary" style="padding-top:0"></div>
     <div class="hint">仅做账的发票不计入欠款；收到的发票需匹配公司抬头为进项后计入。点击行内「付款」为该单位登记付款（支持整笔按开票顺序自动抵扣，也可单独登记某张）。<b>无票付款</b>用于先付款后开票场景（预付款 / 进度款 / 尾款），以合同号为锚点，后续发票到达后可回填关联。</div>
 
