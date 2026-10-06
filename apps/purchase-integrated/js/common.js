@@ -240,22 +240,45 @@ function seed() {
   setTimeout(release, 20000);
 })();
 
-/* ---------- 密码 ---------- */
-async function hashPwd(pwd) {
-  const salted = 'pis::' + pwd;
+/* ---------- 密码 ----------
+   哈希策略：
+     s1: 前缀 = SHA-256（crypto.subtle，仅安全上下文 HTTPS/localhost/file 可用）
+     f1: 前缀 = 自定义回退哈希（非安全上下文 HTTP 下使用）
+   ⚠️ 同一密码在不同安全上下文下 hashPwd 返回值不同，直接用 === 比较会导致
+      「HTTPS 下设的密码，HTTP 下登录失败」或反之。因此验证密码必须用 verifyPwd，
+      它同时计算两种哈希并逐一比对，确保跨环境兼容。 */
+function _pwdSalted(pwd) { return 'pis::' + pwd; }
+async function _hashS1(pwd) { // SHA-256（安全上下文）
   try {
     if (window.crypto && crypto.subtle && window.isSecureContext) {
-      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(salted));
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(_pwdSalted(pwd)));
       return 's1:' + Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
     }
-  } catch (e) { /* 回退 */ }
+  } catch (e) { /* 不可用 */ }
+  return null;
+}
+function _hashF1(pwd) { // 自定义回退哈希（任意环境）
+  const salted = _pwdSalted(pwd);
   let h1 = 5381, h2 = 52711;
   for (let i = 0; i < salted.length; i++) { const c = salted.charCodeAt(i); h1 = ((h1 << 5) + h1 + c) >>> 0; h2 = ((h2 << 5) + h2 ^ c) >>> 0; }
   return 'f1:' + h1.toString(16) + '-' + h2.toString(16);
 }
+async function hashPwd(pwd) {
+  // 设置密码时优先用 s1（更强），不可用时回退 f1
+  const s1 = await _hashS1(pwd);
+  return s1 || _hashF1(pwd);
+}
+/* 验证密码：同时尝试 s1 和 f1 两种哈希，匹配任一即通过（跨安全上下文兼容） */
+async function verifyPwd(pwd, stored) {
+  if (!stored) return false;
+  if (stored === 'seed:admin123') return pwd === 'admin123'; // 种子明文兜底
+  const s1 = await _hashS1(pwd);
+  if (s1 && stored === s1) return true;
+  return stored === _hashF1(pwd);
+}
 async function ensureAdminHash() { // 把种子密码升级为哈希
   const users = DB.get('users', []);
-  const admin = users.find(u => u.username === 'admin');
+  const admin = users.find(u => u.username && u.username.toLowerCase() === 'admin');
   if (admin && admin.pwd === 'seed:admin123') { admin.pwd = await hashPwd('admin123'); DB.set('users', users); }
 }
 

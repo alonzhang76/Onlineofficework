@@ -171,8 +171,8 @@ async function doLogin() {
   await ensureAdminHash();
   const users = DB.get('users', []);
   const u = users.find(x => x.username.toLowerCase() === un.toLowerCase());
-  const h = await hashPwd(pwd);
-  if (!u || u.pwd !== h) {
+  const pwdOk = u ? await verifyPwd(pwd, u.pwd) : false;
+  if (!u || !pwdOk) {
     $('#loginErr').textContent = (!window.__pisCloud.ok && !window.__pisCloud.settled)
       ? '云端账号尚未同步完成，请稍候再试'
       : (!window.__pisCloud.ok
