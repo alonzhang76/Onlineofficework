@@ -15,7 +15,7 @@
 <script>window.CLOUDBASE_SYNC={email:'sync@lori.app',password:'LoriSync2026!'};</script>
 <script type="module" src="../cloudbase/cloudbase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/scrypt-js@3.0.1/scrypt.min.js"></script>
-<script src="static/store.js?v=20261003a"></script>
+<script src="static/store.js?v=20261006a"></script>
 <script src="static/pdf-parse.js?v=20260929a"></script>
 <style>
 :root{
@@ -334,9 +334,12 @@ td.bg-payee-claimant{background:#f3e8ff}
     <div class="card"><h2>按状态 / 发票类型</h2><div id="chartStatus"></div></div>
   </div>
   <div class="card">
-    <h2>收票付款统计</h2>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <h2 style="margin:0">收票付款统计</h2>
+      <button class="btn btn-sm btn-primary" onclick="openNoInvPay()">＋ 无票付款登记</button>
+    </div>
     <div class="sumbar" id="paySummary" style="padding-top:0"></div>
-    <div class="hint">仅做账的发票不计入欠款；收到的发票需匹配公司抬头为进项后计入。点击行内「付款」为该单位登记付款（支持整笔按开票顺序自动抵扣，也可单独登记某张）。</div>
+    <div class="hint">仅做账的发票不计入欠款；收到的发票需匹配公司抬头为进项后计入。点击行内「付款」为该单位登记付款（支持整笔按开票顺序自动抵扣，也可单独登记某张）。<b>无票付款</b>用于先付款后开票场景（预付款 / 进度款 / 尾款），以合同号为锚点，后续发票到达后可回填关联。</div>
 
     <h2 style="margin:14px 0 8px;font-size:14px">① 付给销售方（供应商）</h2>
     <div class="tbl-topbar" id="pay_pager"></div>
@@ -491,9 +494,9 @@ td.bg-payee-claimant{background:#f3e8ff}
     <div class="tbl-topbar" id="p_pager"></div>
     <div class="tbl-wrap" style="max-height:58vh">
       <table>
-        <thead><tr><th>付款日期</th><th>方式</th><th>收款对象</th><th>收款单位 / 人</th><th>发票号码</th><th>开票日期</th>
+        <thead><tr><th>付款日期</th><th>阶段</th><th>方式</th><th>收款对象</th><th>收款单位 / 人</th><th>发票号码</th><th>开票日期</th>
           <th class="num">价税合计</th><th class="num">已付金额</th><th class="num">未付差额</th><th>付款状态</th><th>备注</th><th>操作</th></tr></thead>
-        <tbody id="paysBody"><tr><td colspan="12" class="empty">暂无付款记录</td></tr></tbody>
+        <tbody id="paysBody"><tr><td colspan="13" class="empty">暂无付款记录</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -599,6 +602,32 @@ td.bg-payee-claimant{background:#f3e8ff}
     <div style="display:flex;gap:10px;justify-content:flex-end">
       <button class="btn btn-outline" onclick="closeModal('supMask')">取消</button>
       <button class="btn btn-primary" onclick="supSave()">确认付款（按序抵扣）</button>
+    </div>
+  </div>
+</div>
+
+<!-- 无票付款登记弹窗（预付款 / 进度款 / 尾款 / 其他） -->
+<div class="modal-mask" id="nipMask" style="z-index:150">
+  <div class="modal narrow">
+    <h3>无票付款登记 <span style="color:var(--muted);font-size:13px;font-weight:400">（预付款 / 进度款 / 尾款 / 其他）</span></h3>
+    <div class="hint" style="margin-bottom:12px">用于「先付款后开票」场景：登记时不强制关联发票，以<b>合同号</b>为锚点。后续发票到达后可在发票台账中回填关联，或在此处编辑补充发票号。</div>
+    <div class="grid g4">
+      <div><label>付款阶段 *</label><select id="nip_stage">
+        <option>预付款</option><option>进度款</option><option>尾款</option><option>其他</option>
+      </select></div>
+      <div><label>付款金额 *</label><input id="nip_amount" type="number" step="0.01" min="0" placeholder="0.00"></div>
+      <div><label>付款日期 *</label><input id="nip_date" type="date"></div>
+      <div><label>付款方式</label><select id="nip_method">
+        <option value="">--未选择--</option><option>电汇</option><option>承兑</option><option>现金</option></select></div>
+      <div><label>收款方（供应商）*</label><input id="nip_seller" list="nip_seller_list" placeholder="输入或选择供应商"><datalist id="nip_seller_list"></datalist></div>
+      <div><label>合同号 *</label><input id="nip_project" placeholder="如：PO-2026-001"></div>
+      <div><label>关联发票号（可选）</label><input id="nip_invno" list="nip_invno_list" placeholder="后续到票后回填"><datalist id="nip_invno_list"></datalist></div>
+      <div><label>我方公司抬头</label><select id="nip_company"><option value="">--未选择--</option></select></div>
+      <div style="grid-column:1/-1"><label>备注</label><input id="nip_remark" placeholder="如：承兑到期日、票据号、付款说明等"></div>
+    </div>
+    <div style="margin-top:20px;display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-outline" onclick="closeModal('nipMask')">取消</button>
+      <button class="btn btn-primary" onclick="saveNoInvPay()">保存付款记录</button>
     </div>
   </div>
 </div>
@@ -1819,6 +1848,7 @@ async function ieConfirm(){
 }
 async function loadStats(){
   let invoices=await ReimStore.getInvoices();
+  let noinvPays=await ReimStore.getPayments();
   // 报销人只统计自己经手的发票（与"我的发票"过滤口径一致）
   if(ME.role==='claimant')invoices=invoices.filter(r=>{
     const nc=(r.claimant||'').replace(/\s+/g,''),nm=(ME.display_name||'').replace(/\s+/g,'');
@@ -1831,7 +1861,10 @@ async function loadStats(){
   const sum=(arr,k)=>arr.reduce((s,r)=>s+(r[k]||0),0);
   const ei={n:effIn.length,total:sum(effIn,'total_amount'),tax_deduct:sum(effIn.filter(r=>(r.invoice_type||'').includes('专用')),'tax_amount'),tax_all:sum(effIn,'tax_amount')};
   const eo={n:effOut.length,total:sum(effOut,'total_amount'),tax_all:sum(effOut,'tax_amount')};
-  const pa={n:eff.length,total:sum(eff,'total_amount'),paid:sum(eff,'paid_amount'),owed:sum(eff,'total_amount')-sum(eff,'paid_amount')};
+  // 无票付款合计（仅进项/采购方向，用于冲减欠款）。
+  // 已关联发票号的无票付款不再累加（由发票 paid_amount 承载，避免重复）。
+  const nipAllPaid=noinvPays.filter(r=>r.direction==='进项'&&!r.invoice_no&&(!companyFilter||r.company_id===companyFilter)).reduce((s,r)=>s+(r.amount||0),0);
+  const pa={n:eff.length,total:sum(eff,'total_amount'),paid:sum(eff,'paid_amount')+nipAllPaid,owed:sum(eff,'total_amount')-sum(eff,'paid_amount')-nipAllPaid};
   const ra={n:effOut.length,total:sum(effOut,'total_amount'),received:sum(effOut,'paid_amount'),owed:sum(effOut,'total_amount')-sum(effOut,'paid_amount')};
   $('#ovInN').textContent=ei.n+' 张';$('#ovInAmt').textContent='¥'+ei.total.toFixed(2);
   $('#ovOwed').textContent='¥'+pa.owed.toFixed(2);$('#ovPaidHint').textContent='已付 ¥'+pa.paid.toFixed(2);
@@ -1883,13 +1916,20 @@ async function loadStats(){
   payEff.filter(r=>r.payee!=='报销人').forEach(r=>{
     const s=r.seller_name||'未知';if(!bySeller[s])bySeller[s]={seller_name:s,n:0,t:0,p:0};bySeller[s].n++;bySeller[s].t+=r.total_amount||0;bySeller[s].p+=r.paid_amount||0;
   });
+  // 无票付款（预付款/进度款/尾款/其他）按供应商累加到已付款，不计入价税合计。
+  // 已关联发票号的无票付款不再累加（由发票 paid_amount 承载，避免重复计算）。
+  noinvPays.filter(r=>r.payee!=='报销人'&&!r.invoice_no&&(!companyFilter||r.company_id===companyFilter)).forEach(r=>{
+    const s=r.seller_name||'未知';if(!bySeller[s])bySeller[s]={seller_name:s,n:0,t:0,p:0};bySeller[s].p+=r.amount||0;
+  });
   payEff.filter(r=>r.payee==='报销人').forEach(r=>{
     const c=r.claimant||'未知';if(!byClaimant[c])byClaimant[c]={claimant:c,n:0,t:0,p:0};byClaimant[c].n++;byClaimant[c].t+=r.total_amount||0;byClaimant[c].p+=r.paid_amount||0;
   });
   const recEff=invoices.filter(r=>r.direction==='销项'&&r.status!=='已驳回'&&(!companyFilter||r.company_id===companyFilter));
   const byBuyer={};
   recEff.forEach(r=>{const b=r.buyer_name||'未知';if(!byBuyer[b])byBuyer[b]={buyer_name:b,n:0,t:0,p:0};byBuyer[b].n++;byBuyer[b].t+=r.total_amount||0;byBuyer[b].p+=r.paid_amount||0;});
-  PAY_P.rows=Object.values(bySeller);PAY_P.all={n:payEff.length,total:sum(payEff,'total_amount'),paid:sum(payEff,'paid_amount'),owed:sum(payEff,'total_amount')-sum(payEff,'paid_amount')};
+  PAY_P.rows=Object.values(bySeller);
+  const nipPaid=noinvPays.filter(r=>r.payee!=='报销人'&&!r.invoice_no&&(!companyFilter||r.company_id===companyFilter)).reduce((s,r)=>s+(r.amount||0),0);
+  PAY_P.all={n:payEff.length,total:sum(payEff,'total_amount'),paid:sum(payEff,'paid_amount')+nipPaid,owed:sum(payEff,'total_amount')-sum(payEff,'paid_amount')-nipPaid};
   PAY_P.book={n:invoices.filter(r=>r.settle==='仅做账').length,total:sum(invoices.filter(r=>r.settle==='仅做账'),'total_amount')};
   PAY_P.rej={n:invoices.filter(r=>r.status==='已驳回').length,total:sum(invoices.filter(r=>r.status==='已驳回'),'total_amount')};PAY_P.page=1;
   PAYC_P.rows=Object.values(byClaimant);PAYC_P.all=PAY_P.all;PAYC_P.book=PAY_P.book;PAYC_P.rej=PAY_P.rej;PAYC_P.page=1;
@@ -2184,6 +2224,72 @@ async function savePay(){
   }
 }
 
+/* ---------- 无票付款登记（预付款 / 进度款 / 尾款 / 其他） ---------- */
+let nipEditId=null;
+async function openNoInvPay(id){
+  nipEditId=id||null;
+  const invoices=await ReimStore.getInvoices();
+  const companies=await ReimStore.getCompanies();
+  const sellers=[...new Set(invoices.filter(r=>r.direction==='进项').map(r=>r.seller_name).filter(Boolean))].sort();
+  $('#nip_seller_list').innerHTML=sellers.map(s=>`<option value="${esc(s)}">`).join('');
+  $('#nip_invno_list').innerHTML=invoices.filter(r=>r.direction==='进项').map(r=>`<option value="${esc(r.invoice_no)}">`).join('');
+  $('#nip_company').innerHTML='<option value="">--未选择--</option>'+companies.filter(c=>c.active).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  $('#nip_stage').value='预付款';$('#nip_amount').value='';
+  $('#nip_date').value=new Date().toISOString().slice(0,10);
+  $('#nip_method').value='';$('#nip_seller').value='';$('#nip_project').value='';
+  $('#nip_invno').value='';$('#nip_company').value='';$('#nip_remark').value='';
+  if(id){
+    const pays=await ReimStore.getPayments();
+    const p=pays.find(x=>x.id===id);
+    if(p){
+      $('#nip_stage').value=p.stage||'其他';$('#nip_amount').value=p.amount||'';
+      $('#nip_date').value=p.payment_date||'';$('#nip_method').value=p.payment_method||'';
+      $('#nip_seller').value=p.seller_name||'';$('#nip_project').value=p.project||'';
+      $('#nip_invno').value=p.invoice_no||'';$('#nip_company').value=p.company_id||'';
+      $('#nip_remark').value=p.remark||'';
+    }
+  }
+  $('#nipMask').classList.add('show');
+}
+async function saveNoInvPay(){
+  const stage=$('#nip_stage').value,amount=+$('#nip_amount').value,pdate=$('#nip_date').value;
+  const method=$('#nip_method').value,seller=$('#nip_seller').value.trim();
+  const project=$('#nip_project').value.trim(),invno=$('#nip_invno').value.trim();
+  const companyId=$('#nip_company').value,remark=$('#nip_remark').value.trim();
+  if(!stage)return toast('请选择付款阶段','err');
+  if(!amount||amount<=0)return toast('请填写有效的付款金额','err');
+  if(!pdate)return toast('请选择付款日期','err');
+  if(!seller)return toast('请填写收款方（供应商）','err');
+  if(!project)return toast('请填写合同号（用于采购侧关联）','err');
+  const companies=await ReimStore.getCompanies();
+  const comp=companies.find(c=>String(c.id)===String(companyId))||null;
+  const pays=await ReimStore.getPayments();
+  const now=new Date().toISOString();
+  if(nipEditId){
+    const p=pays.find(x=>x.id===nipEditId);
+    if(p)Object.assign(p,{stage,amount,payment_date:pdate,payment_method:method,seller_name:seller,
+      project,invoice_no:invno,payee:'销售方',settle:'正常付款',direction:'进项',
+      company_id:comp?comp.id:null,company_short:comp?(comp.short_name||comp.name):'',
+      remark,updated_at:now});
+  }else{
+    pays.unshift({id:ReimStore.genId(),stage,amount,payment_date:pdate,payment_method:method,
+      seller_name:seller,project,invoice_no:invno,payee:'销售方',settle:'正常付款',
+      direction:'进项',company_id:comp?comp.id:null,company_short:comp?(comp.short_name||comp.name):'',
+      remark,created_at:now,updated_at:now});
+  }
+  await ReimStore.savePayments(pays);
+  toast(nipEditId?'无票付款已更新':'无票付款已登记');
+  closeModal('nipMask');loadStats();
+  const paysTab=document.getElementById('tab-pays');
+  if(paysTab&&!paysTab.hidden)loadPays(PAYREC.page);
+}
+async function delNoInvPay(id){
+  if(!confirm('确认删除该笔无票付款记录？此操作不可恢复。'))return;
+  const pays=await ReimStore.getPayments();
+  const idx=pays.findIndex(x=>x.id===id);
+  if(idx>=0){pays.splice(idx,1);await ReimStore.savePayments(pays);toast('已删除');loadStats();loadPays(PAYREC.page);}
+}
+
 /* ---------- 付款记录（查询/导出） ---------- */
 const PAYREC={page:1,size:20,rows:[]};
 function paysNav(d){PAYREC.page=Math.max(1,PAYREC.page+d);renderPays();}
@@ -2205,40 +2311,69 @@ function paysReset(){
 }
 async function loadPays(page){
   PAYREC.page=page||1;
-  const invoices=await ReimStore.getInvoices();
+  const [invoices,noinvPays]=await Promise.all([ReimStore.getInvoices(),ReimStore.getPayments()]);
   const kw=$('#p_keyword').value.trim().toLowerCase();
   const df=$('#p_date_from').value,dt=$('#p_date_to').value;
   const method=$('#p_method').value,payee=$('#p_payee').value,status=$('#p_status').value;
-  let rows=invoices.filter(r=>r.payment_date||r.paid_amount>0);
-  if(kw)rows=rows.filter(r=>(r.invoice_no||'').toLowerCase().includes(kw)||(r.seller_name||'').toLowerCase().includes(kw)||(r.claimant||'').toLowerCase().includes(kw));
-  if(df)rows=rows.filter(r=>r.payment_date&&r.payment_date>=df);
-  if(dt)rows=rows.filter(r=>r.payment_date&&r.payment_date<=dt);
-  if(method)rows=rows.filter(r=>r.payment_method===method);
-  if(payee)rows=rows.filter(r=>r.payee===payee);
+  let invRows=invoices.filter(r=>r.payment_date||r.paid_amount>0);
+  if(kw)invRows=invRows.filter(r=>(r.invoice_no||'').toLowerCase().includes(kw)||(r.seller_name||'').toLowerCase().includes(kw)||(r.claimant||'').toLowerCase().includes(kw)||(r.payment_note||'').toLowerCase().includes(kw));
+  if(df)invRows=invRows.filter(r=>r.payment_date&&r.payment_date>=df);
+  if(dt)invRows=invRows.filter(r=>r.payment_date&&r.payment_date<=dt);
+  if(method)invRows=invRows.filter(r=>r.payment_method===method);
+  if(payee)invRows=invRows.filter(r=>r.payee===payee);
   if(status){
-    rows=rows.filter(r=>{
+    invRows=invRows.filter(r=>{
       const bal=(r.total_amount||0)-(r.paid_amount||0);
       const s=r.paid_amount<=0.004?'未付款':(bal<=0.004?'已付清':'部分付款');
       return s===status;
     });
   }
+  // 无票付款记录（标记 _type='noinv'，渲染时区分）
+  let nipRows=noinvPays.map(r=>({...r,_type:'noinv',invoice_no:r.invoice_no||'',invoice_date:''}));
+  if(kw)nipRows=nipRows.filter(r=>(r.seller_name||'').toLowerCase().includes(kw)||(r.project||'').toLowerCase().includes(kw)||(r.invoice_no||'').toLowerCase().includes(kw)||(r.remark||'').toLowerCase().includes(kw));
+  if(df)nipRows=nipRows.filter(r=>r.payment_date&&r.payment_date>=df);
+  if(dt)nipRows=nipRows.filter(r=>r.payment_date&&r.payment_date<=dt);
+  if(method)nipRows=nipRows.filter(r=>r.payment_method===method);
+  if(payee)nipRows=nipRows.filter(r=>r.payee===payee);
+  // 合并并按付款日期倒序
+  const rows=[...invRows.map(r=>({...r,_type:'inv'})),...nipRows]
+    .sort((a,b)=>(b.payment_date||'').localeCompare(a.payment_date||''));
   PAYREC.rows=rows;
   renderPays();
 }
 function renderPays(){
   const rows=PAYREC.rows;
+  const invRows=rows.filter(r=>r._type!=='noinv');
+  const nipRows=rows.filter(r=>r._type==='noinv');
   const sum=(arr,k)=>arr.reduce((s,r)=>s+(r[k]||0),0);
-  const a={n:rows.length,t:sum(rows,'total_amount'),p:sum(rows,'paid_amount')};
-  $('#p_sum').innerHTML=`共 <b>${a.n}</b> 笔付款 · 发票价税合计 ¥<b>${a.t.toFixed(2)}</b> · 累计已付 <b style="color:var(--green)">¥${a.p.toFixed(2)}</b>`;
+  const a={n:rows.length,invTotal:sum(invRows,'total_amount'),invPaid:sum(invRows,'paid_amount'),nipTotal:sum(nipRows,'amount')};
+  $('#p_sum').innerHTML=`共 <b>${a.n}</b> 笔付款 · 发票价税合计 ¥<b>${a.invTotal.toFixed(2)}</b> · 发票已付 <b style="color:var(--green)">¥${a.invPaid.toFixed(2)}</b>${a.nipTotal>0.004?` · 无票付款 <b style="color:var(--primary)">¥${a.nipTotal.toFixed(2)}</b>`:''}`;
   const totalPages=Math.max(1,Math.ceil(rows.length/PAYREC.size));
   if(PAYREC.page>totalPages)PAYREC.page=totalPages;
   $('#p_pager').innerHTML=topbarHtml({...PAYREC,total:rows.length},totalPages,'paysNav','paysSize');
   const pageRows=rows.slice((PAYREC.page-1)*PAYREC.size,PAYREC.page*PAYREC.size);
   $('#paysBody').innerHTML=pageRows.length?pageRows.map(r=>{
+    if(r._type==='noinv'){
+      const stageBadge={'预付款':'b-draft','进度款':'b-dai','尾款':'b-pass','其他':'b-gray'}[r.stage]||'b-gray';
+      return `<tr style="background:rgba(59,130,246,0.04)">
+        <td>${r.payment_date||'-'}</td>
+        <td><span class="badge ${stageBadge}">${esc(r.stage||'其他')}</span></td>
+        <td>${esc(r.payment_method||'-')}</td>
+        <td><span class="badge b-draft">销售方</span></td>
+        <td title="${esc(r.seller_name||'')}">${esc(cut(r.seller_name||'-',16))}</td>
+        <td class="mono">${r.invoice_no?esc(cut(r.invoice_no,18)):'<span style="color:var(--muted)">（无票）</span>'}</td>
+        <td>-</td><td class="num subtle">—</td>
+        <td class="num" style="color:var(--green)"><b>${fmt(r.amount)}</b></td>
+        <td class="num">—</td>
+        <td><span class="badge b-gray">无票付款</span></td>
+        <td title="${esc(r.remark||'')}${r.project?' · 合同:'+r.project:''}">${esc(cut((r.remark||'')+(r.project?' · '+r.project:''),14))}</td>
+        <td><button class="btn btn-sm btn-outline" onclick="openNoInvPay('${r.id}')">修改</button> ${ME.role==='admin'?`<button class="btn btn-sm btn-outline" style="color:var(--red);border-color:var(--red)" onclick="delNoInvPay('${r.id}')">删除</button>`:''}</td>
+      </tr>`;
+    }
     const bal=(r.total_amount||0)-(r.paid_amount||0);
-    return `
-    <tr>
+    return `<tr>
       <td>${r.payment_date||'-'}</td>
+      <td><span class="badge b-gray">—</span></td>
       <td>${esc(r.payment_method||'-')}</td>
       <td>${r.payee==='报销人'?'<span class="badge b-dai">报销人</span>':'<span class="badge b-draft">销售方</span>'}</td>
       <td title="${esc(r.payee==='报销人'?(r.claimant||''):(r.seller_name||''))}">${esc(cut(r.payee==='报销人'?(r.claimant||'-'):(r.seller_name||'-'),16))}</td>
@@ -2250,7 +2385,7 @@ function renderPays(){
       <td><span class="badge ${r.payment_status==='已付清'?'b-pass':'b-dai'}">${r.payment_status}</span></td>
       <td title="${esc(r.payment_note||'')}">${esc(cut(r.payment_note||'-',14))}</td>
       <td>${ME.role==='admin'?`<button class="btn btn-sm btn-outline" style="color:var(--red);border-color:var(--red)" onclick="delPay(${r.id})">删除</button> `:''}<button class="btn btn-sm btn-outline" onclick="openPay(${r.id},PAYREC.rows)">修改</button></td>
-    </tr>`;}).join(''):'<tr><td colspan="12" class="empty">暂无付款记录（在收票付款统计中登记付款后自动生成）</td></tr>';
+    </tr>`;}).join(''):'<tr><td colspan="13" class="empty">暂无付款记录（在收票付款统计中登记付款后自动生成）</td></tr>';
 }
 async function delPay(id){
   if(ME.role!=='admin')return toast('仅管理员可删除付款记录','err');
@@ -2286,10 +2421,22 @@ async function exportCsv(){
   downloadCsv(`invoices-${Date.now()}.csv`,[headers,...invoices.map(r=>cols.map(c=>r[c]??''))]);
 }
 async function exportPaysCsv(){
-  const invoices=(await ReimStore.getInvoices()).filter(r=>r.payment_date||r.paid_amount>0);
-  const cols=['payment_date','payment_method','payee','seller_name','claimant','invoice_no','invoice_date','total_amount','paid_amount','balance','payment_status','payment_note'];
-  const headers=['付款日期','付款方式','收款方','销售方','报销人','发票号码','开票日期','价税合计','已付金额','未付差额','付款状态','备注'];
-  downloadCsv(`payments-${Date.now()}.csv`,[headers,...invoices.map(r=>cols.map(c=>r[c]??''))]);
+  const [invoices,noinvPays]=await Promise.all([ReimStore.getInvoices(),ReimStore.getPayments()]);
+  const invPays=invoices.filter(r=>r.payment_date||r.paid_amount>0).map(r=>({
+    payment_date:r.payment_date||'',stage:'',payment_method:r.payment_method||'',payee:r.payee||'',
+    payee_name:r.payee==='报销人'?(r.claimant||''):(r.seller_name||''),invoice_no:r.invoice_no||'',
+    invoice_date:r.invoice_date||'',total_amount:r.total_amount||0,paid_amount:r.paid_amount||0,
+    balance:Math.max(0,(r.total_amount||0)-(r.paid_amount||0)),payment_status:r.payment_status||'',remark:r.payment_note||''
+  }));
+  const nipRows=noinvPays.map(r=>({
+    payment_date:r.payment_date||'',stage:r.stage||'',payment_method:r.payment_method||'',payee:r.payee||'销售方',
+    payee_name:r.seller_name||'',invoice_no:r.invoice_no||'',invoice_date:'',total_amount:'',
+    paid_amount:r.amount||0,balance:'',payment_status:'无票付款',remark:(r.remark||'')+(r.project?' · 合同:'+r.project:'')
+  }));
+  const all=[...invPays,...nipRows].sort((a,b)=>(b.payment_date||'').localeCompare(a.payment_date||''));
+  const headers=['付款日期','阶段','付款方式','收款对象','收款单位/人','发票号码','开票日期','价税合计','已付金额','未付差额','付款状态','备注'];
+  const cols=['payment_date','stage','payment_method','payee','payee_name','invoice_no','invoice_date','total_amount','paid_amount','balance','payment_status','remark'];
+  downloadCsv(`payments-${Date.now()}.csv`,[headers,...all.map(r=>cols.map(c=>r[c]??''))]);
 }
 
 /* ---------- 通用分页助手（页大小 20/50/100/200/500/1000） ---------- */
