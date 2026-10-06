@@ -263,7 +263,11 @@ function _sha256Bytes(bytes) {
   var data = Array.from(bytes); var bitLen = data.length * 8;
   data.push(0x80);
   while (data.length % 64 !== 56) data.push(0);
-  for (var i = 7; i >= 0; i--) data.push((bitLen >>> (i*8)) & 0xff);
+  // 64 位大端长度（JS >>> 移位量会取模32，必须拆成高/低 32 位分别取字节）
+  var lo = bitLen >>> 0;
+  var hi = (bitLen - lo) / 0x100000000; // 高 32 位（短消息为 0）
+  data.push((hi >>> 24) & 0xff, (hi >>> 16) & 0xff, (hi >>> 8) & 0xff, hi & 0xff);
+  data.push((lo >>> 24) & 0xff, (lo >>> 16) & 0xff, (lo >>> 8) & 0xff, lo & 0xff);
   for (var off = 0; off < data.length; off += 64) {
     var w = new Array(64);
     for (var t = 0; t < 16; t++)
