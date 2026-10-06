@@ -168,6 +168,25 @@ def init_db():
             active INTEGER DEFAULT 1,
             created_at TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            stage TEXT NOT NULL,
+            amount REAL NOT NULL,
+            payment_date TEXT,
+            payment_method TEXT,
+            seller_name TEXT,
+            project TEXT,
+            invoice_no TEXT,
+            payee TEXT DEFAULT '销售方',
+            settle TEXT DEFAULT '正常付款',
+            direction TEXT DEFAULT '进项',
+            company_id INTEGER,
+            company_short TEXT,
+            remark TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
         """
     )
     # 老库迁移：invoices 增加 user_id 列（必须在建 user_id 索引之前）
@@ -822,6 +841,12 @@ def payments_external():
              WHERE i.id IN (SELECT DISTINCT invoice_id FROM review_log
                              WHERE action IN ('采购系统提交','采购系统重新提交'))
              ORDER BY i.updated_at DESC""").fetchall()
+    # 无票付款记录（预付款/进度款/尾款/其他）：采购侧按合同号(project)汇总已付金额
+    nip_rows = conn.execute(
+        f"""SELECT id, stage, amount, payment_date, payment_method, seller_name,
+                   project, invoice_no, payee, company_short, remark
+            FROM payments WHERE direction='进项' AND settle='正常付款'{seller_cond}
+            ORDER BY payment_date DESC, id DESC LIMIT 2000""", sparams).fetchall()
     conn.close()
     inv_rows = []
     for r in invs:
@@ -849,6 +874,7 @@ def payments_external():
         "invoices": inv_rows,
         "records": rec_rows,
         "submissions": [dict(r) for r in subs],
+        "payments": [dict(r) for r in nip_rows],
     }), 200))
 
 

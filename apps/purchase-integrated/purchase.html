@@ -374,6 +374,19 @@ function orderDetail(o) {
       '<td class="num"><b>' + fmtNum(stock) + '</b></td></tr>';
   }).join('');
   const inv = invoicedOfContract(cno), paid = paidOfContract(cno);
+  const payRows = ReimPay.payRows(cno);
+  const payRowsHtml = payRows.length ? '<div class="tbl-wrap" style="margin-top:12px"><table><thead><tr>' +
+    '<th>付款日期</th><th>阶段</th><th>付款方式</th><th class="num">金额</th><th>关联发票</th><th>品名/说明</th><th>备注</th>' +
+    '</tr></thead><tbody>' +
+    payRows.map(p => '<tr>' +
+      '<td>' + esc(p.paymentDate || '—') + '</td>' +
+      '<td>' + (p.stage ? '<span class="badge b-dai">' + esc(p.stage) + '</span>' : '<span class="badge b-gray">发票付款</span>') + '</td>' +
+      '<td>' + esc(p.method || '—') + '</td>' +
+      '<td class="num" style="color:var(--green)"><b>' + fmtMoney(p.amount) + '</b></td>' +
+      '<td class="mono">' + esc(p.invoiceNumbers || '—') + '</td>' +
+      '<td>' + esc(p.itemName || '') + '</td>' +
+      '<td>' + esc(p.remark || '') + '</td></tr>').join('') +
+    '</tbody></table></div>' : '<div class="hint" style="margin-top:10px">暂无付款记录</div>';
   openModal('<h3>合同明细 · ' + esc(cno) + '</h3>' +
     '<div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">' +
     '<div class="stat-card"><div class="l">供应商</div><div class="v" style="font-size:14px">' + esc(o.supplier) + '</div><div class="s">' + esc(o.orderDate || '') + ' 签订 · PO ' + esc(o.po || '—') + ' · 交期 ' + esc(o.deliveryDate || '—') + '</div></div>' +
@@ -382,6 +395,7 @@ function orderDetail(o) {
     '<div class="stat-card ' + (paid >= o.totalAmount - 0.005 ? 'good' : 'warn') + '"><div class="l">已付款</div><div class="v">' + fmtMoney(paid) + '</div><div class="s">待付 ' + fmtMoney(Math.max(0, o.totalAmount - paid)) + '</div></div></div>' +
     '<div class="tbl-wrap"><table><thead><tr><th>产品</th><th>规格</th><th>成本类别</th><th>单位</th><th class="num">合同数</th><th class="num">单价</th><th class="num">金额</th><th class="num">已发货</th><th class="num">已收货</th><th class="num">已退货</th><th class="num">结存</th></tr></thead><tbody>' +
     (prods || '<tr><td colspan="11" class="empty">无产品</td></tr>') + '</tbody></table></div>' +
+    '<h4 style="margin:14px 0 6px;font-size:13px">付款流水</h4>' + payRowsHtml +
     (o.remark ? '<div class="hint" style="margin-top:10px"><b>备注：</b>' + esc(o.remark) + '</div>' : '') +
     '<div class="modal-foot"><button class="btn btn-outline" onclick="closeModal()">关闭</button></div>', 'wide');
 }

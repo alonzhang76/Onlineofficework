@@ -148,6 +148,7 @@ function pagePayment(root) {
     const scope = arr => isSup ? arr.filter(r => r.seller_name === me) : arr;
     const allInv = scope(payData.invoices || []);
     const allRec = scope(payData.records || []);
+    const allPays = scope(payData.payments || []); // 无票付款（预付款/进度款/尾款/其他）
     /* ---- 过滤（搜索 + 付款状态） ---- */
     const fInv = allInv.filter(v => {
       if (st && v.payment_status !== st) return false;
@@ -171,7 +172,10 @@ function pagePayment(root) {
     });
     /* ---- 统计卡（全量口径，不随搜索筛选变化） ---- */
     const sTotal = allInv.reduce((s, v) => s + (+v.total_amount || 0), 0);
-    const sPaid = allInv.reduce((s, v) => s + Math.min(+v.paid_amount || 0, +v.total_amount || 0), 0);
+    const sInvPaid = allInv.reduce((s, v) => s + Math.min(+v.paid_amount || 0, +v.total_amount || 0), 0);
+    // 无票付款仅统计未关联发票号的（已关联的由发票 paid_amount 承载，避免重复）
+    const sNipPaid = allPays.filter(p => !p.invoice_no).reduce((s, p) => s + (+p.amount || 0), 0);
+    const sPaid = sInvPaid + sNipPaid;
     const sOwed = Math.max(0, sTotal - sPaid);
     const supCnt = new Set(allInv.map(v => v.seller_name)).size;
     const doneCnt = allInv.filter(v => v.payment_status === '已付清').length;
@@ -179,7 +183,7 @@ function pagePayment(root) {
     $('#payStats').innerHTML =
       statCard(isSup ? '我的发票' : '涉及供应商', isSup ? allInv.length + ' 张' : supCnt + ' 家', 'var(--primary)') +
       statCard('价税合计', fmtMoney(sTotal), 'var(--text)') +
-      statCard('已付款', fmtMoney(sPaid), 'var(--green)') +
+      statCard('已付款', fmtMoney(sPaid), 'var(--green)', sNipPaid > 0.004 ? '含无票付款 ' + fmtMoney(sNipPaid) : '') +
       statCard('未付欠款', fmtMoney(sOwed), 'var(--red)') +
       statCard('付款进度', pct + '%', 'var(--primary)', '已付清 ' + doneCnt + ' / ' + allInv.length + ' 张');
     /* ---- 供应商付款总览（前端按过滤后明细聚合，与服务端口径一致） ---- */
@@ -190,6 +194,13 @@ function pagePayment(root) {
       g.total += +v.total_amount || 0;
       g.paid += Math.min(+v.paid_amount || 0, +v.total_amount || 0);
       if ((v.payment_date || '') > g.last) g.last = v.payment_date || '';
+    });
+    // 无票付款按供应商累加到已付款（不计入价税合计）。
+    // 已关联发票号的无票付款不再累加（由发票 paid_amount 承载，避免重复计算）。
+    allPays.filter(p => !p.invoice_no).forEach(p => {
+      const g = bySup[p.seller_name] || (bySup[p.seller_name] = { supplier: p.seller_name, n: 0, total: 0, paid: 0, last: '' });
+      g.paid += +p.amount || 0;
+      if ((p.payment_date || '') > g.last) g.last = p.payment_date || '';
     });
     const groups = Object.values(bySup).sort((a, b) => (b.last || '').localeCompare(a.last || '') || (b.total - a.total));
     const supContracts = sup => {

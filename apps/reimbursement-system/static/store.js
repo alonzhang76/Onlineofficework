@@ -9,7 +9,11 @@ const STORE_KEYS = {
   users: 'reim_users',
   companies: 'reim_companies',
   reviewLog: 'reim_review_log',
+  payments: 'reim_payments',
 };
+
+/* 无票付款阶段：预付款 / 进度款 / 尾款 / 其他 */
+var PAYMENT_STAGES = ['预付款', '进度款', '尾款', '其他'];
 
 function waitForSupabase(timeout) {
   timeout = timeout || 20000;
@@ -183,6 +187,42 @@ async function saveReviewLogs(list) {
   return storeSet(STORE_KEYS.reviewLog, list);
 }
 
+/* ---------- 无票付款记录（预付款 / 进度款 / 尾款 / 其他） ----------
+ * 与发票付款的区别：不绑定 invoice_no（可选），以「合同号(project)」为锚点，
+ * 支持「先付款后开票」场景。purchase-integrated 会读取 reim_payments 并按
+ * project（合同号）汇总到合同已付金额。
+ * 字段说明：
+ *   stage         付款阶段（预付款/进度款/尾款/其他）
+ *   amount        本次付款金额
+ *   payment_date  付款日期
+ *   payment_method 付款方式（电汇/承兑/现金）
+ *   seller_name   收款方（供应商）
+ *   project       所属合同号（用于采购侧关联）
+ *   invoice_no    关联发票号（可选，空=无票付款）
+ *   payee         收款对象（销售方/报销人），默认销售方
+ *   settle        结算方式（正常付款/仅做账），默认正常付款
+ *   company_id / company_short  我方公司抬头
+ *   direction     进项/销项，默认进项
+ *   remark        备注
+ */
+var PAYMENT_NUM_FIELDS = ['amount'];
+
+async function getPayments() {
+  var data = await storeGet(STORE_KEYS.payments);
+  var list = Array.isArray(data) ? data : [];
+  list.forEach(function (r) {
+    PAYMENT_NUM_FIELDS.forEach(function (f) {
+      var n = parseFloat(r[f]);
+      r[f] = isFinite(n) ? n : 0;
+    });
+  });
+  return list;
+}
+
+async function savePayments(list) {
+  return storeSet(STORE_KEYS.payments, list);
+}
+
 /* ---------- 公司抬头匹配（进项/销项方向） ---------- */
 function _normName(s) {
   // NFKC 归一：全角括号（）→半角()、全角英数→半角，再去空白
@@ -280,6 +320,9 @@ window.ReimStore = {
   saveCompanies: saveCompanies,
   getReviewLogs: getReviewLogs,
   saveReviewLogs: saveReviewLogs,
+  getPayments: getPayments,
+  savePayments: savePayments,
+  PAYMENT_STAGES: PAYMENT_STAGES,
   matchCompany: matchCompany,
   recomputeAllDirections: recomputeAllDirections,
   paymentInfo: paymentInfo,

@@ -480,6 +480,8 @@ const ReimPay = {
   invoices() { return (this.data && Array.isArray(this.data.invoices)) ? this.data.invoices : []; },
   records() { return (this.data && Array.isArray(this.data.records)) ? this.data.records : []; },
   submissions() { return (this.data && Array.isArray(this.data.submissions)) ? this.data.submissions : []; },
+  // 无票付款记录（预付款/进度款/尾款/其他），来自报销系统云端 reim_payments
+  payments() { return (this.data && Array.isArray(this.data.payments)) ? this.data.payments : []; },
   byNo(no) { return this.invoices().find(r => String(r.invoice_no) === String(no)) || null; },
   // 单张发票累计已付（与付款页统计口径一致：不超过票面金额）
   paidOfInvoice(no) {
@@ -498,11 +500,16 @@ const ReimPay = {
   paidOfContract(cno) {
     const localNo = new Map();
     Data.list('invoices').forEach(v => localNo.set(String(v.invoiceNumber), v.contractNumber || ''));
-    return this.invoices().reduce((sum, r) => {
+    let sum = this.invoices().reduce((s, r) => {
       const hit = splitMulti(r.project).includes(cno) ||
         splitMulti(localNo.get(String(r.invoice_no)) || '').includes(cno);
-      return sum + (hit ? Math.min(+(r.paid_amount) || 0, +(r.total_amount) || 0) : 0);
+      return s + (hit ? Math.min(+(r.paid_amount) || 0, +(r.total_amount) || 0) : 0);
     }, 0);
+    // 无票付款（预付款/进度款/尾款/其他）按 project（合同号）命中累加
+    sum += this.payments().reduce((s, p) => {
+      return splitMulti(p.project || '').includes(cno) ? s + (+(p.amount) || 0) : s;
+    }, 0);
+    return sum;
   },
   /* 已付款流水（采购侧旧 payments 记录形状）：以本地发票台账为基准关联，
      自动套用当前公司主体 / 供应商隔离；传 cno 时再追加报销侧 project 命中的票。
@@ -531,6 +538,19 @@ const ReimPay = {
     });
     if (cno) this.invoices().forEach(r => {
       if (!seen.has(r.invoice_no) && splitMulti(r.project).includes(cno)) push(r, null);
+    });
+    // 无票付款（预付款/进度款/尾款/其他）：按 project（合同号）命中
+    if (cno) this.payments().forEach(p => {
+      if (!splitMulti(p.project || '').includes(cno)) return;
+      out.push({
+        supplier: p.seller_name || '',
+        contractNumber: p.project || '',
+        invoiceNumbers: p.invoice_no || '',
+        paymentNumber: '(无票)',
+        paymentDate: p.payment_date || '', method: p.payment_method || '',
+        amount: +(p.amount) || 0, remark: p.remark || '',
+        itemName: p.stage || '无票付款', stage: p.stage || ''
+      });
     });
     out.sort((a, b) => String(b.paymentDate || '').localeCompare(String(a.paymentDate || '')));
     return out;
@@ -600,7 +620,7 @@ const ReimPay = {
        direction='进项' 且 total_amount 非空 且 settle='正常付款'
        且 status!='已驳回' 且 payee='销售方'
      records 额外要求 paid_amount 非空且 > 0。 */
-  _buildCloudPayload(list, logs) {
+  _buildCloudPayload(list, logs, pays) {
     const num = x => { const n = parseFloat(x); return isFinite(n) ? n : 0; };
     const hasNum = x => x !== null && x !== undefined && x !== '' && isFinite(parseFloat(x));
     const payInfo = (total, paid) => {
@@ -678,16 +698,24 @@ const ReimPay = {
       groups: groups,
       invoices: invRows,
       records: recRows,
-      submissions: submissions
+      submissions: submissions,
+      payments: (Array.isArray(pays) ? pays : []).map(p => ({
+        id: p.id, stage: p.stage || '', amount: num(p.amount),
+        payment_date: p.payment_date || '', payment_method: p.payment_method || '',
+        seller_name: p.seller_name || '', project: p.project || '',
+        invoice_no: p.invoice_no || '', payee: p.payee || '销售方',
+        company_short: p.company_short || '', remark: p.remark || ''
+      }))
     };
   },
   async loadFromCloud() {
-    const [invs, logs] = await Promise.all([
+    const [invs, logs, pays] = await Promise.all([
       this._cloudRow('reim_invoices'),
-      this._cloudRow('reim_review_log')
+      this._cloudRow('reim_review_log'),
+      this._cloudRow('reim_payments')
     ]);
     if (!Array.isArray(invs)) throw new Error('报销云端发票数据（reim_invoices）不可用');
-    return this._buildCloudPayload(invs, Array.isArray(logs) ? logs : []);
+    return this._buildCloudPayload(invs, Array.isArray(logs) ? logs : [], Array.isArray(pays) ? pays : []);
   },
   /* ===== 本机报销系统服务（兜底数据源） =====
      办公机启动 reimbursement-system/start.bat（Flask，默认 127.0.0.1:8686）时可用；
