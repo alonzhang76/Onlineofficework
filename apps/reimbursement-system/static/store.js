@@ -223,6 +223,19 @@ async function savePayments(list) {
   return storeSet(STORE_KEYS.payments, list);
 }
 
+/* ---------- 供应商名称（跨应用读取采购系统 pis_suppliers 主数据） ----------
+ * 用于「无票付款登记」收款方关键字筛选；读取失败/无数据时返回空数组，
+ * 调用方回退到发票 seller_name。 */
+async function getSupplierNames() {
+  try {
+    var data = await storeGet('pis_suppliers');
+    var list = Array.isArray(data) ? data : [];
+    return [...new Set(list.map(function (s) { return s && s.supplierName; }).filter(Boolean))].sort();
+  } catch (e) {
+    return [];
+  }
+}
+
 /* ---------- 公司抬头匹配（进项/销项方向） ---------- */
 function _normName(s) {
   // NFKC 归一：全角括号（）→半角()、全角英数→半角，再去空白
@@ -322,6 +335,7 @@ window.ReimStore = {
   saveReviewLogs: saveReviewLogs,
   getPayments: getPayments,
   savePayments: savePayments,
+  getSupplierNames: getSupplierNames,
   PAYMENT_STAGES: PAYMENT_STAGES,
   matchCompany: matchCompany,
   recomputeAllDirections: recomputeAllDirections,
