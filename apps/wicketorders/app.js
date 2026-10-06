@@ -648,6 +648,9 @@ class PageController {
                     <td>${record.packing || ''}</td>
                     <td>${record.remark || ''}</td>
                     <td>
+                        <button class="btn btn-primary btn-sm table-action-btn" onclick="viewOrderDrawing('${record.id}')" title="查看/下载图纸">
+                            📐
+                        </button>
                         <button class="btn btn-primary btn-sm table-action-btn" onclick="editOrder('${record.id}')" title="编辑">
                             <i class="fa fa-pencil"></i>
                         </button>
@@ -6340,6 +6343,156 @@ function deleteOrder(id) {
         }
     }
 }
+
+/* ================= 图纸查看（与 orderschedule 同一云端图纸库：炉架业务/PDF 文件/PDF图纸） ================= */
+var DWG_DIR = 'PDF 文件/PDF图纸';
+
+function _dwEsc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+}
+// 归一化：忽略大小写、空格、下划线、连字符（E40793 Rev B / WICKET_D43552_D / drawingX6168 都能命中）
+function _dwNorm(s) {
+    return String(s || '').toLowerCase().replace(/[\s_\-]+/g, '');
+}
+function _dwMatches(files, drawing) {
+    var q = _dwNorm(drawing);
+    if (!q) return [];
+    var scored = [];
+    files.forEach(function (name) {
+        var nb = _dwNorm(name.replace(/\.pdf$/i, ''));
+        var score = 0;
+        if (nb === q) score = 100;                 // 完全一致
+        else if (nb.indexOf(q) === 0) score = 80;  // 前缀（Y3038 → Y3038_1、D43552 → D43552C）
+        else if (nb.indexOf(q) >= 0) score = 60;   // 模糊包含
+        if (score) scored.push({ name: name, score: score, len: nb.length });
+    });
+    scored.sort(function (a, b) { return b.score - a.score || a.len - b.len || (a.name < b.name ? -1 : 1); });
+    return scored.map(function (x) { return x.name; });
+}
+async function _dwListPdfs() {
+    if (!(window.CFB && CFB._st)) throw new Error('云端文件模块未就绪，请稍后重试');
+    await CFB._waitSb(10000);
+    var r = await CFB._st().list(DWG_DIR, { limit: 1000 });
+    if (r && r.error) throw new Error((r.error && (r.error.message || r.error)) || '列目录失败');
+    return ((r && r.data) || []).filter(function (it) {
+        return it.type !== 'folder' && /\.pdf$/i.test(it.name);
+    }).map(function (it) { return it.name; });
+}
+function _dwPath(name) { return '/' + DWG_DIR + '/' + name; }
+
+function _dwModalClose() {
+    var ov = document.getElementById('dwgModalOverlay');
+    if (ov && ov.parentNode) ov.parentNode.removeChild(ov);
+}
+function _dwModalOpen(title, bodyHtml, footerHtml) {
+    _dwModalClose();
+    var ov = document.createElement('div');
+    ov.id = 'dwgModalOverlay';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10001;display:flex;align-items:center;justify-content:center;';
+    ov.innerHTML = '<div style="background:#fff;border-radius:10px;max-width:520px;width:92%;max-height:80vh;overflow:auto;padding:18px 20px;box-shadow:0 12px 40px rgba(0,0,0,.25);">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'
+        + '<h3 style="margin:0;font-size:16px;">' + title + '</h3>'
+        + '<button onclick="_dwModalClose()" title="关闭" style="border:none;background:none;font-size:20px;line-height:1;cursor:pointer;color:#666;">×</button></div>'
+        + '<div>' + bodyHtml + '</div>'
+        + (footerHtml ? '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">' + footerHtml + '</div>' : '')
+        + '</div>';
+    ov.addEventListener('click', function (e) { if (e.target === ov) _dwModalClose(); });
+    document.body.appendChild(ov);
+}
+
+// 入口：按该产品行的图号 drawingNo 检索云端 PDF图纸
+async function viewOrderDrawing(id) {
+    var order = (storage.getOrderRecords() || []).find(function (o) { return o.id === id; });
+    if (!order) return;
+    var drawing = String(order.drawingNo || '').trim();
+    if (!drawing) { pageController.showNotification('该订单未填写图号，请先编辑补充', 'error'); return; }
+    pageController.showNotification('正在检索云端图纸库…');
+    try {
+        var files = await _dwListPdfs();
+        var matches = _dwMatches(files, drawing);
+        if (matches.length === 1) { await _dwOpen(matches[0]); return; }
+        if (matches.length > 1) { openDrawingChooser(drawing, matches); return; }
+        openDrawingNotFound(drawing);
+    } catch (e) {
+        pageController.showNotification('图纸检索失败：' + ((e && e.message) || e), 'error');
+    }
+}
+// 取签名 URL 并在新浏览器标签页打开（PDF 交给浏览器原生查看器，可下载/打印）
+async function _dwOpen(name) {
+    try {
+        var url = await CFB._signed(_dwPath(name), 7200);
+        if (!url) throw new Error('获取访问地址失败');
+        var w = window.open(url, '_blank');
+        if (!w) pageController.showNotification('浏览器拦截了新窗口，请允许弹出窗口后重试', 'error');
+    } catch (e) {
+        pageController.showNotification('图纸打开失败：' + ((e && e.message) || e), 'error');
+    }
+}
+function openDrawingChooser(drawing, matches) {
+    window.__dwgMatches = matches;
+    var rows = matches.map(function (name, i) {
+        return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid #eee;">'
+            + '<span style="word-break:break-all;">📄 ' + _dwEsc(name) + '</span>'
+            + '<span style="white-space:nowrap;">'
+            + '<button class="btn btn-primary btn-sm" onclick="previewDrawingFile(' + i + ')">查看</button> '
+            + '<button class="btn btn-sm" onclick="downloadDrawingFile(' + i + ')">下载</button></span>'
+            + '</div>';
+    }).join('');
+    _dwModalOpen('图号 ' + _dwEsc(drawing) + '：找到 ' + matches.length + ' 个匹配文件',
+        '<p style="margin:0 0 8px;color:#666;font-size:13px;">请选择要查看的图纸：</p>' + rows, '');
+}
+function openDrawingNotFound(drawing) {
+    window.__dwgDrawing = drawing;
+    _dwModalOpen('未找到图纸 ' + _dwEsc(drawing),
+        '<p style="margin:0;">图纸库（PDF图纸）中没有与「<b>' + _dwEsc(drawing) + '</b>」匹配的 PDF 文件。</p>'
+        + '<p style="margin:8px 0 0;color:#666;font-size:13px;">可将图纸 PDF 上传到云端图纸库，上传成功后自动打开预览。</p>',
+        '<button class="btn btn-sm" onclick="_dwModalClose()">取消</button>'
+        + '<button class="btn btn-primary btn-sm" onclick="document.getElementById(\'drawingUploadInput\').click()">上传图纸</button>');
+}
+function previewDrawingFile(i) {
+    var name = (window.__dwgMatches || [])[i];
+    if (!name) return;
+    _dwModalClose();
+    _dwOpen(name);
+}
+function downloadDrawingFile(i) {
+    var name = (window.__dwgMatches || [])[i];
+    if (!name) return;
+    CFB.download(_dwPath(name));
+}
+async function uploadDrawingFile(input) {
+    var file = input && input.files && input.files[0];
+    input.value = '';
+    if (!file) return;
+    if (!/\.pdf$/i.test(file.name)) { pageController.showNotification('请选择 PDF 文件', 'error'); return; }
+    _dwModalClose();
+    pageController.showNotification('正在上传图纸 ' + file.name + ' …');
+    try {
+        await CFB._waitSb(10000);
+        var r = await CFB._st().upload(DWG_DIR + '/' + file.name, file, { upsert: true });
+        if (r && r.error) throw new Error((r.error && (r.error.message || r.error)) || '上传失败');
+        pageController.showNotification('图纸已上传：' + file.name, 'success');
+        setTimeout(function () { CFB.previewByPath(_dwPath(file.name)); }, 600);
+    } catch (e) {
+        pageController.showNotification('上传失败：' + ((e && e.message) || e), 'error');
+    }
+}
+// 懒创建隐藏的 PDF 选择框（避免改动页面 HTML 结构）
+(function ensureDrawingUploadInput() {
+    function make() {
+        if (document.getElementById('drawingUploadInput')) return;
+        var inp = document.createElement('input');
+        inp.type = 'file';
+        inp.id = 'drawingUploadInput';
+        inp.accept = 'application/pdf,.pdf';
+        inp.style.display = 'none';
+        inp.addEventListener('change', function () { uploadDrawingFile(inp); });
+        document.body.appendChild(inp);
+    }
+    if (document.body) make(); else document.addEventListener('DOMContentLoaded', make);
+})();
 
 // 切换订单状态
 function toggleOrderStatus(id) {
