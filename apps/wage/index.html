@@ -656,7 +656,7 @@ table.batch-table .batch-proc { width: 100%; }
             </div>
             <div class="form-group">
               <label>订单号</label>
-              <input type="text" class="form-control" id="queryOrderNo" placeholder="订单号" list="orderNoFilterList">
+              <input type="text" class="form-control" id="queryOrderNo" placeholder="多个订单号用逗号分隔，如：A001,A002" list="orderNoFilterList">
               <datalist id="orderNoFilterList"></datalist>
             </div>
             <div class="form-group" style="flex-direction:row;gap:8px;">
@@ -1279,7 +1279,11 @@ const DB = {
       if (filters.employee && r.employee !== filters.employee) return false;
       if (filters.process && r.process !== filters.process) return false;
       if (filters.customer && !r.customer.includes(filters.customer)) return false;
-      if (filters.orderNo && !r.orderNo.includes(filters.orderNo)) return false;
+      if (filters.orderNo) {
+        // 支持逗号（中英文）分隔多个订单号，命中任一即返回
+        const orderKeys = filters.orderNo.split(/[,，]/).map(s => s.trim()).filter(Boolean);
+        if (orderKeys.length && !orderKeys.some(k => (r.orderNo || '').includes(k))) return false;
+      }
       return true;
     }).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
   },
@@ -1998,7 +2002,9 @@ function importExcel(input) {
 function clearAllRecords() {
   if (DB.records.length === 0) { UI.toast('当前无记录', 'error'); return; }
   if (!confirm('确认清空全部 ' + DB.records.length + ' 条工资记录？\n\n此操作不可恢复！')) return;
-  if (!confirm('再次确认：真的要清空全部记录吗？')) return;
+  const pwd = prompt('此操作不可恢复，请输入清空密码：');
+  if (pwd === null) return;
+  if (pwd !== 'alon2601') { UI.toast('密码错误，操作已取消', 'error'); return; }
   DB.records = [];
   DB.save('records');
   // 打"已清空"标记：阻止云端自动刷新用旧数据复活刚清空的记录，
