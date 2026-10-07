@@ -228,9 +228,18 @@ async function savePayments(list) {
  * 调用方回退到发票 seller_name。 */
 async function getSupplierNames() {
   try {
-    var data = await storeGet('pis_suppliers');
+    // 采购一体化（purchase-integrated）云端供应商主数据：
+    // 物理行 id / data.store_key 均为带应用前缀的 purchase-integrated__pis_suppliers，
+    // 名称字段 supplierName（早期数据可能为 name，做兜底）
+    var data = await storeGet('purchase-integrated__pis_suppliers');
     var list = Array.isArray(data) ? data : [];
-    return [...new Set(list.map(function (s) { return s && s.supplierName; }).filter(Boolean))].sort();
+    var names = [];
+    list.forEach(function (s) {
+      var n = String((s && (s.supplierName || s.name)) || '').trim();
+      if (n && names.indexOf(n) < 0) names.push(n);
+    });
+    names.sort(function (a, b) { return a.localeCompare(b, 'zh-Hans-CN'); });
+    return names;
   } catch (e) {
     return [];
   }

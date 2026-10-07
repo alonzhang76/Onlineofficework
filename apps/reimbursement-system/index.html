@@ -15,7 +15,7 @@
 <script>window.CLOUDBASE_SYNC={email:'sync@lori.app',password:'LoriSync2026!'};</script>
 <script type="module" src="../cloudbase/cloudbase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/scrypt-js@3.0.1/scrypt.min.js"></script>
-<script src="static/store.js?v=20261006b"></script>
+<script src="static/store.js?v=20261006c"></script>
 <script src="static/pdf-parse.js?v=20260929a"></script>
 <style>
 :root{
@@ -328,11 +328,6 @@ td.bg-payee-claimant{background:#f3e8ff}
     <div class="stat-card"><div class="l">未收款项（客户应付）</div><div class="v" id="ovRcOwed" style="color:var(--amber)">¥0.00</div><div class="l" id="ovRcHint">已收 ¥0.00</div></div>
     <div class="stat-card"><div class="l">进项可抵扣税额（专票）</div><div class="v" id="ovDeduct" style="color:var(--green)">¥0.00</div><div class="l" id="ovTaxHint">销项税额 ¥0.00</div></div>
   </div>
-  <div class="card"><h2>按会计科目汇总</h2><div id="chartSubject"></div></div>
-  <div class="grid" style="grid-template-columns:1fr 1fr">
-    <div class="card"><h2>按月汇总（近 12 个月）</h2><div id="chartMonth"></div></div>
-    <div class="card"><h2>按状态 / 发票类型</h2><div id="chartStatus"></div></div>
-  </div>
   <div class="card">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
       <h2 style="margin:0">收票付款统计</h2>
@@ -371,6 +366,11 @@ td.bg-payee-claimant{background:#f3e8ff}
         <tbody id="rcBody"></tbody>
       </table>
     </div>
+  </div>
+  <div class="card"><h2>按会计科目汇总</h2><div id="chartSubject"></div></div>
+  <div class="grid" style="grid-template-columns:1fr 1fr">
+    <div class="card"><h2>按月汇总（近 12 个月）</h2><div id="chartMonth"></div></div>
+    <div class="card"><h2>按状态 / 发票类型</h2><div id="chartStatus"></div></div>
   </div>
 </section>
 
