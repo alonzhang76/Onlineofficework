@@ -1233,6 +1233,28 @@
         function getCompanyName(companyId) {
             return COMPANY_NAMES[companyId] || companyId;
         }
+
+        // ===== unit 字段污染防护 =====
+        // 检测单条交易的 unit 是否被污染（等于本公司全名）
+        function isUnitPolluted(transaction, company) {
+            var fullName = COMPANY_NAMES[company];
+            return transaction && transaction.unit && transaction.unit === fullName;
+        }
+        // 批量检测并修复被污染的 unit 字段（清空为 ''）
+        // 返回 true 表示有修复发生过
+        function sanitizeTransactions(transactions, company) {
+            if (!Array.isArray(transactions)) return false;
+            var fixed = false;
+            for (var i = 0; i < transactions.length; i++) {
+                if (isUnitPolluted(transactions[i], company)) {
+                    console.warn('[防护] 检测到 unit 被污染，已修复: date=' + transactions[i].date +
+                        ' desc=' + (transactions[i].description || '') + ' 原值=' + transactions[i].unit);
+                    transactions[i].unit = '';
+                    fixed = true;
+                }
+            }
+            return fixed;
+        }
         // 同步下拉框选中值与页面标题
         function syncCompanySelect(companyId) {
             var sel = document.getElementById('company-select');
@@ -2016,8 +2038,14 @@
         function loadTransactions() {
             const company = getCurrentCompany();
             const transactions = JSON.parse(localStorage.getItem(`transactions_${company}`)) || [];
+            // 防护：检测并修复 unit 被污染为公司全名的记录
+            if (sanitizeTransactions(transactions, company)) {
+                // 有修复 → 立即回写本地，防止污染数据被上传回云端
+                localStorage.setItem(`transactions_${company}`, JSON.stringify(transactions));
+                console.warn('[防护] 已自动修复 ' + company + ' 的被污染 unit 字段并回写本地');
+            }
             window.allTransactions = transactions;
-            
+
             // 应用当前筛选和排序
             filterTransactions();
         }
@@ -2872,8 +2900,15 @@
             const categoryId = document.getElementById('transaction-category').value;
             const date = document.getElementById('transaction-date').value;
             const description = document.getElementById('transaction-description').value;
-            const unit = document.getElementById('transaction-unit').value.trim();
+            var unit = document.getElementById('transaction-unit').value.trim();
             const paymentMethod = document.getElementById('transaction-payment-method').value;
+
+            // 防护：阻止将本公司全名保存为收款/付款单位
+            const currentCompany = getCurrentCompany();
+            if (unit === COMPANY_NAMES[currentCompany]) {
+                console.warn('[防护] saveTransaction 拦截：unit 等于本公司全名，已清空');
+                unit = '';
+            }
             
             // 获取分类名称
             const category = getCategoryById(transactionType, categoryId);
@@ -5224,6 +5259,13 @@
                             
                             // 根据交易类型使用对应的单位
                             let unit = type === 'income' ? payerUnit : payeeUnit;
+
+                            // 防护：如果导入的 unit 等于本公司全名，清空（防止 Excel 模板带入公司名）
+                            var _importCompany = getCurrentCompany();
+                            if (unit === COMPANY_NAMES[_importCompany]) {
+                                log('  防护: 导入的 unit 等于本公司全名，已清空');
+                                unit = '';
+                            }
                             
                             // 只有金额大于0才创建交易记录
                             if (amount > 0) {

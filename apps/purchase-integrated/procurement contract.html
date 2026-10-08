@@ -475,7 +475,10 @@
 
         
         // 填充客户PO（采购管理表格中的PO列，显示在产品清单表格下方）
-        document.getElementById('poNumber').textContent = contractData.po || '—';
+        // null 防御：若旧版 HTML 缓存导致找不到 #poNumber 元素，不应中断后续渲染
+        const poNumEl = document.getElementById('poNumber');
+        if (poNumEl) poNumEl.textContent = contractData.po || '—';
+        else console.warn('[procurement contract] 未找到 #poNumber 元素，可能 HTML 缓存未刷新；请 Cmd/Ctrl+Shift+R 硬刷新后重试');
 
         // 设置订单备注
         document.getElementById('orderRemark').value = contractData.orderRemark || '';
