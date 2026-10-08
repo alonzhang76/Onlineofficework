@@ -5071,6 +5071,18 @@
       console.log('页面加载完成，初始化报价记录表');
       loadQuotationRecords();
       initTableSort();
+
+      // 云端数据到达后重新渲染报价记录表格。
+      // 页面初始化时云端数据可能尚未下载完，表格会先显示"暂无报价记录"；
+      // 监听 cloud-data-updated，quotationRecords 落本地后立即重渲染（保留当前搜索关键词）。
+      window.addEventListener('cloud-data-updated', function (e) {
+        if (e.detail && e.detail.keys && e.detail.keys.indexOf('quotationRecords') >= 0) {
+          console.log('[报价系统] 检测到云端报价记录更新，重新加载表格...');
+          loadQuotationRecords();
+          var searchInput = document.getElementById('quotationSearch');
+          if (searchInput && searchInput.value) searchQuotationRecords();
+        }
+      });
       
       // 从URL获取客户信息并填充
       populateCustomerInfoFromURL();
