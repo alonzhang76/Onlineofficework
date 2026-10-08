@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 	<script>window.SUPABASE_APP_ID='purchase';</script>
@@ -273,7 +273,12 @@
                 <tbody id="productsTableBody">
                 </tbody>
             </table>
-            
+
+            <!-- 客户PO（采购管理表格中的PO列） -->
+            <div class="mt-2">
+                <p><span class="font-bold">客户PO：</span><span id="poNumber">—</span></p>
+            </div>
+
             <!-- 订单备注区域 -->
             <div class="mt-2">
                 <p class="font-bold mb-1">订单备注：</p>
@@ -469,6 +474,9 @@
         
 
         
+        // 填充客户PO（采购管理表格中的PO列，显示在产品清单表格下方）
+        document.getElementById('poNumber').textContent = contractData.po || '—';
+
         // 设置订单备注
         document.getElementById('orderRemark').value = contractData.orderRemark || '';
         
