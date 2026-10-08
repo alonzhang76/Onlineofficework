@@ -41,6 +41,50 @@ window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
 <script src="js/auth-guard.js"></script>
 <script>
 'use strict';
+/* ===== 收货拍照上传（与发货单上传同一云存储桶 app-photos，供应商可见） ===== */
+const RECV_PHOTO_DIR = '收货拍照', RECV_PHOTO_MAX_MB = 20, RECV_PHOTO_ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp';
+const _recvSt = () => (window.supabase && window.supabase.storage) ? window.supabase.storage : null;
+function _recvWaitStorage(ms) {
+  return new Promise(res => {
+    const t0 = Date.now();
+    const t = setInterval(() => {
+      if (_recvSt()) { clearInterval(t); res(true); }
+      else if (Date.now() - t0 > (ms || 15000)) { clearInterval(t); res(false); }
+    }, 200);
+  });
+}
+const _recvSafe = s => String(s || '').replace(/[\\\/]+/g, '-').trim() || 'file';
+function _recvPhotoPath(rec, filename) {
+  return RECV_PHOTO_DIR + '/' + _recvSafe(rec.contractNumber || '未关联') + '/' +
+    _recvSafe(rec.shipNumber || rec.receiptNumber || rec.id) + '-' + Date.now() + '-' + _recvSafe(filename);
+}
+async function _uploadRecvPhoto(rec, file) {
+  if (!(await _recvWaitStorage())) throw new Error('云端存储未就绪，请稍后重试');
+  const path = _recvPhotoPath(rec, file.name);
+  const r = await _recvSt().from('app-photos').upload(path, file, { upsert: true });
+  if (r && r.error) throw new Error(r.error.message || r.error);
+  return path;
+}
+async function removeRecvPhotoFile(path) {
+  if (!path || !(await _recvWaitStorage(8000))) return;
+  try { await _recvSt().from('app-photos').remove([path]); } catch (e) { /* 清理失败不影响记录 */ }
+}
+async function _recvPhotoUrl(path) {
+  if (!(await _recvWaitStorage())) throw new Error('云端存储未就绪，请稍后重试');
+  const r = await _recvSt().from('app-photos').createSignedUrl(path, 3600);
+  if (r && r.error) throw new Error(r.error.message || r.error);
+  const d = r && r.data;
+  return (typeof d === 'string' && d) || (d && d.signedUrl) || (d && d.url) || null;
+}
+async function viewRecvPhoto(rec) {
+  if (!rec || !rec.rnote) { toast('该收货记录没有拍照', 'err'); return; }
+  try {
+    const url = await _recvPhotoUrl(rec.rnote.path);
+    if (!url) throw new Error('获取访问地址失败');
+    window.open(url, '_blank');
+  } catch (e) { toast('收货拍照打开失败：' + (e.message || e), 'err'); }
+}
+function _recvPhotoErr(f) { return f.size > RECV_PHOTO_MAX_MB * 1024 * 1024 ? '文件超过 ' + RECV_PHOTO_MAX_MB + 'MB 限制' : null; }
 /* ==========================================================
    收货管理（采购员工作台）
    主流程：供应商在「发货管理」登记发货 → 本页「待确认到货」逐条确认实收数量
@@ -273,9 +317,13 @@ function receiptForm(rec) {
     '<div><label class="req">实收数量</label><input id="rcQty" type="number" min="0" step="1" required value="' + (rec ? rec.quantity : '') + '"></div>' +
     '<div><label class="req">收货日期</label><input id="rcDate" type="date" required value="' + esc(rec ? rec.receiptDate : todayStr()) + '"></div>' +
     '<div><label>收货人</label><input id="rcPerson" value="' + esc(rec ? (rec.person || Session.user.name || '') : (Session.user.name || '')) + '"></div>' +
-    '<div style="grid-column:1/-1"><label>备注 / 反馈给供应商</label><input id="rcRemark" value="' + esc(rec ? (rec.remark || '') : '') + '" placeholder="如：实收短缺 2 只，短装部分不再补发"></div></div>' +
+    '<div style="grid-column:1/-1"><label>备注 / 反馈给供应商</label><input id="rcRemark" value="' + esc(rec ? (rec.remark || '') : '') + '" placeholder="如：实收短缺 2 只，短装部分不再补发"></div>' +
+    '<div style="grid-column:1/-1"><label>收货拍照（PDF / 图片，≤' + RECV_PHOTO_MAX_MB + 'MB，供应商可见）</label>' +
+    (rec && rec.rnote ? '<div class="hint" style="margin-bottom:6px">已上传：' + esc(rec.rnote.name) + ' <button type="button" class="link-op" onclick="viewRecvPhoto(window._rcEditing)">查看</button></div>' : '') +
+    '<input id="rcPhoto" type="file" accept="' + RECV_PHOTO_ACCEPT + '"></div></div>' +
     '<div class="amt-hint" id="rcHint"></div>' +
     '<div class="modal-foot"><button type="button" class="btn btn-outline" onclick="closeModal()">取消</button><button class="btn btn-primary">保存</button></div></form>');
+  if (rec) window._rcEditing = rec;
   const upd = () => {
     if (!rec) return;
     const o = contractByNo(rec.contractNumber);
@@ -288,10 +336,12 @@ function receiptForm(rec) {
   };
   $('#rcQty').addEventListener('input', upd);
   upd();
-  $('#rcF').addEventListener('submit', e => {
+  $('#rcF').addEventListener('submit', async e => {
     e.preventDefault();
     if (!rec) { toast('收货记录由确认到货自动生成，无需手工新建', 'err'); return; }
     const o = contractByNo(rec.contractNumber);
+    const photoFile = $('#rcPhoto') ? $('#rcPhoto').files[0] : null;
+    if (photoFile) { const pe = _recvPhotoErr(photoFile); if (pe) { toast(pe, 'err'); return; } }
     const data = {
       id: rec.id, company: rec.company || curCo(),
       receiptNumber: $('#rcNo').value.trim(), contractNumber: rec.contractNumber, supplier: rec.supplier,
@@ -299,12 +349,25 @@ function receiptForm(rec) {
       receiptDate: $('#rcDate').value, person: $('#rcPerson').value.trim(), remark: $('#rcRemark').value.trim(),
       shipNumber: rec.shipNumber || '', source: rec.source || '',
       status: RECV_CONFIRMED,
-      createdAt: rec.createdAt
+      createdAt: rec.createdAt,
+      rnote: rec.rnote || null
     };
     Data.update('receipts', rec.id, data);
     // 挂在发货单下：同步刷新发货状态与需方反馈（供应商消息随之更新）
-    if (data.shipNumber) syncShipStatus(data.company, rec.contractNumber, rec.product, data.shipNumber, data.remark);
+    if (data.shipNumber) syncShipStatus(data.company, rec.contractNumber, data.product, data.shipNumber, data.remark);
     closeModal(); toast('收货记录已更新，供应商端消息已同步', 'ok'); renderPage();
+    // 补传/替换收货拍照（记录已保存，失败不影响更新）
+    if (photoFile) {
+      try {
+        const path = await _uploadRecvPhoto(rec, photoFile);
+        const oldPath = (rec.rnote && rec.rnote.path && rec.rnote.path !== path) ? rec.rnote.path : null;
+        Data.update('receipts', rec.id, { rnote: { path: path, name: photoFile.name, size: photoFile.size, uploadedAt: new Date().toISOString() } });
+        if (oldPath) removeRecvPhotoFile(oldPath);
+        toast('收货拍照已上传云端', 'ok'); renderPage();
+      } catch (err) {
+        toast('收货拍照上传失败：' + (err.message || err) + '（记录已保存，可稍后重试）', 'err');
+      }
+    }
   });
 }
 /* ---------- 确认到货（核心：按实收数量生成收货记录 + 回写发货状态 + 差异反馈给供应商） ----------
@@ -329,7 +392,8 @@ function confirmShipReceive(rec) {
     '<div><label class="req">本次实收数量</label><input id="cfQty" type="number" min="0" step="1" required value="' + remainShip + '"></div>' +
     '<div><label class="req">收货日期</label><input id="cfDate" type="date" required value="' + todayStr() + '"></div>' +
     '<div><label>收货人</label><input id="cfPerson" value="' + esc(Session.user.name || '') + '"></div>' +
-    '<div style="grid-column:1/-1"><label>差异 / 反馈给供应商</label><input id="cfRemark" placeholder="如：实收短缺 2 只，短装部分不再补发"></div></div>' +
+    '<div style="grid-column:1/-1"><label>差异 / 反馈给供应商</label><input id="cfRemark" placeholder="如：实收短缺 2 只，短装部分不再补发"></div>' +
+    '<div style="grid-column:1/-1"><label>收货拍照（PDF / 图片，≤' + RECV_PHOTO_MAX_MB + 'MB，供应商可见）</label><input id="cfPhoto" type="file" accept="' + RECV_PHOTO_ACCEPT + '"></div></div>' +
     '<div class="amt-hint" id="cfHint"></div>' +
     '<div class="modal-foot"><button type="button" class="btn btn-outline" onclick="closeModal()">取消</button><button class="btn btn-primary">确认到货</button></div></form>', 'wide');
   const hint = () => {
@@ -344,7 +408,7 @@ function confirmShipReceive(rec) {
   };
   $('#cfQty').addEventListener('input', hint);
   hint();
-  $('#cfF').addEventListener('submit', e => {
+  $('#cfF').addEventListener('submit', async e => {
     e.preventDefault();
     const q = +$('#cfQty').value || 0;
     const o2 = contractByNo(rec.contractNumber);
@@ -352,13 +416,16 @@ function confirmShipReceive(rec) {
     const p2 = (o2.products || []).find(p => p.name === rec.product);
     const ordered2 = p2 ? (+p2.quantity || 0) : 0;
     const already2 = receivedQty(rec.contractNumber, rec.product) - doneBefore;
+    const photoFile = $('#cfPhoto') ? $('#cfPhoto').files[0] : null;
+    if (photoFile) { const pe = _recvPhotoErr(photoFile); if (pe) { toast(pe, 'err'); return; } }
     // ① 生成收货记录（挂在发货单下，供供应商查看）
     const rc = {
       id: uid(), company: rec.company || curCo(), receiptNumber: nextNo('RCV-'),
       contractNumber: rec.contractNumber, supplier: rec.supplier, product: rec.product,
       quantity: q, receiptDate: $('#cfDate').value, person: $('#cfPerson').value.trim(),
       remark: $('#cfRemark').value.trim(), shipNumber: rec.shipNumber,
-      status: RECV_CONFIRMED, source: 'ship-confirm', createdAt: new Date().toISOString()
+      status: RECV_CONFIRMED, source: 'ship-confirm', createdAt: new Date().toISOString(),
+      rnote: null
     };
     Data.add('receipts', rc);
     // ② 回写发货记录状态与需方反馈（供应商在「发货管理 → 需方消息」查看；重置已读以便再次提示）
@@ -378,6 +445,16 @@ function confirmShipReceive(rec) {
         toast('合同数量已按实收调整为 ' + fmtNum(already2 + newDone) + '，金额已重算', 'ok');
       } else toast('已确认到货，结果已回馈供应商', 'ok');
     } else toast('已确认到货，结果已回馈供应商', 'ok');
+    // ④ 收货拍照上传云端（记录已保存，失败不影响确认，可稍后补传）
+    if (photoFile) {
+      try {
+        const path = await _uploadRecvPhoto(rc, photoFile);
+        Data.update('receipts', rc.id, { rnote: { path: path, name: photoFile.name, size: photoFile.size, uploadedAt: new Date().toISOString() } });
+        toast('收货拍照已上传云端', 'ok');
+      } catch (err) {
+        toast('收货拍照上传失败：' + (err.message || err) + '（收货记录已保存，可稍后补传）', 'err');
+      }
+    }
     renderPage();
   });
 }

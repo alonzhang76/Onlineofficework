@@ -822,6 +822,8 @@ const ReimPay = {
       company_short: m.company_short,
       updated_at: now
     };
+    // 云端 PDF 路径：仅在有值时传递，避免覆盖已有路径（驳回重提交时保留原 PDF）
+    if (p.cloud_path) fields.cloud_path = p.cloud_path;
     let iid, resubmitted = false;
     if (exist) {
       // 驳回后重新提交：保留 id / 建档时间 / 已付与付款信息 / PDF 路径，仅刷新票面字段

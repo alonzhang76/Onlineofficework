@@ -274,9 +274,9 @@ function shipDetail(rec) {
     '<div class="stat-card"><div class="l">发货数量</div><div class="v">' + fmtNum(rec.quantity) + '</div><div class="s">' + esc(rec.product) + ' · ' + esc(rec.shipDate || '') + '</div></div>' +
     '<div class="stat-card hl"><div class="l">已确认收货</div><div class="v">' + fmtNum(done) + '</div><div class="s">状态：' + dst + '</div></div>' +
     '<div class="stat-card ' + (done >= (+rec.quantity || 0) ? 'good' : 'warn') + '"><div class="l">差异</div><div class="v">' + fmtNum((+rec.quantity || 0) - done) + '</div><div class="s">发货 − 实收</div></div></div>' +
-    '<div class="tbl-wrap"><table><thead><tr><th>收货单号</th><th class="num">实收数量</th><th>收货日期</th><th>收货人</th><th>备注</th></tr></thead><tbody>' +
-    (rs.length ? rs.map(x => '<tr><td class="mono">' + esc(x.receiptNumber) + '</td><td class="num"><b>' + fmtNum(x.quantity) + '</b></td><td>' + esc(x.receiptDate || '') + '</td><td>' + esc(x.person || '') + '</td><td class="subtle">' + esc(x.remark || '') + '</td></tr>').join('')
-      : '<tr><td colspan="5" class="empty">需方尚未确认收货</td></tr>') +
+    '<div class="tbl-wrap"><table><thead><tr><th>收货单号</th><th class="num">实收数量</th><th>收货日期</th><th>收货人</th><th>备注</th><th>收货拍照</th></tr></thead><tbody>' +
+    (rs.length ? rs.map(x => '<tr><td class="mono">' + esc(x.receiptNumber) + '</td><td class="num"><b>' + fmtNum(x.quantity) + '</b></td><td>' + esc(x.receiptDate || '') + '</td><td>' + esc(x.person || '') + '</td><td class="subtle">' + esc(x.remark || '') + '</td><td>' + (x.rnote ? '<button class="link-op" onclick="viewRecvPhotoById(\'' + x.id + '\')">查看拍照</button>' : '<span class="subtle">—</span>') + '</td></tr>').join('')
+      : '<tr><td colspan="6" class="empty">需方尚未确认收货</td></tr>') +
     '</tbody></table></div>' +
     (rec.receiveRemark ? '<div class="hint" style="margin-top:10px"><b>需方反馈：</b>' + esc(rec.receiveRemark) + (rec.receivedAt ? ' · ' + esc(rec.receivedAt.slice(0, 10)) : '') + '</div>' : '') +
     (rec.remark ? '<div class="hint" style="margin-top:6px"><b>发货备注：</b>' + esc(rec.remark) + '</div>' : '') +
@@ -354,6 +354,20 @@ async function downloadShipNote(rec) {
 }
 const viewShipNoteById = id => viewShipNote(Data.list('shipments').find(x => x.id === id));
 const downloadShipNoteById = id => downloadShipNote(Data.list('shipments').find(x => x.id === id));
+/* 查看收货拍照（采购员在收货管理上传，供应商在发货明细查看） */
+async function viewRecvPhotoById(rcvId) {
+  const rc = Data.list('receipts').find(x => x.id === rcvId);
+  if (!rc || !rc.rnote) { toast('该收货记录没有拍照', 'err'); return; }
+  try {
+    if (!(await _waitStorage())) throw new Error('云端存储未就绪，请稍后重试');
+    const r = await _sbSt().from('app-photos').createSignedUrl(rc.rnote.path, 3600);
+    if (r && r.error) throw new Error(r.error.message || r.error);
+    const d = r && r.data;
+    const url = (typeof d === 'string' && d) || (d && d.signedUrl) || (d && d.url) || null;
+    if (!url) throw new Error('获取访问地址失败');
+    window.open(url, '_blank');
+  } catch (e) { toast('收货拍照打开失败：' + (e.message || e), 'err'); }
+}
 
 initPage('ship', pageShip);
 </script>

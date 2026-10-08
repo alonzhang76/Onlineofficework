@@ -138,7 +138,8 @@ async function submitToReim(v) {
     claimant: (Session.user && (Session.user.name || Session.user.username)) || '采购系统',
     project: v.contractNumber || '',
     remark: v.remark || '',
-    check_code: v.checkCode || ''
+    check_code: v.checkCode || '',
+    cloud_path: v.cloudPath || v.cloud_path || null
   };
   try {
     // 直写付款系统云端（reim_invoices 待审核 + 流转日志），任意电脑提交 / 审核均可
@@ -146,6 +147,20 @@ async function submitToReim(v) {
   } catch (e) {
     throw new Error('提交至付款系统失败：' + ((e && e.message) || e) + '（请检查网络后重试）');
   }
+}
+/* 上传发票 PDF 到云存储（与报销系统同桶同路径格式，便于报销侧查看原件）
+   路径格式：PDF/{公司简称}/{进项发票|销项发票}/{发票号}.pdf */
+async function uploadInvoicePdfToCloud(file, invData) {
+  if (!window.supabase || !window.supabase.storage) throw new Error('云存储未就绪');
+  const safe = s => String(s || '').replace(/[\\\/]+/g, '-').trim() || 'file';
+  const coShort = (State.company === '龙力' || State.company === '无锡龙力') ? '龙力'
+    : (State.company === '普利美' ? '普利美' : safe(curCoName()));
+  const folder = '进项发票';
+  const path = 'PDF/' + safe(coShort) + '/' + folder + '/' + safe(invData.invoiceNumber) + '.pdf';
+  const r = await window.supabase.storage.from('app-photos').upload(path, file,
+    { contentType: 'application/pdf', upsert: true });
+  if (r && r.error) throw new Error(r.error.message || r.error);
+  return path;
 }
 
 /* ---------- 更多菜单功能：导出EXCEL / 导入EXCEL / 清空 ----------
@@ -413,6 +428,7 @@ async function handleInvoiceFiles(files) {
     try {
       const parsed = await PisPdf.parseInvoicePdf(f);
       parsed._file = f.name;
+      parsed._fileObj = f;
       card.remove();
       parsedList.push(parsed);
     } catch (e) {
@@ -545,7 +561,7 @@ function renderInvoiceQueueItem() {
   const _iuAmt = $('#iuAmount'); if (_iuAmt) _iuAmt.addEventListener('input', updConSum);
   updConSum();
 
-  $('#iuF').addEventListener('submit', e => {
+  $('#iuF').addEventListener('submit', async e => {
     e.preventDefault();
     const no = $('#iuNo').value.trim();
     if (!no) { toast('发票号码必填', 'err'); return; }
@@ -577,6 +593,15 @@ function renderInvoiceQueueItem() {
       sourceFile: p._file || '',
       createdAt: new Date().toISOString()
     };
+    /* 上传 PDF 原件到云存储（与报销系统同路径格式，便于任意电脑查看原件） */
+    if (p._fileObj) {
+      try {
+        data.cloudPath = await uploadInvoicePdfToCloud(p._fileObj, data);
+      } catch (e) {
+        console.warn('[发票] PDF 云端上传失败（不影响入库）:', e && e.message ? e.message : e);
+        toast('PDF 原件云端上传失败，可稍后在报销系统补传', 'info');
+      }
+    }
     Data.add('invoices', data);
     /* 未匹配到供应商时，自动建档（与合同/导入的自动创建保持一致） */
     if (supVal) {
