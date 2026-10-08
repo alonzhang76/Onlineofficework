@@ -330,9 +330,9 @@ function orderForm(o, isCopy) {
     const dup = Data.all('orders').find(x => x.contractNumber === no && x.company === targetCo && (!isEdit || x.id !== o.id));
     if (dup) { toast('合同号在所选公司主体下已存在：' + no, 'err'); return; }
     if (gen && no === gen.no) DB.set(gen.key, gen.n); // 自动单号落号（手动修改过则不消耗）
-    const legacyCats = ((isEdit || isCopy) && o.products) || []; // 编辑/复制时按行序保留原产品成本类别
+    const poCat = $('#poCat') ? $('#poCat').value.trim() : ''; // 合同级成本类别，下推到每个产品行（修复：编辑时不再保留旧的产品级 category，否则改 #poCat 不生效）
     const products = $$('#modalBox .product-row').map((r, i) => ({
-      name: r.querySelector('.pr-name').value.trim(), spec: r.querySelector('.pr-spec').value.trim(), category: (legacyCats[i] && legacyCats[i].category) || ($('#poCat') ? $('#poCat').value.trim() : ''),
+      name: r.querySelector('.pr-name').value.trim(), spec: r.querySelector('.pr-spec').value.trim(), category: poCat,
       unit: r.querySelector('.pr-unit').value, unitPrice: +r.querySelector('.pr-price').value || 0,
       quantity: +r.querySelector('.pr-qty').value || 0,
       amount: ((+r.querySelector('.pr-price').value || 0) * (+r.querySelector('.pr-qty').value || 0)).toFixed(2),
