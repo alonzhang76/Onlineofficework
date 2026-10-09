@@ -18,6 +18,7 @@
 <script src="static/store.js?v=20261006c"></script>
 <script src="static/pdf-parse.js?v=20260929a"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 :root{
   --bg:#f1f5f9;--card:#ffffff;--border:#e2e8f0;--text:#0f172a;--muted:#64748b;
@@ -159,11 +160,14 @@ a.link{color:var(--primary);text-decoration:none}
 .tbl-topbar button:not(.btn){border:1px solid var(--border);background:#fff;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:12px;color:var(--text)}
 .tbl-topbar button:disabled{opacity:.4;cursor:default}
 .tbl-topbar b{color:var(--text)}
-/* 已驳回发票：灰色背景 + 删除线（按钮与徽章保持可读） */
-tr.rej-row td{background:#f1f5f9;color:#94a3b8;text-decoration:line-through}
-tr.rej-row:hover td{background:#e8edf3}
-tr.rej-row td .badge,tr.rej-row td .btn,tr.rej-row td a{ text-decoration:none }
-tr.rej-row td div{ text-decoration:line-through }
+/* 已驳回发票：灰色背景 + 整行删除直线（按钮与徽章保持可读，不被划线） */
+tr.rej-row td{background-color:#f1f5f9;color:#94a3b8;
+  background-image:linear-gradient(#94a3b8,#94a3b8)!important;
+  background-size:100% 1px!important;background-position:center!important;background-repeat:no-repeat!important}
+tr.rej-row:hover td{background-color:#e8edf3;
+  background-image:linear-gradient(#94a3b8,#94a3b8)!important;
+  background-size:100% 1px!important;background-position:center!important;background-repeat:no-repeat!important}
+tr.rej-row td .badge,tr.rej-row td .btn,tr.rej-row td a{position:relative;z-index:1}
 /* 台账醒目单元格背景：状态 / 付款 / 结算 / 收款对象 */
 td.bg-st-draft{background:#f1f5f9}
 td.bg-st-dai{background:#fef3c7}
@@ -2124,11 +2128,55 @@ function vatQuery(){
 }
 function vatClearRange(){$('#v_date_from').value='';$('#v_date_to').value='';}
 function vatExport(direction){
+  // direction 为按钮传入的「进项」/「销项」
   const invoices=window._lastVatInvoices||[];
-  const rows=invoices.filter(r=>r.direction===(direction==='in'?'进项':'销项'));
-  const cols=['invoice_date','invoice_no','invoice_type',direction==='in'?'seller_name':'buyer_name','item_name','amount','tax_rate','tax_amount','total_amount','check_code'];
-  const headers=['开票日期','发票号码','发票类型',direction==='in'?'销售方':'购买方','商品名称','金额','税率','税额','价税合计','校验码'];
-  downloadCsv(`vat-${direction}-${Date.now()}.csv`,[headers,...rows.map(r=>cols.map(c=>r[c]??''))]);
+  const dirRows=invoices.filter(r=>r.direction===direction);
+  if(!dirRows.length){toast(`该期间暂无${direction}发票`,'err');return;}
+  if(typeof XLSX==='undefined'){toast('Excel 组件未加载，请刷新后重试','err');return;}
+  const isIn=direction==='进项';
+  const otherCol=isIn?'seller_name':'buyer_name';
+  const headers=['序号','开票日期','发票号码','发票类型',isIn?'销售方':'购买方','商品名称','金额','税率','税额','价税合计','校验码'];
+  // 按公司分组（工作表名取公司全称，如「无锡龙力」「普利美」）
+  const byCo={};
+  dirRows.forEach(r=>{
+    const co=COMPANIES.find(c=>c.id===r.company_id);
+    const coName=co?(co.name||co.short_name||'未知公司'):(r.company_short||'未知公司');
+    (byCo[coName]=byCo[coName]||[]).push(r);
+  });
+  const wb=XLSX.utils.book_new();
+  Object.keys(byCo).forEach(coName=>{
+    // 按开票日期倒序
+    const list=byCo[coName].slice().sort((a,b)=>(b.invoice_date||'').localeCompare(a.invoice_date||''));
+    const aoa=[headers];
+    let totalAmount=0,totalTax=0,totalAll=0;
+    list.forEach((r,i)=>{
+      const amt=Number(r.amount)||0,tax=Number(r.tax_amount)||0,all=Number(r.total_amount)||0;
+      totalAmount+=amt;totalTax+=tax;totalAll+=all;
+      aoa.push([
+        i+1,
+        r.invoice_date||'',
+        r.invoice_no||'',
+        r.invoice_type||'',
+        r[otherCol]||'',
+        r.item_name||'',
+        amt,r.tax_rate||'',tax,all,
+        r.check_code||''
+      ]);
+    });
+    aoa.push(['合计','','','','','',totalAmount,'',totalTax,totalAll,'']);
+    const ws=XLSX.utils.aoa_to_sheet(aoa);
+    // 列宽
+    ws['!cols']=[{wch:6},{wch:12},{wch:18},{wch:12},{wch:20},{wch:24},{wch:12},{wch:8},{wch:12},{wch:14},{wch:20}];
+    // 合计行加粗（最后一行）
+    const lastRow=aoa.length;
+    const range=XLSX.utils.decode_range(ws['!ref']);
+    for(let c=range.s.c;c<=range.e.c;c++){
+      const addr=XLSX.utils.encode_cell({r:lastRow-1,c});
+      if(ws[addr])ws[addr].s={font:{bold:true}};
+    }
+    XLSX.utils.book_append_sheet(wb,ws,coName.slice(0,31));
+  });
+  XLSX.writeFile(wb,`${direction}_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 async function loadVat(){
   if(ME.role==='claimant')return;
