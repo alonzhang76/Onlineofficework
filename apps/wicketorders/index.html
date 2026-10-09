@@ -903,6 +903,36 @@
             width: 98%;
         }
 
+        /* ===== 出口/付款表单：左侧订单号窄列 + 右侧字段网格 ===== */
+        .side-modal-content {
+            max-width: 1080px;
+        }
+        .side-form-layout {
+            display: flex;
+            gap: 18px;
+            align-items: flex-start;
+        }
+        .side-form-left {
+            width: 280px;
+            flex: 0 0 280px;
+        }
+        .side-form-right {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+        @media (max-width: 900px) {
+            .side-form-layout {
+                flex-direction: column;
+            }
+            .side-form-left {
+                width: 100%;
+                flex: none;
+            }
+            .side-order-select {
+                height: 240px !important;
+            }
+        }
+
         /* ===== 订单表单：iOS 毛玻璃效果 ===== */
         .modal-overlay.glass-modal {
             background: rgba(35, 40, 58, 0.25);
@@ -3546,7 +3576,7 @@
 
     <!-- 新增出口记录模态框 -->
     <div id="exportModal" class="modal-overlay hidden">
-        <div class="modal-content">
+        <div class="modal-content side-modal-content">
             <div class="p-6">
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="text-xl font-semibold text-gray-800">新增出口记录</h3>
@@ -3555,63 +3585,67 @@
                     </button>
                 </div>
                 <form id="exportForm" onsubmit="pageController.saveExportRecord(event)">
-                    <!-- ===== 出口信息 ===== -->
-                    <div class="mb-2 text-sm font-semibold text-gray-600 border-b border-gray-200 pb-1">出口信息</div>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div class="form-group">
-                            <label class="form-label">出货日期</label>
-                            <input type="date" id="exportDate" name="exportDate" class="form-input">
+                    <div class="side-form-layout">
+                        <!-- ===== 左侧：订单号（窄列加高） ===== -->
+                        <div class="side-form-left">
+                            <div class="mb-2 text-sm font-semibold text-gray-600 border-b border-gray-200 pb-1">订单信息</div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label">订单号 <span class="text-red-500">*</span> (按Ctrl键可多选)</label>
+                                <input type="text" id="exportOrderFilter" class="form-input" placeholder="🔍 输入订单号或客户名过滤，支持逗号分隔多个关键词；按回车自动选中匹配项" style="margin-bottom: 6px;">
+                                <select id="exportOrder" name="orderNo" class="form-input side-order-select" multiple required style="height: 400px; padding: 2px;"></select>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">运编号</label>
-                            <input type="text" id="exportShipment" name="shipmentNo" class="form-input">
+                        <!-- ===== 右侧：出口/订单/报关字段 ===== -->
+                        <div class="side-form-right">
+                            <!-- 出口信息 -->
+                            <div class="mb-2 text-sm font-semibold text-gray-600 border-b border-gray-200 pb-1">出口信息</div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="form-group">
+                                    <label class="form-label">出货日期</label>
+                                    <input type="date" id="exportDate" name="exportDate" class="form-input">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">运编号</label>
+                                    <input type="text" id="exportShipment" name="shipmentNo" class="form-input">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">到港日期</label>
+                                    <input type="date" id="exportArrivalDate" name="arrivalDate" class="form-input">
+                                </div>
+                            </div>
+                            <!-- 订单与报关信息 -->
+                            <div class="mb-2 mt-4 text-sm font-semibold text-gray-600 border-b border-gray-200 pb-1">订单与报关信息</div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="form-group">
+                                    <label class="form-label">客户 <span class="text-red-500">*</span></label>
+                                    <input type="text" id="exportCustomer" name="customer" class="form-input" readonly required>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">数量</label>
+                                    <input type="number" id="exportQuantity" name="quantity" class="form-input" min="0" step="0.01" readonly>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">报关金额</label>
+                                    <input type="number" id="exportDeclarationAmount" name="declarationAmount" class="form-input" min="0" step="0.01">
+                                </div>
+                            </div>
+                            <!-- 运输信息 -->
+                            <div class="mb-2 mt-4 text-sm font-semibold text-gray-600 border-b border-gray-200 pb-1">运输信息</div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="form-group">
+                                    <label class="form-label">船名航次</label>
+                                    <input type="text" id="exportVessel" name="vesselVoyage" class="form-input">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">集装箱号封号</label>
+                                    <input type="text" id="exportContainer" name="containerSeal" class="form-input">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">提单号</label>
+                                    <input type="text" id="exportBillNo" name="billNo" class="form-input">
+                                </div>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">到港日期</label>
-                            <input type="date" id="exportArrivalDate" name="arrivalDate" class="form-input">
-                        </div>
-                    </div>
-                    <!-- ===== 订单信息 ===== -->
-                    <div class="mb-2 mt-4 text-sm font-semibold text-gray-600 border-b border-gray-200 pb-1">订单信息</div>
-                    <div class="grid grid-cols-1 gap-4">
-                        <div class="form-group">
-                            <label class="form-label">订单号 <span class="text-red-500">*</span> (按Ctrl键可多选)</label>
-                            <input type="text" id="exportOrderFilter" class="form-input" placeholder="🔍 输入订单号或客户名过滤，支持逗号分隔多个关键词；按回车自动选中匹配项" style="margin-bottom: 6px;">
-                            <select id="exportOrder" name="orderNo" class="form-input" multiple required style="height: 220px;"></select>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                        <div class="form-group">
-                            <label class="form-label">客户 <span class="text-red-500">*</span></label>
-                            <input type="text" id="exportCustomer" name="customer" class="form-input" readonly required>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">数量</label>
-                            <input type="number" id="exportQuantity" name="quantity" class="form-input" min="0" step="0.01" readonly>
-                        </div>
-                    </div>
-                    <!-- ===== 报关信息 ===== -->
-                    <div class="mb-2 mt-4 text-sm font-semibold text-gray-600 border-b border-gray-200 pb-1">报关信息</div>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div class="form-group">
-                            <label class="form-label">报关金额</label>
-                            <input type="number" id="exportDeclarationAmount" name="declarationAmount" class="form-input" min="0" step="0.01">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">船名航次</label>
-                            <input type="text" id="exportVessel" name="vesselVoyage" class="form-input">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">集装箱号封号</label>
-                            <input type="text" id="exportContainer" name="containerSeal" class="form-input">
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                        <div class="form-group">
-                            <label class="form-label">提单号</label>
-                            <input type="text" id="exportBillNo" name="billNo" class="form-input">
-                        </div>
-                        <div class="form-group hidden"></div>
                     </div>
                     <!-- ===== 备注 ===== -->
                     <div class="form-group mt-4">
@@ -3841,19 +3875,17 @@
                         }
                     </style>
                     
-                    <!-- 客户、订单号和收汇日期字段 -->
+                    <!-- 客户、订单号（筛选输入框+可选择列表）和收汇日期字段 -->
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                         <div class="form-group">
                             <label class="form-label">客户 <span class="text-red-500">*</span></label>
-                            <select id="addReceiptCustomer" name="customer" class="form-input" required onchange="updateAddOrderNoOptions()">
-                                <option value="">请选择客户</option>
-                            </select>
+                            <input type="text" id="addReceiptCustomerFilter" class="form-input" placeholder="🔍 输入客户关键词筛选，回车选中第一项，Esc清空" style="margin-bottom: 6px;">
+                            <select id="addReceiptCustomer" name="customer" class="form-input" required size="7" onchange="updateAddOrderNoOptions()" style="height: 172px; padding: 2px;"></select>
                         </div>
                         <div class="form-group">
                             <label class="form-label">订单号 <span class="text-red-500">*</span></label>
-                            <select id="addReceiptOrderNo" name="orderNo" class="form-input" required onchange="updateAddReceiptAmountTooltip()">
-                                <option value="">请选择订单号</option>
-                            </select>
+                            <input type="text" id="addReceiptOrderNoFilter" class="form-input" placeholder="🔍 输入订单号关键词筛选，回车选中第一项，Esc清空" style="margin-bottom: 6px;">
+                            <select id="addReceiptOrderNo" name="orderNo" class="form-input" required size="7" onchange="updateAddReceiptAmountTooltip()" style="height: 172px; padding: 2px;"></select>
                         </div>
                         <div class="form-group">
                             <label class="form-label">收汇日期 <span class="text-red-500">*</span></label>
@@ -4245,7 +4277,7 @@
     </div><!-- 编辑开票记录模态框 -->
     
     <div id="paymentModal" class="modal-overlay hidden">
-        <div class="modal-content">
+        <div class="modal-content side-modal-content">
             <div class="p-6">
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="text-xl font-semibold text-gray-800">新增付款记录</h3>
@@ -4254,65 +4286,73 @@
                     </button>
                 </div>
                 <form id="paymentForm" onsubmit="pageController.savePaymentRecord(event)">
-                    <!-- ===== 订单信息 ===== -->
-                    <div class="mb-2 text-sm font-semibold text-gray-600 border-b border-gray-200 pb-1">订单信息</div>
-                    <div class="grid grid-cols-1 gap-4">
-                        <div class="form-group">
-                            <label class="form-label">客户 <span class="text-red-500">*</span></label>
-                            <input type="text" id="paymentCustomer" name="customer" class="form-input" required readonly>
-                        </div>
-                        <div class="form-group relative">
-                            <label class="form-label">订单号 <span class="text-red-500">*</span> <span id="orderNoSelectTip">(按Ctrl键可多选)</span></label>
-                            <div id="orderNoInputWrapper">
-                                <input type="text" id="paymentOrderNoFilter" class="form-input mb-2" placeholder="🔍 输入订单号或客户名过滤，选中后清空可查看全部" style="margin-bottom: 6px;">
-                                <select id="paymentOrderNo" name="orderNo" class="form-input" multiple required style="height: 220px;"></select>
-                            </div>
-                            <div id="orderNoSearchWrapper" class="hidden">
-                                <input type="text" id="paymentOrderNoSearch" class="form-input" placeholder="搜索订单号，点击选择，使用逗号分隔">
-                                <div id="paymentOrderNoSuggestions" class="absolute bg-white border border-gray-300 rounded shadow-lg mt-1 z-50 hidden" style="width: 100%; max-height: 300px; overflow-y: auto;"></div>
+                    <div class="side-form-layout">
+                        <!-- ===== 左侧：订单号（窄列加高） ===== -->
+                        <div class="side-form-left">
+                            <div class="mb-2 text-sm font-semibold text-gray-600 border-b border-gray-200 pb-1">订单信息</div>
+                            <div class="form-group relative" style="margin-bottom: 0;">
+                                <label class="form-label">订单号 <span class="text-red-500">*</span> <span id="orderNoSelectTip">(按Ctrl键可多选)</span></label>
+                                <div id="orderNoInputWrapper">
+                                    <input type="text" id="paymentOrderNoFilter" class="form-input mb-2" placeholder="🔍 输入订单号或客户名过滤，选中后清空可查看全部" style="margin-bottom: 6px;">
+                                    <select id="paymentOrderNo" name="orderNo" class="form-input side-order-select" multiple required style="height: 400px; padding: 2px;"></select>
+                                </div>
+                                <div id="orderNoSearchWrapper" class="hidden">
+                                    <input type="text" id="paymentOrderNoSearch" class="form-input" placeholder="搜索订单号，点击选择，使用逗号分隔">
+                                    <div id="paymentOrderNoSuggestions" class="absolute bg-white border border-gray-300 rounded shadow-lg mt-1 z-50 hidden" style="width: 100%; max-height: 300px; overflow-y: auto;"></div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <!-- ===== 付款信息 ===== -->
-                    <div class="mb-2 mt-4 text-sm font-semibold text-gray-600 border-b border-gray-200 pb-1">付款信息</div>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div class="form-group">
-                            <label class="form-label">付款类型 <span class="text-red-500">*</span></label>
-                            <select id="paymentType" name="paymentMethod" class="form-input">
-                                <option value="预付款" selected>预付款</option>
-                                <option value="尾款">尾款</option>
-                                <option value="全款">全款</option>
-                                <option value="其他">其他</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">付款日期 <span class="text-red-500">*</span></label>
-                            <input type="date" id="paymentDate" name="paymentDate" class="form-input" required>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">付款金额 <span class="text-red-500">*</span></label>
-                            <input type="number" id="paymentAmount" name="amount" class="form-input" required min="0" step="0.01">
-                        </div>
-                    </div>
-                    <!-- ===== 收付款单位 ===== -->
-                    <div class="mb-2 mt-4 text-sm font-semibold text-gray-600 border-b border-gray-200 pb-1">收付款单位</div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="form-group">
-                            <label class="form-label">付款单位</label>
-                            <input type="text" id="paymentPayer" name="payer" class="form-input" value="无锡市天梁对外贸易有限公司">
-                        </div>
-                        <div class="form-group relative">
-                            <label class="form-label">收款单位</label>
-                            <div style="display: flex;">
-                                <select id="paymentRecipientSelect" class="form-input flex-1">
-                                    <option value="">请选择收款单位</option>
-                                    <option value="无锡龙力印铁设备制造有限公司">无锡龙力印铁设备制造有限公司</option>
-                                    <option value="普利美（常州）环境工程科技有限公司">普利美（常州）环境工程科技有限公司</option>
-                                    <option value="other">其他</option>
-                                </select>
+                        <!-- ===== 右侧：客户/付款/单位字段 ===== -->
+                        <div class="side-form-right">
+                            <!-- 客户（随订单号自动填充） -->
+                            <div class="mb-2 text-sm font-semibold text-gray-600 border-b border-gray-200 pb-1">客户</div>
+                            <div class="grid grid-cols-1 gap-4">
+                                <div class="form-group">
+                                    <input type="text" id="paymentCustomer" name="customer" class="form-input" required readonly>
+                                </div>
                             </div>
-                            <input type="text" id="paymentRecipientInput" class="form-input mt-2 hidden" placeholder="输入其他收款单位">
-                            <input type="hidden" id="paymentRecipient" name="recipient" value="">
+                            <!-- ===== 付款信息 ===== -->
+                            <div class="mb-2 mt-4 text-sm font-semibold text-gray-600 border-b border-gray-200 pb-1">付款信息</div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="form-group">
+                                    <label class="form-label">付款类型 <span class="text-red-500">*</span></label>
+                                    <select id="paymentType" name="paymentMethod" class="form-input">
+                                        <option value="预付款" selected>预付款</option>
+                                        <option value="尾款">尾款</option>
+                                        <option value="全款">全款</option>
+                                        <option value="其他">其他</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">付款日期 <span class="text-red-500">*</span></label>
+                                    <input type="date" id="paymentDate" name="paymentDate" class="form-input" required>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">付款金额 <span class="text-red-500">*</span></label>
+                                    <input type="number" id="paymentAmount" name="amount" class="form-input" required min="0" step="0.01">
+                                </div>
+                            </div>
+                            <!-- ===== 收付款单位 ===== -->
+                            <div class="mb-2 mt-4 text-sm font-semibold text-gray-600 border-b border-gray-200 pb-1">收付款单位</div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="form-group">
+                                    <label class="form-label">付款单位</label>
+                                    <input type="text" id="paymentPayer" name="payer" class="form-input" value="无锡市天梁对外贸易有限公司">
+                                </div>
+                                <div class="form-group relative">
+                                    <label class="form-label">收款单位</label>
+                                    <div style="display: flex;">
+                                        <select id="paymentRecipientSelect" class="form-input flex-1">
+                                            <option value="">请选择收款单位</option>
+                                            <option value="无锡龙力印铁设备制造有限公司">无锡龙力印铁设备制造有限公司</option>
+                                            <option value="普利美（常州）环境工程科技有限公司">普利美（常州）环境工程科技有限公司</option>
+                                            <option value="other">其他</option>
+                                        </select>
+                                    </div>
+                                    <input type="text" id="paymentRecipientInput" class="form-input mt-2 hidden" placeholder="输入其他收款单位">
+                                    <input type="hidden" id="paymentRecipient" name="recipient" value="">
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <!-- ===== 备注 ===== -->
@@ -5072,7 +5112,7 @@
     </div>
 
     <!-- JavaScript文件 -->
-    <script src="app.js?v=20261006a"></script>
+    <script src="app.js?v=20261009a"></script>
     <!-- 日历记事功能（交货日期同步） -->
     <script src="calendar-notes.js?v=20260923a"></script>
     <!-- Enhanced Payment Functionality -->
