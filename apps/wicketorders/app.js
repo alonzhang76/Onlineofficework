@@ -4992,39 +4992,76 @@ function openModal(modalId) {
                     orderQuantityByOrderNo[orderNo] += quantity;
                 });
                 
-                // 获取当前选中的付款类型
-                const paymentType = document.getElementById('paymentType').value;
-                
-                // 添加订单选项（去重）
+                // 添加订单选项（去重，过滤掉已出货状态——出口记录不能重复出货）
+                const exportAddedOrderNos = {};
                 orderRecords.forEach(record => {
                     const orderNo = record.orderNo;
-                    
-                    // 检查是否已添加过该订单号
-                    if (orderSelect.querySelector(`option[value="${orderNo}"]`)) {
-                        return;
-                    }
-                    
-                    // 只有当付款类型为"预付款"时，才过滤掉已出货状态的订单
-                    if (paymentType === '预付款') {
-                        if (record.status !== '已出货') {
-                            const option = document.createElement('option');
-                            option.value = orderNo;
-                            option.textContent = orderNo;
-                            option.dataset.customer = orderCustomerByOrderNo[orderNo] || '';
-                            option.dataset.quantity = orderQuantityByOrderNo[orderNo] || '0';
-                            orderSelect.appendChild(option);
-                        }
-                    } else {
-                        // 其他付款类型显示所有订单
-                        const option = document.createElement('option');
-                        option.value = orderNo;
-                        option.textContent = orderNo;
-                        option.dataset.customer = orderCustomerByOrderNo[orderNo] || '';
-                        option.dataset.quantity = orderQuantityByOrderNo[orderNo] || '0';
-                        orderSelect.appendChild(option);
-                    }
+                    if (exportAddedOrderNos[orderNo]) return;
+                    if (record.status === '已出货') return;
+                    exportAddedOrderNos[orderNo] = true;
+                    const option = document.createElement('option');
+                    option.value = orderNo;
+                    option.textContent = orderNo;
+                    option.dataset.customer = orderCustomerByOrderNo[orderNo] || '';
+                    option.dataset.quantity = orderQuantityByOrderNo[orderNo] || '0';
+                    orderSelect.appendChild(option);
                 });
-                
+
+                // 订单号搜索过滤：支持逗号分隔多个关键词，回车自动选中匹配项
+                const exportFilter = document.getElementById('exportOrderFilter');
+                if (exportFilter) {
+                    // 保存完整列表
+                    exportFilter._allExportOrders = Object.keys(exportAddedOrderNos).map(no => ({
+                        orderNo: no,
+                        customer: orderCustomerByOrderNo[no] || '',
+                        quantity: orderQuantityByOrderNo[no] || '0'
+                    }));
+                    exportFilter.oninput = function() {
+                        const raw = this.value.trim();
+                        if (!raw) {
+                            // 恢复全部
+                            const selectedVals = new Set(Array.from(orderSelect.selectedOptions).map(o => o.value));
+                            orderSelect.innerHTML = '';
+                            (this._allExportOrders || []).forEach(order => {
+                                const opt = document.createElement('option');
+                                opt.value = order.orderNo;
+                                opt.textContent = order.orderNo;
+                                opt.dataset.customer = order.customer;
+                                opt.dataset.quantity = order.quantity;
+                                if (selectedVals.has(order.orderNo)) opt.selected = true;
+                                orderSelect.appendChild(opt);
+                            });
+                            return;
+                        }
+                        // 按逗号分隔拆分关键词
+                        const kws = raw.split(/[,，]/).map(s => s.trim().toLowerCase()).filter(s => s);
+                        // 记录已选中
+                        const selectedVals = new Set(Array.from(orderSelect.selectedOptions).map(o => o.value));
+                        orderSelect.innerHTML = '';
+                        (this._allExportOrders || []).forEach(order => {
+                            const matchNo = kws.some(kw => String(order.orderNo || '').toLowerCase().indexOf(kw) >= 0);
+                            const matchCust = kws.some(kw => String(order.customer || '').toLowerCase().indexOf(kw) >= 0);
+                            if (matchNo || matchCust) {
+                                const opt = document.createElement('option');
+                                opt.value = order.orderNo;
+                                opt.textContent = order.orderNo;
+                                opt.dataset.customer = order.customer;
+                                opt.dataset.quantity = order.quantity;
+                                if (selectedVals.has(order.orderNo)) opt.selected = true;
+                                orderSelect.appendChild(opt);
+                            }
+                        });
+                    };
+                    // 回车自动选中所有可见选项
+                    exportFilter.onkeydown = function(e) {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            Array.from(orderSelect.options).forEach(opt => { opt.selected = true; });
+                        }
+                        if (e.key === 'Escape') { this.value = ''; this.oninput(); }
+                    };
+                }
+
                 // 3. 客户和数量根据订单号自动填充
                 orderSelect.addEventListener('change', function() {
                     const selectedOptions = Array.from(this.selectedOptions);
@@ -5097,15 +5134,12 @@ function openModal(modalId) {
                 // 清空现有选项
                 orderSelect.innerHTML = '';
                 
-                // 获取所有订单记录，去重并过滤掉已出货状态
+                // 获取所有订单记录，去重（不过滤状态，已出货订单也可登记付款）
                 const orderRecords = storage.getOrderRecords();
                 const uniqueOrders = {};
-                
+
                 orderRecords.forEach(record => {
-                    // 过滤掉已出货状态的订单
-                    if (record.status !== '已出货') {
-                        uniqueOrders[record.orderNo] = record;
-                    }
+                    uniqueOrders[record.orderNo] = record;
                 });
                 
                 // 添加订单选项
@@ -5116,7 +5150,37 @@ function openModal(modalId) {
                     option.dataset.customer = order.customer;
                     orderSelect.appendChild(option);
                 });
-                
+
+                // 订单号搜索过滤：输入文字实时过滤下拉列表，保留已选中项
+                const orderFilter = document.getElementById('paymentOrderNoFilter');
+                if (orderFilter) {
+                    // 保存完整列表供过滤使用
+                    orderFilter._allOrders = Object.values(uniqueOrders);
+                    orderFilter.oninput = function() {
+                        const kw = this.value.trim().toLowerCase();
+                        // 记录当前已选中的值
+                        const selectedVals = new Set(Array.from(orderSelect.selectedOptions).map(o => o.value));
+                        // 重建选项列表
+                        orderSelect.innerHTML = '';
+                        (this._allOrders || []).forEach(order => {
+                            const matchNo = !kw || String(order.orderNo || '').toLowerCase().indexOf(kw) >= 0;
+                            const matchCust = !kw || String(order.customer || '').toLowerCase().indexOf(kw) >= 0;
+                            if (matchNo || matchCust) {
+                                const opt = document.createElement('option');
+                                opt.value = order.orderNo;
+                                opt.textContent = order.orderNo;
+                                opt.dataset.customer = order.customer;
+                                if (selectedVals.has(order.orderNo)) opt.selected = true;
+                                orderSelect.appendChild(opt);
+                            }
+                        });
+                    };
+                    // 清空搜索框时恢复全部
+                    orderFilter.onkeydown = function(e) {
+                        if (e.key === 'Escape') { this.value = ''; this.oninput(); }
+                    };
+                }
+
                 // 3. 客户根据订单号自动填充
                 orderSelect.addEventListener('change', function() {
                     const selectedOptions = Array.from(this.selectedOptions);
