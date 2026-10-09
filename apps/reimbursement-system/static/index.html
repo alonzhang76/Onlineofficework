@@ -1014,7 +1014,7 @@ function buildNav(){
   }else if(ME.role==='approver'){
     items.push(['ledger','待我审核','待审核'],['ledger2','全部发票',null],['vat','进销项统计'],['stats','付款与统计'],['pays','付款记录']);
   }else if(ME.role==='accountant'){
-    items.push(['ledger','发票台账',null],['vat','进销项统计'],['stats','付款与统计'],['pays','付款记录']);
+    items.push(['entry','发票录入'],['ledger','发票台账',null],['vat','进销项统计'],['stats','付款与统计'],['pays','付款记录']);
   }else{
     items.push(['entry','发票录入'],['ledger','发票台账',null],['vat','进销项统计'],['stats','付款与统计'],['pays','付款记录'],['users','用户管理'],['companies','公司抬头']);
   }
@@ -1140,6 +1140,11 @@ async function saveInvoice(data){
   }
   const companies=await ReimStore.getCompanies();
   const m=ReimStore.matchCompany(companies,data.buyer_name,data.seller_name);
+  // 会计只能录入销项发票（销售方须为我方公司抬头；进项/未匹配均拒绝）
+  if(ME.role==='accountant'&&m.direction!=='销项'){
+    toast('会计只能录入销项发票，请确认「销售方」为我方公司抬头（无锡龙力 / 普利美）','err');
+    return null;
+  }
   const now=new Date().toISOString().slice(0,19).replace('T',' ');
   const inv={
     id:Date.now(),
@@ -1181,7 +1186,7 @@ async function saveInvoice(data){
 
 /* ---------- 手工录入 ---------- */
 async function manualSave(submit){
-  if(!ME||!['claimant','admin'].includes(ME.role))return toast('没有录入权限','err');
+  if(!ME||!['claimant','admin','accountant'].includes(ME.role))return toast('没有录入权限','err');
   const v=id=>$('#m_'+id).value.trim();
   if(!v('invoice_no'))return toast('发票号码必填','err');
   const s=$('#m_subject').value;
