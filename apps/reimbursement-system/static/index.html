@@ -16,6 +16,7 @@
 <script type="module" src="../../cloudbase/cloudbase.js"></script>
 <script src="store.js?v=20261006c"></script>
 <script src="pdf-parse.js?v=20260929a"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <style>
 :root{
   --bg:#f1f5f9;--card:#ffffff;--border:#e2e8f0;--text:#0f172a;--muted:#64748b;
@@ -270,6 +271,7 @@ td.bg-payee-claimant{background:#f3e8ff}
       <button class="btn btn-outline" onclick="resetFilter()">重置</button>
       <span style="flex:1"></span>
       <button class="btn btn-outline" id="btnExport" onclick="exportCsv()">⬇ 导出 Excel</button>
+      <button class="btn btn-outline" id="btnExportPdf" onclick="exportOriginalsPdf()">📄 导出原件 PDF</button>
     </div>
   </div>
 
@@ -283,6 +285,9 @@ td.bg-payee-claimant{background:#f3e8ff}
       </span>
       <span id="submitBox" style="display:none">
         <button class="btn btn-sm btn-primary" onclick="batchSubmit()">⬆ 批量提交</button>
+      </span>
+      <span id="postBox" style="display:none">
+        <button class="btn btn-sm btn-success" onclick="batchPost()">📒 批量入账</button>
       </span>
       <span id="adminBatchBox" style="display:none">
         <select id="batchStatus" style="width:120px">
@@ -382,7 +387,7 @@ td.bg-payee-claimant{background:#f3e8ff}
       <div><label>初始密码 *（至少6位）</label><input id="nu_password"></div>
       <div><label>姓名 *</label><input id="nu_display_name"></div>
       <div><label>角色 *</label><select id="nu_role">
-        <option value="claimant">报销人</option><option value="approver">审核人</option><option value="admin">管理员</option></select></div>
+        <option value="claimant">报销人</option><option value="approver">审核人</option><option value="accountant">会计</option><option value="admin">管理员</option></select></div>
       <div><label>部门</label><input id="nu_department"></div>
     </div>
     <div style="margin-top:16px"><button class="btn btn-primary" onclick="createUser()">创建用户</button></div>
@@ -569,7 +574,7 @@ td.bg-payee-claimant{background:#f3e8ff}
       <div><label>用户名（不可修改）</label><input id="eu_username" disabled style="background:#f8fafc;color:var(--muted)"></div>
       <div><label>姓名 *</label><input id="eu_display_name"></div>
       <div><label>角色 *</label><select id="eu_role">
-        <option value="claimant">报销人</option><option value="approver">审核人</option><option value="admin">管理员</option></select></div>
+        <option value="claimant">报销人</option><option value="approver">审核人</option><option value="accountant">会计</option><option value="admin">管理员</option></select></div>
       <div><label>部门</label><input id="eu_department"></div>
       <div><label>新密码（留空则不修改）</label><input id="eu_password" type="password" placeholder="至少 6 位"></div>
     </div>
@@ -655,7 +660,7 @@ const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 let SUBJECTS=[], LEDGER={page:1,size:20,total:0}, currentEdit=null, checked=new Set();
 let ME=null;  // 当前登录用户
 let canBatchReview=false;  // 审核人/管理员可勾选+批量审核
-const ROLE_NAME={admin:'管理员',approver:'审核人',claimant:'报销人'};
+const ROLE_NAME={admin:'管理员',approver:'审核人',accountant:'会计',claimant:'报销人'};
 
 function toast(msg,type='ok'){
   const d=document.createElement('div');d.className='t-'+type;d.textContent=msg;
@@ -990,6 +995,8 @@ function buildNav(){
     items.push(['entry','发票录入'],['ledger','我的发票',null],['stats','我的统计']);
   }else if(ME.role==='approver'){
     items.push(['ledger','待我审核','待审核'],['ledger2','全部发票',null],['vat','进销项统计'],['stats','付款与统计'],['pays','付款记录']);
+  }else if(ME.role==='accountant'){
+    items.push(['ledger','发票台账',null],['vat','进销项统计'],['stats','付款与统计'],['pays','付款记录']);
   }else{
     items.push(['entry','发票录入'],['ledger','发票台账',null],['vat','进销项统计'],['stats','付款与统计'],['pays','付款记录'],['users','用户管理'],['companies','公司抬头']);
   }
@@ -1014,11 +1021,16 @@ function buildNav(){
   });
   // 角色相关显隐（勾选列全员可见：用于批量审核/批量提交；按钮组按角色显示）
   canBatchReview=['approver','admin'].includes(ME.role);
-  $('#btnExport').style.display=['approver','admin'].includes(ME.role)?'':'none';
+  $('#btnExport').style.display=['approver','admin','accountant'].includes(ME.role)?'':'none';
+  const btnPdf=$('#btnExportPdf');if(btnPdf)btnPdf.style.display=['approver','admin','accountant'].includes(ME.role)?'':'none';
   $('#batchBox').style.display=canBatchReview?'':'none';
   $('#submitBox').style.display=['claimant','admin'].includes(ME.role)?'':'none';
+  $('#postBox').style.display=['admin','approver','accountant'].includes(ME.role)?'':'none';
   $('#adminBatchBox').style.display=ME.role==='admin'?'':'none';
   $('#btnCloudSync').style.display=ME.role==='admin'?'inline-flex':'none';
+  // 会计角色：隐藏统计页的「无票付款登记」按钮
+  const nipBtn=document.querySelector('button[onclick="openNoInvPay()"]');
+  if(nipBtn)nipBtn.style.display=['approver','admin'].includes(ME.role)?'':'none';
   $('#selAll').closest('th').style.display='';
   // 报销人录入页：报销人/部门锁定为自己
   if(ME.role==='claimant'){
@@ -1027,7 +1039,7 @@ function buildNav(){
   }
   // 状态筛选选项
   const stSel=$('#f_status');
-  const opts=ME.role==='claimant'?['草稿','待审核','已通过','已驳回','已入账']:['待审核','已通过','已驳回','已入账'];
+  const opts=ME.role==='claimant'?['草稿','待审核','已通过','已驳回','已入账']:(ME.role==='accountant'?['草稿','待审核','已通过','已驳回','已入账']:['待审核','已通过','已驳回','已入账']);
   stSel.innerHTML='<option value="">全部</option>'+opts.map(s=>`<option>${s}</option>`).join('');
 }
 
@@ -1354,6 +1366,27 @@ async function batchSubmit(){
   });
   await ReimStore.saveInvoices(invoices);
   toast(`已提交 ${n} 条`);checked.clear();loadLedger(LEDGER.page);
+}
+async function batchPost(){
+  if(!checked.size)return toast('请先勾选发票','err');
+  if(!['admin','approver','accountant'].includes(ME.role))return toast('无入账权限','err');
+  if(!confirm(`确认批量入账选中的 ${checked.size} 条发票？（仅「已通过」状态的发票会被入账）`))return;
+  const invoices=await ReimStore.getInvoices();
+  const logs=await ReimStore.getReviewLogs();
+  const now=new Date().toISOString().slice(0,19).replace('T',' ');
+  let n=0,skip=0;
+  invoices.forEach(r=>{
+    if(checked.has(r.id)){
+      if(r.status!=='已通过'){skip++;return;}
+      r.status='已入账';
+      r.updated_at=now;
+      logs.push({id:ReimStore.genId(),invoice_id:r.id,reviewer_id:ME.id,reviewer_name:ME.display_name,action:'入账',comment:null,created_at:now});
+      n++;
+    }
+  });
+  await ReimStore.saveInvoices(invoices);
+  await ReimStore.saveReviewLogs(logs);
+  toast(`已入账 ${n} 条`+(skip?`，跳过 ${skip} 条（非「已通过」状态）`:''));checked.clear();loadLedger(LEDGER.page);
 }
 async function del(id){
   if(!confirm('确认删除该发票记录？相关 PDF 原件将一并删除。'))return;
@@ -1691,6 +1724,7 @@ function payFillAll(){
   if(window._payTotal!=null)$('#pay_amount').value=(+window._payTotal).toFixed(2);
 }
 async function supSave(){
+  if(!CAN.pay)return toast('无收付款操作权限','err');
   const amount=+$('#sup_amount').value;
   const verb=SUP.mode==='buyer'?'收款':'付款';
   const tagN=SUP.mode==='buyer'?'客户':(SUP.mode==='claimant'?'报销人':'销售方');
@@ -2190,6 +2224,7 @@ function openPay(id,src){
   $('#payMask').classList.add('show');
 }
 async function savePay(){
+  if(!CAN.pay)return toast('无收付款操作权限','err');
   const amount=$('#pay_amount').value;
   if(amount===''||+amount<0)return toast('请填写有效的累计已付金额','err');
   const invoices=await ReimStore.getInvoices();
@@ -2253,6 +2288,7 @@ async function openNoInvPay(id){
   $('#nipMask').classList.add('show');
 }
 async function saveNoInvPay(){
+  if(!CAN.pay)return toast('无收付款操作权限','err');
   const stage=$('#nip_stage').value,amount=+$('#nip_amount').value,pdate=$('#nip_date').value;
   const method=$('#nip_method').value,seller=$('#nip_seller').value.trim();
   const project=$('#nip_project').value.trim(),invno=$('#nip_invno').value.trim();
@@ -2369,7 +2405,7 @@ function renderPays(){
         <td><span class="badge b-gray">无票付款</span></td>
         <td>${r.project?`<span class="mono">${esc(r.project)}</span>`:'<span style="color:var(--muted)">—</span>'}</td>
         <td title="${esc(r.remark||'')}">${esc(cut(r.remark||'-',14))}</td>
-        <td><button class="btn btn-sm btn-outline" onclick="openNoInvPay('${r.id}')">修改</button> ${ME.role==='admin'?`<button class="btn btn-sm btn-outline" style="color:var(--red);border-color:var(--red)" onclick="delNoInvPay('${r.id}')">删除</button>`:''}</td>
+        <td>${CAN.pay?`<button class="btn btn-sm btn-outline" onclick="openNoInvPay('${r.id}')">修改</button> `:''}${ME.role==='admin'?`<button class="btn btn-sm btn-outline" style="color:var(--red);border-color:var(--red)" onclick="delNoInvPay('${r.id}')">删除</button>`:''}</td>
       </tr>`;
     }
     const bal=(r.total_amount||0)-(r.paid_amount||0);
@@ -2387,7 +2423,7 @@ function renderPays(){
       <td><span class="badge ${r.payment_status==='已付清'?'b-pass':'b-dai'}">${r.payment_status}</span></td>
       <td>${r.project?`<span class="mono">${esc(r.project)}</span>`:'<span style="color:var(--muted)">—</span>'}</td>
       <td title="${esc(r.payment_note||'')}">${esc(cut(r.payment_note||'-',14))}</td>
-      <td>${ME.role==='admin'?`<button class="btn btn-sm btn-outline" style="color:var(--red);border-color:var(--red)" onclick="delPay(${r.id})">删除</button> `:''}<button class="btn btn-sm btn-outline" onclick="openPay(${r.id},PAYREC.rows)">修改</button></td>
+      <td>${ME.role==='admin'?`<button class="btn btn-sm btn-outline" style="color:var(--red);border-color:var(--red)" onclick="delPay(${r.id})">删除</button> `:''}${CAN.pay?`<button class="btn btn-sm btn-outline" onclick="openPay(${r.id},PAYREC.rows)">修改</button>`:''}</td>
     </tr>`;
   }).join(''):'<tr><td colspan="14" class="empty">暂无付款记录（在收票付款统计中登记付款后自动生成）</td></tr>';
 }
@@ -2423,6 +2459,60 @@ async function exportCsv(){
   const cols=['id','invoice_no','invoice_code','invoice_type','invoice_date','buyer_name','seller_name','item_name','amount','tax_rate','tax_amount','total_amount','subject_name','claimant','department','project','status','direction','settle','payee','paid_amount','payment_date','payment_method','payment_note','remark'];
   const headers=['ID','发票号码','发票代码','发票类型','开票日期','购买方','销售方','商品名称','金额','税率','税额','价税合计','科目','报销人','部门','项目','状态','方向','结算方式','收款方','已付金额','付款日期','付款方式','付款备注','备注'];
   downloadCsv(`invoices-${Date.now()}.csv`,[headers,...invoices.map(r=>cols.map(c=>r[c]??''))]);
+}
+/* ---------- 按当前筛选条件批量导出所有发票原件并合并为单个 PDF ---------- */
+async function exportOriginalsPdf(){
+  if(!window.PDFLib){return toast('PDF 合并库加载失败，请刷新页面后重试','err');}
+  let invoices=await ReimStore.getInvoices();
+  if(ME.role==='claimant')invoices=invoices.filter(r=>{
+    const nc=(r.claimant||'').replace(/\s+/g,''),nm=(ME.display_name||'').replace(/\s+/g,'');
+    return (nc&&nc===nm)||r.user_id===ME.id;
+  });
+  const v=id=>$('#'+id).value.trim();
+  const kw=v('f_keyword'),df=v('f_date_from'),dt=v('f_date_to'),
+    it=v('f_invoice_type'),sc=v('f_subject_code'),st=v('f_status');
+  invoices=invoices.filter(r=>{
+    if(kw){const t=(r.invoice_no+' '+r.seller_name+' '+r.item_name+' '+r.claimant).toLowerCase();if(t.indexOf(kw.toLowerCase())<0)return false;}
+    if(df&&r.invoice_date&&r.invoice_date<df)return false;
+    if(dt&&r.invoice_date&&r.invoice_date>dt)return false;
+    if(it&&r.invoice_type!==it)return false;
+    if(sc&&r.subject_code!==sc)return false;
+    if(st&&r.status!==st)return false;
+    return true;
+  });
+  const withPdf=invoices.filter(r=>r.cloud_path).sort((a,b)=>(a.invoice_date||'').localeCompare(b.invoice_date||''));
+  if(!withPdf.length){
+    return toast('当前筛选条件下没有可导出的发票原件（请确认发票已上传 PDF 并归档到云端）','err');
+  }
+  if(!confirm(`将导出 ${withPdf.length} 张发票原件并合并为一个 PDF，是否继续？`))return;
+  toast(`正在导出 ${withPdf.length} 张发票原件，请稍候…`,'info');
+  try{
+    const merged=await PDFLib.PDFDocument.create();
+    let ok=0,fail=0;
+    for(let i=0;i<withPdf.length;i++){
+      const r=withPdf[i];
+      try{
+        const blob=await cbDownload(r.cloud_path);
+        const bytes=new Uint8Array(await blob.arrayBuffer());
+        const src=await PDFLib.PDFDocument.load(bytes);
+        const pages=await merged.copyPages(src,src.getPageIndices());
+        pages.forEach(p=>merged.addPage(p));
+        ok++;
+        if(i%10===9||i===withPdf.length-1)toast(`已合并 ${ok}/${withPdf.length} 张…`,'info');
+      }catch(e){fail++;console.warn('导出失败:',r.invoice_no,e);}
+    }
+    const out=await merged.save();
+    const blob=new Blob([out],{type:'application/pdf'});
+    const a=document.createElement('a');
+    const range=(df||dt)?`_${df||'起始'}_${dt||'至今'}`:'';
+    a.href=URL.createObjectURL(blob);
+    a.download=`发票原件${range}_${Date.now()}.pdf`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast(`导出完成：成功 ${ok} 张${fail?`，失败 ${fail} 张`:''}`,'ok');
+  }catch(e){
+    toast('导出失败：'+e.message,'err');
+  }
 }
 async function exportPaysCsv(){
   const [invoices,noinvPays]=await Promise.all([ReimStore.getInvoices(),ReimStore.getPayments()]);

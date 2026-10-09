@@ -2,9 +2,10 @@
 """发票与付款系统 - 后端 (Flask + SQLite, 多角色登录 + 审核流)
 
 角色：
-  admin     管理员  —— 用户管理、全部发票、批量状态、入账、导出
-  approver  审核人  —— 查看待审核发票，通过/驳回（附审核意见），导出
-  claimant  报销人  —— 录入/上传本人发票（草稿→提交），只看本人记录，可撤回
+  admin       管理员  —— 用户管理、全部发票、批量状态、入账、导出
+  approver    审核人  —— 查看待审核发票，通过/驳回（附审核意见），导出
+  accountant  会计    —— 查看台账/进销项/付款统计/付款记录，导出（含原件 PDF），不可录入/审核/收付款
+  claimant    报销人  —— 录入/上传本人发票（草稿→提交），只看本人记录，可撤回
 
 发票状态流：草稿 → 待审核 → 已通过 → 已入账
                      └→ 已驳回 →(修改后重新提交)→ 待审核
@@ -35,7 +36,7 @@ UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 DB_PATH = os.path.join(BASE_DIR, "reimbursement.db")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-ROLES = {"admin": "管理员", "approver": "审核人", "claimant": "报销人"}
+ROLES = {"admin": "管理员", "approver": "审核人", "accountant": "会计", "claimant": "报销人"}
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
@@ -1381,7 +1382,7 @@ _PAY_COLS = ("id, invoice_no, invoice_type, invoice_date, seller_name, claimant,
 
 
 @app.get("/api/payments")
-@login_required("approver", "admin")
+@login_required("approver", "admin", "accountant")
 def payments_list():
     cond, params = _payment_where(request.args)
     conn = db()
@@ -1403,7 +1404,7 @@ def payments_list():
 
 
 @app.get("/api/payments-export")
-@login_required("approver", "admin")
+@login_required("approver", "admin", "accountant")
 def payments_export():
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment
@@ -1458,7 +1459,7 @@ _DEDUCTIBLE = "invoice_type LIKE '%专用%'"
 
 
 @app.get("/api/vat-stats")
-@login_required("approver", "admin")
+@login_required("approver", "admin", "accountant")
 def vat_stats():
     year = (request.args.get("year") or "").strip()
     month = (request.args.get("month") or "").strip()
@@ -1549,7 +1550,7 @@ def vat_stats():
 
 # ---------------- 进销项发票明细导出（按日期区间） ----------------
 @app.get("/api/vat-export")
-@login_required("approver", "admin")
+@login_required("approver", "admin", "accountant")
 def vat_export():
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment
@@ -1737,7 +1738,7 @@ def stats():
 
 # ---------------- 导出 Excel（审核人/管理员） ----------------
 @app.get("/api/export")
-@login_required("approver", "admin")
+@login_required("approver", "admin", "accountant")
 def export():
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment
