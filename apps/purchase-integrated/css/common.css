@@ -259,6 +259,8 @@ tbody tr:hover{background:#f8faff}
 /* 供应商角色：隐藏页首冻结工具条（cloudbase-admin.js 注入）的备份/恢复入口。
    供应商既不能导出全量数据，也不能用本机 JSON 覆盖云端；按钮渲染时机晚于本 CSS，故用 !important 兜底。 */
 html.pis-supplier #cbBtnBackup,html.pis-supplier #cbBtnRestore{display:none!important}
+/* 「从电脑恢复」仅管理员与 alonzhang 可用：其余账号隐藏该按钮（按钮由 cloudbase-admin.js 注入） */
+html:not(.pis-can-restore) #cbBtnRestore{display:none!important}
 /* 更多下拉菜单 */
 .more-wrap{position:relative}
 .more-menu{position:absolute;right:0;top:calc(100% + 6px);background:#fff;border:1px solid var(--border);border-radius:10px;

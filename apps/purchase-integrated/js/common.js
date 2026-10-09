@@ -336,6 +336,11 @@ const Session = {
   role() { return (DB.get('roles', []).find(r => r.key === (this.user && this.user.role)) || {}); },
   isSupplier() { const r = this.role(); return !!(r && r.supplierRole); },
   isAdmin() { return this.user && this.user.role === 'admin'; },
+  /* 仅管理员与指定账号 alonzhang 可执行「从电脑恢复」，避免他人误覆盖数据 */
+  canRestore() {
+    const u = this.user;
+    return !!u && (this.isAdmin() || !!(u.username && String(u.username).toLowerCase() === 'alonzhang'));
+  },
   /* permOf：归一化为三态。兼容旧布尔权限（true→rw，false/undefined→none） */
   permOf(page) {
     if (!this.user) return 'none';
@@ -1227,6 +1232,8 @@ function renderFrame() {
      （供应商不得导出全量数据，更不能用本机 JSON 覆盖云端）。
      按钮由多应用共用的 cloudbase-admin.js 注入，故用角色 class 控制，不改共享件。 */
   document.documentElement.classList.toggle('pis-supplier', Session.isSupplier());
+  /* 「从电脑恢复」仅管理员与 alonzhang 可用：其余账号隐藏该按钮 */
+  document.documentElement.classList.toggle('pis-can-restore', Session.canRestore());
   const deps = {};
   const origGet = DB.get;
   DB.get = function (k, d) {
@@ -1427,7 +1434,7 @@ window.backupData = function () {
 /* 顶部冻结工具条「📤 从电脑恢复」入口：选择 JSON → 覆盖本机 → 启动导入保护（防云端旧数据回灌）→ 刷新。
    恢复写入会经 cloudbase-sync 拦截器自动上传，保护期只屏蔽"云端→本地"拉取。 */
 window.restoreData = function () {
-  if (Session.isSupplier()) { toast('供应商账号无权恢复数据', 'err'); return; }
+  if (!Session.canRestore()) { toast('仅管理员和 alonzhang 可恢复数据', 'err'); return; }
   const input = document.createElement('input');
   input.type = 'file'; input.accept = '.json,application/json';
   input.onchange = e => {

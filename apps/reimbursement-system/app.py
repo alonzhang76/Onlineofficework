@@ -1141,9 +1141,9 @@ def review_invoice(iid):
 
 
 @app.post("/api/invoices/<int:iid>/post")
-@login_required("admin")
+@login_required("admin", "accountant")
 def post_invoice(iid):
-    """管理员入账：已通过 → 已入账"""
+    """入账（管理员 / 会计）：已通过 → 已入账"""
     u = current_user()
     conn = db()
     r = get_invoice(conn, iid)

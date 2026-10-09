@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>系统管理 · 采购一体化系统</title>
-<link rel="stylesheet" href="css/common.css?v=20261005b">
+<link rel="stylesheet" href="css/common.css?v=20261009a">
 </head>
 <body>
 <header>
@@ -37,7 +37,7 @@ window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
 </script>
 <script src="../cloudbase-sync.js?v=20260924f"></script>
 <script src="../cloudbase-admin.js?v=20260930a"></script>
-<script src="js/common.js?v=20261005d"></script>
+<script src="js/common.js?v=20261009a"></script>
 <script src="js/auth-guard.js"></script>
 <script>
 'use strict';
@@ -210,6 +210,7 @@ function adminData() {
     '<button class="btn btn-danger" id="dClear">清空本地业务数据</button><span class="hint" style="display:inline-block;margin-left:10px">仅保留用户 / 角色 / 公司 / 供应商结构，业务单据全部清空，请先备份！</span>';
   $('#dExport').addEventListener('click', () => window.backupData());
   $('#dImport').addEventListener('change', e => {
+    if (!Session.canRestore()) { toast('仅管理员和 alonzhang 可恢复数据', 'err'); e.target.value=''; return; }
     const f = e.target.files[0]; if (!f) return;
     const rd = new FileReader();
     rd.onload = () => {

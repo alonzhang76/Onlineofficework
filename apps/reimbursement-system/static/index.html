@@ -175,6 +175,8 @@ td.bg-pay-paid{background:#d1fae5}
 td.bg-pay-none{background:#e2e8f0}
 td.bg-settle-book{background:#e2e8f0}
 td.bg-payee-claimant{background:#f3e8ff}
+/* 非管理员（alonzhang）加载工具条时隐藏「清空云端」按钮，避免误删云端数据 */
+html.reim-non-admin #cbBtnClear{display:none!important}
 </style>
 </head>
 <body>
@@ -661,6 +663,10 @@ let SUBJECTS=[], LEDGER={page:1,size:20,total:0}, currentEdit=null, checked=new 
 let ME=null;  // 当前登录用户
 let canBatchReview=false;  // 审核人/管理员可勾选+批量审核
 const ROLE_NAME={admin:'管理员',approver:'审核人',accountant:'会计',claimant:'报销人'};
+/* 「从电脑恢复」仅管理员与指定账号 alonzhang 可用，避免他人误覆盖数据 */
+function canRestore(){
+  return !!ME&&(ME.role==='admin'||!!(ME.username&&String(ME.username).toLowerCase()==='alonzhang'));
+}
 
 function toast(msg,type='ok'){
   const d=document.createElement('div');d.className='t-'+type;d.textContent=msg;
@@ -793,7 +799,7 @@ async function backfillCloud(){
 
 /* ---------- 备份到电脑 / 从电脑恢复（供标准工具条转发调用） ----------
  * 页首工具条（../cloudbase-admin.js）的「备份到电脑」→ window.backupData，
- * 「从电脑恢复」→ 自动点击 #restoreInput（下方 onchange 处理）。 */
+ * 「从电脑恢复」→ window.restoreData（权限校验后点击 #restoreInput）。 */
 window.backupData=async function(){
   if(!ME||ME.role!=='admin')return toast('仅管理员可操作','err');
   toast('正在导出数据…','info');
@@ -814,7 +820,13 @@ window.backupData=async function(){
     toast('💾 已备份到电脑');
   }catch(e){toast('备份失败：'+e.message,'err');}
 };
+/* 「从电脑恢复」入口：仅管理员与 alonzhang 可用 → 触发隐藏的 #restoreInput 文件选择。 */
+window.restoreData=function(){
+  if(!canRestore())return toast('仅管理员和 alonzhang 可恢复数据','err');
+  $('#restoreInput').click();
+};
 $('#restoreInput').onchange=async function(){
+  if(!canRestore())return toast('仅管理员和 alonzhang 可恢复数据','err');
   const f=this.files[0];this.value='';
   if(!f)return;
   try{
@@ -979,13 +991,15 @@ function boot(user){
   }
   fillSizeSel($('#pgSize'),LEDGER.size);   // 台账每页条数（20~1000）
   const first=$('#mainNav button');if(first)first.click();
-  // 管理员：动态加载标准云端工具条（保存/云端下载/备份到电脑/从电脑恢复/清空云端），
-  // 与其它应用（wage/orderschedule 等）布局功能一致；报销人/审核人不加载。
+  // 管理员 / alonzhang：动态加载标准云端工具条（保存/云端下载/备份到电脑/从电脑恢复/清空云端），
+  // 与其它应用（wage/orderschedule 等）布局功能一致；其余角色不加载。
   // 路径相对本 HTML 所在目录解析（apps/reimbursement-system/ 及其 static/ 副本深度不同）
-  if(user.role==='admin'&&!window.CloudAdmin){
+  if((user.role==='admin'||(user.username||'').toLowerCase()==='alonzhang')&&!window.CloudAdmin){
     const s=document.createElement('script');
     s.src=new URL('../cloudbase-admin.js?v=20260928a',location.href).href;
     document.head.appendChild(s);
+    // 非管理员（alonzhang）隐藏「清空云端」按钮，仅保留备份/恢复等安全操作
+    if(user.role!=='admin')document.documentElement.classList.add('reim-non-admin');
   }
 }
 
@@ -1025,7 +1039,7 @@ function buildNav(){
   const btnPdf=$('#btnExportPdf');if(btnPdf)btnPdf.style.display=['approver','admin','accountant'].includes(ME.role)?'':'none';
   $('#batchBox').style.display=canBatchReview?'':'none';
   $('#submitBox').style.display=['claimant','admin'].includes(ME.role)?'':'none';
-  $('#postBox').style.display=['admin','approver','accountant'].includes(ME.role)?'':'none';
+  $('#postBox').style.display=['admin','accountant'].includes(ME.role)?'':'none';
   $('#adminBatchBox').style.display=ME.role==='admin'?'':'none';
   $('#btnCloudSync').style.display=ME.role==='admin'?'inline-flex':'none';
   // 会计角色：隐藏统计页的「无票付款登记」按钮
@@ -1037,10 +1051,11 @@ function buildNav(){
     $('#m_claimant').value=ME.display_name;$('#m_claimant').disabled=true;
     $('#m_department').value=ME.department||'';$('#m_department').disabled=true;
   }
-  // 状态筛选选项
+  // 状态筛选选项：入账状态按「已通过（未入账）/ 已通过（已入账）」区分，筛选值仍用原状态码
   const stSel=$('#f_status');
+  const stLabel={'已通过':'已通过（未入账）','已入账':'已通过（已入账）'};
   const opts=ME.role==='claimant'?['草稿','待审核','已通过','已驳回','已入账']:(ME.role==='accountant'?['草稿','待审核','已通过','已驳回','已入账']:['待审核','已通过','已驳回','已入账']);
-  stSel.innerHTML='<option value="">全部</option>'+opts.map(s=>`<option>${s}</option>`).join('');
+  stSel.innerHTML='<option value="">全部</option>'+opts.map(s=>`<option value="${s}">${stLabel[s]||s}</option>`).join('');
 }
 
 /* ---------- 科目分类（前端版，翻译自 classifier.py） ---------- */
@@ -1208,7 +1223,7 @@ function filterQS(){
 const CAN={get edit(){return ME&&['claimant','admin'].includes(ME.role)},
            get del(){return ME&&['claimant','admin'].includes(ME.role)},
            get review(){return ME&&['approver','admin'].includes(ME.role)},
-           get post(){return ME&&ME.role==='admin'},
+           get post(){return ME&&['admin','accountant'].includes(ME.role)},
            get pay(){return ME&&['approver','admin'].includes(ME.role)},
            get submitWf(){return ME&&['claimant','admin'].includes(ME.role)}};
 
@@ -1369,7 +1384,7 @@ async function batchSubmit(){
 }
 async function batchPost(){
   if(!checked.size)return toast('请先勾选发票','err');
-  if(!['admin','approver','accountant'].includes(ME.role))return toast('无入账权限','err');
+  if(!['admin','accountant'].includes(ME.role))return toast('无入账权限','err');
   if(!confirm(`确认批量入账选中的 ${checked.size} 条发票？（仅「已通过」状态的发票会被入账）`))return;
   const invoices=await ReimStore.getInvoices();
   const logs=await ReimStore.getReviewLogs();
@@ -1411,7 +1426,7 @@ async function wf(id,action){
   const now=new Date().toISOString().slice(0,19).replace('T',' ');
   if(action==='submit'&&(r.status==='草稿'||r.status==='已驳回'))r.status='待审核';
   else if(action==='withdraw'&&r.status==='待审核')r.status='草稿';
-  else if(action==='post'&&r.status==='已通过'&&ME.role==='admin')r.status='已入账';
+  else if(action==='post'&&r.status==='已通过'&&['admin','accountant'].includes(ME.role))r.status='已入账';
   else return toast('当前状态不允许此操作','err');
   r.updated_at=now;
   const logs=await ReimStore.getReviewLogs();
