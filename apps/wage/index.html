@@ -711,6 +711,7 @@ table.batch-table .batch-proc { width: 100%; }
             <div class="form-group" style="flex-direction:row;gap:8px;">
               <button class="btn btn-primary" onclick="saveMonthlySnapshot()">保存</button>
               <button class="btn btn-success" onclick="exportMonthlySummary()">导出Excel</button>
+              <button class="btn btn-primary" style="background:#0d9488;" onclick="syncToSalaryManage()" title="推送到工资管理系统（salary-manage），在其「工资表填写」点「从wage同步」拉取">同步到工资管理</button>
             </div>
           </div>
         </div>
@@ -1159,7 +1160,7 @@ const DB = {
   dropdownOptions: {
     performance: [150, 300, 500],
     housing: [200],
-    socialInsurance: [519.96, 735, 840],
+    socialInsurance: [519.96, 527.63, 735, 840],
     housingFund: [500]
   },
   currentPage: 1,
@@ -1202,6 +1203,16 @@ const DB = {
       if (savedTypes) this.calendarEventTypes = JSON.parse(savedTypes);
       const savedOpts = localStorage.getItem(STORE_KEYS.dropdownOptions);
       if (savedOpts) { const parsed = JSON.parse(savedOpts); Object.keys(parsed).forEach(k => { this.dropdownOptions[k] = parsed[k]; }); }
+    }
+    // 2026-10 社保基数调整为 5025.00：一次性把新扣款额 527.63 补进已保存的选项。
+    // 云端/本地已存的 dropdownOptions 会整体覆盖代码默认值，故需补偿合并；
+    // _si5025 标记随选项一起持久化，保证用户此后在「管理」中删除该选项后不会被自动加回
+    if (!this.dropdownOptions._si5025) {
+      if (!Array.isArray(this.dropdownOptions.socialInsurance)) this.dropdownOptions.socialInsurance = [];
+      if (this.dropdownOptions.socialInsurance.indexOf(527.63) === -1) this.dropdownOptions.socialInsurance.push(527.63);
+      this.dropdownOptions.socialInsurance.sort((a, b) => a - b);
+      this.dropdownOptions._si5025 = true;
+      this.save('dropdownOptions');
     }
     // 清洗订单日期字段：把已存入云端/本地的占位符垃圾值（如 "-"、"/"、"无"）清空，
     // 否则这些订单会被误判为已出货/包装结束，从下拉提示中全部消失，状态列也会显示错误
@@ -2067,6 +2078,8 @@ function renderMonthlySummary() {
     opts.forEach(v => {
       html += `<option value="${v}" ${v == val ? 'selected' : ''}>${v.toFixed(2)}</option>`;
     });
+    // 自定义入口：政策变动时可人工输入任意金额，确认后自动加入下拉选项
+    html += `<option value="__custom__" style="color:var(--primary);font-weight:600;">自定义…</option>`;
     html += '</select>';
     return html;
   }
@@ -2172,6 +2185,24 @@ function saveAdjInline(input) {
   const month = document.getElementById('monthlyMonth').value;
   const emp = input.dataset.emp;
   const field = input.dataset.field;
+  // 自定义金额：人工输入任意数值，确认后自动加入该列下拉选项（可在「管理」中修改/删除）
+  if (input.value === '__custom__') {
+    const raw = prompt('请输入自定义金额（元），确认后将加入下拉选项：');
+    const num = parseFloat(raw);
+    if (raw === null || isNaN(num)) { renderMonthlySummary(); return; }
+    if (!DB.dropdownOptions[field]) DB.dropdownOptions[field] = [];
+    if (!DB.dropdownOptions[field].includes(num)) {
+      DB.dropdownOptions[field].push(num);
+      DB.dropdownOptions[field].sort((a, b) => a - b);
+      DB.save('dropdownOptions');
+      UI.toast('自定义金额已加入下拉选项');
+    }
+    const adjCustom = DB.getOrCreateAdjustment(emp, year, month);
+    adjCustom[field] = num;
+    DB.save('adjustments');
+    renderMonthlySummary();
+    return;
+  }
   const val = parseFloat(input.value) || 0;
   const adj = DB.getOrCreateAdjustment(emp, year, month);
   adj[field] = val;
@@ -2194,6 +2225,7 @@ function showDropdownManager(field) {
       <div id="ddOptList" style="margin-bottom:12px;">
         ${opts.map((v, i) => `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
           <input type="text" inputmode="decimal" value="${v}" style="width:120px;padding:4px 8px;border:1px solid #ddd;border-radius:6px;" data-idx="${i}">
+          <button class="btn btn-sm" onclick="applyDropdownOpt('${field}', ${i})" style="padding:4px 10px;">修改</button>
           <button class="btn btn-sm btn-danger" onclick="removeDropdownOpt('${field}', ${i})" style="padding:4px 10px;">删除</button>
         </div>`).join('')}
       </div>
@@ -2222,6 +2254,20 @@ function addDropdownOpt(field) {
   UI.toast('选项已添加');
 }
 
+function applyDropdownOpt(field, idx) {
+  const input = document.querySelector(`#ddOptList input[data-idx="${idx}"]`);
+  const val = parseFloat(input.value);
+  if (isNaN(val)) { UI.toast('请输入有效数字', 'error'); return; }
+  const arr = DB.dropdownOptions[field];
+  if (arr.some((v, i) => i !== idx && v === val)) { UI.toast('该选项已存在', 'error'); return; }
+  arr[idx] = val;
+  arr.sort((a, b) => a - b);
+  DB.save('dropdownOptions');
+  showDropdownManager(field);
+  renderMonthlySummary();
+  UI.toast('选项已修改');
+}
+
 function removeDropdownOpt(field, idx) {
   DB.dropdownOptions[field].splice(idx, 1);
   DB.save('dropdownOptions');
@@ -2245,6 +2291,68 @@ function exportMonthlySummary() {
   XLSX.utils.book_append_sheet(wb, ws, `${month}月工资汇总`);
   XLSX.writeFile(wb, `月度工资汇总_${year}年${month}月.xlsx`);
   UI.toast('已导出月度汇总');
+}
+
+// ===================== 同步到工资管理系统（salary-manage） =====================
+// 单向推送：把当前月度汇总写入共享云端表 wage_salary_sync，
+// salary-manage 端在「工资表填写」点「从wage同步」拉取后人工确认入库
+async function syncToSalaryManage() {
+  const year = document.getElementById('monthlyYear').value;
+  const month = parseInt(document.getElementById('monthlyMonth').value);
+  const data = DB.getMonthlySummary(year, month);
+  if (!data || data.length === 0) { UI.toast('当前月份无汇总数据，无法同步', 'error'); return; }
+
+  // 不含其它补贴：该字段在工资管理系统中独立填写，不参与两系统同步
+  const rows = data.map(r => ({
+    name: r.name,
+    attendDays: r.attendDays,
+    baseWage: r.baseWage,
+    performance: r.performance,
+    housing: r.housing,
+    yearEndBonus: r.yearEndBonus,
+    socialInsurance: r.socialInsurance,
+    housingFund: r.housingFund,
+    loanDeduction: r.loanDeduction,
+    tax: r.tax,
+    total: r.total
+  }));
+  // 附带汇总中出现的员工资料（从员工管理读取），供 salary-manage 一键复制添加缺失员工；
+  // 不含其它补贴同理，员工资料仅作为复制源，不会反向修改 wage 侧数据
+  const summaryNames = {};
+  rows.forEach(r => { summaryNames[String(r.name || '').trim()] = true; });
+  const emps = (DB.employees || [])
+    .filter(e => e && e.name && summaryNames[String(e.name).trim()])
+    .map(e => ({
+      name: e.name, idCard: e.idCard || '', phone: e.phone || '',
+      bank: e.bank || '', bankCard: e.bankCard || '',
+      hireDate: e.hireDate || '', leaveDate: e.leaveDate || '',
+      status: e.status || '1', notes: e.notes || ''
+    }));
+  const payload = { app: 'wage', type: 'monthlySummary', year: parseInt(year), month: month, exportDate: new Date().toISOString(), rows: rows, emps: emps };
+
+  // 等待云端兼容层就绪（最多 15 秒）
+  let sb = null;
+  for (let i = 0; i < 75; i++) {
+    if (window.supabase && window.supabase.auth) { sb = window.supabase; break; }
+    await new Promise(res => setTimeout(res, 200));
+  }
+  if (!sb) { UI.toast('云端未就绪，请稍后重试', 'error'); return; }
+
+  try {
+    let user = null;
+    try { const ud = await sb.auth.getUser(); user = ud && ud.data ? ud.data.user : null; } catch (e) {}
+    const { error } = await sb.from('app_data_store').upsert({
+      store_key: 'wage_salary_sync',
+      payload: payload,
+      updated_at: new Date().toISOString(),
+      user_id: user ? user.id : null
+    }, { onConflict: 'store_key' });
+    if (error) throw error;
+    UI.toast(`已推送 ${year}年${month}月汇总（${rows.length} 人）到工资管理系统`);
+  } catch (e) {
+    console.error('同步到工资管理系统失败:', e);
+    UI.toast('推送失败：' + (e.message || e), 'error');
+  }
 }
 
 // ===================== ANNUAL SUMMARY =====================

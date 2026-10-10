@@ -22,7 +22,7 @@
   'use strict';
 
   // ===== 版本守卫：防止旧版 cloudbase-sync.js 在新版之后重新初始化 =====
-  var SYNC_VERSION = '20260924f';
+  var SYNC_VERSION = '20261010a';
   if (window.__CLOUDBASE_SYNC_VERSION__) {
     console.warn('[CloudbaseSync] 检测到已加载版本 ' + window.__CLOUDBASE_SYNC_VERSION__ +
       '，当前版本 ' + SYNC_VERSION + ' 跳过初始化');
@@ -314,7 +314,24 @@
   })();
   function toLocalKey(key) { return LOCAL_KEY_REMAP[key] || key; }
 
+  // 应用自定义"永不同步"键（如端侧加密应用的明文数据键）：
+  // window.CLOUDBASE_EXCLUDE_KEYS = ['exactKey', 'prefix*']（'*' 结尾表示前缀匹配）
+  var EXCLUDE_KEYS = window.CLOUDBASE_EXCLUDE_KEYS || [];
+  function isExcludedKey(key) {
+    for (var i = 0; i < EXCLUDE_KEYS.length; i++) {
+      var pat = EXCLUDE_KEYS[i];
+      if (!pat) continue;
+      if (pat.charAt(pat.length - 1) === '*') {
+        if (key.indexOf(pat.slice(0, -1)) === 0) return true;
+      } else if (key === pat) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   function shouldSkip(key) {
+    if (isExcludedKey(key)) return true;
     for (var i = 0; i < SKIP_KEYS.length; i++) {
       if (key.indexOf(SKIP_KEYS[i]) >= 0) return true;
     }

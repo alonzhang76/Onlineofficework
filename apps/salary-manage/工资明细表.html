@@ -1,0 +1,1668 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- ===== 入口登录门（与主页面共享 isLoggedIn，主页面已登录时自动放行）===== -->
+    <script>
+    (function () {
+      if (localStorage.getItem('isLoggedIn') === 'true') return;
+      var css =
+        '#salaryGate{position:fixed;inset:0;z-index:99999;background:rgba(245,247,250,.98);' +
+        'display:flex;align-items:center;justify-content:center;font-family:-apple-system,"Segoe UI",sans-serif;}' +
+        '.sg-box{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:28px 30px;' +
+        'width:320px;box-shadow:0 10px 36px rgba(15,23,42,.12);}' +
+        '.sg-logo{font-size:26px;text-align:center;margin-bottom:4px;}' +
+        '.sg-title{text-align:center;font-size:17px;font-weight:700;color:#0f172a;margin-bottom:16px;}' +
+        '.sg-field{margin-bottom:13px;}' +
+        '.sg-field label{display:block;font-size:12px;color:#475569;margin-bottom:5px;font-weight:600;}' +
+        '.sg-field input{width:100%;box-sizing:border-box;padding:8px 10px;font-size:13px;' +
+        'border:1px solid #cbd5e1;border-radius:7px;outline:none;}' +
+        '.sg-field input:focus{border-color:#1a56db;box-shadow:0 0 0 3px rgba(26,86,219,.12);}' +
+        '.sg-btn{width:100%;padding:9px 0;background:#1a56db;color:#fff;border:none;border-radius:7px;' +
+        'font-size:14px;font-weight:600;cursor:pointer;margin-top:4px;}' +
+        '.sg-btn:hover{background:#174cc4;}' +
+        '.sg-err{color:#dc2626;font-size:12px;min-height:16px;margin-top:8px;text-align:center;}';
+      var st = document.createElement('style');
+      st.textContent = css;
+      document.head.appendChild(st);
+
+      var gate = document.createElement('div');
+      gate.id = 'salaryGate';
+      gate.innerHTML =
+        '<div class="sg-box">' +
+          '<div class="sg-logo">🧮</div>' +
+          '<div class="sg-title">工资明细表 · 登录</div>' +
+          '<div class="sg-field"><label>用户名</label><input id="sgUser"></div>' +
+          '<div class="sg-field"><label>密码</label><input id="sgPass" type="password"></div>' +
+          '<button class="sg-btn" id="sgLoginBtn">登 录</button>' +
+          '<div class="sg-err" id="sgErr"></div>' +
+        '</div>';
+
+      function tryLogin() {
+        var u = document.getElementById('sgUser').value.trim();
+        var p = document.getElementById('sgPass').value;
+        if (u === 'anny' && p === '060928') {
+          localStorage.setItem('isLoggedIn', 'true');
+          location.reload();   // 重新进入：门自动放行，页面按 ?year&month&company 正常渲染
+        } else {
+          document.getElementById('sgErr').textContent = '用户名或密码错误';
+        }
+      }
+
+      function showGate() {
+        document.documentElement.appendChild(gate);
+        document.getElementById('sgLoginBtn').addEventListener('click', tryLogin);
+        document.getElementById('sgPass').addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') tryLogin();
+        });
+      }
+      if (document.body) showGate();
+      else document.addEventListener('DOMContentLoaded', showGate);
+    })();
+    </script>
+    <title>工资明细表</title>
+    <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        /* 全局样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        /* 防止表格内容溢出 */
+        .table-container {
+            overflow-x: auto;
+            max-width: 100%;
+        }
+        
+        /* 下载按钮样式 */
+        .download-button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-bottom: 20px;
+            transition: background-color 0.3s;
+        }
+        
+        .download-button:hover {
+            background-color: #45a049;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #000;
+        }
+        
+        /* 横向A4页面设置 */
+        .a4-landscape {
+            width: 297mm;
+            height: 210mm;
+            margin: 0 auto;
+            padding: 1cm;
+            border: 1px solid #ddd;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            background: white;
+        }
+        
+        /* 打印设置 */
+        @media print {
+            /* 基础设置 */
+            html, body {
+                background: none;
+                margin: 0;
+                padding: 0;
+                overflow: visible;
+                height: 100%;
+                width: 100%;
+            }
+            
+            /* 隐藏打印时不需要的文本 */
+            .print-hidden-text {
+                display: none !important;
+            }
+            
+            /* A4横向设置 */
+            .a4-landscape {
+                width: 100%; /* 使用100%宽度确保适应打印区域 */
+                max-width: 297mm; /* A4横向宽度 */
+                height: auto;
+                padding: 0;
+                border: none;
+                box-shadow: none;
+                margin: 0;
+                page-break-inside: avoid;
+                display: block;
+            }
+            
+            /* 隐藏导出按钮 */
+            .no-print {
+                display: none !important;
+            }
+            
+            /* 强制横向打印 */
+            @page {
+                size: landscape A4;
+                margin: 5mm;
+                padding: 0;
+            }
+            
+            /* 表格容器设置为可见，移除滚动 */
+            .table-container {
+                overflow: visible !important;
+                max-width: 100% !important;
+                width: 100% !important;
+                display: block;
+                margin: 0;
+                padding: 0;
+            }
+            
+            /* 表格设置 - 左右拉伸对齐 */
+            table {
+                transform: none !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                border-collapse: collapse !important;
+                margin: 0 !important;
+                page-break-inside: avoid;
+                table-layout: fixed !important;
+            }
+            
+            /* 单元格设置 */
+            table th, table td {
+                font-size: 8px !important;
+                padding: 2px 3px !important;
+                white-space: nowrap !important;
+                overflow: visible !important;
+            }
+            
+            /* 调整表格列宽，确保适应页面 */
+            table th:nth-child(1), table td:nth-child(1) { width: 3%; }
+            table th:nth-child(2), table td:nth-child(2) { width: 8%; }
+            table th:nth-child(3), table td:nth-child(3) { width: 10%; } /* 增加卡号列宽度 */
+            table th:nth-child(4), table td:nth-child(4) { width: 5%; } /* 保持出勤天数列宽度 */
+            table th:nth-child(5), table td:nth-child(5) { width: 5%; }
+            table th:nth-child(6), table td:nth-child(6) { width: 5%; }
+            table th:nth-child(7), table td:nth-child(7) { width: 6%; }
+            table th:nth-child(8), table td:nth-child(8) { width: 6%; }
+            table th:nth-child(9), table td:nth-child(9) { width: 6%; }
+            table th:nth-child(10), table td:nth-child(10) { width: 6%; } /* 工资总额列 */
+            table th:nth-child(11), table td:nth-child(11) { width: 6%; }
+            table th:nth-child(12), table td:nth-child(12) { width: 6%; }
+            table th:nth-child(13), table td:nth-child(13) { width: 6%; }
+            table th:nth-child(14), table td:nth-child(14) { width: 6%; }
+            table th:nth-child(15), table td:nth-child(15) { width: 6%; }
+            table th:nth-child(16), table td:nth-child(16) { width: 5%; } /* 减少备注列宽度 */
+            table th:nth-child(17), table td:nth-child(17) { width: 5%; } /* 减少签字列宽度 */
+            
+            /* 标题区域调整 */
+            .header {
+                text-align: center !important;
+                margin-bottom: 15px !important;
+                width: 100% !important;
+                overflow: visible !important;
+            }
+            .company-header {
+                font-size: 22px !important;
+                margin-bottom: 8px !important;
+                width: 100% !important;
+            }
+            .report-info {
+                margin-bottom: 12px !important;
+                font-size: 16px !important;
+                width: 100% !important;
+            }
+            /* 日期信息区域 - 确保完整显示 */
+            .period-info {
+                margin-bottom: 12px !important;
+                font-size: 13px !important;
+                justify-content: space-between;
+                width: 100% !important;
+                display: flex;
+                flex-wrap: nowrap;
+                overflow: visible !important;
+            }
+            /* 确保每个日期项都有足够空间 */
+            .period-info div {
+                white-space: nowrap !important;
+                overflow: visible !important;
+                min-width: 120px !important;
+            }
+            
+            /* 确保出表日期完整显示 */
+            .period-info div:last-child {
+                min-width: 180px !important;
+                white-space: nowrap !important;
+                overflow: visible !important;
+            }
+            
+            /* 防止内容分页 */
+            tr, tbody, thead, tfoot {
+                page-break-inside: avoid !important;
+            }
+            
+            /* 制表人信息 - 确保完整显示 */
+            div[style*="text-align: right"] {
+                text-align: right !important;
+                margin-top: 30px !important;
+                font-size: 14px !important;
+                width: 100% !important;
+                white-space: nowrap !important;
+                overflow: visible !important;
+                min-width: 200px !important;
+            }
+            
+            /* 强制只打印一页 */
+            body, .a4-landscape {
+                page-break-after: avoid;
+                page-break-before: avoid;
+            }
+        }
+        
+        /* 调整导出按钮位置和样式 */
+        .company-header {
+            position: relative;
+        }
+        .company-header .download-button {
+            margin-left: 20px;
+            margin-bottom: 0;
+        }
+        
+        /* 标题区域 */
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .company-header {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .report-info {
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+        
+        .period-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+        
+        /* 表格样式 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 11px;
+            table-layout: auto; /* 自动分配列宽 */
+        }
+        
+        th {
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+            padding: 2px 4px; /* 减小内边距 */
+            text-align: center;
+            font-weight: bold;
+            white-space: nowrap; /* 文字不转行 */
+            line-height: 1.2; /* 减小行高 */
+        }
+        
+        td {
+            border: 1px solid #ddd;
+            padding: 2px 4px; /* 减小内边距 */
+            text-align: center;
+            white-space: nowrap; /* 文字不转行 */
+            line-height: 1.2; /* 减小行高 */
+        }
+        
+        /* 姓名列左对齐 */
+        th:first-child, td:first-child {
+            text-align: left;
+        }
+        
+        /* 金额栏右对齐 */
+        .amount {
+            text-align: right;
+        }
+        
+        /* 签名区域 */
+        .signature-area {
+            margin-top: 30px;
+            display: flex;
+            justify-content: flex-end;
+        }
+        
+        .signature-line {
+            width: 200px;
+            border-bottom: 1px solid #000;
+            margin-top: 20px;
+            text-align: center;
+        }
+        
+        /* 分页标题固定 */
+        .fixed-header {
+            position: sticky;
+            top: 0;
+            background: white;
+            z-index: 10;
+        }
+        
+        /* 合计行样式 */
+        .total-row {
+            background-color: #f9f9f9;
+            font-weight: bold;
+        }
+    </style>
+    <script>
+        // 页面加载完成后计算合计
+        window.addEventListener('load', function() {
+            calculateTotals();
+        });
+        
+        // 劳务税税率（默认6.72%），可在页面上手动修改，按公司+年+月保存
+        let laborTaxRate = 0.0672;
+        let currentSheetKey = '';
+
+        // 获取劳务税行显示标签（含税率）
+        function getLaborTaxLabel() {
+            const percent = (laborTaxRate * 100).toFixed(2).replace(/\.?0+$/, '');
+            return `劳务税（税率：${percent}%）`;
+        }
+
+        // 计算合计的函数
+        function calculateTotals() {
+            const table = document.querySelector('table');
+            const tbody = table.querySelector('tbody');
+            // 获取所有非合计行并转换为数组
+            const rows = Array.from(tbody.querySelectorAll('tr:not(.total-row)'));
+            
+            // 初始化各列的合计值
+            let totalAttendance = 0;
+            let totalBasicSalary = 0;
+            let totalPerformanceBonus = 0;
+            let totalHousingAllowance = 0;
+            let totalOtherAllowance = 0;
+            let totalYearEndBonus = 0;
+            let totalSubtotal = 0;
+            let totalSocialSecurity = 0;
+            let totalHousingFund = 0;
+            let totalLoanDeduction = 0;
+            let totalTax = 0;
+            let totalNetSalary = 0;
+            
+            // 遍历所有数据行计算合计
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                
+                // 跳过提示信息行（如果只有一个单元格且包含colspan="17"）
+                if (cells.length === 1 && cells[0].getAttribute('colspan') === '17') {
+                    return;
+                }
+                
+                // 确保有足够的单元格再进行计算
+                if (cells.length >= 16) {
+                    // 出勤天数（第4列，索引为3）
+                    totalAttendance += parseFloat(cells[3].textContent) || 0;
+                    
+                    // 基本工资（第5列，索引为4）
+                    totalBasicSalary += parseFloat(cells[4].textContent.replace(/,/g, '')) || 0;
+                    
+                    // 绩效奖（第6列，索引为5）
+                    totalPerformanceBonus += parseFloat(cells[5].textContent.replace(/,/g, '')) || 0;
+                    
+                    // 房贴（第7列，索引为6）
+                    totalHousingAllowance += parseFloat(cells[6].textContent.replace(/,/g, '')) || 0;
+                    
+                    // 其它补贴（第8列，索引为7）
+                    totalOtherAllowance += parseFloat(cells[7].textContent.replace(/,/g, '')) || 0;
+                    
+                    // 年终奖（第9列，索引为8）
+                    totalYearEndBonus += parseFloat(cells[8].textContent.replace(/,/g, '')) || 0;
+                    
+                    // 计算小计（从基本工资到年终奖的合计）
+                    const subtotal = (parseFloat(cells[4].textContent.replace(/,/g, '')) || 0) + 
+                                    (parseFloat(cells[5].textContent.replace(/,/g, '')) || 0) + 
+                                    (parseFloat(cells[6].textContent.replace(/,/g, '')) || 0) + 
+                                    (parseFloat(cells[7].textContent.replace(/,/g, '')) || 0) + 
+                                    (parseFloat(cells[8].textContent.replace(/,/g, '')) || 0);
+                    
+                    // 更新小计单元格
+                    if (cells.length > 9) {
+                        cells[9].textContent = formatNumber(subtotal);
+                        cells[9].classList.add('amount');
+                    }
+                    
+                    // 累加小计合计
+                    totalSubtotal += subtotal;
+                    
+                    // 代扣个人社保（第11列，索引为10）
+                    totalSocialSecurity += parseFloat(cells[10].textContent.replace(/,/g, '')) || 0;
+                    
+                    // 代扣公积金（第12列，索引为11）
+                    totalHousingFund += parseFloat(cells[11].textContent.replace(/,/g, '')) || 0;
+                    
+                    // 扣借款（第13列，索引为12）
+                    totalLoanDeduction += parseFloat(cells[12].textContent.replace(/,/g, '')) || 0;
+                    
+                    // 代扣个税（第14列，索引为13）
+                    totalTax += parseFloat(cells[13].textContent.replace(/,/g, '')) || 0;
+                    
+                    // 实发工资（第15列，索引为14）
+                    totalNetSalary += parseFloat(cells[14].textContent.replace(/,/g, '')) || 0;
+                }
+            });
+            
+            // 移除已存在的合计行（包括劳务税、固定值、总计行，避免重复累积）
+            tbody.querySelectorAll('.total-row').forEach(r => r.remove());
+            
+            // 创建合计行
+            const totalRow = document.createElement('tr');
+            totalRow.className = 'total-row';
+            
+            // 创建并添加单元格
+            totalRow.innerHTML = `
+                <td>合计</td>
+                <td></td>
+                <td></td>
+                <td>${totalAttendance}</td>
+                <td class="amount">${formatNumber(totalBasicSalary)}</td>
+                <td class="amount">${formatNumber(totalPerformanceBonus)}</td>
+                <td class="amount">${formatNumber(totalHousingAllowance)}</td>
+                <td class="amount">${formatNumber(totalOtherAllowance)}</td>
+                <td class="amount">${formatNumber(totalYearEndBonus)}</td>
+                <td class="amount">${formatNumber(totalSubtotal)}</td>
+                <td class="amount">${formatNumber(totalSocialSecurity)}</td>
+                <td class="amount">${formatNumber(totalHousingFund)}</td>
+                <td class="amount">${formatNumber(totalLoanDeduction)}</td>
+                <td class="amount">${formatNumber(totalTax)}</td>
+                <td class="amount">${formatNumber(totalNetSalary)}</td>
+                <td></td>
+                <td></td>
+            `;
+            
+            // 将合计行添加到表格底部
+            tbody.appendChild(totalRow);
+            
+            // 检查是否为普利美常州劳务派遣公司，如果是则添加额外计算行
+            const companyName = document.querySelector('.company-header').textContent;
+            if (companyName.includes('劳务派遣')) {
+                // 计算员工人数（排除合计行和可能的空行）
+                const employeeCount = rows.filter(row => {
+                    const cells = row.querySelectorAll('td');
+                    // 确保不是提示信息行且有足够的单元格
+                    return cells.length !== 1 || cells[0].getAttribute('colspan') !== '17';
+                }).length;
+                
+                // 计算劳务税（税率可手动修改）
+                const laborTax = totalNetSalary * laborTaxRate;
+
+                // 计算固定值
+                const fixedValue = employeeCount * 100;
+
+                // 计算总和
+                const totalSum = totalNetSalary + laborTax + fixedValue;
+
+                // 创建劳务税行（显示税率）
+                const laborTaxRow = document.createElement('tr');
+                laborTaxRow.className = 'total-row';
+                laborTaxRow.innerHTML = `
+                    <td>${getLaborTaxLabel()}</td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td class="amount">${formatNumber(laborTax)}</td>
+                    <td></td>
+                    <td></td>
+                `;
+                
+                // 创建固定值行
+                const fixedValueRow = document.createElement('tr');
+                fixedValueRow.className = 'total-row';
+                fixedValueRow.innerHTML = `
+                    <td>固定值（人数×100）</td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td class="amount">${formatNumber(fixedValue)}</td>
+                    <td></td>
+                    <td></td>
+                `;
+                
+                // 创建总和行
+                const totalSumRow = document.createElement('tr');
+                totalSumRow.className = 'total-row';
+                totalSumRow.innerHTML = `
+                    <td>总计</td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td class="amount">${formatNumber(totalSum)}</td>
+                    <td></td>
+                    <td></td>
+                `;
+                
+                // 将三行添加到表格
+                tbody.appendChild(laborTaxRow);
+                tbody.appendChild(fixedValueRow);
+                tbody.appendChild(totalSumRow);
+            }
+        }
+        
+        // 格式化数字为千分位格式
+        function formatNumber(num) {
+            return num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        }
+        
+        // 导出Excel功能
+        function exportToExcel() {
+            // 获取公司名称和年月信息
+            const companyName = document.querySelector('.company-header').textContent;
+            const yearMonthText = document.querySelector('.period-info div:nth-child(1)').textContent;
+            const year = yearMonthText.match(/(\d+)年/)[1];
+            const month = yearMonthText.match(/(\d+)月/)[1];
+            const reportDate = document.querySelector('.period-info div:last-child').textContent.replace('出表日期：', '');
+            const isDecember = month === '12';
+            
+            // 获取表格数据
+            const table = document.querySelector('table');
+            const rows = Array.from(table.querySelectorAll('tr'));
+            
+            // 准备数据数组（原始数据）
+            const originalData = [];
+            
+            // 添加表头信息
+            originalData.push([companyName]);
+            originalData.push(['工资明细表']);
+            originalData.push([`年份：${year}年    月份：${month}月    出表日期：${reportDate}`]);
+            originalData.push([]); // 空行
+            
+            // 处理表格的每一行
+            rows.forEach((row, rowIndex) => {
+                const rowData = [];
+                const cells = Array.from(row.querySelectorAll('th, td'));
+                
+                cells.forEach((cell, cellIndex) => {
+                    // 跳过最后两列（备注和签字）
+                    if (cellIndex >= cells.length - 2) return;
+                    
+                    let text = cell.textContent.trim();
+                    
+                    // 处理数字列，去除千分位分隔符
+                    if (cell.classList.contains('amount') || rowIndex === 0) {
+                        // 对于表头行，保持原样
+                        if (rowIndex === 0) {
+                            rowData.push(text);
+                        } else {
+                            // 对于数据行，尝试转换为数字
+                            const numValue = parseFloat(text.replace(/,/g, ''));
+                            if (!isNaN(numValue)) {
+                                rowData.push(numValue);
+                            } else {
+                                rowData.push(text);
+                            }
+                        }
+                    } else {
+                        rowData.push(text);
+                    }
+                });
+                
+                // 只添加有数据的行
+                if (rowData.length > 0) {
+                    originalData.push(rowData);
+                }
+            });
+            
+            // 如果是12月且不是劳务派遣公司，生成两个Excel文件
+            if (isDecember && !companyName.includes('劳务派遣')) {
+                // 生成第一个文件：年终奖为0的工资明细表
+                const dataWithZeroBonus = JSON.parse(JSON.stringify(originalData)); // 深拷贝数据
+                
+                // 将所有数据行的年终奖列（索引8）设为0
+                for (let i = 5; i < dataWithZeroBonus.length; i++) {
+                    // 检查是否为合计行
+                    if (dataWithZeroBonus[i][0] === '合计' || String(dataWithZeroBonus[i][0]).startsWith('劳务税') || dataWithZeroBonus[i][0] === '固定值（人数×100）' || dataWithZeroBonus[i][0] === '总计') {
+                        continue; // 跳过合计行，后续重新计算
+                    }
+                    if (dataWithZeroBonus[i].length > 8) {
+                        dataWithZeroBonus[i][8] = 0;
+                    }
+                }
+                
+                // 重新计算合计行
+                recalculateTotalsForExport(dataWithZeroBonus);
+                
+                // 创建第一个工作簿
+                const wb1 = XLSX.utils.book_new();
+                const ws1 = XLSX.utils.aoa_to_sheet(dataWithZeroBonus);
+                
+                // 设置列宽
+                const colWidths = [
+                    { wch: 10 },  // 姓名
+                    { wch: 20 },  // 身份证号
+                    { wch: 20 },  // 卡号
+                    { wch: 10 },  // 出勤天数
+                    { wch: 12 },  // 基本工资
+                    { wch: 12 },  // 绩效奖
+                    { wch: 12 },  // 房贴
+                    { wch: 12 },  // 其它补贴
+                    { wch: 12 },  // 年终奖
+                    { wch: 12 },  // 工资总额
+                    { wch: 15 },  // 代扣个人社保
+                    { wch: 15 },  // 代扣公积金
+                    { wch: 10 },  // 扣借款
+                    { wch: 12 },  // 代扣个税
+                    { wch: 12 }   // 实发工资
+                ];
+                ws1['!cols'] = colWidths;
+                
+                // 合并表头单元格
+                ws1['!merges'] = [
+                    { s: { r: 0, c: 0 }, e: { r: 0, c: 14 } },
+                    { s: { r: 2, c: 0 }, e: { r: 2, c: 14 } }
+                ];
+                
+                // 添加工作表到工作簿
+                XLSX.utils.book_append_sheet(wb1, ws1, '工资明细表');
+                
+                // 生成第一个文件名
+                const fileName1 = `${companyName}_工资明细表_${year}年${month}月.xlsx`;
+                
+                // 下载第一个文件
+                XLSX.writeFile(wb1, fileName1);
+                
+                // 生成第二个文件：年终奖表格
+                const bonusData = [];
+                // 添加表头
+                bonusData.push([companyName]);
+                bonusData.push(['年终奖表']);
+                bonusData.push([`年份：${year}年    月份：${month}月`]);
+                bonusData.push([]);
+                bonusData.push(['姓名', '年终奖']);
+                
+                // 计算年终奖合计
+                let totalBonus = 0;
+                
+                // 添加数据行（跳过表头和合计行）
+                for (let i = 5; i < originalData.length; i++) {
+                    // 跳过合计行
+                    if (originalData[i][0] === '合计' || String(originalData[i][0]).startsWith('劳务税') || originalData[i][0] === '固定值（人数×100）' || originalData[i][0] === '总计') {
+                        continue;
+                    }
+                    if (originalData[i].length > 8) {
+                        const bonus = parseFloat(originalData[i][8]) || 0;
+                        bonusData.push([originalData[i][0], bonus]);
+                        totalBonus += bonus;
+                    }
+                }
+                
+                // 添加合计行
+                bonusData.push(['合计', totalBonus]);
+                
+                // 创建第二个工作簿
+                const wb2 = XLSX.utils.book_new();
+                const ws2 = XLSX.utils.aoa_to_sheet(bonusData);
+                
+                // 设置列宽
+                ws2['!cols'] = [{ wch: 15 }, { wch: 15 }];
+                
+                // 合并表头单元格
+                ws2['!merges'] = [
+                    { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } },
+                    { s: { r: 2, c: 0 }, e: { r: 2, c: 1 } }
+                ];
+                
+                // 添加工作表到工作簿
+                XLSX.utils.book_append_sheet(wb2, ws2, '年终奖表');
+                
+                // 生成第二个文件名
+                const fileName2 = `${companyName}_年终奖表_${year}年${month}月.xlsx`;
+                
+                // 下载第二个文件
+                XLSX.writeFile(wb2, fileName2);
+            } else {
+                // 非12月，保持原有的导出功能
+                // 创建工作簿
+                const wb = XLSX.utils.book_new();
+                const ws = XLSX.utils.aoa_to_sheet(originalData);
+                
+                // 设置列宽
+                const colWidths = [
+                    { wch: 10 },  // 姓名
+                    { wch: 20 },  // 身份证号
+                    { wch: 20 },  // 卡号
+                    { wch: 10 },  // 出勤天数
+                    { wch: 12 },  // 基本工资
+                    { wch: 12 },  // 绩效奖
+                    { wch: 12 },  // 房贴
+                    { wch: 12 },  // 其它补贴
+                    { wch: 12 },  // 年终奖
+                    { wch: 12 },  // 工资总额
+                    { wch: 15 },  // 代扣个人社保
+                    { wch: 15 },  // 代扣公积金
+                    { wch: 10 },  // 扣借款
+                    { wch: 12 },  // 代扣个税
+                    { wch: 12 }   // 实发工资
+                ];
+                ws['!cols'] = colWidths;
+                
+                // 合并表头单元格
+                ws['!merges'] = [
+                    { s: { r: 0, c: 0 }, e: { r: 0, c: 14 } },
+                    { s: { r: 2, c: 0 }, e: { r: 2, c: 14 } }
+                ];
+                
+                // 添加工作表到工作簿
+                XLSX.utils.book_append_sheet(wb, ws, '工资明细表');
+                
+                // 生成文件名
+                const fileName = `${companyName}_工资明细表_${year}年${month}月.xlsx`;
+                
+                // 下载文件
+                XLSX.writeFile(wb, fileName);
+            }
+        }
+        
+        // 为导出数据重新计算合计行的函数
+        function recalculateTotalsForExport(data) {
+            // 初始化各列的合计值
+            let totalAttendance = 0;
+            let totalBasicSalary = 0;
+            let totalPerformanceBonus = 0;
+            let totalHousingAllowance = 0;
+            let totalOtherAllowance = 0;
+            let totalYearEndBonus = 0;
+            let totalSubtotal = 0;
+            let totalSocialSecurity = 0;
+            let totalHousingFund = 0;
+            let totalLoanDeduction = 0;
+            let totalTax = 0;
+            let totalNetSalary = 0;
+            let employeeCount = 0;
+            
+            // 遍历所有数据行计算合计（从第5行开始是表格数据）
+            for (let i = 5; i < data.length; i++) {
+                const row = data[i];
+                
+                // 跳过合计行（劳务税标签含税率，需用前缀匹配）
+                if (row[0] === '合计' || String(row[0]).startsWith('劳务税') || row[0] === '固定值（人数×100）' || row[0] === '总计') {
+                    continue;
+                }
+                
+                // 确保有足够的单元格
+                if (row.length >= 14) {
+                    // 出勤天数（第4列，索引为3）
+                    totalAttendance += parseFloat(row[3]) || 0;
+                    
+                    // 基本工资（第5列，索引为4）
+                    totalBasicSalary += parseFloat(row[4]) || 0;
+                    
+                    // 绩效奖（第6列，索引为5）
+                    totalPerformanceBonus += parseFloat(row[5]) || 0;
+                    
+                    // 房贴（第7列，索引为6）
+                    totalHousingAllowance += parseFloat(row[6]) || 0;
+                    
+                    // 其它补贴（第8列，索引为7）
+                    totalOtherAllowance += parseFloat(row[7]) || 0;
+                    
+                    // 年终奖（第9列，索引为8）- 这里会是0，因为我们已经将所有年终奖设为0
+                    totalYearEndBonus += parseFloat(row[8]) || 0;
+                    
+                    // 计算小计（从基本工资到年终奖的合计）
+                    const subtotal = (parseFloat(row[4]) || 0) + 
+                                    (parseFloat(row[5]) || 0) + 
+                                    (parseFloat(row[6]) || 0) + 
+                                    (parseFloat(row[7]) || 0) + 
+                                    (parseFloat(row[8]) || 0);
+                    
+                    // 更新小计单元格
+                    if (row.length > 9) {
+                        row[9] = subtotal;
+                    }
+                    
+                    // 累加小计合计
+                    totalSubtotal += subtotal;
+                    
+                    // 代扣个人社保（第11列，索引为10）
+                    totalSocialSecurity += parseFloat(row[10]) || 0;
+                    
+                    // 代扣公积金（第12列，索引为11）
+                    totalHousingFund += parseFloat(row[11]) || 0;
+                    
+                    // 扣借款（第13列，索引为12）
+                    totalLoanDeduction += parseFloat(row[12]) || 0;
+                    
+                    // 代扣个税（第14列，索引为13）
+                    totalTax += parseFloat(row[13]) || 0;
+                    
+                    // 实发工资（第15列，索引为14）
+                    // 计算公式：实发工资 = 基本工资 + 绩效奖 + 房贴 + 其它补贴 - 代扣个人社保 - 代扣公积金 - 扣借款 - 代扣个税
+                    const calculatedNetSalary = (parseFloat(row[4]) || 0) + 
+                                             (parseFloat(row[5]) || 0) + 
+                                             (parseFloat(row[6]) || 0) + 
+                                             (parseFloat(row[7]) || 0) + 
+                                             (parseFloat(row[8]) || 0) - 
+                                             Math.abs(parseFloat(row[10]) || 0) - 
+                                             Math.abs(parseFloat(row[11]) || 0) - 
+                                             Math.abs(parseFloat(row[12]) || 0) - 
+                                             Math.abs(parseFloat(row[13]) || 0);
+                    
+                    // 更新数据行的实发工资
+                    row[14] = calculatedNetSalary;
+                    
+                    // 累加到合计
+                    totalNetSalary += calculatedNetSalary;
+                    
+                    employeeCount++;
+                }
+            }
+            
+            // 查找合计行的索引
+            let totalRowIndex = -1;
+            let laborTaxRowIndex = -1;
+            let fixedValueRowIndex = -1;
+            let totalSumRowIndex = -1;
+            
+            for (let i = 5; i < data.length; i++) {
+                if (data[i][0] === '合计') {
+                    totalRowIndex = i;
+                } else if (String(data[i][0]).startsWith('劳务税')) {
+                    laborTaxRowIndex = i;
+                } else if (data[i][0] === '固定值（人数×100）') {
+                    fixedValueRowIndex = i;
+                } else if (data[i][0] === '总计') {
+                    totalSumRowIndex = i;
+                }
+            }
+            
+            // 更新合计行
+            if (totalRowIndex !== -1) {
+                data[totalRowIndex] = [
+                    '合计', '', '', totalAttendance, totalBasicSalary, totalPerformanceBonus, 
+                    totalHousingAllowance, totalOtherAllowance, totalYearEndBonus, totalSubtotal, 
+                    totalSocialSecurity, totalHousingFund, totalLoanDeduction, totalTax, totalNetSalary
+                ];
+            }
+            
+            // 更新劳务税相关行
+            const companyName = document.querySelector('.company-header').textContent;
+            if (companyName.includes('劳务派遣')) {
+                const laborTax = totalNetSalary * laborTaxRate;
+                const fixedValue = employeeCount * 100;
+                const totalSum = totalNetSalary + laborTax + fixedValue;
+                
+                if (laborTaxRowIndex !== -1) {
+                    data[laborTaxRowIndex] = [getLaborTaxLabel(), '', '', '', '', '', '', '', '', '', '', '', '', '', laborTax];
+                }
+                
+                if (fixedValueRowIndex !== -1) {
+                    data[fixedValueRowIndex] = ['固定值（人数×100）', '', '', '', '', '', '', '', '', '', '', '', '', '', fixedValue];
+                }
+                
+                if (totalSumRowIndex !== -1) {
+                    data[totalSumRowIndex] = ['总计', '', '', '', '', '', '', '', '', '', '', '', '', '', totalSum];
+                }
+            }
+        }
+        
+        // 重新计算合计行的函数
+        function recalculateTotals(data) {
+            // 初始化各列的合计值
+            let totalAttendance = 0;
+            let totalBasicSalary = 0;
+            let totalPerformanceBonus = 0;
+            let totalHousingAllowance = 0;
+            let totalOtherAllowance = 0;
+            let totalYearEndBonus = 0;
+            let totalSubtotal = 0;
+            let totalSocialSecurity = 0;
+            let totalHousingFund = 0;
+            let totalLoanDeduction = 0;
+            let totalTax = 0;
+            let totalNetSalary = 0;
+            let employeeCount = 0;
+            
+            // 遍历所有数据行计算合计
+            for (let i = 1; i < data.length; i++) {
+                const row = data[i];
+                
+                // 跳过合计行（劳务税标签含税率，需用前缀匹配）
+                if (row[0] === '合计' || String(row[0]).startsWith('劳务税') || row[0] === '固定值（人数×100）' || row[0] === '总计') {
+                    continue;
+                }
+                
+                // 确保有足够的单元格
+                if (row.length >= 14) {
+                    // 出勤天数（第4列，索引为3）
+                    totalAttendance += parseFloat(row[3]) || 0;
+                    
+                    // 基本工资（第5列，索引为4）
+                    totalBasicSalary += parseFloat(row[4]) || 0;
+                    
+                    // 绩效奖（第6列，索引为5）
+                    totalPerformanceBonus += parseFloat(row[5]) || 0;
+                    
+                    // 房贴（第7列，索引为6）
+                    totalHousingAllowance += parseFloat(row[6]) || 0;
+                    
+                    // 其它补贴（第8列，索引为7）
+                    totalOtherAllowance += parseFloat(row[7]) || 0;
+                    
+                    // 年终奖（第9列，索引为8）- 这里会是0，因为我们已经将所有年终奖设为0
+                    totalYearEndBonus += parseFloat(row[8]) || 0;
+                    
+                    // 计算小计（从基本工资到年终奖的合计）
+                    const subtotal = (parseFloat(row[4]) || 0) + 
+                                    (parseFloat(row[5]) || 0) + 
+                                    (parseFloat(row[6]) || 0) + 
+                                    (parseFloat(row[7]) || 0) + 
+                                    (parseFloat(row[8]) || 0);
+                    
+                    // 更新小计单元格
+                    if (row.length > 9) {
+                        row[9] = subtotal;
+                    }
+                    
+                    // 累加小计合计
+                    totalSubtotal += subtotal;
+                    
+                    // 代扣个人社保（第11列，索引为10）
+                    totalSocialSecurity += parseFloat(row[10]) || 0;
+                    
+                    // 代扣公积金（第12列，索引为11）
+                    totalHousingFund += parseFloat(row[11]) || 0;
+                    
+                    // 扣借款（第13列，索引为12）
+                    totalLoanDeduction += parseFloat(row[12]) || 0;
+                    
+                    // 代扣个税（第14列，索引为13）
+                    totalTax += parseFloat(row[13]) || 0;
+                    
+                    // 实发工资（第15列，索引为14）
+                    // 由于我们已经将年终奖设为0，这里的实发工资应该重新计算，不包含年终奖
+                    // 计算公式：实发工资 = 基本工资 + 绩效奖 + 房贴 + 其它补贴 - 代扣个人社保 - 代扣公积金 - 扣借款 - 代扣个税
+                    const calculatedNetSalary = (parseFloat(row[4]) || 0) + 
+                                             (parseFloat(row[5]) || 0) + 
+                                             (parseFloat(row[6]) || 0) + 
+                                             (parseFloat(row[7]) || 0) + 
+                                             (parseFloat(row[8]) || 0) - 
+                                             Math.abs(parseFloat(row[10]) || 0) - 
+                                             Math.abs(parseFloat(row[11]) || 0) - 
+                                             Math.abs(parseFloat(row[12]) || 0) - 
+                                             Math.abs(parseFloat(row[13]) || 0);
+                    
+                    // 更新数据行的实发工资
+                    row[14] = calculatedNetSalary;
+                    
+                    // 累加到合计
+                    totalNetSalary += calculatedNetSalary;
+                    
+                    employeeCount++;
+                }
+            }
+            
+            // 查找合计行的索引
+            let totalRowIndex = -1;
+            let laborTaxRowIndex = -1;
+            let fixedValueRowIndex = -1;
+            let totalSumRowIndex = -1;
+            
+            for (let i = 1; i < data.length; i++) {
+                if (data[i][0] === '合计') {
+                    totalRowIndex = i;
+                } else if (String(data[i][0]).startsWith('劳务税')) {
+                    laborTaxRowIndex = i;
+                } else if (data[i][0] === '固定值（人数×100）') {
+                    fixedValueRowIndex = i;
+                } else if (data[i][0] === '总计') {
+                    totalSumRowIndex = i;
+                }
+            }
+            
+            // 更新合计行
+            if (totalRowIndex !== -1) {
+                data[totalRowIndex] = [
+                    '合计', '', '', totalAttendance, totalBasicSalary, totalPerformanceBonus, 
+                    totalHousingAllowance, totalOtherAllowance, totalYearEndBonus, totalSubtotal, 
+                    totalSocialSecurity, totalHousingFund, totalLoanDeduction, totalTax, totalNetSalary
+                ];
+            }
+            
+            // 更新劳务税相关行
+            const companyName = document.querySelector('.company-header').textContent;
+            if (companyName.includes('劳务派遣')) {
+                const laborTax = totalNetSalary * laborTaxRate;
+                const fixedValue = employeeCount * 100;
+                const totalSum = totalNetSalary + laborTax + fixedValue;
+                
+                if (laborTaxRowIndex !== -1) {
+                    data[laborTaxRowIndex] = [getLaborTaxLabel(), '', '', '', '', '', '', '', '', '', '', '', '', '', laborTax];
+                }
+                
+                if (fixedValueRowIndex !== -1) {
+                    data[fixedValueRowIndex] = ['固定值（人数×100）', '', '', '', '', '', '', '', '', '', '', '', '', '', fixedValue];
+                }
+                
+                if (totalSumRowIndex !== -1) {
+                    data[totalSumRowIndex] = ['总计', '', '', '', '', '', '', '', '', '', '', '', '', '', totalSum];
+                }
+            }
+        }
+        
+        // 解析URL参数的函数
+        function getURLParameters() {
+            const params = {};
+            const queryString = window.location.search;
+            const urlParams = new URLSearchParams(queryString);
+            
+            // 获取年份、月份和公司参数（公司名称需要解码以支持中文）
+            if (urlParams.has('year')) params.year = urlParams.get('year');
+            if (urlParams.has('month')) params.month = urlParams.get('month');
+            if (urlParams.has('company')) params.company = decodeURIComponent(urlParams.get('company'));
+            
+            return params;
+        }
+        
+        // 根据URL参数更新页面信息
+        function updatePageWithURLParams() {
+            const params = getURLParameters();
+            
+            // 获取当前日期
+            const now = new Date();
+            const currentYear = now.getFullYear();
+            const currentMonth = now.getMonth() + 1;
+            const currentDate = now.getDate();
+            
+            // 更新年/月份
+            const yearMonthElement = document.querySelector('.period-info div:nth-child(1)');
+            if (yearMonthElement) {
+                yearMonthElement.textContent = `年/月份：${params.year || currentYear}年${params.month || currentMonth}月`;
+            }
+            
+            // 更新公司名称
+            const headerCompanyElement = document.querySelector('.company-header');
+            
+            // 使用传入的公司参数，如果没有则默认使用劳务派遣公司（用于测试）
+            const company = params.company || '普利美劳务派遣';
+            
+            if (headerCompanyElement) {
+                let fullCompanyName = company;
+                
+                // 根据公司简称显示对应的完整公司名称
+                if (company === '无锡龙力') {
+                    fullCompanyName = '无锡龙力印铁设备制造有限公司';
+                } else if (company === '普利美常州') {
+                    fullCompanyName = '普利美（常州）环境工程科技有限公司';
+                } else if (company === '普利美劳务派遣') {
+                    fullCompanyName = '普利美（常州）环境工程科技有限公司（劳务派遣）';
+                }
+                
+                headerCompanyElement.textContent = fullCompanyName;
+            }
+            
+            // 更新出表日期为当前日期
+            const dateElement = document.querySelector('.period-info div:nth-child(2)');
+            if (dateElement) {
+                dateElement.textContent = `出表日期：${currentYear}年${currentMonth}月${currentDate}日`;
+            }
+        }
+        
+        // 从localStorage获取工资汇总数据
+        function getSalaryDataFromStorage() {
+            try {
+                const storedData = localStorage.getItem('salarySummaryData');
+                console.log('从localStorage获取的原始数据:', storedData);
+                
+                if (storedData) {
+                    const parsedData = JSON.parse(storedData);
+                    console.log('解析后的数据:', parsedData);
+                    
+                    // 检查数据结构，如果是嵌套的数组，提取内部数组
+                    if (Array.isArray(parsedData) && parsedData.length > 0 && Array.isArray(parsedData[0])) {
+                        console.log('检测到嵌套数组结构，提取内部数组');
+                        return parsedData.flat(); // 扁平化嵌套数组
+                    }
+                    
+                    return parsedData;
+                }
+                return [];
+            } catch (error) {
+                console.error('获取工资数据失败：', error);
+                return [];
+            }
+        }
+        
+        // 根据条件过滤工资数据
+        function filterSalaryData(data, year, month, company) {
+            console.log('过滤条件:', { year, month, company });
+            console.log('待过滤数据数量:', data.length);
+            
+            if (!Array.isArray(data)) {
+                console.error('输入数据不是数组:', data);
+                return [];
+            }
+            
+            const filteredData = data.filter(item => {
+                // 确保item是有效对象
+                if (!item || typeof item !== 'object') {
+                    return false;
+                }
+                
+                let matchYear = true;
+                let matchMonth = true;
+                let matchCompany = true;
+                
+                // 年份匹配 - 支持字符串和数字比较
+                if (year) {
+                    matchYear = String(item.year) === String(year);
+                }
+                
+                // 月份匹配 - 支持字符串和数字比较
+                if (month) {
+                    matchMonth = String(item.month) === String(month);
+                }
+                
+                // 公司匹配 - 支持模糊匹配，确保公司名称正确对应
+                if (company && company !== '全部') {
+                    // 尝试直接匹配，如果失败尝试基于公司简称的映射匹配
+                    matchCompany = String(item.company) === String(company) || 
+                                  String(item.companyName) === String(company) ||
+                                  (item.company && String(item.company).includes(company)) ||
+                                  (item.companyName && String(item.companyName).includes(company));
+                }
+                
+                const isMatch = matchYear && matchMonth && matchCompany;
+                if (isMatch) {
+                    console.log('匹配到的数据项:', item);
+                }
+                
+                return isMatch;
+            });
+            
+            console.log('过滤后的数据数量:', filteredData.length);
+            return filteredData;
+        }
+        
+        // 将工资数据填充到表格中
+        function populateTableWithData(filteredData) {
+            const tbody = document.querySelector('table tbody');
+            
+            console.log('准备填充表格的数据数量:', filteredData.length);
+            
+            // 清空表格内容
+            tbody.innerHTML = '';
+            
+            if (!Array.isArray(filteredData) || filteredData.length === 0) {
+                // 如果没有找到数据，显示提示信息
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="18" style="text-align: center; color: #666; padding: 20px;">
+                            <i class="fa fa-info-circle"></i> 未找到对应月份和公司的工资数据
+                            <br>
+                            <small>请确保工资管理页面已保存相应数据</small>
+                        </td>
+                    </tr>
+                `;
+                console.log('没有数据可显示');
+                return;
+            }
+            
+            // 填充数据到表格
+            let hasAddedRows = false;
+            filteredData.forEach((employee, index) => {
+                // 确保employee是有效对象
+                if (!employee || typeof employee !== 'object') {
+                    console.log(`索引${index}的数据无效，跳过`);
+                    return;
+                }
+                
+                console.log(`处理员工数据${index}:`, employee);
+                
+                const row = document.createElement('tr');
+                
+                // 尝试多种可能的字段名，确保能获取到正确的数据
+                const employeeId = employee.employeeId || employee.id || employee.工号 || '';
+                const name = employee.name || employee.姓名 || '';
+                const idCard = employee.idCard || employee.身份证号 || '';
+                const bankCard = employee.bankCard || employee.银行卡号 || '';
+                // 确保只使用与出勤相关的字段，不使用工龄，添加attendanceDays字段支持（来自工资管理系统的实际字段名）
+                const attendance = employee.attendanceDays || employee.attendance || employee.出勤天数 || employee.出勤 || employee.实际出勤 || 0;
+                console.log('员工出勤天数:', employee.name, attendance, '数据来源字段:', 
+                    employee.attendanceDays !== undefined ? 'attendanceDays' : 
+                    employee.attendance !== undefined ? 'attendance' : 
+                    employee.出勤天数 !== undefined ? '出勤天数' : 
+                    employee.出勤 !== undefined ? '出勤' : 
+                    employee.实际出勤 !== undefined ? '实际出勤' : '默认值');
+                
+                // 工资字段，尝试多种可能的属性名
+                const getSalaryField = (baseField) => {
+                    // 特殊字段名映射，确保与工资管理系统保持一致
+                    const fieldMappings = {
+                        'tax': ['tax', 'incomeTax', '个税', '代扣个税', '个人所得税'],
+                        'socialSecurity': ['socialSecurity', '社保', '代扣个人社保', '社保扣除'],
+                        'housingFund': ['housingFund', 'providentFund', '公积金', '代扣公积金'],
+                        'loanDeduction': ['loanDeduction', '借款', '扣借款'],
+                        'netSalary': ['netSalary', '实发工资', '最终工资']
+                    };
+                    
+                    // 优先使用映射的字段名列表
+                    const fieldNames = fieldMappings[baseField] || [
+                        baseField,
+                        baseField.charAt(0).toUpperCase() + baseField.slice(1),
+                        baseField.replace(/([A-Z])/g, ' $1').trim()
+                    ];
+                    
+                    for (const field of fieldNames) {
+                        if (employee[field] !== undefined) {
+                            const value = parseFloat(employee[field]) || 0;
+                            console.log(`字段${baseField}从${field}获取值:`, value);
+                            return value;
+                        }
+                    }
+                    console.log(`字段${baseField}未找到值，返回默认值0`);
+                    return 0;
+                };
+                
+                // 获取各项工资数据
+                const basicSalary = getSalaryField('basicSalary') || 0;
+                const performanceBonus = getSalaryField('performanceBonus') || 0;
+                const housingAllowance = getSalaryField('housingAllowance') || 0;
+                const otherAllowance = getSalaryField('otherAllowance') || 0;
+                const yearEndBonus = getSalaryField('yearEndBonus') || 0;
+                const socialSecurity = getSalaryField('socialSecurity') || 0;
+                const housingFund = getSalaryField('housingFund') || 0;
+                const loanDeduction = getSalaryField('loanDeduction') || 0;
+                const tax = getSalaryField('tax') || 0;
+                const netSalary = getSalaryField('netSalary') || 0;
+                
+                const remark = employee.remark || employee.备注 || '';
+                
+                // 只有当员工信息有基本内容时才添加行
+                if (employeeId || name) {
+                    row.innerHTML = `
+                        <td>${name}</td>
+                        <td>${idCard}</td>
+                        <td>${bankCard}</td>
+                        <td>${attendance}</td>
+                        <td class="amount">${formatNumber(basicSalary)}</td>
+                        <td class="amount">${formatNumber(performanceBonus)}</td>
+                        <td class="amount">${formatNumber(housingAllowance)}</td>
+                        <td class="amount">${formatNumber(otherAllowance)}</td>
+                        <td class="amount">${formatNumber(yearEndBonus)}</td>
+                        <td class="amount">${formatNumber(basicSalary + performanceBonus + housingAllowance + otherAllowance + yearEndBonus)}</td>
+                        <td class="amount">${formatNumber(socialSecurity)}</td>
+                        <td class="amount">${formatNumber(housingFund)}</td>
+                        <td class="amount">${formatNumber(loanDeduction)}</td>
+                        <td class="amount">${formatNumber(tax)}</td>
+                        <td class="amount">${formatNumber(netSalary)}</td>
+                        <td>${remark}</td>
+                        <td></td>
+                    `;
+                    tbody.appendChild(row);
+                    hasAddedRows = true;
+                }
+            });
+            
+            // 如果没有添加任何有效行，显示提示信息
+            if (!hasAddedRows) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="18" style="text-align: center; color: #666; padding: 20px;">
+                            <i class="fa fa-info-circle"></i> 找到的数据格式不符合要求，请检查数据结构
+                        </td>
+                    </tr>
+                `;
+            }
+            
+            console.log('表格数据填充完成，添加了', hasAddedRows ? filteredData.length : 0, '行数据');
+        }
+
+        // 应用最新员工信息到工资数据
+        // 员工信息（姓名、身份证号、卡号等）变更后，明细表打开时自动显示最新信息
+        function applyLatestEmployeeInfo(data) {
+            try {
+                const storedEmployees = localStorage.getItem('salary_employees');
+                if (!storedEmployees || !Array.isArray(data) || data.length === 0) return data;
+                const employees = JSON.parse(storedEmployees);
+                if (!Array.isArray(employees) || employees.length === 0) return data;
+
+                const empById = {};
+                employees.forEach(emp => {
+                    if (emp && emp.id) empById[String(emp.id)] = emp;
+                });
+
+                let updatedCount = 0;
+                data.forEach(item => {
+                    if (!item || typeof item !== 'object') return;
+                    const empId = String(item.employeeId || item.id || item.工号 || '');
+                    // 优先按工号匹配；无工号时才按姓名匹配，避免误覆盖
+                    const emp = empById[empId] || (empId ? null : employees.find(e => e && e.name && String(e.name) === String(item.name || item.姓名 || '')));
+                    if (emp) {
+                        if (emp.name) item.name = emp.name;
+                        if (emp.idCard) item.idCard = emp.idCard;
+                        if (emp.bankCard) item.bankCard = emp.bankCard;
+                        if (emp.phone) item.phone = emp.phone;
+                        if (emp.company) item.company = emp.company;
+                        updatedCount++;
+                    }
+                });
+                console.log(`已根据最新员工信息更新 ${updatedCount} 条工资记录`);
+                return data;
+            } catch (error) {
+                console.error('应用最新员工信息失败：', error);
+                return data;
+            }
+        }
+
+        // 页面加载完成后初始化监听和更新参数
+        window.addEventListener('load', function() {
+            console.log('页面加载完成，开始初始化...');
+            
+            // 首先更新页面信息
+            updatePageWithURLParams();
+            
+            // 获取URL参数
+            const params = getURLParameters();
+            console.log('从URL获取的参数:', params);
+            
+            // 提取年份、月份和公司参数，添加默认值或错误处理
+            let year = params.year;
+            let month = params.month;
+            let company = params.company;
+            
+            // 如果URL参数不完整，使用当前年月作为默认值
+            if (!year || !month) {
+                const now = new Date();
+                year = year || now.getFullYear().toString();
+                month = month || (now.getMonth() + 1).toString();
+                console.log('URL参数不完整，使用默认值:', { year, month });
+            }
+            
+            // 保持月份的原始格式，不添加前导零，以便与存储的数字格式匹配
+            
+            console.log('最终使用的查询条件:', { year, month, company });
+
+            // 初始化劳务税税率（仅劳务派遣公司显示，按公司+年+月读取保存值）
+            currentSheetKey = `${company}|${year}|${month}`;
+            const savedRate = parseFloat(localStorage.getItem('laborTaxRate|' + currentSheetKey));
+            if (!isNaN(savedRate) && savedRate >= 0) {
+                laborTaxRate = savedRate;
+            }
+            const rateControl = document.getElementById('laborTaxRateControl');
+            const rateInput = document.getElementById('laborTaxRateInput');
+            const isLaborDispatchCompany = document.querySelector('.company-header').textContent.includes('劳务派遣');
+            if (rateControl && rateInput && isLaborDispatchCompany) {
+                rateControl.style.display = 'flex';
+                rateInput.value = (laborTaxRate * 100).toFixed(2).replace(/\.?0+$/, '');
+                rateInput.addEventListener('input', function() {
+                    const v = parseFloat(this.value);
+                    if (isNaN(v) || v < 0) return;
+                    laborTaxRate = Math.min(v, 100) / 100;
+                    // 按公司+年+月保存修改后的税率
+                    localStorage.setItem('laborTaxRate|' + currentSheetKey, String(laborTaxRate));
+                    calculateTotals();
+                });
+            }
+
+            // 从localStorage获取工资汇总数据
+            const salaryData = getSalaryDataFromStorage();
+            
+            // 如果没有获取到数据，尝试模拟一些示例数据用于测试
+            let filteredData = [];
+            if (salaryData.length === 0) {
+                console.log('未从localStorage获取到数据，尝试其他方式获取...');
+                
+                // 尝试直接从localStorage获取原始工资数据
+                try {
+                    const salaryStorage = localStorage.getItem('salaryStorage');
+                    if (salaryStorage) {
+                        console.log('尝试从salaryStorage获取数据');
+                        const parsedSalaryStorage = JSON.parse(salaryStorage);
+                        
+                        // 处理salaryStorage的数据结构
+                        if (typeof parsedSalaryStorage === 'object') {
+                            // 遍历salaryStorage中的所有数据
+                            for (const [key, value] of Object.entries(parsedSalaryStorage)) {
+                                // 检查key是否包含年份和月份信息
+                                if (key.includes(year) && key.includes(month)) {
+                                    console.log('找到匹配年月的数据:', key);
+                                    
+                                    // 如果value是数组，直接使用
+                                    if (Array.isArray(value)) {
+                                        filteredData = [...filteredData, ...value];
+                                    } 
+                                    // 如果value是对象，尝试提取员工数据
+                                    else if (typeof value === 'object') {
+                                        for (const [empKey, empData] of Object.entries(value)) {
+                                            if (typeof empData === 'object') {
+                                                // 添加年份、月份和公司信息
+                                                empData.year = year;
+                                                empData.month = month;
+                                                if (!empData.company) {
+                                                    empData.company = company || '';
+                                                }
+                                                filteredData.push(empData);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('尝试从salaryStorage获取数据失败:', error);
+                }
+                
+                // 如果仍然没有数据，显示提示
+                if (filteredData.length === 0) {
+                    console.log('无法获取工资数据，请先在工资管理页面保存数据');
+                }
+            } else {
+                // 使用常规过滤逻辑
+                filteredData = filterSalaryData(salaryData, year, month, company);
+            }
+
+            // 应用最新员工信息，确保员工信息变更后明细表同步更新
+            filteredData = applyLatestEmployeeInfo(filteredData);
+
+            // 填充数据到表格
+            populateTableWithData(filteredData);
+            
+            // 然后计算合计
+            calculateTotals();
+
+            console.log('页面初始化完成');
+        });
+    </script>
+</head>
+<body>
+    <div class="a4-landscape">
+        <!-- 标题区域 -->
+        <div class="header">
+            <div class="company-header">
+                <span>公司名称</span>
+            </div>
+            <div class="report-info" style="display: flex; justify-content: center; align-items: center; gap: 20px;">
+                工资明细表
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div id="laborTaxRateControl" class="no-print" style="display: none; align-items: center; gap: 6px; font-size: 14px;">
+                        <label for="laborTaxRateInput" style="white-space: nowrap;">劳务税税率</label>
+                        <input type="number" id="laborTaxRateInput" step="0.01" min="0" max="100"
+                               style="width: 72px; height: 36px; padding: 0 6px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; text-align: center;">
+                        <span>%</span>
+                    </div>
+                    <button class="download-button no-print" onclick="exportToExcel()" style="padding: 0 16px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; position: relative; z-index: 100; height: 36px; line-height: 36px; margin-bottom: 0;">导出EXCEL</button>
+                    <button class="print-button no-print" onclick="window.print()" style="padding: 0 16px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; position: relative; z-index: 100; height: 36px; line-height: 36px; margin-bottom: 0;">打印</button>
+                </div>
+            </div>
+            <div class="period-info" style="justify-content: space-between;">
+                <div>年/月份：2026年1月</div>
+                <div>出表日期：2026年2月3日</div>
+            </div>
+        </div>
+        
+        <!-- 表格区域 -->
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>姓名</th>
+                        <th>身份证号</th>
+                        <th>卡号</th>
+                        <th>出勤天数</th>
+                        <th>基本工资</th>
+                        <th>绩效奖</th>
+                        <th>房贴</th>
+                        <th>其它补贴</th>
+                        <th>年终奖</th>
+                        <th>工资总额</th>
+                        <th>代扣个人社保</th>
+                        <th>代扣公积金</th>
+                        <th>扣借款</th>
+                        <th>代扣个税</th>
+                        <th>实发工资</th>
+                        <th>备注</th>
+                        <th>签字</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- 示例数据行 -->
+                    <tr>
+                        <td>张三</td>
+                        <td>110101********1234</td>
+                        <td>6228********1234</td>
+                        <td>22</td>
+                        <td class="amount">8,000.00</td>
+                        <td class="amount">2,000.00</td>
+                        <td class="amount">1,000.00</td>
+                        <td class="amount">500.00</td>
+                        <td class="amount">5,000.00</td>
+                        <td class="amount">-800.00</td>
+                        <td class="amount">-960.00</td>
+                        <td class="amount">-0.00</td>
+                        <td class="amount">-864.00</td>
+                        <td class="amount">13,876.00</td>
+                        <td></td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <td>李四</td>
+                        <td>310101********5678</td>
+                        <td>6228********5678</td>
+                        <td>20</td>
+                        <td class="amount">7,000.00</td>
+                        <td class="amount">1,800.00</td>
+                        <td class="amount">1,000.00</td>
+                        <td class="amount">300.00</td>
+                        <td class="amount">4,000.00</td>
+                        <td class="amount">-700.00</td>
+                        <td class="amount">-840.00</td>
+                        <td class="amount">-500.00</td>
+                        <td class="amount">-618.00</td>
+                        <td class="amount">11,442.00</td>
+                        <td></td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <td>王五</td>
+                        <td>440101********9012</td>
+                        <td>6228********9012</td>
+                        <td>23</td>
+                        <td class="amount">9,000.00</td>
+                        <td class="amount">2,500.00</td>
+                        <td class="amount">1,000.00</td>
+                        <td class="amount">600.00</td>
+                        <td class="amount">6,000.00</td>
+                        <td class="amount">-900.00</td>
+                        <td class="amount">-1,080.00</td>
+                        <td class="amount">-0.00</td>
+                        <td class="amount">-1,146.00</td>
+                        <td class="amount">15,974.00</td>
+                        <td></td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <td>赵六</td>
+                        <td>510101********3456</td>
+                        <td>6228********3456</td>
+                        <td>21</td>
+                        <td class="amount">8,500.00</td>
+                        <td class="amount">2,200.00</td>
+                        <td class="amount">1,000.00</td>
+                        <td class="amount">400.00</td>
+                        <td class="amount">5,500.00</td>
+                        <td class="amount">-850.00</td>
+                        <td class="amount">-1,020.00</td>
+                        <td class="amount">-1,000.00</td>
+                        <td class="amount">-992.00</td>
+                        <td class="amount">14,738.00</td>
+                        <td></td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <td>孙七</td>
+                        <td>610101********7890</td>
+                        <td>6228********7890</td>
+                        <td>22</td>
+                        <td class="amount">7,500.00</td>
+                        <td class="amount">2,100.00</td>
+                        <td class="amount">1,000.00</td>
+                        <td class="amount">350.00</td>
+                        <td class="amount">4,500.00</td>
+                        <td class="amount">-750.00</td>
+                        <td class="amount">-900.00</td>
+                        <td class="amount">-0.00</td>
+                        <td class="amount">-738.00</td>
+                        <td class="amount">12,062.00</td>
+                        <td></td>
+                        <td></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- 制表人信息 -->
+        <div style="margin-top: 30px; text-align: right; font-size: 14px;">
+            制表人：吴小英
+        </div>
+    </div>
+</body>
+</html>

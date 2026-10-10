@@ -97,6 +97,16 @@
       "sort_order": 6
     },
     {
+      "id": "salarymanage",
+      "name": "工资管理系统",
+      "description": "员工工资表填写与管理（端侧加密，云端仅存密文）",
+      "url": "apps/salary-manage/index.html",
+      "icon": "🧮",
+      "color": "#14b8a6",
+      "category": "furnace",
+      "sort_order": 7
+    },
+    {
       "id": "stainlessbusiness",
       "name": "不锈钢贸易管理",
       "description": "不锈钢进销存全流程系统",

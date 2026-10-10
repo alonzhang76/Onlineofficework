@@ -2719,6 +2719,7 @@
                         <td>
                             <button class="btn btn-sm btn-primary" onclick="editOrder('${o.id}')" title="编辑">✏️</button>
                             <button class="btn btn-sm btn-primary" onclick="viewOrderDrawing('${o.id}')" title="查看/下载图纸">📐</button>
+                            <button class="btn btn-sm btn-primary" onclick="pushOrderToWage('${o.id}')" title="推送到 wage 系统">📤</button>
                             <button class="btn btn-sm btn-danger" onclick="deleteOrder('${o.id}')" title="删除">🗑️</button>
                         </td>
                     </tr>
@@ -3914,6 +3915,101 @@
             showToast('订单已删除！');
             renderOrders();
             renderDashboard();
+        }
+
+        // ==================== 推送订单到 wage 应用（订单管理）====================
+        // 直接读写共享云端 app_data_store 表的 wage_orders 键（wage 应用每 10 秒自动刷新，
+        // 推送后在 wage 订单管理中即可看到）。字段对应：
+        // 客户→customer，订单号→orderNo，产品名称→type，图纸编号→drawingNo，
+        // 型号规格→spec，订单数量→qty，logo→bow
+        async function pushOrderToWage(id) {
+            const order = getOrders().find(o => o.id === id);
+            if (!order) { showToast('未找到该订单！'); return; }
+
+            // 等待 cloudbase-sync.js 加载的 CloudBase 兼容层就绪
+            let waited = 0;
+            while (!(window.supabase && window.supabase.from) && waited < 10000) {
+                await new Promise(r => setTimeout(r, 200));
+                waited += 200;
+            }
+            const sb = window.supabase;
+            if (!sb || !sb.from) { showToast('云端未连接，推送失败！'); return; }
+
+            const WAGE_ORDERS_KEY = 'wage_orders';
+
+            // 读取 wage 云端现有订单
+            let wageOrders = [];
+            try {
+                const res = await sb.from('app_data_store')
+                    .select('store_key, payload, updated_at')
+                    .eq('id', WAGE_ORDERS_KEY);
+                if (res.error) throw res.error;
+                if (res.data && res.data.length > 0) {
+                    let pv = res.data[0].payload;
+                    // 兼容 {data: [...]} 包装形态
+                    if (pv && typeof pv === 'object' && !Array.isArray(pv) && Array.isArray(pv.data)) pv = pv.data;
+                    if (Array.isArray(pv)) wageOrders = pv;
+                }
+            } catch (e) {
+                showToast('读取 wage 订单失败：' + (e.message || e));
+                return;
+            }
+
+            const qty = parseInt(order.quantity) || 0;
+            // 字段映射
+            const mapped = {
+                customer: order.customer || '',
+                orderNo: order.orderNo || '',
+                type: order.product || '',
+                drawingNo: order.drawing || '',
+                spec: order.spec || '',
+                qty: qty,
+                bow: order.logo || ''
+            };
+
+            let action;
+            // 按订单号去重：已存在则只更新推送字段，保留 wage 侧生产进度
+            // （产出 output、月度 m1~m12、投料/包装/出货日期、库存、状态等）
+            const existIdx = mapped.orderNo
+                ? wageOrders.findIndex(w => w.orderNo === mapped.orderNo)
+                : -1;
+            if (existIdx >= 0) {
+                wageOrders[existIdx] = Object.assign({}, wageOrders[existIdx], mapped);
+                action = 'updated';
+            } else {
+                // 新订单：默认值与 wage 新增订单保存逻辑一致
+                const newRec = {
+                    id: Date.now().toString(36) + Math.random().toString(36).substring(2, 7),
+                    orderDate: order.date || new Date().toISOString().slice(0, 10),
+                    output: 0,
+                    stock: 0 - qty,   // wage 公式：stock = output - qty
+                    plating: '',
+                    notes: '',
+                    delivery: '',
+                    materialDate: '',
+                    packDate: '',
+                    shipDate: '',
+                    status: '待生产'
+                };
+                for (let m = 1; m <= 12; m++) newRec['m' + m] = 0;
+                wageOrders.push(Object.assign(newRec, mapped));
+                action = 'added';
+            }
+
+            // 覆盖写回云端
+            try {
+                const up = await sb.from('app_data_store').upsert({
+                    store_key: WAGE_ORDERS_KEY,
+                    payload: wageOrders,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'store_key' });
+                if (up.error) throw up.error;
+                showToast(action === 'updated'
+                    ? '已推送，并更新 wage 中的该订单！'
+                    : '已推送至 wage 订单管理！');
+            } catch (e) {
+                showToast('推送失败：' + (e.message || e));
+            }
         }
 
         // ==================== 登录功能 ====================
