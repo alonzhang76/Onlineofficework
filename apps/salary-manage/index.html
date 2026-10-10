@@ -4,10 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- ===== 云端配置（必须在 cloudbase-sync.js 之前）=====
-       明文数据键全部排除、永不上云；仅同步端侧加密后的 salary_vault_v1 密文保险库 -->
+       明文数据键全部排除、永不上云；仅同步端侧加密后的 salary_vault_v1 密文保险库
+       与 salary_query_sync_v1 脱敏查询数据包（不含身份证/银行卡/手机号/备注，
+       供小程序工资管理多角度查询，内容变化时自动上云） -->
   <script>
     window.SUPABASE_APP_ID = 'salarymanage';
-    window.CLOUDBASE_APP_KEYS = ['salary_vault_v1'];
+    window.CLOUDBASE_APP_KEYS = ['salary_vault_v1', 'salary_query_sync_v1'];
     window.CLOUDBASE_EXCLUDE_KEYS = [
       'salaryStorage', 'salary_employees', 'salarySummaryData', 'salary_notes',
       'laborTaxRate|*'
@@ -5942,6 +5944,77 @@
       }
     }
 
+    // ---------- 查询数据包（脱敏，供小程序「工资管理」多角度查询） ----------
+    // 只含姓名/公司/部门/出勤/各项金额/实发；不含身份证、银行卡、手机号、备注。
+    // 内容完全由明文数据派生（无时间戳），内容不变则不写 localStorage，避免无谓上传。
+    var QUERY_KEY = 'salary_query_sync_v1';
+
+    function buildQueryPackage() {
+      try {
+        var storage = safeParse(localStorage.getItem('salaryStorage'), {}) || {};
+        var emps = safeParse(localStorage.getItem('salary_employees'), []) || [];
+        var deptById = {};
+        var empList = emps.map(function (e) {
+          if (e && e.id !== undefined && e.id !== null) deptById[String(e.id)] = e.department || '';
+          return {
+            id: (e && e.id) || '', name: (e && e.name) || '',
+            company: (e && e.company) || '', department: (e && e.department) || '',
+            position: (e && e.position) || '', status: (e && e.status) || '在职'
+          };
+        });
+        var rows = [];
+        Object.keys(storage).sort().forEach(function (mk) {
+          var list = storage[mk];
+          if (!Array.isArray(list)) return;
+          list.forEach(function (r) {
+            if (!r) return;
+            rows.push({
+              month: mk,
+              id: r.id || '', name: r.name || '', company: r.company || '',
+              department: deptById[String(r.id)] || '',
+              attendanceDays: Number(r.attendanceDays) || 0,
+              basicSalary: Number(r.basicSalary) || 0,
+              performanceBonus: Number(r.performanceBonus) || 0,
+              housingAllowance: Number(r.housingAllowance) || 0,
+              otherAllowance: Number(r.otherAllowance) || 0,
+              yearEndBonus: Number(r.yearEndBonus) || 0,
+              socialSecurity: Number(r.socialSecurity) || 0,
+              providentFund: Number(r.providentFund) || 0,
+              loanDeduction: Number(r.loanDeduction) || 0,
+              incomeTax: Number(r.incomeTax) || 0,
+              netSalary: Number(r.netSalary) || 0
+            });
+          });
+        });
+        // 稳定排序（月份降序 + 姓名），保证同样数据生成完全一致的 JSON
+        rows.sort(function (a, b) {
+          if (a.month !== b.month) return a.month < b.month ? 1 : -1;
+          if (a.name !== b.name) return a.name < b.name ? -1 : 1;
+          return String(a.id) < String(b.id) ? -1 : 1;
+        });
+        empList.sort(function (a, b) { return a.name < b.name ? -1 : (a.name > b.name ? 1 : 0); });
+        return { v: 1, app: 'salarymanage', rows: rows, employees: empList };
+      } catch (e) {
+        console.warn('[Vault] 查询数据包构建失败：', e);
+        return null;
+      }
+    }
+
+    function syncQueryPackage() {
+      var pkg = buildQueryPackage();
+      if (!pkg) return;
+      var json = JSON.stringify(pkg);
+      if (json.length > 900 * 1024) {
+        console.warn('[Vault] 查询数据包过大：', json.length);
+      }
+      try {
+        if (localStorage.getItem(QUERY_KEY) === json) return;  // 内容未变，不上传
+        localStorage.setItem(QUERY_KEY, json);  // 经同步引擎自动上云（salarymanage__ 前缀）
+      } catch (e) {
+        console.warn('[Vault] 查询数据包写入失败：', e);
+      }
+    }
+
     // ---------- PBKDF2 / AES-GCM ----------
     function deriveKey(pwd, saltBytes) {
       return subtle.importKey(
@@ -5996,6 +6069,7 @@
 
     function rebuildNow() {
       if (!unlocked || applyingRemote) return Promise.resolve();
+      syncQueryPackage();  // 查询数据包跟随明文变化（内容比对幂等）
       var bundle = collectBundle();
       var sig;
       try { sig = JSON.stringify(bundle); } catch (e) { return Promise.resolve(); }
@@ -6033,6 +6107,7 @@
         currentKey = res.key;
         currentSaltB64 = vault.salt;
         try { lastBundleSig = JSON.stringify(collectBundle()); } catch (e) {}
+        syncQueryPackage();  // 远端数据落地后同步刷新查询数据包
         refreshAppUI();
       }).catch(function () {
         console.warn('[Vault] 云端保险库解密失败（口令可能已在其他设备修改）');
@@ -6100,6 +6175,7 @@
           try { lastBundleSig = JSON.stringify(collectBundle()); } catch (e) {}
           installWrappers();
           localStorage.setItem(VAULT_KEY, JSON.stringify(vault));
+          syncQueryPackage();  // 新建保险库后立即生成查询数据包
         });
       });
     }

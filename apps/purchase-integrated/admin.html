@@ -32,12 +32,12 @@
 /* 云端数据（与其它应用同一套 cloudbase-sync 机制）：独立命名空间 purchase-integrated，
    仅同步本应用业务键；pis_reim_api 等本机配置、会话信息不同步 */
 window.CLOUDBASE_APP_ID='purchase-integrated';
-window.CLOUDBASE_APP_KEYS=['pis_companies','pis_units','pis_terms','pis_roles','pis_users','pis_suppliers','pis_curCompany','pis_orders','pis_shipments','pis_receipts','pis_returns','pis_invoices','pis_payments','pis_tool_records','pis_poPageSize','pis_plyPaste'];
+window.CLOUDBASE_APP_KEYS=['pis_companies','pis_units','pis_terms','pis_roles','pis_users','pis_suppliers','pis_curCompany','pis_orders','pis_shipments','pis_receipts','pis_returns','pis_invoices','pis_payments','pis_tool_records','pis_poPageSize','pis_plyPaste','pis_notifications'];
 window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
 </script>
 <script src="../cloudbase-sync.js?v=20260924f"></script>
 <script src="../cloudbase-admin.js?v=20260930a"></script>
-<script src="js/common.js?v=20261009a"></script>
+<script src="js/common.js?v=20261010a"></script>
 <script src="js/auth-guard.js"></script>
 <script>
 'use strict';
@@ -48,13 +48,82 @@ function pageAdmin(root) {
   root.innerHTML =
     '<div class="page-head"><h2>系统管理</h2><span class="desc">用户 · 角色权限 · 公司抬头 · 数据与云</span></div>' +
     '<div class="card"><div class="tabs">' +
-    [['user', '用户管理'], ['role', '角色权限'], ['company', '公司抬头'], ['data', '数据与云']].map(t => '<button class="tab' + (State.adminTab === t[0] ? ' active' : '') + '" data-tab="' + t[0] + '">' + t[1] + '</button>').join('') +
+    [['user', '用户管理'], ['role', '角色权限'], ['company', '公司抬头'], ['notify', '通知公告'], ['data', '数据与云']].map(t => '<button class="tab' + (State.adminTab === t[0] ? ' active' : '') + '" data-tab="' + t[0] + '">' + t[1] + '</button>').join('') +
     '</div><div id="adminBox"></div></div>';
   root.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => { State.adminTab = t.dataset.tab; renderPage(); }));
   if (State.adminTab === 'user') adminUsers();
   else if (State.adminTab === 'role') adminRoles();
   else if (State.adminTab === 'company') adminCompanies();
+  else if (State.adminTab === 'notify') adminNotify();
   else adminData();
+}
+/* 通知接收对象的可读描述（历史通知列表用） */
+function ncTargetDesc(n) {
+  if (n.toAll) return '全体用户';
+  if (n.toSupplier) return '供应商：' + n.toSupplier;
+  if (Array.isArray(n.toUsers) && n.toUsers.length) return '指定用户 ' + n.toUsers.length + ' 人';
+  if (Array.isArray(n.toRoles) && n.toRoles.length) {
+    const roles = DB.get('roles', []);
+    return '角色：' + n.toRoles.map(k => (roles.find(r => r.key === k) || {}).name || k).join('、');
+  }
+  return '—';
+}
+/* ---------- 通知公告：管理员定向发布（登录后铃铛/弹窗送达） ---------- */
+function adminNotify() {
+  const box = $('#adminBox');
+  const roles = DB.get('roles', []), sups = DB.get('suppliers', []);
+  const notes = NC.list();
+  box.innerHTML =
+    '<h3 style="font-size:14px;margin-bottom:10px">📢 发布通知</h3>' +
+    '<div class="form-grid" style="grid-template-columns:2fr 1fr">' +
+    '<div><label class="req">标题</label><input id="nTitle" placeholder="如：本周五前完成对账确认 / 新供应商协同流程通知"></div>' +
+    '<div><label>点击通知后跳转模块（选填）</label><select id="nRef"><option value="">不跳转</option>' +
+    PAGES.filter(p => !p.adminOnly).map(p => '<option value="' + p.key + '">' + esc(p.name) + '</option>').join('') + '</select></div>' +
+    '<div style="grid-column:1/-1"><label>内容</label><input id="nBody" placeholder="通知正文"></div></div>' +
+    '<div style="margin:12px 0 4px;display:flex;gap:16px;flex-wrap:wrap">' +
+    '<label style="display:inline-flex;gap:5px;align-items:center"><input type="radio" name="nTo" value="all" checked>全体用户</label>' +
+    '<label style="display:inline-flex;gap:5px;align-items:center"><input type="radio" name="nTo" value="roles">按角色</label>' +
+    '<label style="display:inline-flex;gap:5px;align-items:center"><input type="radio" name="nTo" value="supplier">指定供应商</label></div>' +
+    '<div id="nRolesWrap" style="display:none;margin:8px 0">' + roles.map(r => '<label style="display:inline-flex;gap:4px;align-items:center;margin:0 14px 6px 0"><input type="checkbox" class="n-role" value="' + esc(r.key) + '"' + (r.key === 'admin' ? ' checked' : '') + '>' + esc(r.name) + '</label>').join('') + '</div>' +
+    '<div id="nSupWrap" style="display:none;margin:8px 0;max-width:320px"><select id="nSup"><option value="">请选择供应商</option>' + sups.map(s => '<option>' + esc(s.supplierName) + '</option>').join('') + '</select></div>' +
+    '<div style="margin-top:10px"><button class="btn btn-primary" id="nSend">📢 发布通知</button>' +
+    '<span class="hint" style="display:inline-block;margin-left:12px">发布后所有接收人登录即弹出提示，页首铃铛可随时查看未读 / 已读</span></div>' +
+    '<h3 style="font-size:14px;margin:20px 0 10px">历史通知' + (notes.length ? '（共 ' + notes.length + ' 条）' : '') + '</h3>' +
+    (notes.length ? '<div class="tbl-wrap" style="max-height:40vh"><table><thead><tr><th>标题</th><th>内容</th><th>接收对象</th><th>发布人</th><th>发布时间</th><th>已读</th><th style="width:70px">操作</th></tr></thead><tbody>' +
+      notes.slice(0, 100).map(n => '<tr><td><b>' + esc(n.title) + '</b></td>' +
+        '<td class="subtle" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(n.body || '') + '">' + esc(n.body || '—') + '</td>' +
+        '<td>' + esc(ncTargetDesc(n)) + '</td><td>' + esc(n.byName || '') + '</td>' +
+        '<td class="subtle">' + esc((n.createdAt || '').slice(0, 16).replace('T', ' ')) + '</td>' +
+        '<td class="subtle">' + (n.readBy || []).length + ' 人</td>' +
+        '<td><button class="link-op danger" data-del="' + esc(n.id) + '">删除</button></td></tr>').join('') +
+      '</tbody></table></div>' : '<div class="empty">暂无通知记录</div>');
+  /* 接收对象切换 */
+  box.querySelectorAll('input[name="nTo"]').forEach(r => r.addEventListener('change', () => {
+    const v = box.querySelector('input[name="nTo"]:checked').value;
+    $('#nRolesWrap').style.display = v === 'roles' ? 'block' : 'none';
+    $('#nSupWrap').style.display = v === 'supplier' ? 'block' : 'none';
+  }));
+  $('#nSend').addEventListener('click', () => {
+    const title = $('#nTitle').value.trim(), body = $('#nBody').value.trim();
+    if (!title) { toast('请填写通知标题', 'err'); return; }
+    const v = box.querySelector('input[name="nTo"]:checked').value;
+    const opt = { kind: 'sys', title, body, refPage: $('#nRef').value };
+    if (v === 'roles') {
+      opt.toRoles = $$('.n-role').filter(c => c.checked).map(c => c.value);
+      if (!opt.toRoles.length) { toast('请至少勾选一个角色', 'err'); return; }
+    } else if (v === 'supplier') {
+      opt.toSupplier = $('#nSup').value;
+      if (!opt.toSupplier) { toast('请选择供应商', 'err'); return; }
+    } else opt.toAll = true;
+    NC.push(opt);
+    toast('通知已发布，接收人登录后即可看到', 'ok');
+    renderPage();
+  });
+  box.querySelectorAll('button[data-del]').forEach(b => b.addEventListener('click', () => {
+    if (!confirm('删除该通知？已读未读状态一并删除。')) return;
+    NC.save(NC.list().filter(x => x.id !== b.dataset.del));
+    toast('已删除', 'ok'); renderPage();
+  }));
 }
 function adminUsers() {
   const box = $('#adminBox');

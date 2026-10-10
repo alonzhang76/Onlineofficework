@@ -32,12 +32,12 @@
 /* 云端数据（与其它应用同一套 cloudbase-sync 机制）：独立命名空间 purchase-integrated，
    仅同步本应用业务键；pis_reim_api 等本机配置、会话信息不同步 */
 window.CLOUDBASE_APP_ID='purchase-integrated';
-window.CLOUDBASE_APP_KEYS=['pis_companies','pis_units','pis_terms','pis_roles','pis_users','pis_suppliers','pis_curCompany','pis_orders','pis_shipments','pis_receipts','pis_returns','pis_invoices','pis_payments','pis_tool_records','pis_poPageSize','pis_plyPaste'];
+window.CLOUDBASE_APP_KEYS=['pis_companies','pis_units','pis_terms','pis_roles','pis_users','pis_suppliers','pis_curCompany','pis_orders','pis_shipments','pis_receipts','pis_returns','pis_invoices','pis_payments','pis_tool_records','pis_poPageSize','pis_plyPaste','pis_notifications'];
 window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
 </script>
 <script src="../cloudbase-sync.js?v=20260924f"></script>
 <script src="../cloudbase-admin.js?v=20260930a"></script>
-<script src="js/common.js?v=20261009a"></script>
+<script src="js/common.js?v=20261010a"></script>
 <script src="js/auth-guard.js"></script>
 <!-- 内嵌 CMap / 标准字体数据：数电票的号码/日期/金额/公司名使用 CID 字体，
      缺 CMap 时整段值解码失败（表现为"未找到发票号码"）。内嵌后离线 / file:// /
@@ -300,8 +300,8 @@ function renderInvoiceLedger(pane, canW) {
         '<td><span class="badge b-gray">销售方</span></td>' +
         '<td style="white-space:nowrap">' + (canW ?
           (submittable ? '<button class="link-op" data-id="' + v.id + '" data-a="s">提交</button>' : '') +
-          '<button class="link-op" data-id="' + v.id + '" data-a="e">编辑</button>' +
-          '<button class="link-op danger" data-id="' + v.id + '" data-a="d">删除</button>' : '') + '</td></tr>';
+          (Session.canTouchRec(v) ? '<button class="link-op" data-id="' + v.id + '" data-a="e">编辑</button>' +
+          '<button class="link-op danger" data-id="' + v.id + '" data-a="d">删除</button>' : '<span class="subtle" title="仅创建人或管理员可修改">他人创建</span>') : '') + '</td></tr>';
     }).join('');
     $('#invTableBox').innerHTML = '<div class="tbl-wrap" style="max-height:62vh"><table><thead><tr>' +
       '<th class="checkbox-cell"><input type="checkbox" id="invSelAll"></th>' +
@@ -317,8 +317,7 @@ function renderInvoiceLedger(pane, canW) {
     });
     $$('#invTableBox button[data-a]').forEach(b => b.addEventListener('click', async () => {
       const rec = Data.list('invoices').find(x => x.id === b.dataset.id);
-      if (b.dataset.a === 'e') invoiceForm(rec);
-      else if (b.dataset.a === 's') {
+      if (b.dataset.a === 's') { // 提交至付款系统是流程动作：不限制经办人
         b.disabled = true; b.textContent = '提交中…';
         try {
           const r = await submitToReim(rec);
@@ -327,7 +326,8 @@ function renderInvoiceLedger(pane, canW) {
         } catch (e) { toast(e.message, 'err'); }
         renderPage();
       }
-      else if (confirm('删除该发票？')) { Data.remove('invoices', rec.id); toast('已删除', 'ok'); renderPage(); }
+      else if (b.dataset.a === 'e') { if (Session.guardTouch(rec, '发票')) invoiceForm(rec); }
+      else if (Session.guardTouch(rec, '发票') && confirm('删除该发票？')) { Data.remove('invoices', rec.id); toast('已删除', 'ok'); renderPage(); }
     }));
     bindPager();
   };

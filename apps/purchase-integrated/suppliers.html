@@ -32,12 +32,12 @@
 /* 云端数据（与其它应用同一套 cloudbase-sync 机制）：独立命名空间 purchase-integrated，
    仅同步本应用业务键；pis_reim_api 等本机配置、会话信息不同步 */
 window.CLOUDBASE_APP_ID='purchase-integrated';
-window.CLOUDBASE_APP_KEYS=['pis_companies','pis_units','pis_terms','pis_roles','pis_users','pis_suppliers','pis_curCompany','pis_orders','pis_shipments','pis_receipts','pis_returns','pis_invoices','pis_payments','pis_tool_records','pis_poPageSize','pis_plyPaste'];
+window.CLOUDBASE_APP_KEYS=['pis_companies','pis_units','pis_terms','pis_roles','pis_users','pis_suppliers','pis_curCompany','pis_orders','pis_shipments','pis_receipts','pis_returns','pis_invoices','pis_payments','pis_tool_records','pis_poPageSize','pis_plyPaste','pis_notifications'];
 window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
 </script>
 <script src="../cloudbase-sync.js?v=20260924f"></script>
 <script src="../cloudbase-admin.js?v=20260930a"></script>
-<script src="js/common.js?v=20261009a"></script>
+<script src="js/common.js?v=20261010a"></script>
 <script src="js/auth-guard.js"></script>
 <script>
 'use strict';
@@ -74,9 +74,10 @@ function pageSuppliers(root) {
       '<div class="kv"><span class="k">行号</span><span class="v mono">' + esc(s.bankCode || '—') + '</span></div>' +
       '<div class="kv"><span class="k">银行账号</span><span class="v mono">' + esc(s.bankAccount || '—') + '</span></div>' +
       (s.remarks ? '<div class="kv"><span class="k">备注</span><span class="v" title="' + esc(s.remarks) + '">' + esc(s.remarks) + '</span></div>' : '') +
-      '</div>' + (canW ? '<div class="ops"><button class="edit-btn" data-id="' + s.id + '" data-a="e">编辑</button><button class="del-btn" data-id="' + s.id + '" data-a="d">删除</button></div>' : '') + '</div>').join('');
+      '</div>' + (canW ? '<div class="ops">' + (Session.canTouchRec(s) ? '<button class="edit-btn" data-id="' + s.id + '" data-a="e">编辑</button><button class="del-btn" data-id="' + s.id + '" data-a="d">删除</button>' : '<span class="subtle" title="仅创建人或管理员可修改">他人创建</span>') + '</div>' : '') + '</div>').join('');
     if (canW) $('#supGrid').querySelectorAll('button[data-a]').forEach(b => b.addEventListener('click', () => {
       const s = DB.get('suppliers', []).find(x => x.id === b.dataset.id);
+      if (!Session.guardTouch(s, '供应商')) return;
       if (b.dataset.a === 'e') supplierForm(s);
       else if (confirm('删除供应商「' + s.supplierName + '」？其名下合同记录不会删除。')) { Data.remove('suppliers', s.id); toast('已删除', 'ok'); renderPage(); }
     }));
@@ -188,6 +189,8 @@ async function exportSuppliersExcel() {
 }
 /* ---------- 清空 ---------- */
 function clearSuppliers() {
+  /* 清空会连带删除他人创建的供应商档案（防推责）：仅管理员可执行 */
+  if (!Session.isAdmin()) { toast('清空会删除他人创建的供应商档案，仅管理员可执行', 'err'); return; }
   const list = DB.get('suppliers', []);
   if (!list.length) { toast('暂无供应商可清空', 'info'); return; }
   if (!confirm('⚠ 确认清空全部 ' + list.length + ' 家供应商档案？\n其名下合同 / 收发货 / 开票 / 付款记录不会删除，此操作不可恢复！')) return;

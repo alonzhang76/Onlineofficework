@@ -356,7 +356,25 @@ const Session = {
     if (this.isSupplier()) return page === 'ship' || page === 'invoice'; // 供应商：发货 + 发票录入可写
     return true;
   },
-  mySupplier() { return this.isSupplier() ? this.user.supplierName : ''; }
+  mySupplier() { return this.isSupplier() ? this.user.supplierName : ''; },
+  /* ---------- 记录修改权（防推责）----------
+     管理员可修改/删除全部记录；其他内部账号只能修改/删除自己创建的记录
+     （createdBy 由 Data.add 自动落标）。供应商数据本就按名下隔离，不受影响。
+     历史旧数据无经办人标记的保持可编辑，但任何修改都会落 updatedBy 留痕。 */
+  canTouchRec(rec) {
+    const u = this.user;
+    if (!u) return false;
+    if (this.isAdmin() || this.isSupplier()) return true;
+    if (!rec || rec.createdBy == null) return true; // 旧数据无经办人标记：放开（修改有 updatedBy 留痕）
+    return rec.createdBy === u.username;
+  },
+  /* 带提示的校验：不可改时 toast 并返回 false（编辑/删除入口统一调用） */
+  guardTouch(rec, label) {
+    if (this.canTouchRec(rec)) return true;
+    const nm = (rec && (rec.createdByName || rec.createdBy)) || '其他经办人';
+    toast((label || '该记录') + '由「' + nm + '」创建，仅创建人或管理员可修改 / 删除', 'err');
+    return false;
+  }
 };
 function saveSession() { sessionStorage.setItem('pis_session', JSON.stringify(Session.user)); }
 function loadSession() { try { Session.user = JSON.parse(sessionStorage.getItem('pis_session') || 'null'); } catch (e) { Session.user = null; } }
@@ -377,10 +395,24 @@ const Data = {
     return arr;
   },
   all(coll) { let arr = DB.get(coll, []); return Array.isArray(arr) ? arr : []; },
-  add(coll, rec) { const arr = DB.get(coll, []); arr.unshift(rec); DB.set(coll, arr); },
-  update(coll, id, patch) { const arr = DB.get(coll, []); const i = arr.findIndex(r => r.id === id); if (i > -1) { Object.assign(arr[i], patch, { updatedAt: new Date().toISOString() }); DB.set(coll, arr); } },
+  /* 经办人自动落标：新增/修改时记录当前登录人，用于区分多个采购员（及仓管/财务/供应商）的操作 */
+  stamp(rec, mode) {
+    const u = Session.user; if (!u || !rec) return;
+    if (mode !== 'update') { rec.createdBy = u.username; rec.createdByName = u.name || u.username; }
+    rec.updatedBy = u.username; rec.updatedByName = u.name || u.username;
+  },
+  add(coll, rec) { this.stamp(rec, 'add'); const arr = DB.get(coll, []); arr.unshift(rec); DB.set(coll, arr); if (window.NC) NC.onAdd(coll, rec); },
+  update(coll, id, patch) { this.stamp(patch, 'update'); const arr = DB.get(coll, []); const i = arr.findIndex(r => r.id === id); if (i > -1) { Object.assign(arr[i], patch, { updatedAt: new Date().toISOString() }); DB.set(coll, arr); } },
   remove(coll, id) { DB.set(coll, DB.get(coll, []).filter(r => r.id !== id)); }
 };
+/* 经办人色标：按用户名稳定取色（同一人永远同色，多人一眼区分） */
+function userHue(s) { const str = String(s || 'x'); let h = 0; for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) % 360; return h; }
+/* 小号头像徽标（表格/弹窗内嵌用）：圆形底色 + 姓名首字 */
+function opBadgeHTML(name, extra) {
+  const nm = String(name || '').trim(); if (!nm) return '<span class="subtle">—</span>';
+  const hue = userHue(nm);
+  return '<span class="op-badge" title="' + esc(nm) + (extra ? ' · ' + esc(extra) : '') + '"><i style="background:hsl(' + hue + ',62%,44%)">' + esc(nm.charAt(0)) + '</i>' + esc(nm) + '</span>';
+}
 const getCompany = code => { const c = (DB.get('companies', []).find(x => x.code === code) || {}); return c.name || code; };
 // 当前公司兜底：全部公司视图下的写入操作回落到第一家公司（哨兵值绝不能写入数据）
 const curCo = () => {
@@ -1198,6 +1230,8 @@ function applyCollImport(aoa, opt) {
 }
 /* 清空（通用）：全部公司视图禁止（GLOBAL_COLS 集合除外）→ 确认 → 清当前主体 */
 function clearCollConfirm(coll, label) {
+  /* 清空会连带删除他人创建的记录（防推责）：仅管理员可执行 */
+  if (!Session.isAdmin()) { toast('清空会删除他人创建的记录，仅管理员可执行', 'err'); return; }
   const isGlobal = Data.GLOBAL_COLS.indexOf(coll) > -1;
   if (!isGlobal && State.company === ALL_COMPANIES) { toast('「全部公司」视图下不可清空，请先在页首切换到具体公司主体', 'err'); return; }
   const list = Data.list(coll);
@@ -1227,6 +1261,7 @@ function depsChanged(deps) {
 function renderFrame() {
   const u = Session.user; if (!u) return;
   if ($('#whoName')) $('#whoName').textContent = u.username;
+  if (window.NC) window.NC.paintUserbox(); // 头像色标 + 铃铛未读角标（登录人标识）
   if ($('#companySelectWrap')) $('#companySelectWrap').style.display = Session.isSupplier() ? 'none' : 'flex';
   /* 供应商角色标记：CSS 据此隐藏页首工具条「备份到电脑 / 从电脑恢复」
      （供应商不得导出全量数据，更不能用本机 JSON 覆盖云端）。
@@ -1324,6 +1359,8 @@ function initPage(pageKey, pageFn) {
   if (!window.__reimSyncTimer) {
     window.__reimSyncTimer = setInterval(() => { ReimPay.load().catch(() => {}); }, REIM_TTL_MS);
   }
+  /* 通知中心：进入页面后若本人有未读通知，先弹出提示窗口 */
+  if (window.NC) window.NC.entryCheck();
 }
 
 /* ==========================================================
@@ -1493,3 +1530,241 @@ window.addEventListener('reim-pay-updated', () => {
 });
 /* cloudbase-admin 工具条消息走本应用 toast */
 window.showToast = (msg, type) => toast(String(msg == null ? '' : msg), type === 'error' ? 'err' : type === 'success' ? 'ok' : 'info');
+
+/* ==========================================================
+   通知中心 NC（铃铛 + 未读弹窗 + 已读/未读）
+   · 存储：pis_notifications（随云端同步，任何设备产生、所有设备可见）
+   · 一条通知可定向：指定用户 toUsers / 指定角色 toRoles / 某供应商 toSupplier / 全体 toAll
+   · 已读状态：readBy（用户 id 数组）随通知存储，各账号独立标记已读
+   · 自动生成：供应商发货 → 通知采购员/仓管；需方确认收货 → 通知对应供应商；
+               登记发票 → 通知财务/管理员；管理员公告在「系统管理 → 通知公告」发布
+   ========================================================== */
+(function ncStyle() {
+  const st = document.createElement('style');
+  st.id = 'pisNcStyle';
+  st.textContent =
+    '.nc-wrap{position:relative;display:flex;align-items:center}' +
+    '.nc-bell{position:relative;background:none;border:none;cursor:pointer;padding:6px;border-radius:8px;color:var(--text);display:flex;align-items:center}' +
+    '.nc-bell:hover{background:#f1f5f9}' +
+    '.nc-badge{position:absolute;top:-1px;right:-3px;min-width:15px;height:15px;border-radius:8px;background:#e5484d;color:#fff;font-size:10px;line-height:15px;text-align:center;padding:0 4px;font-weight:700;display:none;font-style:normal}' +
+    '.nc-panel{position:absolute;top:calc(100% + 10px);right:-6px;width:360px;max-height:min(480px,72vh);overflow-y:auto;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.18);z-index:90;padding:8px;display:none;color:var(--text);text-align:left}' +
+    '.nc-head{display:flex;align-items:center;justify-content:space-between;padding:4px 6px 8px;border-bottom:1px solid var(--border);font-weight:700;font-size:13px}' +
+    '.nc-head .lk{font-size:12px;font-weight:400}' +
+    '.nc-sec{font-size:11px;color:var(--muted);padding:8px 6px 4px;font-weight:600}' +
+    '.nc-item{padding:8px 10px;border-radius:8px;cursor:pointer}' +
+    '.nc-item:hover{background:#f1f5f9}' +
+    '.nc-item.un{background:#eff6ff}' +
+    '.nc-item.un:hover{background:#e0edff}' +
+    '.nc-t{font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:6px;flex-wrap:wrap}' +
+    '.nc-b{font-size:12px;color:#475569;margin:3px 0;line-height:1.5}' +
+    '.nc-m{font-size:11px;color:#94a3b8}' +
+    '.nc-empty{padding:22px 0;text-align:center;color:var(--muted);font-size:12.5px}' +
+    '.nc-item .lk{font-size:11px;margin-left:auto;white-space:nowrap}' +
+    /* 经办人标识（表格/弹窗） */
+    '.op-badge{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text);white-space:nowrap}' +
+    '.op-badge i{width:18px;height:18px;border-radius:50%;color:#fff;font-size:11px;font-weight:700;font-style:normal;display:inline-flex;align-items:center;justify-content:center;flex:none}' +
+    /* 页首登录人头像（冻结行右上角用户区内） */
+    '.userbox .u-ava{width:26px;height:26px;border-radius:50%;color:#fff;font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none;letter-spacing:0}';
+  document.head.appendChild(st);
+})();
+
+const NC = {
+  list() { const a = DB.get('notifications', []); return Array.isArray(a) ? a : []; },
+  save(arr) {
+    arr.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    DB.set('notifications', arr.slice(0, 300)); // 只保留最近 300 条，防止无限膨胀
+  },
+  /* 接收匹配（自己发布的自己不弹） */
+  match(n) {
+    const u = Session.user; if (!u || !n) return false;
+    if (n.by === u.id) return false;
+    if (Array.isArray(n.toUsers) && n.toUsers.indexOf(u.id) > -1) return true;
+    if (Array.isArray(n.toRoles) && n.toRoles.indexOf(u.role) > -1) return true;
+    if (n.toSupplier && Session.isSupplier() && n.toSupplier === Session.mySupplier()) return true;
+    return n.toAll === true;
+  },
+  mine() { return this.list().filter(n => this.match(n)); },
+  unread() { return this.mine().filter(n => !(n.readBy || []).includes(Session.user.id)); },
+  push(o) {
+    const u = Session.user; if (!u || !o || !o.title) return;
+    const arr = this.list();
+    arr.unshift({
+      id: uid(), title: String(o.title), body: o.body || '', kind: o.kind || 'sys',
+      toUsers: Array.isArray(o.toUsers) && o.toUsers.length ? o.toUsers : null,
+      toRoles: Array.isArray(o.toRoles) && o.toRoles.length ? o.toRoles : null,
+      toSupplier: o.toSupplier || '', toAll: o.toAll === true,
+      refPage: o.refPage || '', refShip: o.refShip || '',
+      by: u.id, byName: u.name || u.username, createdAt: new Date().toISOString(), readBy: []
+    });
+    this.save(arr); this.refreshBadge();
+  },
+  markRead(id) {
+    const u = Session.user; if (!u) return;
+    const arr = this.list(); const n = arr.find(x => x.id === id); if (!n) return;
+    n.readBy = n.readBy || [];
+    if (n.readBy.indexOf(u.id) < 0) { n.readBy.push(u.id); this.save(arr); this.refreshBadge(); }
+  },
+  markAllRead() {
+    const u = Session.user; if (!u) return;
+    const arr = this.list(); let dirty = false;
+    arr.forEach(n => {
+      if (this.match(n) && (n.readBy || []).indexOf(u.id) < 0) { (n.readBy = n.readBy || []).push(u.id); dirty = true; }
+    });
+    if (dirty) { this.save(arr); this.refreshBadge(); }
+  },
+  /* 拥有某页面写权限的角色 key（自动通知的接收范围），管理员始终在内 */
+  rolesWithPerm(page) {
+    return ['admin'].concat(DB.get('roles', []).filter(r => {
+      const v = (r.permissions || {})[page];
+      return (v === 'rw' || v === true) && !r.supplierRole;
+    }).map(r => r.key));
+  },
+  /* 业务动作 → 自动通知（挂接在 Data.add 之后，本机产生、随云端到其他设备） */
+  onAdd(coll, rec) {
+    try {
+      if (!rec || !Session.user) return;
+      if (coll === 'shipments') {
+        this.push({ kind: 'ship', title: '供应商发货通知',
+          body: (rec.supplier || '供应商') + ' 登记发货：合同 ' + (rec.contractNumber || '—') + ' · ' + (rec.product || '') + ' · 数量 ' + fmtNum(rec.quantity) + (rec.shipDate ? ' · 发货日 ' + rec.shipDate : ''),
+          toRoles: this.rolesWithPerm('receive'), refPage: 'receive' });
+      } else if (coll === 'receipts' && rec.source !== 'manual-import') {
+        this.push({ kind: 'receive', title: '需方收货反馈',
+          body: '您的发货单 ' + (rec.shipNumber || '') + ' 已确认收货：实收 ' + fmtNum(rec.quantity) + (rec.remark ? ' · 需方反馈：' + rec.remark : ''),
+          toSupplier: rec.supplier || '', refPage: 'ship', refShip: rec.shipNumber || '' });
+      } else if (coll === 'invoices') {
+        this.push({ kind: 'invoice', title: '新发票登记',
+          body: (rec.supplier || '') + ' 登记发票 ' + (rec.invoiceNumber || '') + ' · 价税合计 ' + fmtMoney(rec.amount) + (rec.contractNumber ? ' · 合同 ' + rec.contractNumber : ''),
+          toRoles: this.rolesWithPerm('invoice'), refPage: 'invoice' });
+      }
+    } catch (e) { /* 通知失败不影响业务保存 */ }
+  },
+  /* ---------- 页首 UI：铃铛 + 未读角标 + 下拉面板（冻结行右上角用户区） ---------- */
+  refreshBadge() {
+    const b = $('#ncBadge'); if (!b) return;
+    const n = Session.user ? this.unread().length : 0;
+    b.textContent = n > 99 ? '99+' : String(n);
+    b.style.display = n > 0 ? 'block' : 'none';
+    if ($('#ncPanel') && $('#ncPanel').style.display !== 'none') this.renderPanel();
+  },
+  paintUserbox() {
+    const u = Session.user; if (!u) return;
+    const ava = $('#whoAva'); if (!ava) return;
+    const nm = u.name || u.username || '?';
+    ava.textContent = nm.charAt(0);
+    ava.style.background = 'hsl(' + userHue(u.username || nm) + ',62%,44%)';
+    ava.title = (u.name || u.username) + ' · ' + ((DB.get('roles', []).find(r => r.key === u.role) || {}).name || u.role);
+    this.refreshBadge();
+  },
+  togglePanel(force) {
+    const p = $('#ncPanel'); if (!p) return;
+    const show = force !== undefined ? force : p.style.display === 'none';
+    if (show) this.renderPanel();
+    p.style.display = show ? 'block' : 'none';
+  },
+  itemHTML(n, isUn) {
+    const kindMap = { ship: ['发货', 'b-blue'], receive: ['收货', 'b-green'], invoice: ['发票', 'b-purple'], sys: ['通知', 'b-gray'] };
+    const k = kindMap[n.kind] || kindMap.sys;
+    return '<div class="nc-item' + (isUn ? ' un' : '') + '" data-id="' + esc(n.id) + '">' +
+      '<div class="nc-t">' + (isUn ? '<span class="badge b-red">未读</span>' : '') + '<span class="badge ' + k[1] + '">' + k[0] + '</span>' + esc(n.title) + '</div>' +
+      (n.body ? '<div class="nc-b">' + esc(n.body) + '</div>' : '') +
+      '<div class="nc-m">' + esc(n.byName || '') + ' · ' + ncTime(n.createdAt) + '</div></div>';
+  },
+  renderPanel() {
+    const p = $('#ncPanel'); if (!p) return;
+    const mine = this.mine();
+    const un = mine.filter(n => !(n.readBy || []).includes(Session.user.id));
+    const rd = mine.filter(n => (n.readBy || []).includes(Session.user.id)).slice(0, 30);
+    p.innerHTML = '<div class="nc-head"><span>通知中心' + (un.length ? '（' + un.length + ' 条未读）' : '') + '</span>' +
+      (un.length ? '<span class="lk link-op" id="ncReadAll">全部标为已读</span>' : '') + '</div>' +
+      (un.length ? '<div class="nc-sec">未读</div>' + un.map(n => this.itemHTML(n, true)).join('') : '') +
+      (rd.length ? '<div class="nc-sec">已读</div>' + rd.map(n => this.itemHTML(n, false)).join('') : '') +
+      (!mine.length ? '<div class="nc-empty">暂无与您相关的通知</div>' : '');
+    if ($('#ncReadAll')) $('#ncReadAll').addEventListener('click', e => { e.stopPropagation(); this.markAllRead(); });
+    p.querySelectorAll('.nc-item').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); this.onItemClick(el.dataset.id); }));
+  },
+  /* 通知点击：收货反馈 → 打开需方消息详情；其余 → 跳转关联模块 */
+  onItemClick(id) {
+    const n = this.list().find(x => x.id === id); if (!n) return;
+    this.markRead(id);
+    this.togglePanel(false); closeModal();
+    if (n.kind === 'receive' && n.refShip) {
+      const s = Data.all('shipments').filter(x => x.shipNumber === n.refShip)
+        .sort((a, b) => String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || '')))[0];
+      if (s) { showSupplierMsg(s); return; }
+    }
+    if (n.refPage && Session.can(n.refPage)) {
+      if (State.page !== n.refPage) location.href = n.refPage + '.html';
+      else renderPage();
+    }
+  },
+  /* ---------- 登录后弹出：本人有未读通知时先弹提示窗口 ---------- */
+  entryCheck() {
+    if (!Session.user) return;
+    this.__lastUnread = this.unread().length;
+    setTimeout(() => {
+      if (!Session.user || !$('#modalMask')) return;
+      const un = this.unread(); if (!un.length) return;
+      if ($('#modalMask').classList.contains('show')) return; // 已有弹窗（如需方消息）：不打架，角标仍会提示
+      this.openModalList(un);
+    }, 700);
+  },
+  openModalList(list) {
+    openModal('<h3>🔔 通知 · 您有 ' + list.length + ' 条未读</h3>' +
+      '<div style="max-height:56vh;overflow-y:auto;margin:4px 0 10px">' +
+      list.slice(0, 30).map(n => this.itemHTML(n, true)).join('') +
+      (list.length > 30 ? '<div class="nc-empty">其余 ' + (list.length - 30) + ' 条可在页首铃铛中查看</div>' : '') + '</div>' +
+      '<div class="modal-foot"><button type="button" class="btn btn-outline" onclick="closeModal()">关闭</button>' +
+      '<button type="button" class="btn btn-primary" id="ncModalReadAll">全部标为已读</button></div>');
+    $('#ncModalReadAll').addEventListener('click', () => { this.markAllRead(); closeModal(); toast('已全部标为已读', 'ok'); });
+    $$('#modalBox .nc-item').forEach(el => el.addEventListener('click', () => this.onItemClick(el.dataset.id)));
+  }
+};
+window.NC = NC;
+function ncTime(iso) {
+  const d = new Date(iso); if (isNaN(d)) return '';
+  const s = (Date.now() - d.getTime()) / 1000;
+  if (s < 60) return '刚刚';
+  if (s < 3600) return Math.floor(s / 60) + ' 分钟前';
+  if (s < 86400) return Math.floor(s / 3600) + ' 小时前';
+  if (s < 7 * 86400) return Math.floor(s / 86400) + ' 天前';
+  return fmtDate(iso);
+}
+/* ---------- 铃铛 + 头像注入页首用户区（所有业务页共用，免逐页改 HTML） ---------- */
+(function ncInjectUI() {
+  function ready(fn) { if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
+  ready(function () {
+    const box = document.querySelector('.userbox');
+    if (!box || $('#ncBell')) return;
+    /* 登录人头像（姓名首字 + 稳定取色）：多个采购员同角色也可一眼区分 */
+    const ava = document.createElement('span');
+    ava.className = 'u-ava'; ava.id = 'whoAva';
+    box.insertBefore(ava, box.firstChild);
+    /* 铃铛 + 下拉面板 */
+    const wrap = document.createElement('div');
+    wrap.className = 'nc-wrap'; wrap.id = 'ncWrap';
+    wrap.innerHTML = '<button class="nc-bell" id="ncBell" type="button" title="通知中心（未读 / 已读）" aria-label="通知中心">' +
+      '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>' +
+      '<span class="nc-badge" id="ncBadge"></span></button>' +
+      '<div class="nc-panel" id="ncPanel" style="display:none"></div>';
+    box.insertBefore(wrap, box.firstChild);
+    $('#ncBell').addEventListener('click', e => { e.stopPropagation(); NC.togglePanel(); });
+    document.addEventListener('click', e => {
+      const p = $('#ncPanel');
+      if (p && p.style.display !== 'none' && !(e.target.closest && e.target.closest('#ncWrap'))) NC.togglePanel(false);
+    });
+    NC.paintUserbox();
+  });
+})();
+/* ---------- 云端到达新通知：刷新角标 + 轻提示（不弹窗打断操作） ---------- */
+window.addEventListener('cloud-data-updated', e => {
+  if (!Session.user || !window.NC) return;
+  const n = NC.unread().length;
+  if (!e || !e.detail || !e.detail.initial) {
+    if (typeof NC.__lastUnread === 'number' && n > NC.__lastUnread) {
+      toast('🔔 您有 ' + (n - NC.__lastUnread) + ' 条新通知，点击页首铃铛查看', 'info');
+    }
+  }
+  NC.__lastUnread = n;
+  NC.refreshBadge();
+});

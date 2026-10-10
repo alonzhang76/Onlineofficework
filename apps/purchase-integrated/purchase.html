@@ -32,12 +32,12 @@
 /* 云端数据（与其它应用同一套 cloudbase-sync 机制）：独立命名空间 purchase-integrated，
    仅同步本应用业务键；pis_reim_api 等本机配置、会话信息不同步 */
 window.CLOUDBASE_APP_ID='purchase-integrated';
-window.CLOUDBASE_APP_KEYS=['pis_companies','pis_units','pis_terms','pis_roles','pis_users','pis_suppliers','pis_curCompany','pis_orders','pis_shipments','pis_receipts','pis_returns','pis_invoices','pis_payments','pis_tool_records','pis_poPageSize','pis_plyPaste'];
+window.CLOUDBASE_APP_KEYS=['pis_companies','pis_units','pis_terms','pis_roles','pis_users','pis_suppliers','pis_curCompany','pis_orders','pis_shipments','pis_receipts','pis_returns','pis_invoices','pis_payments','pis_tool_records','pis_poPageSize','pis_plyPaste','pis_notifications'];
 window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
 </script>
 <script src="../cloudbase-sync.js?v=20260924f"></script>
 <script src="../cloudbase-admin.js?v=20260930a"></script>
-<script src="js/common.js?v=20261009a"></script>
+<script src="js/common.js?v=20261010a"></script>
 <script src="js/auth-guard.js"></script>
 <script>
 'use strict';
@@ -86,10 +86,16 @@ function coDot(code) {
   const palette = ['#2563eb', '#ea580c', '#16a34a', '#9333ea', '#e11d48', '#0891b2'];
   return '<span class="co-dot" style="background:' + palette[i % palette.length] + '" title="' + esc(getCompany(code)) + '">' + esc((code || '？').charAt(0)) + '</span>';
 }
+/* 经办人单元格：显示创建该合同的登录人色标（hover 提示最后修改人），区分多个采购员 */
+function opCellOf(o) {
+  const nm = (o && (o.createdByName || o.createdBy)) || '';
+  if (!nm) return '<span class="subtle">—</span>';
+  return opBadgeHTML(nm, o.updatedByName && o.updatedByName !== nm ? '最后修改 ' + o.updatedByName : '');
+}
 function drawPurchaseTable(box, kw) {
   const all = Data.list('orders');
   let orders = all;
-  if (kw) orders = all.filter(o => [o.contractNumber, o.po, o.supplier, o.remark, o.actualDate, o.category, (o.products || []).map(p => [p.name, p.spec, p.category, p.remark].join(' ')).join(' ')].join(' ').toLowerCase().includes(kw));
+  if (kw) orders = all.filter(o => [o.contractNumber, o.po, o.supplier, o.remark, o.actualDate, o.category, o.createdByName || '', (o.products || []).map(p => [p.name, p.spec, p.category, p.remark].join(' ')).join(' ')].join(' ').toLowerCase().includes(kw));
   orders.sort((a, b) => (b.orderDate || '').localeCompare(a.orderDate || '') || (b.contractNumber || '').localeCompare(a.contractNumber || ''));
   // 展开为产品明细行（每个产品一行，同参考表格）
   const lines = [];
@@ -126,6 +132,7 @@ function drawPurchaseTable(box, kw) {
       '<td class="mono"' + (first ? ' style="font-weight:700"' : '') + '>' + coDot(o.company) + esc(o.contractNumber) + '</td>' +
       '<td class="subtle"' + (first ? ' style="color:var(--text)"' : '') + '>' + esc(o.po || '') + '</td>' +
       '<td>' + esc(o.supplier) + '</td>' +
+      '<td' + (first ? '' : ' class="subtle"') + '>' + (first ? opCellOf(o) : '') + '</td>' +
       '<td class="subtle">' + esc(o.orderDate || '') + '</td>' +
       '<td class="subtle"' + (late ? ' style="color:#e5484d;font-weight:600"' : '') + '>' + esc(o.deliveryDate || '') + (late ? ' ⚠' : '') + '</td>' +
       '<td>' + esc(p.name) + '</td>' +
@@ -138,12 +145,12 @@ function drawPurchaseTable(box, kw) {
       '<td class="subtle" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(p.remark || '') + '">' + esc(p.remark || '') + '</td>' +
       '<td class="subtle" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(o.remark || '') + '">' + esc(o.remark || '') + '</td>' +
       '<td style="white-space:nowrap">' + (first ? '<button class="link-op" data-act="detail" data-id="' + o.id + '">明细</button><button class="link-op" data-act="print" data-id="' + o.id + '">打印</button>' +
-        (Session.canWrite('purchase') ? '<button class="link-op" data-act="edit" data-id="' + o.id + '">编辑</button><button class="link-op danger" data-act="del" data-id="' + o.id + '">删除</button>' : '') : '') + '</td></tr>';
+        (Session.canWrite('purchase') && Session.canTouchRec(o) ? '<button class="link-op" data-act="edit" data-id="' + o.id + '">编辑</button><button class="link-op danger" data-act="del" data-id="' + o.id + '">删除</button>' : '') : '') + '</td></tr>';
   }).join('');
-  const foot = '<tr><td colspan="9" style="text-align:right">本页合计</td><td class="num">' + fmtNum(pageLines.reduce((s, l) => s + (+l.p.quantity || 0), 0)) + '</td><td></td><td class="num">' + fmtMoney(pageLines.reduce((s, l) => s + poAmtOf(l.p), 0)) + '</td><td colspan="4"></td></tr>';
+  const foot = '<tr><td colspan="10" style="text-align:right">本页合计</td><td class="num">' + fmtNum(pageLines.reduce((s, l) => s + (+l.p.quantity || 0), 0)) + '</td><td></td><td class="num">' + fmtMoney(pageLines.reduce((s, l) => s + poAmtOf(l.p), 0)) + '</td><td colspan="4"></td></tr>';
   box.innerHTML = '<div class="tbl-wrap" style="max-height:60vh"><table class="po-tb"><thead><tr>' +
     '<th style="width:34px;text-align:center"><input type="checkbox" id="poSelAll" title="全选 / 取消本页合同"></th>' +
-    '<th>合同号</th><th>PO</th><th>供应商</th><th>合同日期</th><th>交货期</th><th>产品名称</th><th>规格型号</th><th class="num">单价</th><th class="num">数量</th><th>单位</th><th class="num">总金额(含税)</th><th>成本类别</th><th>说明</th><th>备注</th><th style="width:158px">操作</th></tr></thead><tbody>' +
+    '<th>合同号</th><th>PO</th><th>供应商</th><th>经办人</th><th>合同日期</th><th>交货期</th><th>产品名称</th><th>规格型号</th><th class="num">单价</th><th class="num">数量</th><th>单位</th><th class="num">总金额(含税)</th><th>成本类别</th><th>说明</th><th>备注</th><th style="width:158px">操作</th></tr></thead><tbody>' +
     body + '</tbody><tfoot>' + foot + '</tfoot></table></div>';
   box.querySelectorAll('.po-chk').forEach(chk => chk.addEventListener('change', () => {
     if (chk.checked) poSel.add(chk.dataset.id); else poSel.delete(chk.dataset.id);
@@ -162,8 +169,9 @@ function drawPurchaseTable(box, kw) {
     const o = Data.list('orders').find(x => x.id === b.dataset.id); if (!o) return;
     if (b.dataset.act === 'detail') orderDetail(o);
     else if (b.dataset.act === 'print') contractPrint(o);
-    else if (b.dataset.act === 'edit') orderForm(o);
+    else if (b.dataset.act === 'edit') { if (Session.guardTouch(o, '合同')) orderForm(o); }
     else if (b.dataset.act === 'del') {
+      if (!Session.guardTouch(o, '合同')) return;
       if (confirm('确定删除合同 ' + o.contractNumber + ' ？相关收发货记录不会删除。')) { Data.remove('orders', o.id); poSel.delete(o.id); toast('已删除', 'ok'); renderPage(); }
     }
   }));
@@ -240,6 +248,7 @@ async function exportOrdersExcel() {
 }
 /* ---------- 清空 ---------- */
 function clearOrders() {
+  if (!Session.isAdmin()) { toast('清空会删除他人创建的合同，仅管理员可执行', 'err'); return; }
   if (State.company === ALL_COMPANIES) { toast('「全部公司」视图下不可清空，请先在页首切换到具体公司主体', 'err'); return; }
   const list = Data.list('orders');
   if (!list.length) { toast('当前公司主体没有采购合同', 'info'); return; }
@@ -389,7 +398,7 @@ function orderDetail(o) {
     '</tbody></table></div>' : '<div class="hint" style="margin-top:10px">暂无付款记录</div>';
   openModal('<h3>合同明细 · ' + esc(cno) + '</h3>' +
     '<div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">' +
-    '<div class="stat-card"><div class="l">供应商</div><div class="v" style="font-size:14px">' + esc(o.supplier) + '</div><div class="s">' + esc(o.orderDate || '') + ' 签订 · PO ' + esc(o.po || '—') + ' · 交期 ' + esc(o.deliveryDate || '—') + '</div></div>' +
+    '<div class="stat-card"><div class="l">供应商</div><div class="v" style="font-size:14px">' + esc(o.supplier) + '</div><div class="s">' + esc(o.orderDate || '') + ' 签订 · PO ' + esc(o.po || '—') + ' · 交期 ' + esc(o.deliveryDate || '—') + ' · 经办 ' + esc(o.createdByName || o.createdBy || '—') + '</div></div>' +
     '<div class="stat-card hl"><div class="l">合同金额(含税)</div><div class="v">' + fmtMoney(o.totalAmount) + '</div><div class="s">' + moneyCn(o.totalAmount) + '</div></div>' +
     '<div class="stat-card"><div class="l">已开票</div><div class="v">' + fmtMoney(inv) + '</div><div class="s">未开票 ' + fmtMoney(Math.max(0, o.totalAmount - inv)) + '</div></div>' +
     '<div class="stat-card ' + (paid >= o.totalAmount - 0.005 ? 'good' : 'warn') + '"><div class="l">已付款</div><div class="v">' + fmtMoney(paid) + '</div><div class="s">待付 ' + fmtMoney(Math.max(0, o.totalAmount - paid)) + '</div></div></div>' +

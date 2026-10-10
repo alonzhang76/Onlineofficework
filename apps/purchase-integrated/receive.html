@@ -32,12 +32,12 @@
 /* 云端数据（与其它应用同一套 cloudbase-sync 机制）：独立命名空间 purchase-integrated，
    仅同步本应用业务键；pis_reim_api 等本机配置、会话信息不同步 */
 window.CLOUDBASE_APP_ID='purchase-integrated';
-window.CLOUDBASE_APP_KEYS=['pis_companies','pis_units','pis_terms','pis_roles','pis_users','pis_suppliers','pis_curCompany','pis_orders','pis_shipments','pis_receipts','pis_returns','pis_invoices','pis_payments','pis_tool_records','pis_poPageSize','pis_plyPaste'];
+window.CLOUDBASE_APP_KEYS=['pis_companies','pis_units','pis_terms','pis_roles','pis_users','pis_suppliers','pis_curCompany','pis_orders','pis_shipments','pis_receipts','pis_returns','pis_invoices','pis_payments','pis_tool_records','pis_poPageSize','pis_plyPaste','pis_notifications'];
 window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
 </script>
 <script src="../cloudbase-sync.js?v=20260924f"></script>
 <script src="../cloudbase-admin.js?v=20260930a"></script>
-<script src="js/common.js?v=20261009a"></script>
+<script src="js/common.js?v=20261010a"></script>
 <script src="js/auth-guard.js"></script>
 <script>
 'use strict';
@@ -233,10 +233,11 @@ function drawReceive() {
       list.map(r => '<tr><td class="mono">' + esc(r.receiptNumber) + '</td><td class="mono">' + esc(r.contractNumber) + '</td><td>' + esc(r.supplier) + '</td><td>' + esc(r.product) + '</td><td class="num"><b>' + fmtNum(r.quantity) + '</b></td><td>' + esc(r.receiptDate || '') + '</td><td>' + esc(r.person || '') + '</td>' +
         '<td>' + (r.source === 'ship-confirm' ? '<span class="badge b-blue">确认到货</span>' + (r.shipNumber ? '<br><span class="subtle mono" style="font-size:11px">' + esc(r.shipNumber) + '</span>' : '') : (r.source === 'manual-import' ? '<span class="badge b-purple">导入登记</span>' : '<span class="badge b-gray">手工登记</span>')) + '</td>' +
         '<td class="subtle">' + esc(r.remark || '') + '</td>' +
-        (canW ? '<td><button class="link-op" data-id="' + r.id + '" data-a="e">编辑</button><button class="link-op danger" data-id="' + r.id + '" data-a="d">删除</button></td>' : '') + '</tr>').join('') + '</tbody></table></div>'
+        (canW ? '<td>' + (Session.canTouchRec(r) ? '<button class="link-op" data-id="' + r.id + '" data-a="e">编辑</button><button class="link-op danger" data-id="' + r.id + '" data-a="d">删除</button>' : '<span class="subtle" title="仅创建人或管理员可修改">他人创建</span>') + '</td>' : '') + '</tr>').join('') + '</tbody></table></div>'
       : '<div class="empty">暂无收货记录<br><span class="subtle">收货记录由「待确认到货」页确认供应商发货后自动生成，无需手工登记</span></div>';
     if (canW) box.querySelectorAll('button[data-a]').forEach(b => b.addEventListener('click', () => {
       const rec = Data.list('receipts').find(x => x.id === b.dataset.id);
+      if (!Session.guardTouch(rec, '收货记录')) return;
       if (b.dataset.a === 'e') receiptForm(rec);
       else if (confirm('删除该收货记录？' + (rec.source === 'ship-confirm' ? '\n（该记录由「' + (rec.shipNumber || '') + '」确认到货生成，删除后发货单会回到「待确认到货」列表）' : ''))) { Data.remove('receipts', rec.id); toast('已删除', 'ok'); renderPage(); }
     }));
@@ -257,10 +258,11 @@ function drawReceive() {
     list.sort((a, b) => (b.returnDate || '').localeCompare(a.returnDate || '') || (b.returnNumber || '').localeCompare(a.returnNumber || ''));
     box.innerHTML = list.length ? '<div class="tbl-wrap" style="max-height:60vh"><table><thead><tr><th>退货单号</th><th>合同号</th><th>供应商</th><th>产品</th><th class="num">数量</th><th>退货日期</th><th>退货原因</th>' + (canW ? '<th>操作</th>' : '') + '</tr></thead><tbody>' +
       list.map(r => '<tr><td class="mono">' + esc(r.returnNumber) + '</td><td class="mono">' + esc(r.contractNumber) + '</td><td>' + esc(r.supplier) + '</td><td>' + esc(r.product) + '</td><td class="num"><b>' + fmtNum(r.quantity) + '</b></td><td>' + esc(r.returnDate || '') + '</td><td>' + esc(r.reason || '') + '</td>' +
-        (canW ? '<td><button class="link-op" data-id="' + r.id + '" data-a="e">编辑</button><button class="link-op danger" data-id="' + r.id + '" data-a="d">删除</button></td>' : '') + '</tr>').join('') + '</tbody></table></div>'
+        (canW ? '<td>' + (Session.canTouchRec(r) ? '<button class="link-op" data-id="' + r.id + '" data-a="e">编辑</button><button class="link-op danger" data-id="' + r.id + '" data-a="d">删除</button>' : '<span class="subtle" title="仅创建人或管理员可修改">他人创建</span>') + '</td>' : '') + '</tr>').join('') + '</tbody></table></div>'
       : '<div class="empty">暂无退货记录</div>';
     if (canW) box.querySelectorAll('button[data-a]').forEach(b => b.addEventListener('click', () => {
       const rec = Data.list('returns').find(x => x.id === b.dataset.id);
+      if (!Session.guardTouch(rec, '退货记录')) return;
       if (b.dataset.a === 'e') returnForm(rec);
       else if (confirm('删除该退货记录？')) { Data.remove('returns', rec.id); toast('已删除', 'ok'); renderPage(); }
     }));
@@ -280,6 +282,7 @@ function drawReceive() {
 function adjustContractQty(row) {
   const o = Data.list('orders').find(x => x.id === row.oid) || contractByNo(row.cno);
   if (!o) { toast('合同不存在', 'err'); return; }
+  if (!Session.guardTouch(o, '合同')) return; // 数量调整会改写他人创建的合同（防推责）
   const target = row.recv; // 以实收合计为准
   const oldQty = row.ordered, newQty = target;
   const up = newQty > oldQty;
@@ -434,7 +437,9 @@ function confirmShipReceive(rec) {
     Data.update('shipments', rec.id, { status: st, receivedAt: new Date().toISOString(), receiveRemark: $('#cfRemark').value.trim(), supplierReadAt: '' });
     closeModal();
     const diff = ordered2 - (already2 + newDone);
-    if (diff < 0) { // ③ 实收超出合同 → 提示按实收调整合同数量（防超付）
+    if (diff < 0 && !Session.canTouchRec(o2)) // ③ 实收超出合同但合同为他人创建：确认继续，数量调整交由创建人/管理员
+      toast('已确认到货。合同由「' + (o2.createdByName || o2.createdBy || '其他经办人') + '」创建，按实收调整数量请联系创建人或管理员', 'info');
+    else if (diff < 0) { // ③ 实收超出合同 → 提示按实收调整合同数量（防超付）
       const ok = confirm('本次确认后累计收货 ' + fmtNum(already2 + newDone) + '，已超出合同数量 ' + fmtNum(ordered2) + ' 共 ' + fmtNum(-diff) + '。\n\n是否将合同「' + rec.product + '」的数量按实收合计（' + fmtNum(already2 + newDone) + '）调整？\n（调整后合同金额同步重算，避免多付款）');
       if (ok) {
         const prods = (o2.products || []).map(p => p.name === rec.product
