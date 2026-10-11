@@ -286,6 +286,9 @@ table.batch-table input[type=number]::-webkit-inner-spin-button,
 table.batch-table input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 table.batch-table input[type=number] { -moz-appearance: textfield; }
 table.batch-table .batch-proc { width: 100%; }
+/* 房贴社保导入弹窗的删除按钮 */
+table.data-table .del-btn { width: 26px; height: 26px; border: none; background: var(--danger-light); color: var(--danger); border-radius: 4px; cursor: pointer; font-size: 16px; line-height: 1; }
+table.data-table .del-btn:hover { background: var(--danger); color: #fff; }
 
 /* Backup panel */
 .backup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
@@ -711,6 +714,7 @@ table.batch-table .batch-proc { width: 100%; }
             <div class="form-group" style="flex-direction:row;gap:8px;">
               <button class="btn btn-primary" onclick="saveMonthlySnapshot()">保存</button>
               <button class="btn btn-success" onclick="exportMonthlySummary()">导出Excel</button>
+              <button class="btn" style="background:#fff7ed;color:#c2410c;border:1px solid #fdba74;" onclick="openHousingSocialImport()">一键导入房贴社保</button>
             </div>
           </div>
         </div>
@@ -1111,6 +1115,38 @@ table.batch-table .batch-proc { width: 100%; }
         <button class="btn" style="background:#e2e8f0;" onclick="closeModal('orderModal')">取消</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- 房贴社保一键导入弹窗 -->
+<div class="modal-overlay" id="housingSocialModal">
+  <div class="modal" style="max-width:860px;">
+    <div class="modal-title">一键导入房贴社保</div>
+    <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button class="btn btn-sm" style="background:var(--primary-light);color:var(--primary-dark);" onclick="document.getElementById('hsExcelInput').click()">选择Excel文件</button>
+      <input type="file" id="hsExcelInput" accept=".xlsx,.xls" style="display:none" onchange="importHousingSocialExcel(this)">
+      <button class="btn btn-sm" onclick="addHousingSocialRow()">+ 新增行</button>
+      <button class="btn btn-sm" style="background:var(--success-light);color:var(--success-dark);" onclick="pickEmployeeFromMgmt()">从员工管理添加</button>
+      <span style="font-size:12px;color:var(--text-light);margin-left:auto;">导入目标：<b id="hsTargetYM"></b></span>
+    </div>
+    <div class="table-wrap" style="max-height:50vh;overflow:auto;border:1px solid var(--border);border-radius:6px;">
+      <table class="data-table" id="hsTable">
+        <thead><tr>
+          <th style="width:40px;">#</th><th>姓名 <span style="font-weight:400;font-size:11px;color:var(--text-light);">（可下拉选择/手动输入）</span></th>
+          <th>房贴</th><th>代扣社保</th><th>代扣公积金</th>
+          <th style="width:60px;">操作</th>
+        </tr></thead>
+        <tbody id="hsTbody"></tbody>
+      </table>
+    </div>
+    <datalist id="hsEmpDatalist"></datalist>
+    <div style="margin-top:8px;font-size:12px;color:var(--text-light);">
+      提示：选择Excel后自动识别「姓名/房贴/社保/公积金」列；可在此编辑、增删员工，确认后写入对应月份的补贴设置。
+    </div>
+    <div class="form-actions" style="margin-top:16px;">
+      <button class="btn btn-primary" onclick="confirmHousingSocialImport()">导入到月度汇总</button>
+      <button class="btn" style="background:#e2e8f0;" onclick="closeModal('housingSocialModal')">取消</button>
+    </div>
   </div>
 </div>
 
@@ -2177,6 +2213,131 @@ function saveAdjInline(input) {
   adj[field] = val;
   DB.save('adjustments');
   renderMonthlySummary();
+}
+
+// ===================== 房贴社保一键导入 =====================
+let hsData = []; // {name, housing, socialInsurance, housingFund}
+
+function openHousingSocialImport() {
+  const year = document.getElementById('monthlyYear').value;
+  const month = document.getElementById('monthlyMonth').value;
+  document.getElementById('hsTargetYM').textContent = `${year}年${month}月`;
+  // 预填充：读取当前月份已有的房贴/社保/公积金设置
+  const existing = DB.adjustments.filter(a => a.year == year && a.month == month);
+  hsData = existing.map(a => ({
+    name: a.employee || '',
+    housing: parseFloat(a.housing) || 0,
+    socialInsurance: parseFloat(a.socialInsurance) || 0,
+    housingFund: parseFloat(a.housingFund) || 0
+  })).filter(r => r.name && (r.housing || r.socialInsurance || r.housingFund));
+  if (hsData.length === 0) hsData = [{name:'', housing:0, socialInsurance:0, housingFund:0}];
+  renderHsTable();
+  document.getElementById('housingSocialModal').classList.add('show');
+}
+
+function renderHsTable() {
+  const tbody = document.getElementById('hsTbody');
+  const empNames = DB.employees.map(e => e.name).sort();
+  const dl = document.getElementById('hsEmpDatalist');
+  if (dl) dl.innerHTML = empNames.map(n => `<option value="${n}">`).join('');
+  tbody.innerHTML = hsData.map((r, i) => `
+    <tr>
+      <td style="text-align:center;color:var(--text-light);">${i+1}</td>
+      <td><input type="text" class="form-control" style="width:130px;padding:3px 6px;font-size:13px;" value="${r.name}" list="hsEmpDatalist" onchange="hsData[${i}].name=this.value.trim()" placeholder="选择/输入姓名"></td>
+      <td><input type="number" step="0.01" class="form-control" style="width:90px;padding:3px 6px;font-size:13px;text-align:right;" value="${r.housing}" onchange="hsData[${i}].housing=parseFloat(this.value)||0"></td>
+      <td><input type="number" step="0.01" class="form-control" style="width:90px;padding:3px 6px;font-size:13px;text-align:right;" value="${r.socialInsurance}" onchange="hsData[${i}].socialInsurance=parseFloat(this.value)||0"></td>
+      <td><input type="number" step="0.01" class="form-control" style="width:90px;padding:3px 6px;font-size:13px;text-align:right;" value="${r.housingFund}" onchange="hsData[${i}].housingFund=parseFloat(this.value)||0"></td>
+      <td><button class="del-btn" onclick="deleteHsRow(${i})">×</button></td>
+    </tr>`).join('');
+}
+
+function addHousingSocialRow(name) {
+  hsData.push({name: name || '', housing:0, socialInsurance:0, housingFund:0});
+  renderHsTable();
+}
+
+function deleteHsRow(idx) {
+  hsData.splice(idx, 1);
+  if (hsData.length === 0) hsData = [{name:'', housing:0, socialInsurance:0, housingFund:0}];
+  renderHsTable();
+}
+
+function importHousingSocialExcel(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      if (rows.length < 2) { UI.toast('Excel无数据', 'error'); return; }
+      // 自动定位表头行：扫描前5行，找到含「姓名」的行作为表头
+      let headerIdx = 0;
+      for (let r = 0; r < Math.min(5, rows.length); r++) {
+        if (rows[r].some(c => /^(姓名|名字|员工|员工姓名)$/.test(String(c || '').trim()))) { headerIdx = r; break; }
+      }
+      const header = rows[headerIdx].map(h => String(h || '').trim());
+      const colMap = { name: -1, housing: -1, socialInsurance: -1, housingFund: -1 };
+      header.forEach((h, ci) => {
+        const t = h.replace(/\s/g,'');
+        if (colMap.name < 0 && /^(姓名|名字|员工|员工姓名)$/.test(t)) colMap.name = ci;
+        else if (colMap.housing < 0 && /(房贴|住房补贴|住房补助)/.test(t)) colMap.housing = ci;
+        else if (colMap.socialInsurance < 0 && /(社保|个人社保|代扣社保|养老|保险)/.test(t)) colMap.socialInsurance = ci;
+        else if (colMap.housingFund < 0 && /(公积金|住房公积金)/.test(t)) colMap.housingFund = ci;
+      });
+      if (colMap.name < 0) { UI.toast('未找到「姓名」列，请检查表头', 'error'); return; }
+      const parsed = [];
+      for (let i = headerIdx + 1; i < rows.length; i++) {
+        const row = rows[i];
+        const name = String(row[colMap.name] || '').trim();
+        if (!name) continue;
+        parsed.push({
+          name,
+          housing: colMap.housing >= 0 ? (parseFloat(row[colMap.housing]) || 0) : 0,
+          socialInsurance: colMap.socialInsurance >= 0 ? (parseFloat(row[colMap.socialInsurance]) || 0) : 0,
+          housingFund: colMap.housingFund >= 0 ? (parseFloat(row[colMap.housingFund]) || 0) : 0
+        });
+      }
+      if (parsed.length === 0) { UI.toast('未解析到有效数据', 'error'); return; }
+      hsData = parsed;
+      renderHsTable();
+      UI.toast(`已解析 ${parsed.length} 条记录`);
+    } catch (err) {
+      UI.toast('Excel解析失败：' + err.message, 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  input.value = '';
+}
+
+function pickEmployeeFromMgmt() {
+  const emps = DB.employees.filter(e => !e.leaveDate || !String(e.leaveDate).trim());
+  const existingNames = new Set(hsData.map(r => r.name).filter(Boolean));
+  const selectable = emps.filter(e => !existingNames.has(e.name));
+  if (selectable.length === 0) { UI.toast('员工管理中没有可添加的在职员工（或已全部添加）'); return; }
+  selectable.forEach(e => hsData.push({name:e.name, housing:0, socialInsurance:0, housingFund:0}));
+  renderHsTable();
+  UI.toast(`已添加 ${selectable.length} 名员工，可在表格中填写金额`);
+}
+
+function confirmHousingSocialImport() {
+  const year = document.getElementById('monthlyYear').value;
+  const month = document.getElementById('monthlyMonth').value;
+  const valid = hsData.filter(r => r.name && (r.housing || r.socialInsurance || r.housingFund));
+  if (valid.length === 0) { UI.toast('没有有效的导入数据', 'error'); return; }
+  let count = 0;
+  valid.forEach(r => {
+    const adj = DB.getOrCreateAdjustment(r.name, year, month);
+    adj.housing = parseFloat(r.housing) || 0;
+    adj.socialInsurance = parseFloat(r.socialInsurance) || 0;
+    adj.housingFund = parseFloat(r.housingFund) || 0;
+    count++;
+  });
+  DB.save('adjustments');
+  closeModal('housingSocialModal');
+  renderMonthlySummary();
+  UI.toast(`已导入 ${count} 条房贴社保数据到 ${year}年${month}月`);
 }
 
 function showDropdownManager(field) {
@@ -3823,6 +3984,7 @@ function renderOrderTablePage() {
           <td>${o.notes || '-'}</td>
           <td class="col-actions">
             <button class="btn btn-sm btn-icon-only" style="background:var(--primary-light);color:var(--primary-dark);" onclick="editOrder('${o.id}')" title="编辑">&#9998;</button>
+            <button class="btn btn-sm btn-icon-only" style="background:#fef3c7;color:#d97706;" onclick="viewOrderDrawing('${o.id}')" title="查看图纸">📐</button>
             <button class="btn btn-sm btn-icon-only btn-danger" onclick="deleteOrder('${o.id}')" title="删除">&times;</button>
           </td>
         </tr>`).join('')}
@@ -4016,6 +4178,152 @@ function deleteOrder(id) {
   UI.initSelects();
   renderCalendar();
   UI.toast('订单已删除');
+}
+
+// ==================== 订单图纸查看/上传（云端 炉架业务/PDF 文件/PDF图纸/）====================
+// 依据订单「图纸号」在 PDF图纸 文件夹中模糊查找 PDF：唯一→直接预览；
+// 多个→弹窗选择；没有→提示上传或取消。查看/下载复用 CFB.previewByPath / CFB.download。
+var WAGE_DWG_DIR = 'PDF 文件/PDF图纸';
+
+function _wageDwEsc(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// 归一化：忽略大小写、空格、下划线、连字符
+function _wageDwNorm(s) {
+  return String(s || '').toLowerCase().replace(/[\s_\-]+/g, '');
+}
+
+function _wageDwMatches(files, drawing) {
+  var q = _wageDwNorm(drawing);
+  if (!q) return [];
+  var scored = [];
+  files.forEach(function (name) {
+    var nb = _wageDwNorm(name.replace(/\.pdf$/i, ''));
+    var score = 0;
+    if (nb === q) score = 100;
+    else if (nb.indexOf(q) === 0) score = 80;
+    else if (nb.indexOf(q) >= 0) score = 60;
+    if (score) scored.push({ name: name, score: score, len: nb.length });
+  });
+  scored.sort(function (a, b) { return b.score - a.score || a.len - b.len || (a.name < b.name ? -1 : 1); });
+  return scored.map(function (x) { return x.name; });
+}
+
+async function _wageDwListPdfs() {
+  if (!(window.CFB && window.CFB._st)) throw new Error('云端文件模块未就绪，请稍后重试');
+  await CFB._waitSb(10000);
+  var r = await CFB._st().list(WAGE_DWG_DIR, { limit: 1000 });
+  if (r && r.error) throw new Error((r.error && (r.error.message || r.error)) || '列目录失败');
+  return ((r && r.data) || []).filter(function (it) {
+    return it.type !== 'folder' && /\.pdf$/i.test(it.name);
+  }).map(function (it) { return it.name; });
+}
+
+function _wageDwPath(name) { return '/' + WAGE_DWG_DIR + '/' + name; }
+
+function _wageDwModalClose() {
+  var ov = document.getElementById('wageDwgModalOverlay');
+  if (ov && ov.parentNode) ov.parentNode.removeChild(ov);
+}
+
+function _wageDwModalOpen(title, bodyHtml, footerHtml) {
+  _wageDwModalClose();
+  var ov = document.createElement('div');
+  ov.id = 'wageDwgModalOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10001;display:flex;align-items:center;justify-content:center;';
+  ov.innerHTML = '<div style="background:#fff;border-radius:10px;max-width:520px;width:92%;max-height:80vh;overflow:auto;padding:18px 20px;box-shadow:0 12px 40px rgba(0,0,0,.25);">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'
+    + '<h3 style="margin:0;font-size:16px;">' + title + '</h3>'
+    + '<button onclick="_wageDwModalClose()" title="关闭" style="border:none;background:none;font-size:20px;line-height:1;cursor:pointer;color:#666;">&times;</button></div>'
+    + '<div>' + bodyHtml + '</div>'
+    + (footerHtml ? '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">' + footerHtml + '</div>' : '')
+    + '</div>';
+  ov.addEventListener('click', function (e) { if (e.target === ov) _wageDwModalClose(); });
+  document.body.appendChild(ov);
+}
+
+async function viewOrderDrawing(id) {
+  var order = DB.orders.find(function (o) { return o.id === id; });
+  if (!order) return;
+  var drawing = String(order.drawingNo || '').trim();
+  if (!drawing) { UI.toast('该订单未填写图纸号，请先编辑订单补充', 'error'); return; }
+  UI.toast('正在检索云端图纸库…');
+  try {
+    var files = await _wageDwListPdfs();
+    var matches = _wageDwMatches(files, drawing);
+    if (matches.length === 1) { await _wageDwOpen(matches[0]); return; }
+    if (matches.length > 1) { wageOpenDrawingChooser(drawing, matches); return; }
+    wageOpenDrawingNotFound(drawing);
+  } catch (e) {
+    UI.toast('图纸检索失败：' + ((e && e.message) || e), 'error');
+  }
+}
+
+async function _wageDwOpen(name) {
+  try {
+    var url = await CFB._signed(_wageDwPath(name), 7200);
+    if (!url) throw new Error('获取访问地址失败');
+    var w = window.open(url, '_blank');
+    if (!w) UI.toast('浏览器拦截了新窗口，请允许弹出窗口后重试', 'error');
+  } catch (e) {
+    UI.toast('图纸打开失败：' + ((e && e.message) || e), 'error');
+  }
+}
+
+function wageOpenDrawingChooser(drawing, matches) {
+  window.__wageDwgMatches = matches;
+  var rows = matches.map(function (name, i) {
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid #eee;">'
+      + '<span style="word-break:break-all;">📄 ' + _wageDwEsc(name) + '</span>'
+      + '<span style="white-space:nowrap;">'
+      + '<button class="btn btn-sm btn-primary" onclick="wagePreviewDrawingFile(' + i + ')">查看</button> '
+      + '<button class="btn btn-sm" onclick="wageDownloadDrawingFile(' + i + ')">下载</button></span>'
+      + '</div>';
+  }).join('');
+  _wageDwModalOpen('图纸号 ' + _wageDwEsc(drawing) + '：找到 ' + matches.length + ' 个匹配文件',
+    '<p style="margin:0 0 8px;color:#666;font-size:13px;">请选择要查看的图纸：</p>' + rows, '');
+}
+
+function wageOpenDrawingNotFound(drawing) {
+  window.__wageDwgDrawing = drawing;
+  _wageDwModalOpen('未找到图纸 ' + _wageDwEsc(drawing),
+    '<p style="margin:0;">图纸库（PDF图纸）中没有与「<b>' + _wageDwEsc(drawing) + '</b>」匹配的 PDF 文件。</p>'
+    + '<p style="margin:8px 0 0;color:#666;font-size:13px;">可将图纸 PDF 上传到云端图纸库，上传成功后自动打开预览。</p>',
+    '<button class="btn btn-sm" onclick="_wageDwModalClose()">取消</button>'
+    + '<button class="btn btn-sm btn-primary" onclick="document.getElementById(\'wageDrawingUploadInput\').click()">上传图纸</button>');
+}
+
+function wagePreviewDrawingFile(i) {
+  var name = (window.__wageDwgMatches || [])[i];
+  if (!name) return;
+  _wageDwModalClose();
+  _wageDwOpen(name);
+}
+
+function wageDownloadDrawingFile(i) {
+  var name = (window.__wageDwgMatches || [])[i];
+  if (!name) return;
+  CFB.download(_wageDwPath(name));
+}
+
+async function wageUploadDrawingFile(input) {
+  var file = input && input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  if (!/\.pdf$/i.test(file.name)) { UI.toast('请选择 PDF 文件', 'error'); return; }
+  _wageDwModalClose();
+  UI.toast('正在上传图纸 ' + file.name + ' …');
+  try {
+    await CFB._waitSb(10000);
+    var r = await CFB._st().upload(WAGE_DWG_DIR + '/' + file.name, file, { upsert: true });
+    if (r && r.error) throw new Error((r.error && (r.error.message || r.error)) || '上传失败');
+    UI.toast('图纸已上传：' + file.name);
+    setTimeout(function () { _wageDwOpen(file.name); }, 600);
+  } catch (e) {
+    UI.toast('上传失败：' + ((e && e.message) || e), 'error');
+  }
 }
 
 function importOrdersExcel(input) {
@@ -4781,5 +5089,6 @@ window.CFB_CONFIG = {
 };
 </script>
 <script src="../cloudbase/cfb.js?v=20260928b"></script>
+<input type="file" id="wageDrawingUploadInput" accept="application/pdf,.pdf" style="display:none" onchange="wageUploadDrawingFile(this)">
 </body>
 </html>
