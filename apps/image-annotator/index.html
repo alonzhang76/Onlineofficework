@@ -1,0 +1,1919 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>图片标注工具</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --primary:#007aff;--primary-dark:#0071e3;--bg:#f5f5f7;--card-bg:#fff;
+  --border:rgba(0,0,0,.08);--text:#1d1d1f;--text-light:#86868b;
+  --danger:#ff3b30;--success:#34c759;
+  --glass:rgba(255,255,255,.72);--shadow:0 4px 24px rgba(0,0,0,.08);
+  --spring:cubic-bezier(.34,1.3,.64,1);
+}
+html,body{height:100%;}
+body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",Arial,sans-serif;font-size:13px;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;}
+/* 应用布局 */
+.app{display:flex;flex-direction:column;height:100vh;overflow:hidden;}
+.app-header{background:var(--glass);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);padding:10px 20px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border);}
+.traffic{display:flex;gap:8px;margin-right:4px;}
+.tl{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 1px rgba(0,0,0,.15);transition:transform .25s var(--spring);}
+.tl.red{background:#ff5f57;}.tl.yellow{background:#febc2e;}.tl.green{background:#28c840;}
+.app-header:hover .tl{transform:scale(1.15);}
+.app-header .icon{font-size:22px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,122,255,.25));}
+.app-header h1{font-size:16px;color:var(--text);letter-spacing:.2px;font-weight:700;}
+.app-header .sub{font-size:10px;color:var(--text-light);letter-spacing:1.5px;margin-top:2px;}
+.app-footer{display:flex;gap:8px;justify-content:space-between;align-items:center;padding:10px 16px;background:var(--glass);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--border);}
+.footer-hint{font-size:11px;color:var(--text-light);}
+/* 按钮（macOS 连续圆角 + 按压弹性） */
+.btn{position:relative;overflow:hidden;padding:6px 16px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;transition:transform .2s var(--spring),background .2s,box-shadow .2s;display:inline-flex;align-items:center;gap:4px;font-family:inherit;}
+.btn:active{transform:scale(.96);}
+.btn-primary{background:var(--primary);color:#fff;box-shadow:0 1px 3px rgba(0,122,255,.35);}
+.btn-primary:hover{background:var(--primary-dark);transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,122,255,.35);}
+.btn-outline{background:rgba(255,255,255,.85);border:1px solid var(--border);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.04);}
+.btn-outline:hover{background:#fff;border-color:rgba(0,0,0,.16);transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.08);}
+.btn-danger{background:var(--danger);color:#fff;}
+.btn-danger:hover{background:#e6352b;transform:translateY(-1px);}
+/* ===== 顶部分类导航（macOS 菜单栏：毛玻璃 + 蓝色菜单高亮）===== */
+.tool-nav{display:flex;align-items:center;background:var(--glass);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border-bottom:1px solid var(--border);padding:0 12px;position:relative;z-index:200;}
+.nav-brand{font-size:13px;font-weight:700;color:var(--text);letter-spacing:.5px;margin-right:14px;white-space:nowrap;}
+.nav-tabs{display:flex;list-style:none;margin:0;padding:0;}
+.topnav{position:relative;}
+.tab-label{position:relative;overflow:hidden;display:flex;align-items:center;height:36px;padding:0 14px;font-size:13px;color:var(--text);cursor:pointer;user-select:none;border-radius:8px;margin:3px 1px;white-space:nowrap;transition:background .2s var(--spring);}
+.tab-label .caret{font-size:8px;margin-left:4px;opacity:.45;transition:transform .25s var(--spring);}
+.topnav:hover .tab-label{background:rgba(0,0,0,.06);}
+.topnav:hover .caret{transform:translateY(1px);}
+.dropdown-menu{display:none;position:absolute;top:100%;left:1px;min-width:190px;background:rgba(255,255,255,.88);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);padding:5px;margin:0;list-style:none;border-radius:12px;border:1px solid var(--border);box-shadow:0 12px 40px rgba(0,0,0,.18),0 2px 8px rgba(0,0,0,.08);}
+.topnav:hover .dropdown-menu{display:block;animation:dropIn .22s var(--spring);transform-origin:top left;}
+@keyframes dropIn{from{opacity:0;transform:translateY(-6px) scale(.97);}to{opacity:1;transform:translateY(0) scale(1);}}
+.dropdown-menu li a{position:relative;overflow:hidden;display:block;font-size:13px;color:var(--text);padding:6px 12px;margin:1px 0;border-radius:7px;letter-spacing:0;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s;}
+.dropdown-menu li a:hover{background:var(--primary);color:#fff;}
+.dropdown-menu li a.active{background:var(--primary);color:#fff;font-weight:600;}
+.dropdown-menu li.divider{height:1px;background:var(--border);margin:5px 8px;}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.current-tool{font-size:12px;color:var(--text-light);background:rgba(0,0,0,.05);padding:4px 12px;border-radius:999px;white-space:nowrap;}
+.current-tool b{color:var(--primary);}
+.nav-right label{font-size:12px;color:var(--text);white-space:nowrap;}
+.annot-color{width:26px;height:26px;border:2px solid #fff;border-radius:50%;cursor:pointer;padding:0;background:transparent;box-shadow:0 0 0 1px var(--border),0 1px 3px rgba(0,0,0,.1);transition:transform .2s var(--spring);}
+.annot-color:hover{transform:scale(1.12);}
+.nav-right input[type="range"]{width:80px;accent-color:var(--primary);}
+/* 画布区域 */
+.annot-canvas-wrap{border:1px solid var(--border);border-radius:14px;min-height:200px;display:flex;align-items:center;justify-content:center;overflow:auto;flex:1;position:relative;margin:14px 16px;background:#fff;box-shadow:var(--shadow);}
+.annot-canvas-wrap canvas{max-width:100%;cursor:crosshair;}
+.annot-upload-prompt{text-align:center;color:var(--text-light);padding:40px;}
+.annot-upload-prompt::before{content:"💧";display:block;font-size:34px;margin-bottom:10px;animation:floatDrop 2.8s ease-in-out infinite;}
+@keyframes floatDrop{0%,100%{transform:translateY(0) scale(1);}50%{transform:translateY(-8px) scale(1.06);}}
+/* 水滴涟漪（点击按钮/菜单时扩散） */
+.ripple{position:absolute;border-radius:50%;background:rgba(0,122,255,.25);transform:scale(0);animation:rippleAnim .65s ease-out forwards;pointer-events:none;}
+.dropdown-menu li a .ripple,.tab-label .ripple{background:rgba(255,255,255,.55);}
+@keyframes rippleAnim{to{transform:scale(2.6);opacity:0;}}
+/* Toast 提示（胶囊 + 弹性入场） */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(16px) scale(.92);padding:9px 22px;border-radius:999px;font-size:13px;font-weight:500;color:#fff;z-index:400;opacity:0;transition:all .35s var(--spring);pointer-events:none;box-shadow:0 8px 30px rgba(0,0,0,.18);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0) scale(1);}
+#toast.success{background:rgba(52,199,89,.92);}
+#toast.error{background:rgba(255,59,48,.92);}
+#toast.info{background:rgba(29,29,31,.85);}
+/* 滚动条（macOS 叠层式） */
+::-webkit-scrollbar{width:9px;height:9px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:rgba(0,0,0,.22);border-radius:999px;border:2px solid transparent;background-clip:content-box;}
+::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.38);border:2px solid transparent;background-clip:content-box;}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- 顶部标题栏（macOS 窗口样式） -->
+  <div class="app-header">
+    <div class="traffic"><span class="tl red"></span><span class="tl yellow"></span><span class="tl green"></span></div>
+    <div class="icon">🖼</div>
+    <div>
+      <h1>图片标注工具</h1>
+      <div class="sub">IMAGE ANNOTATION TOOL</div>
+    </div>
+  </div>
+
+  <!-- 顶部分类导航（悬停展开菜单） -->
+  <nav class="tool-nav">
+    <span class="nav-brand">🖼 标注工具</span>
+    <input type="file" id="annotFile" accept="image/*" multiple style="display:none" onchange="loadAnnotImage(event)">
+    <input type="file" id="insertImgFile" accept="image/*" style="display:none" onchange="insertImage(event)">
+    <ul class="nav-tabs">
+      <li class="topnav">
+        <span class="tab-label">📏 线条<span class="caret">▼</span></span>
+        <ul class="dropdown-menu">
+          <li><a class="tool-selectable" data-tool="brush" onclick="setAnnotTool('brush',this)">🖊 画笔(荧光)</a></li>
+          <li><a class="tool-selectable active" data-tool="arrow" onclick="setAnnotTool('arrow',this)">➤ 箭头</a></li>
+          <li><a class="tool-selectable" data-tool="dashSingle" onclick="setAnnotTool('dashSingle',this)">┄ 单虚线</a></li>
+          <li><a class="tool-selectable" data-tool="dashDouble" onclick="setAnnotTool('dashDouble',this)">═ 双虚线</a></li>
+          <li><a class="tool-selectable" data-tool="doubleSolid" onclick="setAnnotTool('doubleSolid',this)">≡ 双实线</a></li>
+          <li><a class="tool-selectable" data-tool="solidLine" onclick="setAnnotTool('solidLine',this)">─ 单实线</a></li>
+          <li><a class="tool-selectable" data-tool="xLine" onclick="setAnnotTool('xLine',this)">✕ X实线</a></li>
+          <li><a class="tool-selectable" data-tool="dimLine" onclick="setAnnotTool('dimLine',this)">↔ 直线长</a></li>
+        </ul>
+      </li>
+      <li class="topnav">
+        <span class="tab-label">〜 曲线<span class="caret">▼</span></span>
+        <ul class="dropdown-menu">
+          <li><a class="tool-selectable" data-tool="curve" onclick="setAnnotTool('curve',this)">〜 弧长</a></li>
+          <li><a class="tool-selectable" data-tool="curveDashed" onclick="setAnnotTool('curveDashed',this)">∿ 弯曲虚线</a></li>
+          <li><a class="tool-selectable" data-tool="curveSolid" onclick="setAnnotTool('curveSolid',this)">〜 弯曲实线</a></li>
+        </ul>
+      </li>
+      <li class="topnav">
+        <span class="tab-label">▭ 形状<span class="caret">▼</span></span>
+        <ul class="dropdown-menu">
+          <li><a class="tool-selectable" data-tool="rect" onclick="setAnnotTool('rect',this)">⬜ 矩形</a></li>
+          <li><a class="tool-selectable" data-tool="circle" onclick="setAnnotTool('circle',this)">⭕ 圆形</a></li>
+          <li><a class="tool-selectable" data-tool="fillRect" onclick="setAnnotTool('fillRect',this)">▣ 实心框</a></li>
+          <li><a class="tool-selectable" data-tool="dashRect" onclick="setAnnotTool('dashRect',this)">▭ 虚线框</a></li>
+        </ul>
+      </li>
+      <li class="topnav">
+        <span class="tab-label">📝 文字<span class="caret">▼</span></span>
+        <ul class="dropdown-menu">
+          <li><a class="tool-selectable" data-tool="numBadge" onclick="setAnnotTool('numBadge',this)">① 序号标注</a></li>
+          <li><a class="tool-selectable" data-tool="text" onclick="setAnnotTool('text',this)">📝 文字</a></li>
+          <li><a class="tool-selectable" data-tool="strikeText" onclick="setAnnotTool('strikeText',this)">S̶ 划线文字</a></li>
+          <li><a class="tool-selectable" data-tool="textBox" onclick="setAnnotTool('textBox',this)">▭ 文本框</a></li>
+          <li><a class="tool-selectable" data-tool="callout" onclick="setAnnotTool('callout',this)">💬 标注气泡</a></li>
+          <li><a class="tool-selectable" data-tool="sign" onclick="setAnnotTool('sign',this)">✍ 签名（行书）</a></li>
+        </ul>
+      </li>
+      <li class="topnav">
+        <span class="tab-label">🖼 图像<span class="caret">▼</span></span>
+        <ul class="dropdown-menu">
+          <li><a onclick="document.getElementById('annotFile').click()">📁 上传图片</a></li>
+          <li><a onclick="document.getElementById('insertImgFile').click()">🖼 插入图片</a></li>
+          <li><a class="tool-selectable" data-tool="mosaic" onclick="setAnnotTool('mosaic',this)">🔳 马赛克</a></li>
+          <li class="divider"></li>
+          <li><a onclick="startCropMode()">✂ 裁剪图片</a></li>
+          <li><a onclick="rotateImage90()">↻ 整图旋转90°</a></li>
+          <li><a onclick="toggleBCPanel()">☀ 亮度/对比度</a></li>
+          <li><a onclick="editWatermark()">💧 全图水印（45°）</a></li>
+        </ul>
+      </li>
+      <li class="topnav">
+        <span class="tab-label">🖱 操作<span class="caret">▼</span></span>
+        <ul class="dropdown-menu">
+          <li><a class="tool-selectable" data-tool="move" onclick="setAnnotTool('move',this)">✥ 移动</a></li>
+          <li><a onclick="rotateSelected(-15)" title="逆时针旋转15度">↺ 逆时针 15°</a></li>
+          <li><a onclick="rotateSelected(15)" title="顺时针旋转15度">↻ 顺时针 15°</a></li>
+          <li class="divider"></li>
+          <li><a onclick="undoAnnot()">↶ 撤销 (Ctrl+Z)</a></li>
+          <li><a onclick="redoAnnot()">↷ 重做 (Ctrl+Y)</a></li>
+          <li><a onclick="clearAnnot()">🗑 清除标注</a></li>
+          <li class="divider"></li>
+          <li><a onclick="calibrateScale()">📐 校准比例尺(cm)</a></li>
+          <li><a onclick="toggleHelpPanel()">⌨ 快捷键说明</a></li>
+        </ul>
+      </li>
+    </ul>
+    <div class="nav-right">
+      <span class="current-tool">当前工具：<b id="currentToolLabel">箭头</b></span>
+      <label>颜色 <input type="color" class="annot-color" id="annotColor" value="#ff0000" title="标注颜色"></label>
+      <label>线宽 <input type="range" id="annotLineWidth" min="1" max="6" value="3" title="线宽"></label>
+      <label id="fillAlphaGroup" style="display:none;align-items:center;" title="实心框填充透明度（0–100%）">透明度 <input type="range" id="annotFillAlpha" min="0" max="100" value="30"></label>
+      <label id="wmAlphaGroup" style="display:none;align-items:center;" title="水印透明度（0–100%）">水印 <input type="range" id="annotWmAlpha" min="0" max="100" value="14"></label>
+    </div>
+    <div id="bcPanel" style="display:none;position:absolute;top:100%;right:12px;margin-top:6px;background:#fff;border:1px solid var(--border);border-radius:6px;padding:10px 12px;box-shadow:0 6px 16px rgba(0,0,0,.2);z-index:300;width:230px;">
+      <div style="font-size:12px;font-weight:700;margin-bottom:8px;">☀ 亮度 / 对比度</div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;">亮度 <input type="range" id="bcBrightness" min="50" max="200" value="100" style="flex:1;"><span id="bcBrightnessVal" style="width:40px;text-align:right;">100%</span></label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin-top:6px;">对比 <input type="range" id="bcContrast" min="50" max="200" value="100" style="flex:1;"><span id="bcContrastVal" style="width:40px;text-align:right;">100%</span></label>
+      <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:8px;">
+        <button class="btn btn-outline" onclick="resetBC()">重置</button>
+        <button class="btn btn-primary" onclick="toggleBCPanel(false)">完成</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- 画布区域 -->
+  <div class="annot-canvas-wrap" id="annotCanvasWrap">
+    <div class="annot-upload-prompt">请先上传图片，然后在图片上添加标注</div>
+  </div>
+
+  <!-- 底部操作栏 -->
+  <div class="app-footer">
+    <span class="footer-hint">💡 任意工具下光标移到标注上即可直接拖动/选中；选中后：滚轮缩放、方向键旋转、] [ 改字号、双击编辑文字；Ctrl+Z/Y 撤销重做、Ctrl+C/V 复制粘贴、右键删除、按住空格看原图、Esc 中断工具、? 帮助；裁剪 Enter 确认 / Esc 取消</span>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-outline" onclick="copyAnnotToClipboard()">📋 复制到剪贴板</button>
+      <button class="btn btn-outline" onclick="downloadAnnotJPG()">📷 保存JPG</button>
+      <button class="btn btn-danger btn-outline" onclick="resetCanvas()">🔄 重置</button>
+      <button class="btn btn-primary" onclick="downloadAnnotImage()">💾 保存PNG</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="helpPanel" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:500;align-items:center;justify-content:center;" onclick="if(event.target===this)toggleHelpPanel()">
+  <div style="background:#fff;border-radius:8px;padding:18px 22px;width:560px;max-width:92vw;max-height:82vh;overflow:auto;font-size:12px;line-height:1.9;color:#333;">
+    <div style="font-size:15px;font-weight:700;margin-bottom:8px;">⌨ 快捷键与操作说明</div>
+    <table style="width:100%;border-collapse:collapse;">
+      <tr><td style="width:170px;padding:3px 6px;border-bottom:1px solid #eee;"><b>选择 / 编辑</b></td><td style="border-bottom:1px solid #eee;">自动识别：任意工具下光标移到已有标注上即可直接拖动/选中（裁剪、马赛克、画笔、插图除外）；选中后拖动移位、滚轮缩放、方向键旋转（Shift 微调 1°）、+ / − 整体缩放、Delete 删除</td></tr>
+      <tr><td style="padding:3px 6px;border-bottom:1px solid #eee;"><b>文字大小</b></td><td style="border-bottom:1px solid #eee;">选中文字/气泡后按 ] 放大字号、[ 缩小字号（框不变）；双击进入文字编辑，Ctrl+Enter 保存，Esc 取消</td></tr>
+      <tr><td style="padding:3px 6px;border-bottom:1px solid #eee;"><b>签名</b></td><td style="border-bottom:1px solid #eee;">✍ 签名（行书）：拖拽确定大小后输入内容，以中文行书显示；双击可修改文字，选中后滚轮缩放、方向键旋转、] [ 改字号</td></tr>
+      <tr><td style="padding:3px 6px;border-bottom:1px solid #eee;"><b>全图水印</b></td><td style="border-bottom:1px solid #eee;">图像 → 💧 全图水印：输入文字后以 45° 半透明平铺全图（导出时包含）；再次打开可更换，留空确定即移除；水印存在时可用导航栏「水印」滑块实时调节透明度</td></tr>
+      <tr><td style="padding:3px 6px;border-bottom:1px solid #eee;"><b>撤销 / 重做</b></td><td style="border-bottom:1px solid #eee;">Ctrl+Z 撤销，Ctrl+Y（或 Ctrl+Shift+Z）重做；按 Esc 中断当前绘图工具，回到移动工具</td></tr>
+      <tr><td style="padding:3px 6px;border-bottom:1px solid #eee;"><b>复制 / 粘贴</b></td><td style="border-bottom:1px solid #eee;">选中标注后 Ctrl+C 复制，Ctrl+V 在偏移 16px 处粘贴</td></tr>
+      <tr><td style="padding:3px 6px;border-bottom:1px solid #eee;"><b>删除标注</b></td><td style="border-bottom:1px solid #eee;">选中后按 Delete，或直接在标注上点右键</td></tr>
+      <tr><td style="padding:3px 6px;border-bottom:1px solid #eee;"><b>查看原图</b></td><td style="border-bottom:1px solid #eee;">按住空格键临时隐藏所有标注，松开恢复</td></tr>
+      <tr><td style="padding:3px 6px;border-bottom:1px solid #eee;"><b>尺寸测量</b></td><td style="border-bottom:1px solid #eee;">↔ 直线长自动显示长度；选中一条线后用「操作 → 校准比例尺」输入实际 cm；双击尺寸线可自定义文字（清空则恢复自动长度）</td></tr>
+      <tr><td style="padding:3px 6px;border-bottom:1px solid #eee;"><b>裁剪</b></td><td style="border-bottom:1px solid #eee;">图像 → 裁剪图片，拖拽框选后 Enter 确认、Esc 取消（标注自动保留并随裁剪平移）</td></tr>
+      <tr><td style="padding:3px 6px;border-bottom:1px solid #eee;"><b>画笔 / 序号</b></td><td style="border-bottom:1px solid #eee;">🖊 画笔为半透明荧光笔效果；① 序号标注点击即自动编号，随标注增删自动重排</td></tr>
+      <tr><td style="padding:3px 6px;"><b>导出</b></td><td>底部可保存 PNG / JPG 或复制到剪贴板，直接粘贴进微信 / 邮件</td></tr>
+    </table>
+    <div style="text-align:right;margin-top:10px;"><button class="btn btn-primary" onclick="toggleHelpPanel()">关闭</button></div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+// ==================== 状态 ====================
+let annotState = {
+  tool: 'arrow', color: '#ff0000', lineWidth: 3, fillAlpha: 0.3, shapes: [],
+  undoStack: [], redoStack: [], clipboard: null, pxPerCm: null, brightness: 100, contrast: 100, previewOriginal: false, cropRect: null,
+  isDrawing: false, startX: 0, startY: 0,
+  canvas: null, ctx: null, img: null,
+  isMoving: false, movingShapeIdx: -1, moveLastX: 0, moveLastY: 0,
+  isAdjustingCurve: false, lastClickInfo: null
+};
+
+// ==================== 工具切换 ====================
+const TOOL_NAMES = {
+  arrow:'箭头', dashSingle:'单虚线', dashDouble:'双虚线', doubleSolid:'双实线',
+  solidLine:'单实线', xLine:'X实线', dimLine:'直线长',
+  curve:'弧长', curveDashed:'弯曲虚线', curveSolid:'弯曲实线',
+  rect:'矩形', circle:'圆形', fillRect:'实心框', dashRect:'虚线框',
+  text:'文字', strikeText:'划线文字', textBox:'文本框', callout:'标注气泡',
+  brush:'画笔', numBadge:'序号标注',
+  mosaic:'马赛克', move:'移动'
+};
+
+function setAnnotTool(tool, el) {
+  annotState.tool = tool;
+  annotState.movingShapeIdx = -1;
+  document.querySelectorAll('.tool-selectable').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  const label = document.getElementById('currentToolLabel');
+  if (label) label.textContent = TOOL_NAMES[tool] || tool;
+  // 透明度滑块显隐同步
+  updateFillAlphaVisibility();
+  if (annotState.canvas) annotState.canvas.style.cursor = tool === 'move' ? 'move' : 'crosshair';
+  drawCanvas();
+}
+
+function autoSwitchToMove() {
+  const moveBtn = document.querySelector('.tool-selectable[data-tool="move"]');
+  if (moveBtn) setAnnotTool('move', moveBtn);
+}
+
+// 透明度滑块显隐：实心框工具或移动工具选中实心框时显示，并同步滑块数值
+function updateFillAlphaVisibility() {
+  const fa = document.getElementById('fillAlphaGroup');
+  if (!fa) return;
+  let show = annotState.tool === 'fillRect';
+  if (!show && annotState.movingShapeIdx >= 0) {
+    const s = annotState.shapes[annotState.movingShapeIdx];
+    show = !!s && s.type === 'fillRect';
+  }
+  if (show && annotState.movingShapeIdx >= 0) {
+    const s = annotState.shapes[annotState.movingShapeIdx];
+    if (s && s.type === 'fillRect' && s.alpha !== undefined) {
+      document.getElementById('annotFillAlpha').value = Math.round(s.alpha * 100);
+    }
+  }
+  fa.style.display = show ? 'inline-flex' : 'none';
+  // 水印透明度滑块：水印存在时显示
+  const wa = document.getElementById('wmAlphaGroup');
+  if (wa) wa.style.display = annotState.watermarkText ? 'inline-flex' : 'none';
+}
+
+// ==================== 图片加载 ====================
+function loadAnnotImage(event) {
+  const files = Array.from(event.target.files);
+  if (!files.length) return;
+  const wrap = document.getElementById('annotCanvasWrap');
+  const maxW = wrap.clientWidth;
+  const maxH = wrap.clientHeight;
+  const gap = 10;
+  const imgs = [];
+  let loaded = 0;
+  files.forEach((file, fi) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        imgs[fi] = img;
+        loaded++;
+        if (loaded === files.length) {
+          // 全部加载完成后计算布局：等高并排，过宽则整体缩小
+          const targetH = Math.min(maxH, ...imgs.map(im => im.height));
+          const scaled = imgs.map(im => {
+            const ratio = targetH / im.height;
+            return { img: im, w: Math.round(im.width * ratio), h: Math.round(targetH) };
+          });
+          let totalW = scaled.reduce((s, im) => s + im.w, 0) + gap * (scaled.length - 1);
+          if (totalW > maxW && scaled.length > 1) {
+            const sf = maxW / totalW;
+            scaled.forEach(im => { im.w = Math.round(im.w * sf); im.h = Math.round(im.h * sf); });
+            totalW = scaled.reduce((s, im) => s + im.w, 0) + gap * (scaled.length - 1);
+          }
+          const cw = Math.max(totalW, scaled[0].w);
+          const ch = scaled[0].h;
+          wrap.innerHTML = '';
+          const canvas = document.createElement('canvas');
+          canvas.width = cw; canvas.height = ch;
+          canvas.style.maxWidth = '100%';
+          wrap.appendChild(canvas);
+          annotState.canvas = canvas;
+          annotState.ctx = canvas.getContext('2d');
+          annotState.img = null;
+          annotState.shapes = [];
+          let xPos = 0;
+          scaled.forEach(im => {
+            annotState.shapes.push({type:'image', img: im.img, x: xPos, y: 0, w: im.w, h: im.h});
+            xPos += im.w + gap;
+          });
+          bindCanvasEvents(canvas);
+          drawCanvas();
+          if (files.length > 1) {
+            showToast(`已加载 ${files.length} 张图片，可使用移动工具拖动换位`, 'success');
+          }
+        }
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+  event.target.value = '';
+}
+
+// 插入图片到现有画布中央
+function insertImage(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      if (!annotState.canvas) { showToast('请先上传图片', 'error'); event.target.value = ''; return; }
+      const cw = annotState.canvas.width, ch = annotState.canvas.height;
+      let w = img.width, h = img.height;
+      const maxDim = Math.min(cw, ch) * 0.4;
+      const ratio = Math.min(maxDim / w, maxDim / h, 1);
+      w = Math.round(w * ratio); h = Math.round(h * ratio);
+      annotState.shapes.push({type:'image', img, x:(cw-w)/2, y:(ch-h)/2, w, h});
+      drawCanvas();
+      showToast('图片已插入，切换到移动工具后可拖动、滚轮缩放、方向键旋转', 'success');
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+  event.target.value = '';
+}
+
+function bindCanvasEvents(canvas) {
+  canvas.onmousedown = onAnnotMouseDown;
+  canvas.onmousemove = onAnnotMouseMove;
+  canvas.onmouseup = onAnnotMouseUp;
+  canvas.onmouseleave = onAnnotMouseUp;
+  canvas.onwheel = onAnnotWheel;
+  canvas.ondblclick = onAnnotDoubleClick;
+  canvas.oncontextmenu = onCanvasContextMenu;
+}
+
+// ==================== 坐标与命中检测 ====================
+function getCanvasPos(e) {
+  const rect = annotState.canvas.getBoundingClientRect();
+  const scaleX = annotState.canvas.width / rect.width;
+  const scaleY = annotState.canvas.height / rect.height;
+  return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+}
+
+function hitTestShape(s, px, py) {
+  const tol = 8;
+  // 若形状有旋转，先做逆旋转再检测
+  const rot = s.rotation || 0;
+  if (rot !== 0) {
+    const c = getShapeCenter(s);
+    const rad = -rot * Math.PI / 180;
+    const dx = px - c.x, dy = py - c.y;
+    px = c.x + dx * Math.cos(rad) - dy * Math.sin(rad);
+    py = c.y + dx * Math.sin(rad) + dy * Math.cos(rad);
+  }
+  if (['arrow','dashSingle','dashDouble','doubleSolid','solidLine','xLine','dimLine'].includes(s.type)) {
+    return distToSeg(px, py, s.x1, s.y1, s.x2, s.y2) < tol + (s.lineWidth || 2);
+  }
+  if (s.type === 'curve' || s.type === 'curveDashed' || s.type === 'curveSolid') {
+    // 沿二次贝塞尔曲线采样检测
+    const steps = 20;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const mt = 1 - t;
+      const bx = mt * mt * s.x1 + 2 * mt * t * s.cx + t * t * s.x2;
+      const by = mt * mt * s.y1 + 2 * mt * t * s.cy + t * t * s.y2;
+      if (Math.hypot(px - bx, py - by) < tol + (s.lineWidth || 2)) return true;
+    }
+    return false;
+  }
+  if (['rect','fillRect','dashRect','mosaic','image','textBox','text','strikeText','callout','sign'].includes(s.type)) {
+    const x = Math.min(s.x, s.x + (s.w||0)), y = Math.min(s.y, s.y + (s.h||0));
+    const w = Math.abs(s.w||0), h = Math.abs(s.h||0);
+    return px >= x - tol && px <= x + w + tol && py >= y - tol && py <= y + h + tol;
+  }
+  if (s.type === 'circle') {
+    return Math.abs(Math.hypot(px - s.x, py - s.y) - s.r) < tol;
+  }
+  if (s.type === 'numBadge') {
+    return Math.hypot(px - s.x, py - s.y) < (s.r || 14) + tol;
+  }
+  if (s.type === 'brush') {
+    for (let i = 0; i < s.pts.length - 1; i++) {
+      if (distToSeg(px, py, s.pts[i].x, s.pts[i].y, s.pts[i+1].x, s.pts[i+1].y) < tol + (s.lineWidth || 3)) return true;
+    }
+    if (s.pts.length === 1) return Math.hypot(px - s.pts[0].x, py - s.pts[0].y) < tol + (s.lineWidth || 3);
+    return false;
+  }
+  return false;
+}
+
+function distToSeg(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return Math.hypot(px - x1, py - y1);
+  let t = ((px - x1) * dx + (py - y1) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+}
+
+function moveShape(s, dx, dy) {
+  if (s.pts) { s.pts.forEach(p => { p.x += dx; p.y += dy; }); }
+  if (s.x1 !== undefined) { s.x1 += dx; s.y1 += dy; s.x2 += dx; s.y2 += dy; }
+  if (s.cx !== undefined) { s.cx += dx; s.cy += dy; }
+  else if (s.x !== undefined && s.x1 === undefined) { s.x += dx; s.y += dy; }
+  if (s.tipX !== undefined) { s.tipX += dx; s.tipY += dy; }
+}
+
+function scaleShape(s, factor) {
+  if (s.pts) {
+    const c = getShapeCenter(s);
+    s.pts.forEach(p => { p.x = c.x + (p.x - c.x) * factor; p.y = c.y + (p.y - c.y) * factor; });
+  }
+  if (s.x1 !== undefined) {
+    const cx = (s.x1 + s.x2) / 2, cy = (s.y1 + s.y2) / 2;
+    s.x1 = cx + (s.x1 - cx) * factor;
+    s.y1 = cy + (s.y1 - cy) * factor;
+    s.x2 = cx + (s.x2 - cx) * factor;
+    s.y2 = cy + (s.y2 - cy) * factor;
+    if (s.cx !== undefined) {
+      s.cx = cx + (s.cx - cx) * factor;
+      s.cy = cy + (s.cy - cy) * factor;
+    }
+  } else if (s.w !== undefined) {
+    const cx = s.x + s.w / 2, cy = s.y + s.h / 2;
+    s.w *= factor; s.h *= factor;
+    s.x = cx - s.w / 2; s.y = cy - s.h / 2;
+    if (s.tipX !== undefined) {
+      s.tipX = cx + (s.tipX - cx) * factor;
+      s.tipY = cy + (s.tipY - cy) * factor;
+    }
+  } else if (s.r !== undefined) {
+    s.r = Math.max(2, s.r * factor);
+  }
+  if (s.lineWidth !== undefined && s.type !== 'mosaic') {
+    s.lineWidth = Math.max(1, Math.min(20, s.lineWidth * factor));
+  }
+  if (s.fontSize !== undefined) {
+    s.fontSize = Math.max(8, Math.min(s.type === 'sign' ? 200 : 72, s.fontSize * factor));
+  }
+}
+
+function getShapeCenter(s) {
+  if (s.pts) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    s.pts.forEach(p => { minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); });
+    return { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+  }
+  if (s.x1 !== undefined) return { x: (s.x1 + s.x2) / 2, y: (s.y1 + s.y2) / 2 };
+  if (s.w !== undefined) return { x: s.x + s.w / 2, y: s.y + s.h / 2 };
+  if (s.r !== undefined) return { x: s.x, y: s.y };
+  if (s.x !== undefined) return { x: s.x, y: s.y };
+  return { x: 0, y: 0 };
+}
+
+function getShapeBounds(s) {
+  if (s.pts) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    s.pts.forEach(p => { minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); });
+    const pad = (s.lineWidth || 3) + 4;
+    return { x: minX - pad, y: minY - pad, w: maxX - minX + pad * 2, h: maxY - minY + pad * 2 };
+  }
+  if (s.type === 'curve' || s.type === 'curveDashed' || s.type === 'curveSolid') {
+    const minX = Math.min(s.x1, s.x2, s.cx) - 4;
+    const minY = Math.min(s.y1, s.y2, s.cy) - 4;
+    const maxX = Math.max(s.x1, s.x2, s.cx) + 4;
+    const maxY = Math.max(s.y1, s.y2, s.cy) + 4;
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }
+  if (s.x1 !== undefined) {
+    return { x: Math.min(s.x1, s.x2) - 4, y: Math.min(s.y1, s.y2) - 4, w: Math.abs(s.x2 - s.x1) + 8, h: Math.abs(s.y2 - s.y1) + 8 };
+  }
+  if (s.w !== undefined) {
+    return { x: Math.min(s.x, s.x + s.w) - 4, y: Math.min(s.y, s.y + s.h) - 4, w: Math.abs(s.w) + 8, h: Math.abs(s.h) + 8 };
+  }
+  if (s.r !== undefined) {
+    return { x: s.x - s.r - 4, y: s.y - s.r - 4, w: s.r * 2 + 8, h: s.r * 2 + 8 };
+  }
+  return null;
+}
+
+function rotateShape(s, deltaDeg) {
+  s.rotation = (s.rotation || 0) + deltaDeg;
+}
+
+function rotateSelected(deltaDeg) {
+  if (annotState.movingShapeIdx < 0) {
+    showToast('请先点击选中一个标注', 'info');
+    return;
+  }
+  const s = annotState.shapes[annotState.movingShapeIdx];
+  if (s.type === 'mosaic') {
+    showToast('马赛克不支持旋转', 'info');
+    return;
+  }
+  rotateShape(s, deltaDeg);
+  drawCanvas();
+  const deg = ((s.rotation % 360) + 360) % 360;
+  showToast(`已旋转至 ${Math.round(deg)}°`, 'success');
+}
+
+// ==================== 鼠标交互 ====================
+function onAnnotWheel(e) {
+  if (annotState.movingShapeIdx < 0 || annotState.tool === 'crop' || annotState.tool === 'image') return;
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.1 : 0.9;
+  scaleShape(annotState.shapes[annotState.movingShapeIdx], factor);
+  drawCanvas();
+}
+
+function onAnnotMouseDown(e) {
+  if (!annotState.canvas) return;
+  const pos = getCanvasPos(e);
+  // 自动识别：绘图工具下光标点到已有标注，直接选中并拖动（无需切换移动工具）
+  if (annotState.tool !== 'move' && !['crop', 'mosaic', 'image', 'brush'].includes(annotState.tool)) {
+    for (let i = annotState.shapes.length - 1; i >= 0; i--) {
+      if (annotState.shapes[i].type !== 'image' && hitTestShape(annotState.shapes[i], pos.x, pos.y)) {
+        const s = annotState.shapes[i];
+        // 手动双击检测：进入文字编辑（与移动工具一致）
+        if ((s.type === 'textBox' || s.type === 'text' || s.type === 'strikeText' || s.type === 'callout') && annotState.lastClickInfo) {
+          const info = annotState.lastClickInfo;
+          if (info.idx === i && (Date.now() - info.time) < 400) {
+            annotState.lastClickInfo = null;
+            annotState.movingShapeIdx = i;
+            annotState.isMoving = false;
+            startTextEdit(s);
+            return;
+          }
+        }
+        annotState.lastClickInfo = { idx: i, time: Date.now() };
+        annotState.movingShapeIdx = i;
+        annotState.isMoving = true;
+        annotState.autoMoving = true;
+        annotState.moveLastX = pos.x;
+        annotState.moveLastY = pos.y;
+        updateFillAlphaVisibility();
+        drawCanvas();
+        return;
+      }
+    }
+    // 点在空白处：取消选中，正常开始绘制
+    annotState.movingShapeIdx = -1;
+    annotState.lastClickInfo = null;
+    updateFillAlphaVisibility();
+  }
+  if (annotState.tool === 'brush') {
+    recordAdd();
+    annotState.shapes.push({type:'brush', pts:[{x:pos.x, y:pos.y}], color:annotState.color, lineWidth:Math.max(6, annotState.lineWidth * 3), alpha:0.4});
+    annotState.isDrawing = true;
+    drawCanvas();
+    return;
+  }
+  if (annotState.tool === 'move') {
+    // 移动工具：先检查曲线控制点
+    if (annotState.movingShapeIdx >= 0) {
+      const sel = annotState.shapes[annotState.movingShapeIdx];
+      if (sel && (sel.type === 'curve' || sel.type === 'curveDashed' || sel.type === 'curveSolid')) {
+        const d = Math.hypot(pos.x - sel.cx, pos.y - sel.cy);
+        if (d <= 10) {
+          annotState.isAdjustingCurve = true;
+          drawCanvas();
+          return;
+        }
+      }
+    }
+    // 从最上层开始查找命中的标注（跳过作为底图的 image，点空白即取消选中）
+    for (let i = annotState.shapes.length - 1; i >= 0; i--) {
+      if (annotState.shapes[i].type !== 'image' && hitTestShape(annotState.shapes[i], pos.x, pos.y)) {
+        const s = annotState.shapes[i];
+        // 手动双击检测：进入文字编辑
+        if ((s.type === 'textBox' || s.type === 'text' || s.type === 'strikeText' || s.type === 'callout') && annotState.lastClickInfo) {
+          const info = annotState.lastClickInfo;
+          const now = Date.now();
+          if (info.idx === i && (now - info.time) < 400) {
+            annotState.lastClickInfo = null;
+            annotState.movingShapeIdx = i;
+            annotState.isMoving = false;
+            startTextEdit(s);
+            return;
+          }
+        }
+        annotState.lastClickInfo = { idx: i, time: Date.now() };
+        annotState.movingShapeIdx = i;
+        annotState.isMoving = true;
+        annotState.moveLastX = pos.x;
+        annotState.moveLastY = pos.y;
+        updateFillAlphaVisibility();
+        drawCanvas();
+        return;
+      }
+    }
+    annotState.movingShapeIdx = -1;
+    annotState.lastClickInfo = null;
+    updateFillAlphaVisibility();
+    drawCanvas();
+    return;
+  }
+  annotState.isDrawing = true;
+  annotState.startX = pos.x;
+  annotState.startY = pos.y;
+}
+
+function startTextEdit(s, b) {
+  const wrap = document.getElementById('annotCanvasWrap');
+  const canvas = annotState.canvas;
+  const wrapRect = wrap.getBoundingClientRect();
+  const canvasRect = canvas.getBoundingClientRect();
+  const offsetX = canvasRect.left - wrapRect.left;
+  const offsetY = canvasRect.top - wrapRect.top;
+  const bb = b || { x: Math.min(s.x, s.x + s.w), y: Math.min(s.y, s.y + s.h), w: Math.abs(s.w), h: Math.abs(s.h) };
+  const x = bb.x, y = bb.y, w = bb.w, h = bb.h;
+  const oldTa = document.getElementById('annotEditText');
+  if (oldTa) oldTa.remove();
+  const ta = document.createElement('textarea');
+  ta.id = 'annotEditText';
+  ta.style.position = 'absolute';
+  ta.style.left = (offsetX + x) + 'px';
+  ta.style.top = (offsetY + y) + 'px';
+  ta.style.width = Math.max(w, 40) + 'px';
+  ta.style.height = Math.max(h, 24) + 'px';
+  ta.style.border = '2px solid #1a56db';
+  ta.style.background = '#fff';
+  ta.style.color = '#000';
+  ta.style.fontSize = '13px';
+  ta.style.textAlign = 'center';
+  ta.style.resize = 'none';
+  ta.style.padding = '4px';
+  ta.style.zIndex = '100';
+  ta.style.outline = 'none';
+  ta.style.boxSizing = 'border-box';
+  ta.style.cursor = 'text';
+  ta.value = s.text || '';
+  wrap.appendChild(ta);
+  setTimeout(() => { ta.focus(); ta.select(); }, 50);
+  let closed = false;
+  const close = (save) => {
+    if (closed) return;
+    closed = true;
+    if (save) {
+      if (s.type === 'dimLine') {
+        // 尺寸线：编辑的是标签文字，清空则恢复自动长度
+        const v = ta.value.trim();
+        if (v) s.label = v; else delete s.label;
+      } else {
+        s.text = ta.value;
+      }
+    }
+    ta.remove();
+    drawCanvas();
+  };
+  setTimeout(() => {
+    if (!closed) ta.addEventListener('blur', () => close(true));
+  }, 150);
+  ta.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') { ev.preventDefault(); close(false); }
+    if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); close(true); }
+  });
+  ta.addEventListener('mousedown', (ev) => ev.stopPropagation());
+}
+
+function onAnnotDoubleClick(e) {
+  if (['crop', 'mosaic', 'image', 'brush'].includes(annotState.tool)) return;
+  if (document.getElementById('annotEditText')) return;
+  const pos = getCanvasPos(e);
+  for (let i = annotState.shapes.length - 1; i >= 0; i--) {
+    const s = annotState.shapes[i];
+    if ((s.type === 'textBox' || s.type === 'text' || s.type === 'strikeText' || s.type === 'callout') && hitTestShape(s, pos.x, pos.y)) {
+      annotState.movingShapeIdx = i;
+      annotState.isMoving = false;
+      startTextEdit(s);
+      return;
+    }
+    // 双击尺寸线：编辑长度标签文字
+    if (s.type === 'dimLine' && hitTestShape(s, pos.x, pos.y)) {
+      annotState.movingShapeIdx = i;
+      annotState.isMoving = false;
+      const mx = (s.x1 + s.x2) / 2, my = (s.y1 + s.y2) / 2;
+      const ang = Math.atan2(s.y2 - s.y1, s.x2 - s.x1);
+      let lx = mx - Math.sin(ang) * 22, ly = my + Math.cos(ang) * 22;
+      const rot = s.rotation || 0;
+      if (rot) {
+        const c = getShapeCenter(s);
+        const rad = rot * Math.PI / 180;
+        const dx = lx - c.x, dy = ly - c.y;
+        lx = c.x + dx * Math.cos(rad) - dy * Math.sin(rad);
+        ly = c.y + dx * Math.sin(rad) + dy * Math.cos(rad);
+      }
+      startTextEdit(s, { x: lx - 50, y: ly - 13, w: 100, h: 26 });
+      return;
+    }
+    // 双击签名：修改内容
+    if (s.type === 'sign' && hitTestShape(s, pos.x, pos.y)) {
+      annotState.movingShapeIdx = i;
+      annotState.isMoving = false;
+      const v = prompt('修改签名内容（行书）：', s.text || '');
+      if (v && v.trim()) {
+        s.text = v.trim();
+        annotState.lastSignText = s.text;
+        drawCanvas();
+      }
+      return;
+    }
+  }
+}
+
+function onAnnotMouseMove(e) {
+  if (!annotState.canvas) return;
+  const pos = getCanvasPos(e);
+  // 自动识别：未按下鼠标时，光标移到标注上方显示移动光标
+  if (!(e.buttons & 1) && !['crop', 'mosaic', 'image', 'brush'].includes(annotState.tool)) {
+    let hover = false;
+    for (let i = annotState.shapes.length - 1; i >= 0; i--) {
+      const hs = annotState.shapes[i];
+      if (hs.type !== 'image' && hitTestShape(hs, pos.x, pos.y)) { hover = true; break; }
+    }
+    annotState.canvas.style.cursor = hover ? 'move' : 'crosshair';
+  }
+  if (annotState.isAdjustingCurve && annotState.movingShapeIdx >= 0) {
+    const s = annotState.shapes[annotState.movingShapeIdx];
+    s.cx = pos.x;
+    s.cy = pos.y;
+    drawCanvas();
+    return;
+  }
+  if (annotState.isMoving && annotState.movingShapeIdx >= 0) {
+    const dx = pos.x - annotState.moveLastX;
+    const dy = pos.y - annotState.moveLastY;
+    moveShape(annotState.shapes[annotState.movingShapeIdx], dx, dy);
+    annotState.moveLastX = pos.x;
+    annotState.moveLastY = pos.y;
+    drawCanvas();
+    return;
+  }
+  if (annotState.tool === 'brush' && annotState.isDrawing) {
+    const bs = annotState.shapes[annotState.shapes.length - 1];
+    if (bs && bs.type === 'brush') bs.pts.push({x: pos.x, y: pos.y});
+    drawCanvas();
+    return;
+  }
+  if (annotState.tool === 'crop' && annotState.isDrawing) {
+    const x = Math.min(annotState.startX, pos.x), y = Math.min(annotState.startY, pos.y);
+    annotState.cropRect = { x, y, w: Math.abs(pos.x - annotState.startX), h: Math.abs(pos.y - annotState.startY) };
+    drawCanvas();
+    return;
+  }
+  if (!annotState.isDrawing) return;
+  drawCanvas();
+  const ctx = annotState.ctx;
+  ctx.strokeStyle = annotState.color;
+  ctx.fillStyle = annotState.color;
+  ctx.lineWidth = annotState.lineWidth;
+  if (annotState.tool === 'arrow') drawArrow(ctx, annotState.startX, annotState.startY, pos.x, pos.y);
+  else if (annotState.tool === 'dashSingle') drawDashedLine(ctx, annotState.startX, annotState.startY, pos.x, pos.y);
+  else if (annotState.tool === 'dashDouble') drawDoubleDashedLine(ctx, annotState.startX, annotState.startY, pos.x, pos.y);
+  else if (annotState.tool === 'doubleSolid') drawDoubleSolidLine(ctx, annotState.startX, annotState.startY, pos.x, pos.y);
+  else if (annotState.tool === 'solidLine') drawSingleSolidLine(ctx, annotState.startX, annotState.startY, pos.x, pos.y);
+  else if (annotState.tool === 'xLine') drawXLine(ctx, annotState.startX, annotState.startY, pos.x, pos.y);
+  else if (annotState.tool === 'curve') {
+    const cp = getDefaultCurveCP(annotState.startX, annotState.startY, pos.x, pos.y);
+    drawCurveLine(ctx, annotState.startX, annotState.startY, cp.cx, cp.cy, pos.x, pos.y);
+  }
+  else if (annotState.tool === 'curveDashed') {
+    const cp = getDefaultCurveCP(annotState.startX, annotState.startY, pos.x, pos.y);
+    drawCurveSimple(ctx, annotState.startX, annotState.startY, cp.cx, cp.cy, pos.x, pos.y, true);
+  }
+  else if (annotState.tool === 'curveSolid') {
+    const cp = getDefaultCurveCP(annotState.startX, annotState.startY, pos.x, pos.y);
+    drawCurveSimple(ctx, annotState.startX, annotState.startY, cp.cx, cp.cy, pos.x, pos.y, false);
+  }
+  else if (annotState.tool === 'fillRect') drawFillRect(ctx, annotState.startX, annotState.startY, pos.x - annotState.startX, pos.y - annotState.startY, annotState.color, annotState.lineWidth, annotState.fillAlpha);
+  else if (annotState.tool === 'dashRect') drawDashedRect(ctx, annotState.startX, annotState.startY, pos.x - annotState.startX, pos.y - annotState.startY);
+  else if (annotState.tool === 'dimLine') drawDimLine(ctx, annotState.startX, annotState.startY, pos.x, pos.y);
+  else if (annotState.tool === 'rect') ctx.strokeRect(annotState.startX, annotState.startY, pos.x - annotState.startX, pos.y - annotState.startY);
+  else if (annotState.tool === 'circle') {
+    const r = Math.hypot(pos.x - annotState.startX, pos.y - annotState.startY);
+    ctx.beginPath(); ctx.arc(annotState.startX, annotState.startY, r, 0, Math.PI * 2); ctx.stroke();
+  }
+  else if (annotState.tool === 'mosaic') {
+    ctx.save(); ctx.strokeStyle = '#666'; ctx.setLineDash([5, 3]); ctx.lineWidth = 1;
+    ctx.strokeRect(annotState.startX, annotState.startY, pos.x - annotState.startX, pos.y - annotState.startY);
+    ctx.restore();
+  }
+  else if (annotState.tool === 'textBox') {
+    ctx.save();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(annotState.startX, annotState.startY, pos.x - annotState.startX, pos.y - annotState.startY);
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = annotState.lineWidth;
+    ctx.strokeRect(annotState.startX, annotState.startY, pos.x - annotState.startX, pos.y - annotState.startY);
+    ctx.restore();
+  }
+  else if (annotState.tool === 'text' || annotState.tool === 'strikeText') {
+    ctx.save();
+    ctx.strokeStyle = '#999';
+    ctx.setLineDash([5, 3]);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(annotState.startX, annotState.startY, pos.x - annotState.startX, pos.y - annotState.startY);
+    ctx.restore();
+  }
+  else if (annotState.tool === 'callout') {
+    const bw = 120, bh = 50;
+    drawCallout(ctx, {
+      type: 'callout', tipX: annotState.startX, tipY: annotState.startY,
+      x: pos.x - bw / 2, y: pos.y - bh / 2, w: bw, h: bh,
+      text: '', color: annotState.color, lineWidth: annotState.lineWidth, fontSize: 13
+    });
+  }
+}
+
+function onAnnotMouseUp(e) {
+  if (annotState.autoMoving) {
+    annotState.autoMoving = false;
+    annotState.isMoving = false;
+    return;
+  }
+  if (annotState.tool === 'move') {
+    annotState.isMoving = false;
+    annotState.isAdjustingCurve = false;
+    return;
+  }
+  if (!annotState.isDrawing) return;
+  annotState.isDrawing = false;
+  if (annotState.tool === 'brush') return;
+  const pos = getCanvasPos(e);
+  const shapesLenBefore = annotState.shapes.length;
+  if (annotState.tool === 'arrow') {
+    annotState.shapes.push({type:'arrow', x1:annotState.startX, y1:annotState.startY, x2:pos.x, y2:pos.y, color:annotState.color, lineWidth:annotState.lineWidth});
+  } else if (annotState.tool === 'dashSingle') {
+    annotState.shapes.push({type:'dashSingle', x1:annotState.startX, y1:annotState.startY, x2:pos.x, y2:pos.y, color:annotState.color, lineWidth:annotState.lineWidth});
+  } else if (annotState.tool === 'dashDouble') {
+    annotState.shapes.push({type:'dashDouble', x1:annotState.startX, y1:annotState.startY, x2:pos.x, y2:pos.y, color:annotState.color, lineWidth:annotState.lineWidth});
+  } else if (annotState.tool === 'doubleSolid') {
+    annotState.shapes.push({type:'doubleSolid', x1:annotState.startX, y1:annotState.startY, x2:pos.x, y2:pos.y, color:annotState.color, lineWidth:annotState.lineWidth});
+  } else if (annotState.tool === 'solidLine') {
+    annotState.shapes.push({type:'solidLine', x1:annotState.startX, y1:annotState.startY, x2:pos.x, y2:pos.y, color:annotState.color, lineWidth:annotState.lineWidth});
+  } else if (annotState.tool === 'xLine') {
+    annotState.shapes.push({type:'xLine', x1:annotState.startX, y1:annotState.startY, x2:pos.x, y2:pos.y, color:annotState.color, lineWidth:annotState.lineWidth});
+  } else if (annotState.tool === 'curve') {
+    const cp = getDefaultCurveCP(annotState.startX, annotState.startY, pos.x, pos.y);
+    annotState.shapes.push({type:'curve', x1:annotState.startX, y1:annotState.startY, x2:pos.x, y2:pos.y, cx:cp.cx, cy:cp.cy, color:annotState.color, lineWidth:annotState.lineWidth});
+    showToast('弧长已绘制，拖动蓝色圆点可调整弧度', 'success');
+    autoSwitchToMove();
+  } else if (annotState.tool === 'curveDashed') {
+    const cp = getDefaultCurveCP(annotState.startX, annotState.startY, pos.x, pos.y);
+    annotState.shapes.push({type:'curveDashed', x1:annotState.startX, y1:annotState.startY, x2:pos.x, y2:pos.y, cx:cp.cx, cy:cp.cy, color:annotState.color, lineWidth:annotState.lineWidth});
+    showToast('弯曲虚线已绘制，拖动蓝色圆点可调整弧度', 'success');
+    autoSwitchToMove();
+  } else if (annotState.tool === 'curveSolid') {
+    const cp = getDefaultCurveCP(annotState.startX, annotState.startY, pos.x, pos.y);
+    annotState.shapes.push({type:'curveSolid', x1:annotState.startX, y1:annotState.startY, x2:pos.x, y2:pos.y, cx:cp.cx, cy:cp.cy, color:annotState.color, lineWidth:annotState.lineWidth});
+    showToast('弯曲实线已绘制，拖动蓝色圆点可调整弧度', 'success');
+    autoSwitchToMove();
+  } else if (annotState.tool === 'fillRect') {
+    annotState.shapes.push({type:'fillRect', x:annotState.startX, y:annotState.startY, w:pos.x-annotState.startX, h:pos.y-annotState.startY, color:annotState.color, lineWidth:annotState.lineWidth, alpha:annotState.fillAlpha});
+  } else if (annotState.tool === 'dashRect') {
+    annotState.shapes.push({type:'dashRect', x:annotState.startX, y:annotState.startY, w:pos.x-annotState.startX, h:pos.y-annotState.startY, color:annotState.color, lineWidth:annotState.lineWidth});
+  } else if (annotState.tool === 'dimLine') {
+    annotState.shapes.push({type:'dimLine', x1:annotState.startX, y1:annotState.startY, x2:pos.x, y2:pos.y, color:annotState.color, lineWidth:annotState.lineWidth});
+  } else if (annotState.tool === 'rect') {
+    annotState.shapes.push({type:'rect', x:annotState.startX, y:annotState.startY, w:pos.x-annotState.startX, h:pos.y-annotState.startY, color:annotState.color, lineWidth:annotState.lineWidth});
+  } else if (annotState.tool === 'circle') {
+    const r = Math.hypot(pos.x - annotState.startX, pos.y - annotState.startY);
+    annotState.shapes.push({type:'circle', x:annotState.startX, y:annotState.startY, r, color:annotState.color, lineWidth:annotState.lineWidth});
+  } else if (annotState.tool === 'mosaic') {
+    const bs = Math.max(4, annotState.lineWidth * 3);
+    annotState.shapes.push({type:'mosaic', x:annotState.startX, y:annotState.startY, w:pos.x-annotState.startX, h:pos.y-annotState.startY, blockSize:bs});
+  } else if (annotState.tool === 'textBox') {
+    const w = pos.x - annotState.startX, h = pos.y - annotState.startY;
+    if (Math.abs(w) > 10 && Math.abs(h) > 10) {
+      annotState.shapes.push({type:'textBox', x:annotState.startX, y:annotState.startY, w, h, text:'', color:'#000', lineWidth:annotState.lineWidth, fontSize:13});
+      showToast('文本框已创建，已切换至移动工具，双击框内可输入文字', 'success');
+      autoSwitchToMove();
+    }
+  } else if (annotState.tool === 'text') {
+    const w = pos.x - annotState.startX, h = pos.y - annotState.startY;
+    if (Math.abs(w) > 10 && Math.abs(h) > 10) {
+      annotState.shapes.push({type:'text', x:annotState.startX, y:annotState.startY, w, h, text:'', color:annotState.color, lineWidth:annotState.lineWidth, fontSize:13});
+      showToast('文字框已创建，已切换至移动工具，双击框内可输入文字', 'success');
+      autoSwitchToMove();
+    }
+  } else if (annotState.tool === 'strikeText') {
+    const w = pos.x - annotState.startX, h = pos.y - annotState.startY;
+    if (Math.abs(w) > 10 && Math.abs(h) > 10) {
+      annotState.shapes.push({type:'strikeText', x:annotState.startX, y:annotState.startY, w, h, text:'', color:annotState.color, lineWidth:annotState.lineWidth, fontSize:13});
+      showToast('划线文字已创建，已切换至移动工具，双击框内可输入文字', 'success');
+      autoSwitchToMove();
+    }
+  } else if (annotState.tool === 'callout') {
+    const bw = 120, bh = 50;
+    annotState.shapes.push({
+      type: 'callout', tipX: annotState.startX, tipY: annotState.startY,
+      x: pos.x - bw / 2, y: pos.y - bh / 2, w: bw, h: bh,
+      text: '', color: annotState.color, lineWidth: annotState.lineWidth, fontSize: 13
+    });
+    showToast('标注气泡已创建，双击气泡内可输入文字', 'success');
+    autoSwitchToMove();
+  } else if (annotState.tool === 'numBadge') {
+    const num = annotState.shapes.filter(t => t.type === 'numBadge').length + 1;
+    annotState.shapes.push({type:'numBadge', x:annotState.startX, y:annotState.startY, r:14, num, color:annotState.color});
+    // 连续放置：不自动切换工具，按 Esc 返回移动工具
+  } else if (annotState.tool === 'sign') {
+    // 签名：拖拽确定大小后弹出输入框，以中文行书渲染
+    const txt = prompt('请输入签名内容（将以中文行书显示）：', annotState.lastSignText || '');
+    if (txt && txt.trim()) {
+      annotState.lastSignText = txt.trim();
+      const hDrag = Math.abs(pos.y - annotState.startY);
+      const fs = Math.max(24, Math.min(200, Math.round(hDrag > 18 ? hDrag : 48)));
+      annotState.ctx.font = `${fs}px ${SIGN_FONT}`;
+      const w = annotState.ctx.measureText(annotState.lastSignText).width + 10;
+      const h = fs + 6;
+      annotState.shapes.push({type:'sign', x:annotState.startX, y:annotState.startY, w, h, text:annotState.lastSignText, color:annotState.color, fontSize:fs});
+      autoSwitchToMove();
+    }
+  } else if (annotState.tool === 'crop') {
+    if (annotState.cropRect && annotState.cropRect.w > 5 && annotState.cropRect.h > 5) {
+      showToast('按 Enter 应用裁剪，Esc 取消', 'info');
+    }
+  }
+  // 新增标注 → 记录撤销点
+  if (annotState.shapes.length > shapesLenBefore) {
+    annotState.undoStack.push({ type: 'add', idx: annotState.shapes.length - 1 });
+    annotState.redoStack = [];
+  }
+  drawCanvas();
+}
+
+// ==================== 签名与水印 ====================
+const SIGN_FONT = '"Xingkai SC","STXingkai","Wawati SC","Kaiti SC","STKaiti","KaiTi",cursive';
+
+// 签名：中文行书字体渲染
+function drawSign(ctx, s) {
+  const fs = s.fontSize || 48;
+  ctx.save();
+  ctx.font = `${fs}px ${SIGN_FONT}`;
+  ctx.fillStyle = s.color;
+  ctx.textBaseline = 'top';
+  (s.text || '').split('\n').forEach((line, i) => ctx.fillText(line, s.x + 4, s.y + 2 + i * fs));
+  ctx.restore();
+}
+
+// 全图水印：文字倾斜 45° 平铺整张图
+function drawWatermark(ctx) {
+  const W = ctx.canvas.width, H = ctx.canvas.height;
+  const text = annotState.watermarkText;
+  if (!text) return;
+  const fs = Math.max(20, Math.round(Math.min(W, H) / 10));
+  ctx.save();
+  ctx.globalAlpha = annotState.watermarkAlpha !== undefined ? annotState.watermarkAlpha : 0.14;
+  ctx.fillStyle = '#444';
+  ctx.font = `bold ${fs}px "PingFang SC","Microsoft YaHei",Arial`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.translate(W / 2, H / 2);
+  ctx.rotate(-Math.PI / 4);
+  const stepX = ctx.measureText(text).width + fs * 2.5;
+  const stepY = fs * 3.2;
+  const extent = Math.hypot(W, H);
+  for (let y = -extent; y <= extent; y += stepY) {
+    for (let x = -extent; x <= extent; x += stepX) {
+      ctx.fillText(text, x, y);
+    }
+  }
+  ctx.restore();
+}
+
+// 输入 / 更换 / 移除全图水印
+function editWatermark() {
+  const t = prompt('请输入水印文字（将以 45° 半透明平铺全图）。\n留空并确定 = 移除水印：', annotState.watermarkText || '');
+  if (t === null) return;
+  const v = t.trim();
+  annotState.watermarkText = v || null;
+  drawCanvas();
+  updateFillAlphaVisibility();
+  showToast(v ? `水印已添加：${v}` : '水印已移除', v ? 'success' : 'info');
+}
+
+// ==================== 绘制函数 ====================
+function drawArrow(ctx, x1, y1, x2, y2) {
+  const headLen = 12 + annotState.lineWidth * 2;
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI/6), y2 - headLen * Math.sin(angle - Math.PI/6));
+  ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI/6), y2 - headLen * Math.sin(angle + Math.PI/6));
+  ctx.closePath(); ctx.fill();
+}
+
+function drawDashedLine(ctx, x1, y1, x2, y2) {
+  ctx.save();
+  ctx.setLineDash([8, 4]);
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  ctx.restore();
+}
+
+function drawDoubleDashedLine(ctx, x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const len = Math.hypot(dx, dy);
+  if (len < 1) return;
+  const offset = 2 + annotState.lineWidth * 0.5;
+  const nx = -dy / len * offset;
+  const ny = dx / len * offset;
+  ctx.save();
+  ctx.setLineDash([8, 4]);
+  ctx.beginPath(); ctx.moveTo(x1 + nx, y1 + ny); ctx.lineTo(x2 + nx, y2 + ny); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x1 - nx, y1 - ny); ctx.lineTo(x2 - nx, y2 - ny); ctx.stroke();
+  ctx.restore();
+}
+
+function drawFillRect(ctx, x, y, w, h, color, lineWidth, alpha) {
+  const rx = Math.min(x, x + w), ry = Math.min(y, y + h);
+  const rw = Math.abs(w), rh = Math.abs(h);
+  ctx.save();
+  // 半透明填充（透明度可调，默认 30%）
+  ctx.globalAlpha = alpha !== undefined ? alpha : 0.3;
+  ctx.fillStyle = color || '#000';
+  ctx.fillRect(rx, ry, rw, rh);
+  // 实线边框
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = color || '#000';
+  ctx.lineWidth = lineWidth || 2;
+  ctx.strokeRect(rx, ry, rw, rh);
+  ctx.restore();
+}
+
+function drawCallout(ctx, s) {
+  const bx = Math.min(s.x, s.x + s.w), by = Math.min(s.y, s.y + s.h);
+  const bw = Math.abs(s.w), bh = Math.abs(s.h);
+  const r = Math.min(10, bw / 4, bh / 4);
+  const cx = bx + bw / 2, cy = by + bh / 2;
+  // 判断指示尖角连接到哪条边
+  const dx = s.tipX - cx, dy = s.tipY - cy;
+  const adx = Math.abs(dx), ady = Math.abs(dy);
+  let connX, connY, connSide;
+  if (adx > ady) {
+    if (dx > 0) { connX = bx + bw; connY = cy; connSide = 'right'; }
+    else { connX = bx; connY = cy; connSide = 'left'; }
+  } else {
+    if (dy > 0) { connX = cx; connY = by + bh; connSide = 'bottom'; }
+    else { connX = cx; connY = by; connSide = 'top'; }
+  }
+  const baseW = Math.min(20, bw * 0.3, bh * 0.3);
+  const col = s.color || '#ff0000';
+  ctx.save();
+  ctx.beginPath();
+  // 构建圆角矩形路径，在连接边插入三角形
+  ctx.moveTo(bx + r, by);
+  if (connSide === 'top') {
+    ctx.lineTo(connX - baseW / 2, by);
+    ctx.lineTo(s.tipX, s.tipY);
+    ctx.lineTo(connX + baseW / 2, by);
+  }
+  ctx.lineTo(bx + bw - r, by);
+  ctx.arcTo(bx + bw, by, bx + bw, by + r, r);
+  if (connSide === 'right') {
+    ctx.lineTo(bx + bw, connY - baseW / 2);
+    ctx.lineTo(s.tipX, s.tipY);
+    ctx.lineTo(bx + bw, connY + baseW / 2);
+  }
+  ctx.lineTo(bx + bw, by + bh - r);
+  ctx.arcTo(bx + bw, by + bh, bx + bw - r, by + bh, r);
+  if (connSide === 'bottom') {
+    ctx.lineTo(connX + baseW / 2, by + bh);
+    ctx.lineTo(s.tipX, s.tipY);
+    ctx.lineTo(connX - baseW / 2, by + bh);
+  }
+  ctx.lineTo(bx + r, by + bh);
+  ctx.arcTo(bx, by + bh, bx, by + bh - r, r);
+  if (connSide === 'left') {
+    ctx.lineTo(bx, connY + baseW / 2);
+    ctx.lineTo(s.tipX, s.tipY);
+    ctx.lineTo(bx, connY - baseW / 2);
+  }
+  ctx.lineTo(bx, by + r);
+  ctx.arcTo(bx, by, bx + r, by, r);
+  ctx.closePath();
+  // 白色填充 + 彩色边框
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.strokeStyle = col;
+  ctx.lineWidth = s.lineWidth || 2;
+  ctx.stroke();
+  // 文字
+  if (s.text) {
+    const fontSize = s.fontSize || 13;
+    ctx.font = `${fontSize}px Arial`;
+    ctx.fillStyle = '#000';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const lines = s.text.split('\n');
+    const lineHeight = fontSize * 1.3;
+    const startY = cy - (lines.length - 1) * lineHeight / 2;
+    lines.forEach((line, i) => { ctx.fillText(line, cx, startY + i * lineHeight); });
+  } else {
+    ctx.fillStyle = '#ccc';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('双击输入文字', cx, cy);
+  }
+  ctx.restore();
+}
+
+function drawCurveSimple(ctx, x1, y1, cx, cy, x2, y2, dashed) {
+  ctx.save();
+  if (dashed) ctx.setLineDash([8, 4]);
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.quadraticCurveTo(cx, cy, x2, y2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawTextInBox(ctx, s) {
+  const x = Math.min(s.x, s.x + s.w), y = Math.min(s.y, s.y + s.h);
+  const w = Math.abs(s.w), h = Math.abs(s.h);
+  ctx.save();
+  if (s.text) {
+    const fontSize = s.fontSize || 13;
+    ctx.fillStyle = s.color || '#000';
+    ctx.font = `${fontSize}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const lines = s.text.split('\n');
+    const lineHeight = fontSize * 1.3;
+    const startY = y + h / 2 - (lines.length - 1) * lineHeight / 2;
+    lines.forEach((line, i) => {
+      ctx.fillText(line, x + w / 2, startY + i * lineHeight);
+    });
+  } else {
+    // 空内容时显示虚线占位框
+    ctx.strokeStyle = '#ccc';
+    ctx.setLineDash([4, 3]);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, w, h);
+  }
+  ctx.restore();
+}
+
+function drawTextBox(ctx, s) {
+  const x = Math.min(s.x, s.x + s.w), y = Math.min(s.y, s.y + s.h);
+  const w = Math.abs(s.w), h = Math.abs(s.h);
+  ctx.save();
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = s.lineWidth || 2;
+  ctx.strokeRect(x, y, w, h);
+  if (s.text) {
+    const fontSize = s.fontSize || 13;
+    ctx.fillStyle = '#000000';
+    ctx.font = `${fontSize}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const lines = s.text.split('\n');
+    const lineHeight = fontSize * 1.3;
+    const startY = y + h / 2 - (lines.length - 1) * lineHeight / 2;
+    lines.forEach((line, i) => {
+      ctx.fillText(line, x + w / 2, startY + i * lineHeight);
+    });
+  }
+  ctx.restore();
+}
+
+function drawDashedRect(ctx, x, y, w, h) {
+  ctx.save();
+  ctx.setLineDash([8, 4]);
+  ctx.strokeRect(x, y, w, h);
+  ctx.restore();
+}
+
+function drawDimLine(ctx, x1, y1, x2, y2) {
+  const headLen = 10 + annotState.lineWidth * 2;
+  const tickLen = 8 + annotState.lineWidth;
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  // 主线
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  // 两端箭头（向外）
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI/6), y2 - headLen * Math.sin(angle - Math.PI/6));
+  ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI/6), y2 - headLen * Math.sin(angle + Math.PI/6));
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x1, y1);
+  ctx.lineTo(x1 + headLen * Math.cos(angle - Math.PI/6), y1 + headLen * Math.sin(angle - Math.PI/6));
+  ctx.lineTo(x1 + headLen * Math.cos(angle + Math.PI/6), y1 + headLen * Math.sin(angle + Math.PI/6));
+  ctx.closePath(); ctx.fill();
+  // 两端垂直刻度线
+  const perpAngle = angle + Math.PI / 2;
+  const tx = Math.cos(perpAngle) * tickLen;
+  const ty = Math.sin(perpAngle) * tickLen;
+  ctx.beginPath();
+  ctx.moveTo(x1 - tx, y1 - ty); ctx.lineTo(x1 + tx, y1 + ty);
+  ctx.moveTo(x2 - tx, y2 - ty); ctx.lineTo(x2 + tx, y2 + ty);
+  ctx.stroke();
+}
+
+function drawDoubleSolidLine(ctx, x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const len = Math.hypot(dx, dy);
+  if (len < 1) return;
+  const offset = 2 + annotState.lineWidth * 0.5;
+  const nx = -dy / len * offset;
+  const ny = dx / len * offset;
+  ctx.beginPath(); ctx.moveTo(x1 + nx, y1 + ny); ctx.lineTo(x2 + nx, y2 + ny); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x1 - nx, y1 - ny); ctx.lineTo(x2 - nx, y2 - ny); ctx.stroke();
+}
+
+function drawSingleSolidLine(ctx, x1, y1, x2, y2) {
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+}
+
+function drawXLine(ctx, x1, y1, x2, y2) {
+  const minX = Math.min(x1, x2), maxX = Math.max(x1, x2);
+  const minY = Math.min(y1, y2), maxY = Math.max(y1, y2);
+  ctx.beginPath(); ctx.moveTo(minX, minY); ctx.lineTo(maxX, maxY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(minX, maxY); ctx.lineTo(maxX, minY); ctx.stroke();
+}
+
+function getDefaultCurveCP(x1, y1, x2, y2) {
+  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+  const dx = x2 - x1, dy = y2 - y1;
+  const len = Math.hypot(dx, dy);
+  if (len < 1) return { cx: mx, cy: my };
+  const offset = len * 0.25;
+  return { cx: mx - dy / len * offset, cy: my + dx / len * offset };
+}
+
+function drawCurveLine(ctx, x1, y1, cx, cy, x2, y2) {
+  const headLen = 10 + annotState.lineWidth * 2;
+  const tickLen = 8 + annotState.lineWidth;
+  // 弧线
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.quadraticCurveTo(cx, cy, x2, y2);
+  ctx.stroke();
+  // 起止点切线方向（指向内）
+  const ang1 = Math.atan2(cy - y1, cx - x1);
+  const ang2 = Math.atan2(cy - y2, cx - x2);
+  // 起点箭头（向内）
+  ctx.beginPath(); ctx.moveTo(x1, y1);
+  ctx.lineTo(x1 + headLen * Math.cos(ang1 - Math.PI/6), y1 + headLen * Math.sin(ang1 - Math.PI/6));
+  ctx.lineTo(x1 + headLen * Math.cos(ang1 + Math.PI/6), y1 + headLen * Math.sin(ang1 + Math.PI/6));
+  ctx.closePath(); ctx.fill();
+  // 终点箭头（向内）
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 + headLen * Math.cos(ang2 - Math.PI/6), y2 + headLen * Math.sin(ang2 - Math.PI/6));
+  ctx.lineTo(x2 + headLen * Math.cos(ang2 + Math.PI/6), y2 + headLen * Math.sin(ang2 + Math.PI/6));
+  ctx.closePath(); ctx.fill();
+  // 两端垂直刻度线
+  const perp1 = ang1 + Math.PI / 2;
+  const t1x = Math.cos(perp1) * tickLen, t1y = Math.sin(perp1) * tickLen;
+  ctx.beginPath();
+  ctx.moveTo(x1 - t1x, y1 - t1y); ctx.lineTo(x1 + t1x, y1 + t1y);
+  const perp2 = ang2 + Math.PI / 2;
+  const t2x = Math.cos(perp2) * tickLen, t2y = Math.sin(perp2) * tickLen;
+  ctx.moveTo(x2 - t2x, y2 - t2y); ctx.lineTo(x2 + t2x, y2 + t2y);
+  ctx.stroke();
+}
+
+function drawStrikeText(ctx, s) {
+  const x = Math.min(s.x, s.x + s.w), y = Math.min(s.y, s.y + s.h);
+  const w = Math.abs(s.w), h = Math.abs(s.h);
+  ctx.save();
+  if (s.text) {
+    const fontSize = s.fontSize || 13;
+    ctx.font = `${fontSize}px Arial`;
+    ctx.fillStyle = s.color || '#000';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const lines = s.text.split('\n');
+    const lineHeight = fontSize * 1.3;
+    const startY = y + h / 2 - (lines.length - 1) * lineHeight / 2;
+    lines.forEach((line, i) => {
+      const ly = startY + i * lineHeight;
+      ctx.fillText(line, x + w / 2, ly);
+      // 文字中央划线
+      const metrics = ctx.measureText(line);
+      ctx.strokeStyle = s.color || '#000';
+      ctx.lineWidth = Math.max(1, fontSize / 6);
+      ctx.beginPath();
+      ctx.moveTo(x + w / 2 - metrics.width / 2, ly);
+      ctx.lineTo(x + w / 2 + metrics.width / 2, ly);
+      ctx.stroke();
+    });
+  } else {
+    ctx.strokeStyle = '#ccc';
+    ctx.setLineDash([4, 3]);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, w, h);
+  }
+  ctx.restore();
+}
+
+function drawMosaic(ctx, x, y, w, h, blockSize) {
+  if (w < 0) { x += w; w = -w; }
+  if (h < 0) { y += h; h = -h; }
+  x = Math.max(0, Math.floor(x));
+  y = Math.max(0, Math.floor(y));
+  w = Math.min(annotState.canvas.width - x, Math.floor(w));
+  h = Math.min(annotState.canvas.height - y, Math.floor(h));
+  if (w <= 0 || h <= 0) return;
+  const bs = Math.max(2, blockSize);
+  for (let by = 0; by < h; by += bs) {
+    for (let bx = 0; bx < w; bx += bs) {
+      const bw = Math.min(bs, w - bx);
+      const bh = Math.min(bs, h - by);
+      const data = ctx.getImageData(x + bx, y + by, bw, bh).data;
+      let r = 0, g = 0, b = 0, count = 0;
+      for (let i = 0; i < data.length; i += 4) { r += data[i]; g += data[i+1]; b += data[i+2]; count++; }
+      ctx.fillStyle = `rgb(${Math.round(r/count)},${Math.round(g/count)},${Math.round(b/count)})`;
+      ctx.fillRect(x + bx, y + by, bw, bh);
+    }
+  }
+}
+
+// ==================== 新增工具绘制 ====================
+function drawBrush(ctx, s) {
+  if (!s.pts || s.pts.length === 0) return;
+  ctx.save();
+  ctx.globalAlpha = s.alpha !== undefined ? s.alpha : 0.4;
+  ctx.strokeStyle = s.color;
+  ctx.lineWidth = s.lineWidth;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(s.pts[0].x, s.pts[0].y);
+  for (let i = 1; i < s.pts.length; i++) ctx.lineTo(s.pts[i].x, s.pts[i].y);
+  if (s.pts.length === 1) ctx.lineTo(s.pts[0].x + 0.1, s.pts[0].y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawNumBadge(ctx, s) {
+  const r = s.r || 14;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+  ctx.fillStyle = s.color || '#ff0000';
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#ffffff';
+  ctx.stroke();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `bold ${Math.max(10, Math.round(r * 1.2))}px Arial`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(s.num || ''), s.x, s.y + 1);
+  ctx.restore();
+}
+
+// 尺寸线长度标签（自定义文字优先，否则已校准显示 cm、未校准显示 px）
+function drawDimLabel(ctx, s) {
+  const len = Math.hypot(s.x2 - s.x1, s.y2 - s.y1);
+  const auto = annotState.pxPerCm ? (len / annotState.pxPerCm).toFixed(1) + ' cm' : Math.round(len) + ' px';
+  const text = (s.label && String(s.label).trim()) ? s.label : auto;
+  const mx = (s.x1 + s.x2) / 2, my = (s.y1 + s.y2) / 2;
+  const ang = Math.atan2(s.y2 - s.y1, s.x2 - s.x1);
+  const off = 10 + (s.fontSize || 12);
+  const lx = mx - Math.sin(ang) * off, ly = my + Math.cos(ang) * off;
+  ctx.save();
+  const fs = 12;
+  ctx.font = `bold ${fs}px Arial`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#ffffff';
+  ctx.strokeText(text, lx, ly);
+  ctx.fillStyle = s.color || '#ff0000';
+  ctx.fillText(text, lx, ly);
+  ctx.restore();
+}
+
+function drawCanvas() {
+  if (!annotState.ctx || !annotState.canvas) return;
+  const ctx = annotState.ctx;
+  ctx.clearRect(0, 0, annotState.canvas.width, annotState.canvas.height);
+  // 白色背景
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, annotState.canvas.width, annotState.canvas.height);
+  // 按住空格：仅显示原图
+  const preview = annotState.previewOriginal;
+  annotState.shapes.forEach(s => {
+    if (preview && s.type !== 'image') return;
+    ctx.save();
+    // 应用旋转
+    const rot = s.rotation || 0;
+    if (rot !== 0 && s.type !== 'mosaic') {
+      const c = getShapeCenter(s);
+      ctx.translate(c.x, c.y);
+      ctx.rotate(rot * Math.PI / 180);
+      ctx.translate(-c.x, -c.y);
+    }
+    ctx.strokeStyle = s.color; ctx.fillStyle = s.color; ctx.lineWidth = s.lineWidth;
+    if (s.type === 'arrow') drawArrow(ctx, s.x1, s.y1, s.x2, s.y2);
+    else if (s.type === 'dashSingle') drawDashedLine(ctx, s.x1, s.y1, s.x2, s.y2);
+    else if (s.type === 'dashDouble') drawDoubleDashedLine(ctx, s.x1, s.y1, s.x2, s.y2);
+    else if (s.type === 'doubleSolid') drawDoubleSolidLine(ctx, s.x1, s.y1, s.x2, s.y2);
+    else if (s.type === 'solidLine') drawSingleSolidLine(ctx, s.x1, s.y1, s.x2, s.y2);
+    else if (s.type === 'xLine') drawXLine(ctx, s.x1, s.y1, s.x2, s.y2);
+    else if (s.type === 'curve') drawCurveLine(ctx, s.x1, s.y1, s.cx, s.cy, s.x2, s.y2);
+    else if (s.type === 'curveDashed') drawCurveSimple(ctx, s.x1, s.y1, s.cx, s.cy, s.x2, s.y2, true);
+    else if (s.type === 'curveSolid') drawCurveSimple(ctx, s.x1, s.y1, s.cx, s.cy, s.x2, s.y2, false);
+    else if (s.type === 'fillRect') drawFillRect(ctx, s.x, s.y, s.w, s.h, s.color, s.lineWidth, s.alpha);
+    else if (s.type === 'dashRect') drawDashedRect(ctx, s.x, s.y, s.w, s.h);
+    else if (s.type === 'dimLine') { drawDimLine(ctx, s.x1, s.y1, s.x2, s.y2); drawDimLabel(ctx, s); }
+    else if (s.type === 'text') drawTextInBox(ctx, s);
+    else if (s.type === 'strikeText') drawStrikeText(ctx, s);
+    else if (s.type === 'textBox') drawTextBox(ctx, s);
+    else if (s.type === 'callout') drawCallout(ctx, s);
+    else if (s.type === 'rect') ctx.strokeRect(s.x, s.y, s.w, s.h);
+    else if (s.type === 'circle') { ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.stroke(); }
+    else if (s.type === 'mosaic') drawMosaic(ctx, s.x, s.y, s.w, s.h, s.blockSize);
+    else if (s.type === 'brush') drawBrush(ctx, s);
+    else if (s.type === 'numBadge') drawNumBadge(ctx, s);
+    else if (s.type === 'sign') drawSign(ctx, s);
+    else if (s.type === 'image' && s.img) {
+      if (annotState.brightness !== 100 || annotState.contrast !== 100) {
+        ctx.filter = `brightness(${annotState.brightness}%) contrast(${annotState.contrast}%)`;
+        ctx.drawImage(s.img, s.x, s.y, s.w, s.h);
+        ctx.filter = 'none';
+      } else ctx.drawImage(s.img, s.x, s.y, s.w, s.h);
+    }
+    ctx.restore();
+  });
+  // 全图水印（45° 平铺，半透明）
+  if (annotState.watermarkText && !preview) drawWatermark(ctx);
+  // 裁剪模式遮罩
+  if (annotState.tool === 'crop') {
+    const cr = annotState.cropRect;
+    ctx.save();
+    if (cr && cr.w > 0 && cr.h > 0) {
+      ctx.fillStyle = 'rgba(0,0,0,.55)';
+      ctx.beginPath();
+      ctx.rect(0, 0, annotState.canvas.width, annotState.canvas.height);
+      ctx.rect(cr.x, cr.y, cr.w, cr.h);
+      ctx.fill('evenodd');
+      ctx.strokeStyle = '#ffffff';
+      ctx.setLineDash([6, 4]);
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(cr.x, cr.y, cr.w, cr.h);
+    } else {
+      ctx.fillStyle = 'rgba(0,0,0,.35)';
+      ctx.fillRect(0, 0, annotState.canvas.width, 24);
+      ctx.fillStyle = '#fff';
+      ctx.font = '12px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('拖拽框选裁剪区域，Enter 确认，Esc 取消', annotState.canvas.width / 2, 16);
+    }
+    ctx.restore();
+  }
+  // 选中标注指示框（任意工具下）
+  if (!preview && annotState.movingShapeIdx >= 0) {
+    const s = annotState.shapes[annotState.movingShapeIdx];
+    const b = getShapeBounds(s);
+    if (b) {
+      ctx.save();
+      const rot = s.rotation || 0;
+      if (rot !== 0 && s.type !== 'mosaic') {
+        const c = getShapeCenter(s);
+        ctx.translate(c.x, c.y);
+        ctx.rotate(rot * Math.PI / 180);
+        ctx.translate(-c.x, -c.y);
+      }
+      ctx.strokeStyle = '#1a56db';
+      ctx.setLineDash([5, 3]);
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(b.x, b.y, b.w, b.h);
+      ctx.restore();
+      // 曲线控制点手柄
+      if (s.type === 'curve' || s.type === 'curveDashed' || s.type === 'curveSolid') {
+        ctx.save();
+        const mx = (s.x1 + s.x2) / 2, my = (s.y1 + s.y2) / 2;
+        ctx.strokeStyle = '#1a56db';
+        ctx.setLineDash([3, 3]);
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(s.cx, s.cy); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#fff';
+        ctx.strokeStyle = '#1a56db';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(s.cx, s.cy, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.restore();
+      }
+    }
+  }
+}
+
+// ==================== 撤销 / 重做 / 清除 / 重置 ====================
+function applyUndoOp(op) {
+  if (op.type === 'add') annotState.shapes.splice(op.idx, 1);
+  else if (op.type === 'del') annotState.shapes.splice(op.idx, 0, op.shape);
+  else if (op.type === 'clear') annotState.shapes = op.shapes.slice();
+}
+function recordAdd() {
+  annotState.undoStack.push({ type: 'add', idx: annotState.shapes.length });
+  annotState.redoStack = [];
+}
+function undoAnnot() {
+  const op = annotState.undoStack.pop();
+  if (!op) { showToast('没有可撤销的操作', 'info'); return; }
+  let redo;
+  if (op.type === 'add') {
+    const shape = annotState.shapes[op.idx];
+    annotState.shapes.splice(op.idx, 1);
+    redo = { type: 'add', shape };
+  } else if (op.type === 'del') {
+    annotState.shapes.splice(op.idx, 0, op.shape);
+    redo = { type: 'del', idx: op.idx, shape: op.shape };
+  } else {
+    redo = { type: 'clear', shapes: annotState.shapes.slice() };
+    annotState.shapes = op.shapes.slice();
+  }
+  annotState.redoStack.push(redo);
+  annotState.movingShapeIdx = -1;
+  updateFillAlphaVisibility();
+  drawCanvas();
+  showToast('已撤销', 'info');
+}
+
+function redoAnnot() {
+  const op = annotState.redoStack.pop();
+  if (!op) { showToast('没有可重做的操作', 'info'); return; }
+  if (op.type === 'add') {
+    annotState.shapes.push(op.shape);
+    annotState.undoStack.push({ type: 'add', idx: annotState.shapes.length - 1 });
+  } else if (op.type === 'del') {
+    annotState.shapes.splice(op.idx, 1);
+    annotState.undoStack.push(op);
+  } else {
+    annotState.undoStack.push({ type: 'clear', shapes: annotState.shapes.slice() });
+    annotState.shapes = [];
+  }
+  annotState.movingShapeIdx = -1;
+  updateFillAlphaVisibility();
+  drawCanvas();
+  showToast('已重做', 'success');
+}
+
+function clearAnnot() {
+  if (annotState.shapes.length === 0) { showToast('没有可清除的标注', 'info'); return; }
+  annotState.undoStack.push({ type: 'clear', shapes: annotState.shapes.slice() });
+  annotState.redoStack = [];
+  annotState.shapes = [];
+  annotState.movingShapeIdx = -1;
+  updateFillAlphaVisibility();
+  drawCanvas();
+  showToast('已清除所有标注', 'info');
+}
+
+function resetCanvas() {
+  annotState.shapes = [];
+  annotState.undoStack = [];
+  annotState.redoStack = [];
+  annotState.pxPerCm = null;
+  annotState.cropRect = null;
+  annotState.previewOriginal = false;
+  annotState.watermarkText = null;
+  annotState.canvas = null;
+  annotState.ctx = null;
+  annotState.img = null;
+  annotState.movingShapeIdx = -1;
+  annotState.isMoving = false;
+  annotState.isAdjustingCurve = false;
+  annotState.isDrawing = false;
+  const wrap = document.getElementById('annotCanvasWrap');
+  wrap.innerHTML = '<div class="annot-upload-prompt">请先上传图片，然后在图片上添加标注</div>';
+  showToast('已重置画布', 'info');
+}
+
+// ==================== 保存下载 / 剪贴板 ====================
+function downloadAnnotImage() {
+  if (!annotState.canvas) { showToast('请先上传图片', 'error'); return; }
+  const dataUrl = annotState.canvas.toDataURL('image/png');
+  const a = document.createElement('a');
+  const ts = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  a.download = `标注图片_${ts.getFullYear()}${pad(ts.getMonth()+1)}${pad(ts.getDate())}_${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}.png`;
+  a.href = dataUrl;
+  a.click();
+  showToast('PNG 已保存下载', 'success');
+}
+
+function downloadAnnotJPG() {
+  if (!annotState.canvas) { showToast('请先上传图片', 'error'); return; }
+  const dataUrl = annotState.canvas.toDataURL('image/jpeg', 0.92);
+  const a = document.createElement('a');
+  const ts = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  a.download = `标注图片_${ts.getFullYear()}${pad(ts.getMonth()+1)}${pad(ts.getDate())}_${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}.jpg`;
+  a.href = dataUrl;
+  a.click();
+  showToast('JPG 已保存下载（体积小，适合微信发送）', 'success');
+}
+
+function copyAnnotToClipboard() {
+  if (!annotState.canvas) { showToast('请先上传图片', 'error'); return; }
+  annotState.canvas.toBlob((blob) => {
+    if (!blob) { showToast('复制失败', 'error'); return; }
+    navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+      .then(() => showToast('已复制到剪贴板，可直接粘贴', 'success'))
+      .catch(() => showToast('复制失败，请改用保存下载', 'error'));
+  }, 'image/png');
+}
+
+// ==================== 键盘快捷键 ====================
+document.addEventListener('keydown', (e) => {
+  // 文字编辑中不响应
+  if (document.getElementById('annotEditText')) return;
+  // 裁剪模式：Enter 应用 / Esc 取消
+  if (annotState.tool === 'crop') {
+    if (e.key === 'Enter') { e.preventDefault(); applyCrop(); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancelCrop(); }
+    return;
+  }
+  // 帮助面板开关
+  if (e.key === '?') { e.preventDefault(); toggleHelpPanel(); return; }
+  // 按住空格查看原图
+  if (e.key === ' ' && !e.repeat && annotState.canvas) {
+    e.preventDefault();
+    annotState.previewOriginal = true;
+    drawCanvas();
+    return;
+  }
+  // ESC：中断当前绘图工具，回到移动工具（裁剪模式已在上方单独处理）
+  if (e.key === 'Escape' && annotState.tool !== 'move') {
+    setAnnotTool('move', document.querySelector('.tool-selectable[data-tool="move"]'));
+    showToast('已切换到移动工具', 'info');
+    return;
+  }
+  // 撤销 / 重做 / 复制 / 粘贴
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); undoAnnot(); return; }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y' || (e.shiftKey && (e.key === 'z' || e.key === 'Z')))) { e.preventDefault(); redoAnnot(); return; }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) { e.preventDefault(); copySelectedShape(); return; }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V')) { e.preventDefault(); pasteShape(); return; }
+  if (annotState.movingShapeIdx < 0 || annotState.tool === 'crop') return;
+  const sel = annotState.shapes[annotState.movingShapeIdx];
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    e.preventDefault();
+    annotState.undoStack.push({ type: 'del', idx: annotState.movingShapeIdx, shape: annotState.shapes[annotState.movingShapeIdx] });
+    annotState.redoStack = [];
+    annotState.shapes.splice(annotState.movingShapeIdx, 1);
+    annotState.movingShapeIdx = -1;
+    updateFillAlphaVisibility();
+    drawCanvas();
+    showToast('已删除选中标注（右键标注也可删除）', 'success');
+  } else if (e.key === '+' || e.key === '=') {
+    e.preventDefault();
+    scaleShape(sel, 1.15);
+    drawCanvas();
+  } else if (e.key === '-' || e.key === '_') {
+    e.preventDefault();
+    scaleShape(sel, 0.85);
+    drawCanvas();
+  } else if (e.key === 'ArrowLeft') {
+    e.preventDefault();
+    rotateSelected(e.shiftKey ? -1 : -15);
+  } else if (e.key === 'ArrowRight') {
+    e.preventDefault();
+    rotateSelected(e.shiftKey ? 1 : 15);
+  } else if (e.key === '[' && sel.fontSize !== undefined) {
+    // 缩小字号
+    e.preventDefault();
+    sel.fontSize = Math.max(8, sel.fontSize - 1);
+    drawCanvas();
+    showToast(`字号: ${sel.fontSize}px`, 'info');
+  } else if (e.key === ']' && sel.fontSize !== undefined) {
+    // 放大字号
+    e.preventDefault();
+    sel.fontSize = Math.min(sel.type === 'sign' ? 200 : 72, sel.fontSize + 1);
+    drawCanvas();
+    showToast(`字号: ${sel.fontSize}px`, 'info');
+  }
+});
+
+// ==================== Toast 提示 ====================
+function showToast(msg, type) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = type || 'info';
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+// ==================== 裁剪 / 整图旋转 / 比例尺 / 复制粘贴 / 面板 ====================
+function startCropMode() {
+  if (!annotState.canvas) { showToast('请先上传图片', 'error'); return; }
+  annotState.tool = 'crop';
+  annotState.cropRect = null;
+  annotState.movingShapeIdx = -1;
+  document.querySelectorAll('.tool-selectable').forEach(t => t.classList.remove('active'));
+  document.getElementById('currentToolLabel').textContent = '裁剪';
+  updateFillAlphaVisibility();
+  drawCanvas();
+  showToast('拖拽框选裁剪区域，Enter 确认，Esc 取消', 'info');
+}
+
+function cancelCrop() {
+  annotState.cropRect = null;
+  setAnnotTool('move', document.querySelector('.tool-selectable[data-tool="move"]'));
+}
+
+function applyCrop() {
+  const cr = annotState.cropRect;
+  if (!cr || cr.w < 5 || cr.h < 5) { showToast('请先拖拽选择裁剪区域', 'error'); return; }
+  // 整体平移所有标注（保留），画布缩到选区大小
+  annotState.shapes.forEach(s => moveShape(s, -cr.x, -cr.y));
+  annotState.canvas.width = Math.round(cr.w);
+  annotState.canvas.height = Math.round(cr.h);
+  annotState.cropRect = null;
+  setAnnotTool('move', document.querySelector('.tool-selectable[data-tool="move"]'));
+  showToast('裁剪完成，标注已保留', 'success');
+}
+
+// 90° 平面旋转坐标变换（顺时针）
+function rotateShape90(s, oldH) {
+  const rotPt = (x, y) => [oldH - y, x];
+  if (s.x1 !== undefined) {
+    [s.x1, s.y1] = rotPt(s.x1, s.y1);
+    [s.x2, s.y2] = rotPt(s.x2, s.y2);
+    if (s.cx !== undefined) [s.cx, s.cy] = rotPt(s.cx, s.cy);
+  } else if (s.w !== undefined) {
+    if (s.w < 0) { s.x += s.w; s.w = -s.w; }
+    if (s.h < 0) { s.y += s.h; s.h = -s.h; }
+    const nx = oldH - (s.y + s.h), ny = s.x, nw = s.h, nh = s.w;
+    s.x = nx; s.y = ny; s.w = nw; s.h = nh;
+  } else if (s.r !== undefined) {
+    [s.x, s.y] = rotPt(s.x, s.y);
+  }
+  if (s.pts) s.pts.forEach(p => { [p.x, p.y] = rotPt(p.x, p.y); });
+  if (s.tipX !== undefined) [s.tipX, s.tipY] = rotPt(s.tipX, s.tipY);
+  s.rotation = ((s.rotation || 0) + 90) % 360;
+}
+
+function rotateImage90() {
+  if (!annotState.canvas) { showToast('请先上传图片', 'error'); return; }
+  const oldW = annotState.canvas.width, oldH = annotState.canvas.height;
+  annotState.shapes.forEach(s => rotateShape90(s, oldH));
+  annotState.canvas.width = oldH;
+  annotState.canvas.height = oldW;
+  drawCanvas();
+  showToast('已顺时针旋转 90°（每点一次转 90°）', 'success');
+}
+
+// 校准比例尺：选中一条尺寸线，输入其实际厘米长度
+function calibrateScale() {
+  if (annotState.movingShapeIdx < 0) { showToast('请先点击选中一个标注', 'info'); return; }
+  const s = annotState.shapes[annotState.movingShapeIdx];
+  if (s.type !== 'dimLine') { showToast('选中的不是尺寸线（↔ 直线长），请重新选择', 'info'); return; }
+  const pxLen = Math.hypot(s.x2 - s.x1, s.y2 - s.y1);
+  const cm = parseFloat(prompt(`这条尺寸线当前约 ${Math.round(pxLen)} 像素\n请输入它对应的实际长度（cm）：`, ''));
+  if (!cm || cm <= 0) return;
+  annotState.pxPerCm = pxLen / cm;
+  drawCanvas();
+  showToast(`比例尺已校准：${annotState.pxPerCm.toFixed(2)} 像素/厘米，所有尺寸线将显示 cm`, 'success');
+}
+
+function cloneShape(s) {
+  const c = Object.assign({}, s);
+  if (s.pts) c.pts = s.pts.map(p => ({ x: p.x, y: p.y }));
+  return c;
+}
+
+function copySelectedShape() {
+  if (annotState.movingShapeIdx < 0) { showToast('请先点击选中要复制的标注', 'info'); return; }
+  annotState.clipboard = cloneShape(annotState.shapes[annotState.movingShapeIdx]);
+  showToast('已复制，Ctrl+V 粘贴', 'success');
+}
+
+function pasteShape() {
+  if (!annotState.clipboard || !annotState.canvas) { showToast('剪贴板为空，请先 Ctrl+C 复制标注', 'info'); return; }
+  const s = cloneShape(annotState.clipboard);
+  moveShape(s, 16, 16);
+  recordAdd();
+  annotState.shapes.push(s);
+  drawCanvas();
+  showToast('已粘贴', 'success');
+}
+
+function toggleHelpPanel() {
+  const p = document.getElementById('helpPanel');
+  p.style.display = p.style.display === 'flex' ? 'none' : 'flex';
+}
+
+function toggleBCPanel(force) {
+  const p = document.getElementById('bcPanel');
+  const show = force !== undefined ? force : p.style.display === 'none';
+  p.style.display = show ? 'block' : 'none';
+}
+
+function resetBC() {
+  annotState.brightness = 100;
+  annotState.contrast = 100;
+  document.getElementById('bcBrightness').value = 100;
+  document.getElementById('bcContrast').value = 100;
+  document.getElementById('bcBrightnessVal').textContent = '100%';
+  document.getElementById('bcContrastVal').textContent = '100%';
+  drawCanvas();
+}
+
+// 右键删除光标下的标注
+function onCanvasContextMenu(e) {
+  e.preventDefault();
+  if (!annotState.canvas) return;
+  const pos = getCanvasPos(e);
+  for (let i = annotState.shapes.length - 1; i >= 0; i--) {
+    if (annotState.shapes[i].type !== 'image' && hitTestShape(annotState.shapes[i], pos.x, pos.y)) {
+      annotState.undoStack.push({ type: 'del', idx: i, shape: annotState.shapes[i] });
+      annotState.redoStack = [];
+      annotState.shapes.splice(i, 1);
+      if (annotState.movingShapeIdx === i) annotState.movingShapeIdx = -1;
+      updateFillAlphaVisibility();
+      drawCanvas();
+      showToast('已删除该标注（Ctrl+Z 可撤销）', 'success');
+      return;
+    }
+  }
+}
+
+// ==================== 初始化 ====================
+document.getElementById('annotColor').addEventListener('input', (e) => { annotState.color = e.target.value; });
+document.getElementById('annotLineWidth').addEventListener('input', (e) => { annotState.lineWidth = parseInt(e.target.value); });
+document.getElementById('annotFillAlpha').addEventListener('input', (e) => {
+  annotState.fillAlpha = parseInt(e.target.value) / 100;
+  // 编辑选中实心框时，实时同步其透明度
+  if (annotState.movingShapeIdx >= 0) {
+    const s = annotState.shapes[annotState.movingShapeIdx];
+    if (s && s.type === 'fillRect') {
+      s.alpha = annotState.fillAlpha;
+      drawCanvas();
+    }
+  }
+});
+// 水印透明度实时调节
+document.getElementById('annotWmAlpha').addEventListener('input', (e) => {
+  annotState.watermarkAlpha = parseInt(e.target.value) / 100;
+  drawCanvas();
+});
+document.getElementById('bcBrightness').addEventListener('input', (e) => {
+  annotState.brightness = parseInt(e.target.value);
+  document.getElementById('bcBrightnessVal').textContent = annotState.brightness + '%';
+  drawCanvas();
+});
+document.getElementById('bcContrast').addEventListener('input', (e) => {
+  annotState.contrast = parseInt(e.target.value);
+  document.getElementById('bcContrastVal').textContent = annotState.contrast + '%';
+  drawCanvas();
+});
+document.addEventListener('keyup', (e) => {
+  if (e.key === ' ') { annotState.previewOriginal = false; drawCanvas(); }
+});
+// 水滴涟漪：点击按钮 / 菜单项时扩散
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('.btn, .dropdown-menu a, .tab-label');
+  if (!t) return;
+  const rect = t.getBoundingClientRect();
+  const d = Math.max(rect.width, rect.height) * 1.1;
+  const r = document.createElement('span');
+  r.className = 'ripple';
+  r.style.width = r.style.height = d + 'px';
+  r.style.left = (e.clientX - rect.left - d / 2) + 'px';
+  r.style.top = (e.clientY - rect.top - d / 2) + 'px';
+  t.appendChild(r);
+  setTimeout(() => r.remove(), 680);
+});
+// 未加载图片时，双击画布区域直接打开文件选择窗口
+document.getElementById('annotCanvasWrap').addEventListener('dblclick', () => {
+  if (!annotState.canvas) document.getElementById('annotFile').click();
+});
+</script>
+</body>
+</html>

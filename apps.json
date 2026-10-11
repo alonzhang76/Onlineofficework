@@ -107,6 +107,16 @@
       "sort_order": 4
     },
     {
+      "id": "imageannotator",
+      "name": "图片标注工具",
+      "description": "图片标注、涂鸦与批注工具",
+      "url": "apps/image-annotator/index.html",
+      "icon": "🖌️",
+      "color": "#007aff",
+      "category": "furnace",
+      "sort_order": 8
+    },
+    {
       "id": "stainlessbusiness",
       "name": "不锈钢贸易管理",
       "description": "不锈钢进销存全流程系统",
