@@ -5951,7 +5951,6 @@
 
     function buildQueryPackage() {
       try {
-        var storage = safeParse(localStorage.getItem('salaryStorage'), {}) || {};
         var emps = safeParse(localStorage.getItem('salary_employees'), []) || [];
         var deptById = {};
         var empList = emps.map(function (e) {
@@ -5962,29 +5961,49 @@
             position: (e && e.position) || '', status: (e && e.status) || '在职'
           };
         });
+
+        var pad2q = function (n) { return (n < 10 ? '0' : '') + n; };
         var rows = [];
+        var seenRow = {};
+        function pushRow(mk, r) {
+          if (!r || !/^\d{4}-\d{2}$/.test(String(mk || ''))) return;
+          // 汇总表行用 employeeId，填写区行用 id；两者兼容
+          var rid = (r.id !== undefined && r.id !== null && String(r.id) !== '') ? r.id : r.employeeId;
+          var dedup = mk + '|' + rid + '|' + (r.company || '');
+          if (seenRow[dedup]) return;
+          seenRow[dedup] = true;
+          rows.push({
+            month: mk,
+            id: rid || '', name: r.name || '', company: r.company || '',
+            department: deptById[String(rid)] || r.department || '',
+            attendanceDays: Number(r.attendanceDays) || 0,
+            basicSalary: Number(r.basicSalary) || 0,
+            performanceBonus: Number(r.performanceBonus) || 0,
+            housingAllowance: Number(r.housingAllowance) || 0,
+            otherAllowance: Number(r.otherAllowance) || 0,
+            yearEndBonus: Number(r.yearEndBonus) || 0,
+            socialSecurity: Number(r.socialSecurity) || 0,
+            providentFund: Number(r.providentFund) || 0,
+            loanDeduction: Number(r.loanDeduction) || 0,
+            incomeTax: Number(r.incomeTax) || 0,
+            netSalary: Number(r.netSalary) || 0
+          });
+        }
+
+        // ① 工资汇总表（salarySummaryData 扁平数组，历史正式数据以此为准）
+        var summary = safeParse(localStorage.getItem('salarySummaryData'), []) || [];
+        if (Array.isArray(summary)) {
+          summary.forEach(function (r) {
+            if (r && r.year && r.month) pushRow(r.year + '-' + pad2q(Number(r.month)), r);
+          });
+        }
+        // ② 工资填写工作区（salaryStorage 按 'YYYY-MM' 分组）：
+        //    补充当月已填但尚未保存进汇总表的数据；同月同人不覆盖汇总表
+        var storage = safeParse(localStorage.getItem('salaryStorage'), {}) || {};
         Object.keys(storage).sort().forEach(function (mk) {
           var list = storage[mk];
           if (!Array.isArray(list)) return;
-          list.forEach(function (r) {
-            if (!r) return;
-            rows.push({
-              month: mk,
-              id: r.id || '', name: r.name || '', company: r.company || '',
-              department: deptById[String(r.id)] || '',
-              attendanceDays: Number(r.attendanceDays) || 0,
-              basicSalary: Number(r.basicSalary) || 0,
-              performanceBonus: Number(r.performanceBonus) || 0,
-              housingAllowance: Number(r.housingAllowance) || 0,
-              otherAllowance: Number(r.otherAllowance) || 0,
-              yearEndBonus: Number(r.yearEndBonus) || 0,
-              socialSecurity: Number(r.socialSecurity) || 0,
-              providentFund: Number(r.providentFund) || 0,
-              loanDeduction: Number(r.loanDeduction) || 0,
-              incomeTax: Number(r.incomeTax) || 0,
-              netSalary: Number(r.netSalary) || 0
-            });
-          });
+          list.forEach(function (r) { pushRow(mk, r); });
         });
         // 稳定排序（月份降序 + 姓名），保证同样数据生成完全一致的 JSON
         rows.sort(function (a, b) {
@@ -6013,6 +6032,33 @@
       } catch (e) {
         console.warn('[Vault] 查询数据包写入失败：', e);
       }
+    }
+
+    // ---------- 主动推送保险库密文 + 脱敏查询包到云端 ----------
+    // cloudbase-sync 为「手动上传模式」：本地写入只更新版本号，不自动上云；
+    // 而本页未接入 cloudbase-admin（无「保存/上传云端」按钮），因此解锁 / 数据变更后
+    // 必须显式调用 pushAll，否则小程序工资管理永远拉不到
+    // salarymanage__salary_query_sync_v1（手机端表现为「请先解锁桌面端」）。
+    var _cloudPushTimer = null;
+    var _cloudPushing = false;
+    function scheduleCloudPush(delay) {
+      if (!window.CloudbaseSync || typeof window.CloudbaseSync.pushAll !== 'function') return;
+      if (_cloudPushTimer) clearTimeout(_cloudPushTimer);
+      _cloudPushTimer = setTimeout(doCloudPush, typeof delay === 'number' ? delay : 1200);
+    }
+    function doCloudPush() {
+      _cloudPushTimer = null;
+      if (_cloudPushing) return;
+      if (!window.CloudbaseSync || typeof window.CloudbaseSync.pushAll !== 'function') return;
+      _cloudPushing = true;
+      // 只推送本应用白名单键（salary_vault_v1 / salary_query_sync_v1），明文键被
+      // CLOUDBASE_EXCLUDE_KEYS 排除；不带 alsoDelete，避免任何清理动作。
+      Promise.resolve(window.CloudbaseSync.pushAll(false)).then(function (r) {
+        if (r && r.ok === false) console.warn('[Vault] 云端推送未完成：', r.msg || '');
+        if (r && r.failed) console.warn('[Vault] 云端推送部分失败：', r.failed);
+      }).catch(function (e) {
+        console.warn('[Vault] 云端推送失败：', e && e.message ? e.message : e);
+      }).then(function () { _cloudPushing = false; });
     }
 
     // ---------- PBKDF2 / AES-GCM ----------
@@ -6080,6 +6126,7 @@
         lastBundleSig = sig;
         lastVaultJson = json;
         localStorage.setItem(VAULT_KEY, json);  // 触发云同步（观察器不监视本键）
+        scheduleCloudPush(1200);  // 明文变更 → 密文与脱敏查询包一并推送（手动上传模式，需显式触发）
       }).catch(function (e) {
         console.warn('[Vault] 加密失败：', e);
       });
@@ -6151,6 +6198,9 @@
       installWrappers();
       refreshAppUI();
       rebuildNow(); // 保证本地改动一定加密入云（无变化则空操作）
+      // 无条件推送一次：即使密文无变化（rebuildNow 空操作），也可能是本机保险库
+      // 从未上云（云端行缺失），小程序因此一直提示「请先解锁桌面端」。
+      scheduleCloudPush(1500);
     }
 
     function unlockExisting(pwd) {
@@ -6176,6 +6226,7 @@
           installWrappers();
           localStorage.setItem(VAULT_KEY, JSON.stringify(vault));
           syncQueryPackage();  // 新建保险库后立即生成查询数据包
+          scheduleCloudPush(800);  // 新保险库立即上云（手动上传模式，需显式触发）
         });
       });
     }
