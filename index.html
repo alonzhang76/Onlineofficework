@@ -1166,7 +1166,17 @@ async function handleLogin(event) {
     }
 
     setMessage('登录成功，正在跳转…', 'success');
-    setTimeout(() => showDashboard(data.user), 300);
+    setTimeout(() => {
+      showDashboard(data.user);
+      // 若带 ?redirect= 参数（子应用门禁回跳），登录后返回原应用
+      try {
+        var rd = new URLSearchParams(location.search).get('redirect');
+        if (rd && /^https?:\/\//.test(rd) === false && rd.indexOf('//') !== 0) {
+          // 仅允许站内相对路径，防止开放重定向
+          location.replace(rd);
+        }
+      } catch (e) { /* 忽略 */ }
+    }, 300);
     return false;
   } catch (err) {
     console.error('[login] exception:', err);
@@ -1191,6 +1201,8 @@ async function handleLogout() {
   } catch (e) { /* 忽略 */ }
   // 兜底：清掉 CloudBase 兼容层的本地会话缓存
   try { localStorage.removeItem('tcb_auth_session'); } catch (e) { /* 忽略 */ }
+  // 清掉门户登录会话标记（子应用门禁）
+  try { localStorage.removeItem('portal_auth_session'); } catch (e) { /* 忽略 */ }
   currentUser = null;
   isAdmin = false;
   showLogin();
@@ -1222,6 +1234,15 @@ function showLogin() {
 function showDashboard(user) {
   currentUser = user;
   isAdmin = checkIsAdmin(user);
+
+  // 写入门户登录会话标记（供无独立登录窗口的子应用校验）
+  try {
+    localStorage.setItem('portal_auth_session', JSON.stringify({
+      email: user.email || '',
+      username: user.username || '',
+      ts: Date.now()
+    }));
+  } catch (e) { /* 忽略 */ }
 
   loginView.style.display = 'none';
   dashboardView.style.display = 'block';
