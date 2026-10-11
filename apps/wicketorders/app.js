@@ -4090,40 +4090,77 @@ function calculateReceiptRate() {
     document.getElementById('receiptRate').value = rate;
 }
 
-// 更新新增收汇模态框的订单号选项
+// 新增收汇模态框：按关键词渲染客户列表（保留当前选中项）
+function renderAddReceiptCustomerOptions(keyword) {
+    const customerSelect = document.getElementById('addReceiptCustomer');
+    if (!customerSelect) return;
+
+    const kw = String(keyword || '').trim().toLowerCase();
+    const currentValue = customerSelect.value;
+    customerSelect.innerHTML = '';
+
+    (customerSelect._allCustomers || []).forEach(customer => {
+        if (!kw || String(customer).toLowerCase().indexOf(kw) >= 0) {
+            const option = document.createElement('option');
+            option.value = customer;
+            option.textContent = customer;
+            if (customer === currentValue) option.selected = true;
+            customerSelect.appendChild(option);
+        }
+    });
+}
+
+// 新增收汇模态框：按关键词渲染订单号列表（保留当前选中项）
+function renderAddReceiptOrderOptions(keyword) {
+    const orderNoSelect = document.getElementById('addReceiptOrderNo');
+    if (!orderNoSelect) return;
+
+    const kw = String(keyword || '').trim().toLowerCase();
+    const currentValue = orderNoSelect.value;
+    orderNoSelect.innerHTML = '';
+
+    (orderNoSelect._allOrderNos || []).forEach(orderNo => {
+        if (!kw || String(orderNo).toLowerCase().indexOf(kw) >= 0) {
+            const option = document.createElement('option');
+            option.value = orderNo;
+            option.textContent = orderNo;
+            if (orderNo === currentValue) option.selected = true;
+            orderNoSelect.appendChild(option);
+        }
+    });
+}
+
+// 更新新增收汇模态框的订单号选项（客户改变时调用，受订单号筛选框约束）
 function updateAddOrderNoOptions() {
     const customerSelect = document.getElementById('addReceiptCustomer');
     const orderNoSelect = document.getElementById('addReceiptOrderNo');
-    
+
     if (!customerSelect || !orderNoSelect) {
         return;
     }
-    
+
     // 获取选中的客户
     const selectedCustomer = customerSelect.value;
-    
+
     // 获取订单记录
     const orderRecords = storage.orderRecords;
-    
-    // 清空当前订单号选项
-    orderNoSelect.innerHTML = '<option value="">请选择订单号</option>';
-    
-    // 根据选中的客户筛选订单
-    const filteredOrders = selectedCustomer 
+
+    // 根据选中的客户筛选订单，订单号去重
+    const filteredOrders = selectedCustomer
         ? orderRecords.filter(order => order.customer === selectedCustomer)
         : orderRecords;
-    
+    const orderNos = [...new Set(filteredOrders.map(order => order.orderNo).filter(Boolean))];
+
     // 按订单号倒序排列
-    filteredOrders.sort((a, b) => b.orderNo.localeCompare(a.orderNo));
-    
-    // 添加筛选后的订单号选项
-    filteredOrders.forEach(order => {
-        const option = document.createElement('option');
-        option.value = order.orderNo;
-        option.textContent = order.orderNo;
-        orderNoSelect.appendChild(option);
-    });
-    
+    orderNos.sort((a, b) => String(b).localeCompare(String(a)));
+
+    // 保存完整列表供筛选使用
+    orderNoSelect._allOrderNos = orderNos;
+
+    // 应用当前筛选关键词渲染
+    const orderNoFilter = document.getElementById('addReceiptOrderNoFilter');
+    renderAddReceiptOrderOptions(orderNoFilter ? orderNoFilter.value : '');
+
     // 更新收汇金额提示
     updateAddReceiptAmountTooltip();
 }
@@ -4992,39 +5029,76 @@ function openModal(modalId) {
                     orderQuantityByOrderNo[orderNo] += quantity;
                 });
                 
-                // 获取当前选中的付款类型
-                const paymentType = document.getElementById('paymentType').value;
-                
-                // 添加订单选项（去重）
+                // 添加订单选项（去重，过滤掉已出货状态——出口记录不能重复出货）
+                const exportAddedOrderNos = {};
                 orderRecords.forEach(record => {
                     const orderNo = record.orderNo;
-                    
-                    // 检查是否已添加过该订单号
-                    if (orderSelect.querySelector(`option[value="${orderNo}"]`)) {
-                        return;
-                    }
-                    
-                    // 只有当付款类型为"预付款"时，才过滤掉已出货状态的订单
-                    if (paymentType === '预付款') {
-                        if (record.status !== '已出货') {
-                            const option = document.createElement('option');
-                            option.value = orderNo;
-                            option.textContent = orderNo;
-                            option.dataset.customer = orderCustomerByOrderNo[orderNo] || '';
-                            option.dataset.quantity = orderQuantityByOrderNo[orderNo] || '0';
-                            orderSelect.appendChild(option);
-                        }
-                    } else {
-                        // 其他付款类型显示所有订单
-                        const option = document.createElement('option');
-                        option.value = orderNo;
-                        option.textContent = orderNo;
-                        option.dataset.customer = orderCustomerByOrderNo[orderNo] || '';
-                        option.dataset.quantity = orderQuantityByOrderNo[orderNo] || '0';
-                        orderSelect.appendChild(option);
-                    }
+                    if (exportAddedOrderNos[orderNo]) return;
+                    if (record.status === '已出货') return;
+                    exportAddedOrderNos[orderNo] = true;
+                    const option = document.createElement('option');
+                    option.value = orderNo;
+                    option.textContent = orderNo;
+                    option.dataset.customer = orderCustomerByOrderNo[orderNo] || '';
+                    option.dataset.quantity = orderQuantityByOrderNo[orderNo] || '0';
+                    orderSelect.appendChild(option);
                 });
-                
+
+                // 订单号搜索过滤：支持逗号分隔多个关键词，回车自动选中匹配项
+                const exportFilter = document.getElementById('exportOrderFilter');
+                if (exportFilter) {
+                    // 保存完整列表
+                    exportFilter._allExportOrders = Object.keys(exportAddedOrderNos).map(no => ({
+                        orderNo: no,
+                        customer: orderCustomerByOrderNo[no] || '',
+                        quantity: orderQuantityByOrderNo[no] || '0'
+                    }));
+                    exportFilter.oninput = function() {
+                        const raw = this.value.trim();
+                        if (!raw) {
+                            // 恢复全部
+                            const selectedVals = new Set(Array.from(orderSelect.selectedOptions).map(o => o.value));
+                            orderSelect.innerHTML = '';
+                            (this._allExportOrders || []).forEach(order => {
+                                const opt = document.createElement('option');
+                                opt.value = order.orderNo;
+                                opt.textContent = order.orderNo;
+                                opt.dataset.customer = order.customer;
+                                opt.dataset.quantity = order.quantity;
+                                if (selectedVals.has(order.orderNo)) opt.selected = true;
+                                orderSelect.appendChild(opt);
+                            });
+                            return;
+                        }
+                        // 按逗号分隔拆分关键词
+                        const kws = raw.split(/[,，]/).map(s => s.trim().toLowerCase()).filter(s => s);
+                        // 记录已选中
+                        const selectedVals = new Set(Array.from(orderSelect.selectedOptions).map(o => o.value));
+                        orderSelect.innerHTML = '';
+                        (this._allExportOrders || []).forEach(order => {
+                            const matchNo = kws.some(kw => String(order.orderNo || '').toLowerCase().indexOf(kw) >= 0);
+                            const matchCust = kws.some(kw => String(order.customer || '').toLowerCase().indexOf(kw) >= 0);
+                            if (matchNo || matchCust) {
+                                const opt = document.createElement('option');
+                                opt.value = order.orderNo;
+                                opt.textContent = order.orderNo;
+                                opt.dataset.customer = order.customer;
+                                opt.dataset.quantity = order.quantity;
+                                if (selectedVals.has(order.orderNo)) opt.selected = true;
+                                orderSelect.appendChild(opt);
+                            }
+                        });
+                    };
+                    // 回车自动选中所有可见选项
+                    exportFilter.onkeydown = function(e) {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            Array.from(orderSelect.options).forEach(opt => { opt.selected = true; });
+                        }
+                        if (e.key === 'Escape') { this.value = ''; this.oninput(); }
+                    };
+                }
+
                 // 3. 客户和数量根据订单号自动填充
                 orderSelect.addEventListener('change', function() {
                     const selectedOptions = Array.from(this.selectedOptions);
@@ -5097,15 +5171,12 @@ function openModal(modalId) {
                 // 清空现有选项
                 orderSelect.innerHTML = '';
                 
-                // 获取所有订单记录，去重并过滤掉已出货状态
+                // 获取所有订单记录，去重（不过滤状态，已出货订单也可登记付款）
                 const orderRecords = storage.getOrderRecords();
                 const uniqueOrders = {};
-                
+
                 orderRecords.forEach(record => {
-                    // 过滤掉已出货状态的订单
-                    if (record.status !== '已出货') {
-                        uniqueOrders[record.orderNo] = record;
-                    }
+                    uniqueOrders[record.orderNo] = record;
                 });
                 
                 // 添加订单选项
@@ -5116,7 +5187,37 @@ function openModal(modalId) {
                     option.dataset.customer = order.customer;
                     orderSelect.appendChild(option);
                 });
-                
+
+                // 订单号搜索过滤：输入文字实时过滤下拉列表，保留已选中项
+                const orderFilter = document.getElementById('paymentOrderNoFilter');
+                if (orderFilter) {
+                    // 保存完整列表供过滤使用
+                    orderFilter._allOrders = Object.values(uniqueOrders);
+                    orderFilter.oninput = function() {
+                        const kw = this.value.trim().toLowerCase();
+                        // 记录当前已选中的值
+                        const selectedVals = new Set(Array.from(orderSelect.selectedOptions).map(o => o.value));
+                        // 重建选项列表
+                        orderSelect.innerHTML = '';
+                        (this._allOrders || []).forEach(order => {
+                            const matchNo = !kw || String(order.orderNo || '').toLowerCase().indexOf(kw) >= 0;
+                            const matchCust = !kw || String(order.customer || '').toLowerCase().indexOf(kw) >= 0;
+                            if (matchNo || matchCust) {
+                                const opt = document.createElement('option');
+                                opt.value = order.orderNo;
+                                opt.textContent = order.orderNo;
+                                opt.dataset.customer = order.customer;
+                                if (selectedVals.has(order.orderNo)) opt.selected = true;
+                                orderSelect.appendChild(opt);
+                            }
+                        });
+                    };
+                    // 清空搜索框时恢复全部
+                    orderFilter.onkeydown = function(e) {
+                        if (e.key === 'Escape') { this.value = ''; this.oninput(); }
+                    };
+                }
+
                 // 3. 客户根据订单号自动填充
                 orderSelect.addEventListener('change', function() {
                     const selectedOptions = Array.from(this.selectedOptions);
@@ -5401,35 +5502,75 @@ function openModal(modalId) {
 function openAddReceiptModal() {
     // 获取客户下拉框
     const customerSelect = document.getElementById('addReceiptCustomer');
-    if (customerSelect) {
-        // 清空现有客户选项
-        customerSelect.innerHTML = '<option value="">请选择客户</option>';
-        
-        // 从订单记录中获取所有唯一客户
-        const orderRecords = storage.orderRecords;
-        const customers = [...new Set(orderRecords.map(order => order.customer))];
-        
-        // 添加客户选项
-        customers.forEach(customer => {
-            const option = document.createElement('option');
-            option.value = customer;
-            option.textContent = customer;
-            customerSelect.appendChild(option);
-        });
-    }
-    
-    // 清空订单号下拉框
+    const customerFilter = document.getElementById('addReceiptCustomerFilter');
     const orderNoSelect = document.getElementById('addReceiptOrderNo');
-    if (orderNoSelect) {
-        orderNoSelect.innerHTML = '<option value="">请选择订单号</option>';
+    const orderNoFilter = document.getElementById('addReceiptOrderNoFilter');
+
+    // 从订单记录中获取所有唯一客户
+    const orderRecords = storage.orderRecords;
+    const customers = [...new Set(orderRecords.map(order => order.customer).filter(Boolean))];
+
+    if (customerSelect) {
+        // 保存完整客户列表供筛选使用，并渲染全部
+        customerSelect._allCustomers = customers;
+        customerSelect.innerHTML = '';
+        renderAddReceiptCustomerOptions('');
     }
-    
+
+    // 清空筛选输入框
+    if (customerFilter) {
+        customerFilter.value = '';
+        // 实时筛选客户列表
+        customerFilter.oninput = function() {
+            renderAddReceiptCustomerOptions(this.value);
+        };
+        // 回车选中第一个可见客户，Esc清空
+        customerFilter.onkeydown = function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (customerSelect && customerSelect.options.length > 0) {
+                    customerSelect.selectedIndex = 0;
+                    updateAddOrderNoOptions();
+                }
+            } else if (e.key === 'Escape') {
+                this.value = '';
+                renderAddReceiptCustomerOptions('');
+            }
+        };
+    }
+
+    // 清空订单号下拉框与筛选框
+    if (orderNoSelect) {
+        orderNoSelect._allOrderNos = [];
+        orderNoSelect.innerHTML = '';
+    }
+    if (orderNoFilter) {
+        orderNoFilter.value = '';
+        // 实时筛选订单号列表
+        orderNoFilter.oninput = function() {
+            renderAddReceiptOrderOptions(this.value);
+        };
+        // 回车选中第一个可见订单号，Esc清空
+        orderNoFilter.onkeydown = function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (orderNoSelect && orderNoSelect.options.length > 0) {
+                    orderNoSelect.selectedIndex = 0;
+                    updateAddReceiptAmountTooltip();
+                }
+            } else if (e.key === 'Escape') {
+                this.value = '';
+                renderAddReceiptOrderOptions('');
+            }
+        };
+    }
+
     // 设置收汇日期为今天
     const receiptDate = document.getElementById('addReceiptDate');
     if (receiptDate) {
         receiptDate.value = new Date().toISOString().split('T')[0];
     }
-    
+
     // 清空其他字段
     document.getElementById('addReceiptId').value = '';
     document.getElementById('addReceiptAmountReceived').value = '';
@@ -5438,13 +5579,13 @@ function openAddReceiptModal() {
     document.getElementById('addReceiptExchangeRate').value = '';
     document.getElementById('addReceiptRate').value = '';
     document.getElementById('addReceiptRemark').value = '';
-    
+
     // 更新收汇金额提示
     const tooltip = document.getElementById('addReceiptAmountTooltip');
     if (tooltip) {
         tooltip.textContent = '请选择订单号查看欠款金额';
     }
-    
+
     // 打开新增收汇记录模态框
     openModal('addReceiptModal');
 }

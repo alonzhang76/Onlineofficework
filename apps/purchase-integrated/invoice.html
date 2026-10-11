@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>开票管理 · 采购一体化系统</title>
-<link rel="stylesheet" href="css/common.css?v=20261005b">
+<link rel="stylesheet" href="css/common.css?v=20261009a">
 </head>
 <body>
 <header>
@@ -32,12 +32,12 @@
 /* 云端数据（与其它应用同一套 cloudbase-sync 机制）：独立命名空间 purchase-integrated，
    仅同步本应用业务键；pis_reim_api 等本机配置、会话信息不同步 */
 window.CLOUDBASE_APP_ID='purchase-integrated';
-window.CLOUDBASE_APP_KEYS=['pis_companies','pis_units','pis_terms','pis_roles','pis_users','pis_suppliers','pis_curCompany','pis_orders','pis_shipments','pis_receipts','pis_returns','pis_invoices','pis_payments','pis_tool_records','pis_poPageSize','pis_plyPaste'];
+window.CLOUDBASE_APP_KEYS=['pis_companies','pis_units','pis_terms','pis_roles','pis_users','pis_suppliers','pis_curCompany','pis_orders','pis_shipments','pis_receipts','pis_returns','pis_invoices','pis_payments','pis_tool_records','pis_poPageSize','pis_plyPaste','pis_notifications'];
 window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
 </script>
 <script src="../cloudbase-sync.js?v=20260924f"></script>
 <script src="../cloudbase-admin.js?v=20260930a"></script>
-<script src="js/common.js?v=20261005d"></script>
+<script src="js/common.js?v=20261010a"></script>
 <script src="js/auth-guard.js"></script>
 <!-- 内嵌 CMap / 标准字体数据：数电票的号码/日期/金额/公司名使用 CID 字体，
      缺 CMap 时整段值解码失败（表现为"未找到发票号码"）。内嵌后离线 / file:// /
@@ -138,7 +138,8 @@ async function submitToReim(v) {
     claimant: (Session.user && (Session.user.name || Session.user.username)) || '采购系统',
     project: v.contractNumber || '',
     remark: v.remark || '',
-    check_code: v.checkCode || ''
+    check_code: v.checkCode || '',
+    cloud_path: v.cloudPath || v.cloud_path || null
   };
   try {
     // 直写付款系统云端（reim_invoices 待审核 + 流转日志），任意电脑提交 / 审核均可
@@ -146,6 +147,20 @@ async function submitToReim(v) {
   } catch (e) {
     throw new Error('提交至付款系统失败：' + ((e && e.message) || e) + '（请检查网络后重试）');
   }
+}
+/* 上传发票 PDF 到云存储（与报销系统同桶同路径格式，便于报销侧查看原件）
+   路径格式：PDF/{公司简称}/{进项发票|销项发票}/{发票号}.pdf */
+async function uploadInvoicePdfToCloud(file, invData) {
+  if (!window.supabase || !window.supabase.storage) throw new Error('云存储未就绪');
+  const safe = s => String(s || '').replace(/[\\\/]+/g, '-').trim() || 'file';
+  const coShort = (State.company === '龙力' || State.company === '无锡龙力') ? '龙力'
+    : (State.company === '普利美' ? '普利美' : safe(curCoName()));
+  const folder = '进项发票';
+  const path = 'PDF/' + safe(coShort) + '/' + folder + '/' + safe(invData.invoiceNumber) + '.pdf';
+  const r = await window.supabase.storage.from('app-photos').upload(path, file,
+    { contentType: 'application/pdf', upsert: true });
+  if (r && r.error) throw new Error(r.error.message || r.error);
+  return path;
 }
 
 /* ---------- 更多菜单功能：导出EXCEL / 导入EXCEL / 清空 ----------
@@ -285,8 +300,8 @@ function renderInvoiceLedger(pane, canW) {
         '<td><span class="badge b-gray">销售方</span></td>' +
         '<td style="white-space:nowrap">' + (canW ?
           (submittable ? '<button class="link-op" data-id="' + v.id + '" data-a="s">提交</button>' : '') +
-          '<button class="link-op" data-id="' + v.id + '" data-a="e">编辑</button>' +
-          '<button class="link-op danger" data-id="' + v.id + '" data-a="d">删除</button>' : '') + '</td></tr>';
+          (Session.canTouchRec(v) ? '<button class="link-op" data-id="' + v.id + '" data-a="e">编辑</button>' +
+          '<button class="link-op danger" data-id="' + v.id + '" data-a="d">删除</button>' : '<span class="subtle" title="仅创建人或管理员可修改">他人创建</span>') : '') + '</td></tr>';
     }).join('');
     $('#invTableBox').innerHTML = '<div class="tbl-wrap" style="max-height:62vh"><table><thead><tr>' +
       '<th class="checkbox-cell"><input type="checkbox" id="invSelAll"></th>' +
@@ -302,8 +317,7 @@ function renderInvoiceLedger(pane, canW) {
     });
     $$('#invTableBox button[data-a]').forEach(b => b.addEventListener('click', async () => {
       const rec = Data.list('invoices').find(x => x.id === b.dataset.id);
-      if (b.dataset.a === 'e') invoiceForm(rec);
-      else if (b.dataset.a === 's') {
+      if (b.dataset.a === 's') { // 提交至付款系统是流程动作：不限制经办人
         b.disabled = true; b.textContent = '提交中…';
         try {
           const r = await submitToReim(rec);
@@ -312,7 +326,8 @@ function renderInvoiceLedger(pane, canW) {
         } catch (e) { toast(e.message, 'err'); }
         renderPage();
       }
-      else if (confirm('删除该发票？')) { Data.remove('invoices', rec.id); toast('已删除', 'ok'); renderPage(); }
+      else if (b.dataset.a === 'e') { if (Session.guardTouch(rec, '发票')) invoiceForm(rec); }
+      else if (Session.guardTouch(rec, '发票') && confirm('删除该发票？')) { Data.remove('invoices', rec.id); toast('已删除', 'ok'); renderPage(); }
     }));
     bindPager();
   };
@@ -413,6 +428,7 @@ async function handleInvoiceFiles(files) {
     try {
       const parsed = await PisPdf.parseInvoicePdf(f);
       parsed._file = f.name;
+      parsed._fileObj = f;
       card.remove();
       parsedList.push(parsed);
     } catch (e) {
@@ -545,7 +561,7 @@ function renderInvoiceQueueItem() {
   const _iuAmt = $('#iuAmount'); if (_iuAmt) _iuAmt.addEventListener('input', updConSum);
   updConSum();
 
-  $('#iuF').addEventListener('submit', e => {
+  $('#iuF').addEventListener('submit', async e => {
     e.preventDefault();
     const no = $('#iuNo').value.trim();
     if (!no) { toast('发票号码必填', 'err'); return; }
@@ -577,6 +593,15 @@ function renderInvoiceQueueItem() {
       sourceFile: p._file || '',
       createdAt: new Date().toISOString()
     };
+    /* 上传 PDF 原件到云存储（与报销系统同路径格式，便于任意电脑查看原件） */
+    if (p._fileObj) {
+      try {
+        data.cloudPath = await uploadInvoicePdfToCloud(p._fileObj, data);
+      } catch (e) {
+        console.warn('[发票] PDF 云端上传失败（不影响入库）:', e && e.message ? e.message : e);
+        toast('PDF 原件云端上传失败，可稍后在报销系统补传', 'info');
+      }
+    }
     Data.add('invoices', data);
     /* 未匹配到供应商时，自动建档（与合同/导入的自动创建保持一致） */
     if (supVal) {

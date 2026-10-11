@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>收货管理 · 采购一体化系统</title>
-<link rel="stylesheet" href="css/common.css?v=20261005b">
+<link rel="stylesheet" href="css/common.css?v=20261009a">
 </head>
 <body>
 <header>
@@ -32,15 +32,59 @@
 /* 云端数据（与其它应用同一套 cloudbase-sync 机制）：独立命名空间 purchase-integrated，
    仅同步本应用业务键；pis_reim_api 等本机配置、会话信息不同步 */
 window.CLOUDBASE_APP_ID='purchase-integrated';
-window.CLOUDBASE_APP_KEYS=['pis_companies','pis_units','pis_terms','pis_roles','pis_users','pis_suppliers','pis_curCompany','pis_orders','pis_shipments','pis_receipts','pis_returns','pis_invoices','pis_payments','pis_tool_records','pis_poPageSize','pis_plyPaste'];
+window.CLOUDBASE_APP_KEYS=['pis_companies','pis_units','pis_terms','pis_roles','pis_users','pis_suppliers','pis_curCompany','pis_orders','pis_shipments','pis_receipts','pis_returns','pis_invoices','pis_payments','pis_tool_records','pis_poPageSize','pis_plyPaste','pis_notifications'];
 window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
 </script>
 <script src="../cloudbase-sync.js?v=20260924f"></script>
 <script src="../cloudbase-admin.js?v=20260930a"></script>
-<script src="js/common.js?v=20261005d"></script>
+<script src="js/common.js?v=20261010a"></script>
 <script src="js/auth-guard.js"></script>
 <script>
 'use strict';
+/* ===== 收货拍照上传（与发货单上传同一云存储桶 app-photos，供应商可见） ===== */
+const RECV_PHOTO_DIR = '收货拍照', RECV_PHOTO_MAX_MB = 20, RECV_PHOTO_ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp';
+const _recvSt = () => (window.supabase && window.supabase.storage) ? window.supabase.storage : null;
+function _recvWaitStorage(ms) {
+  return new Promise(res => {
+    const t0 = Date.now();
+    const t = setInterval(() => {
+      if (_recvSt()) { clearInterval(t); res(true); }
+      else if (Date.now() - t0 > (ms || 15000)) { clearInterval(t); res(false); }
+    }, 200);
+  });
+}
+const _recvSafe = s => String(s || '').replace(/[\\\/]+/g, '-').trim() || 'file';
+function _recvPhotoPath(rec, filename) {
+  return RECV_PHOTO_DIR + '/' + _recvSafe(rec.contractNumber || '未关联') + '/' +
+    _recvSafe(rec.shipNumber || rec.receiptNumber || rec.id) + '-' + Date.now() + '-' + _recvSafe(filename);
+}
+async function _uploadRecvPhoto(rec, file) {
+  if (!(await _recvWaitStorage())) throw new Error('云端存储未就绪，请稍后重试');
+  const path = _recvPhotoPath(rec, file.name);
+  const r = await _recvSt().from('app-photos').upload(path, file, { upsert: true });
+  if (r && r.error) throw new Error(r.error.message || r.error);
+  return path;
+}
+async function removeRecvPhotoFile(path) {
+  if (!path || !(await _recvWaitStorage(8000))) return;
+  try { await _recvSt().from('app-photos').remove([path]); } catch (e) { /* 清理失败不影响记录 */ }
+}
+async function _recvPhotoUrl(path) {
+  if (!(await _recvWaitStorage())) throw new Error('云端存储未就绪，请稍后重试');
+  const r = await _recvSt().from('app-photos').createSignedUrl(path, 3600);
+  if (r && r.error) throw new Error(r.error.message || r.error);
+  const d = r && r.data;
+  return (typeof d === 'string' && d) || (d && d.signedUrl) || (d && d.url) || null;
+}
+async function viewRecvPhoto(rec) {
+  if (!rec || !rec.rnote) { toast('该收货记录没有拍照', 'err'); return; }
+  try {
+    const url = await _recvPhotoUrl(rec.rnote.path);
+    if (!url) throw new Error('获取访问地址失败');
+    window.open(url, '_blank');
+  } catch (e) { toast('收货拍照打开失败：' + (e.message || e), 'err'); }
+}
+function _recvPhotoErr(f) { return f.size > RECV_PHOTO_MAX_MB * 1024 * 1024 ? '文件超过 ' + RECV_PHOTO_MAX_MB + 'MB 限制' : null; }
 /* ==========================================================
    收货管理（采购员工作台）
    主流程：供应商在「发货管理」登记发货 → 本页「待确认到货」逐条确认实收数量
@@ -189,10 +233,11 @@ function drawReceive() {
       list.map(r => '<tr><td class="mono">' + esc(r.receiptNumber) + '</td><td class="mono">' + esc(r.contractNumber) + '</td><td>' + esc(r.supplier) + '</td><td>' + esc(r.product) + '</td><td class="num"><b>' + fmtNum(r.quantity) + '</b></td><td>' + esc(r.receiptDate || '') + '</td><td>' + esc(r.person || '') + '</td>' +
         '<td>' + (r.source === 'ship-confirm' ? '<span class="badge b-blue">确认到货</span>' + (r.shipNumber ? '<br><span class="subtle mono" style="font-size:11px">' + esc(r.shipNumber) + '</span>' : '') : (r.source === 'manual-import' ? '<span class="badge b-purple">导入登记</span>' : '<span class="badge b-gray">手工登记</span>')) + '</td>' +
         '<td class="subtle">' + esc(r.remark || '') + '</td>' +
-        (canW ? '<td><button class="link-op" data-id="' + r.id + '" data-a="e">编辑</button><button class="link-op danger" data-id="' + r.id + '" data-a="d">删除</button></td>' : '') + '</tr>').join('') + '</tbody></table></div>'
+        (canW ? '<td>' + (Session.canTouchRec(r) ? '<button class="link-op" data-id="' + r.id + '" data-a="e">编辑</button><button class="link-op danger" data-id="' + r.id + '" data-a="d">删除</button>' : '<span class="subtle" title="仅创建人或管理员可修改">他人创建</span>') + '</td>' : '') + '</tr>').join('') + '</tbody></table></div>'
       : '<div class="empty">暂无收货记录<br><span class="subtle">收货记录由「待确认到货」页确认供应商发货后自动生成，无需手工登记</span></div>';
     if (canW) box.querySelectorAll('button[data-a]').forEach(b => b.addEventListener('click', () => {
       const rec = Data.list('receipts').find(x => x.id === b.dataset.id);
+      if (!Session.guardTouch(rec, '收货记录')) return;
       if (b.dataset.a === 'e') receiptForm(rec);
       else if (confirm('删除该收货记录？' + (rec.source === 'ship-confirm' ? '\n（该记录由「' + (rec.shipNumber || '') + '」确认到货生成，删除后发货单会回到「待确认到货」列表）' : ''))) { Data.remove('receipts', rec.id); toast('已删除', 'ok'); renderPage(); }
     }));
@@ -213,10 +258,11 @@ function drawReceive() {
     list.sort((a, b) => (b.returnDate || '').localeCompare(a.returnDate || '') || (b.returnNumber || '').localeCompare(a.returnNumber || ''));
     box.innerHTML = list.length ? '<div class="tbl-wrap" style="max-height:60vh"><table><thead><tr><th>退货单号</th><th>合同号</th><th>供应商</th><th>产品</th><th class="num">数量</th><th>退货日期</th><th>退货原因</th>' + (canW ? '<th>操作</th>' : '') + '</tr></thead><tbody>' +
       list.map(r => '<tr><td class="mono">' + esc(r.returnNumber) + '</td><td class="mono">' + esc(r.contractNumber) + '</td><td>' + esc(r.supplier) + '</td><td>' + esc(r.product) + '</td><td class="num"><b>' + fmtNum(r.quantity) + '</b></td><td>' + esc(r.returnDate || '') + '</td><td>' + esc(r.reason || '') + '</td>' +
-        (canW ? '<td><button class="link-op" data-id="' + r.id + '" data-a="e">编辑</button><button class="link-op danger" data-id="' + r.id + '" data-a="d">删除</button></td>' : '') + '</tr>').join('') + '</tbody></table></div>'
+        (canW ? '<td>' + (Session.canTouchRec(r) ? '<button class="link-op" data-id="' + r.id + '" data-a="e">编辑</button><button class="link-op danger" data-id="' + r.id + '" data-a="d">删除</button>' : '<span class="subtle" title="仅创建人或管理员可修改">他人创建</span>') + '</td>' : '') + '</tr>').join('') + '</tbody></table></div>'
       : '<div class="empty">暂无退货记录</div>';
     if (canW) box.querySelectorAll('button[data-a]').forEach(b => b.addEventListener('click', () => {
       const rec = Data.list('returns').find(x => x.id === b.dataset.id);
+      if (!Session.guardTouch(rec, '退货记录')) return;
       if (b.dataset.a === 'e') returnForm(rec);
       else if (confirm('删除该退货记录？')) { Data.remove('returns', rec.id); toast('已删除', 'ok'); renderPage(); }
     }));
@@ -236,6 +282,7 @@ function drawReceive() {
 function adjustContractQty(row) {
   const o = Data.list('orders').find(x => x.id === row.oid) || contractByNo(row.cno);
   if (!o) { toast('合同不存在', 'err'); return; }
+  if (!Session.guardTouch(o, '合同')) return; // 数量调整会改写他人创建的合同（防推责）
   const target = row.recv; // 以实收合计为准
   const oldQty = row.ordered, newQty = target;
   const up = newQty > oldQty;
@@ -273,9 +320,13 @@ function receiptForm(rec) {
     '<div><label class="req">实收数量</label><input id="rcQty" type="number" min="0" step="1" required value="' + (rec ? rec.quantity : '') + '"></div>' +
     '<div><label class="req">收货日期</label><input id="rcDate" type="date" required value="' + esc(rec ? rec.receiptDate : todayStr()) + '"></div>' +
     '<div><label>收货人</label><input id="rcPerson" value="' + esc(rec ? (rec.person || Session.user.name || '') : (Session.user.name || '')) + '"></div>' +
-    '<div style="grid-column:1/-1"><label>备注 / 反馈给供应商</label><input id="rcRemark" value="' + esc(rec ? (rec.remark || '') : '') + '" placeholder="如：实收短缺 2 只，短装部分不再补发"></div></div>' +
+    '<div style="grid-column:1/-1"><label>备注 / 反馈给供应商</label><input id="rcRemark" value="' + esc(rec ? (rec.remark || '') : '') + '" placeholder="如：实收短缺 2 只，短装部分不再补发"></div>' +
+    '<div style="grid-column:1/-1"><label>收货拍照（PDF / 图片，≤' + RECV_PHOTO_MAX_MB + 'MB，供应商可见）</label>' +
+    (rec && rec.rnote ? '<div class="hint" style="margin-bottom:6px">已上传：' + esc(rec.rnote.name) + ' <button type="button" class="link-op" onclick="viewRecvPhoto(window._rcEditing)">查看</button></div>' : '') +
+    '<input id="rcPhoto" type="file" accept="' + RECV_PHOTO_ACCEPT + '"></div></div>' +
     '<div class="amt-hint" id="rcHint"></div>' +
     '<div class="modal-foot"><button type="button" class="btn btn-outline" onclick="closeModal()">取消</button><button class="btn btn-primary">保存</button></div></form>');
+  if (rec) window._rcEditing = rec;
   const upd = () => {
     if (!rec) return;
     const o = contractByNo(rec.contractNumber);
@@ -288,10 +339,12 @@ function receiptForm(rec) {
   };
   $('#rcQty').addEventListener('input', upd);
   upd();
-  $('#rcF').addEventListener('submit', e => {
+  $('#rcF').addEventListener('submit', async e => {
     e.preventDefault();
     if (!rec) { toast('收货记录由确认到货自动生成，无需手工新建', 'err'); return; }
     const o = contractByNo(rec.contractNumber);
+    const photoFile = $('#rcPhoto') ? $('#rcPhoto').files[0] : null;
+    if (photoFile) { const pe = _recvPhotoErr(photoFile); if (pe) { toast(pe, 'err'); return; } }
     const data = {
       id: rec.id, company: rec.company || curCo(),
       receiptNumber: $('#rcNo').value.trim(), contractNumber: rec.contractNumber, supplier: rec.supplier,
@@ -299,12 +352,25 @@ function receiptForm(rec) {
       receiptDate: $('#rcDate').value, person: $('#rcPerson').value.trim(), remark: $('#rcRemark').value.trim(),
       shipNumber: rec.shipNumber || '', source: rec.source || '',
       status: RECV_CONFIRMED,
-      createdAt: rec.createdAt
+      createdAt: rec.createdAt,
+      rnote: rec.rnote || null
     };
     Data.update('receipts', rec.id, data);
     // 挂在发货单下：同步刷新发货状态与需方反馈（供应商消息随之更新）
-    if (data.shipNumber) syncShipStatus(data.company, rec.contractNumber, rec.product, data.shipNumber, data.remark);
+    if (data.shipNumber) syncShipStatus(data.company, rec.contractNumber, data.product, data.shipNumber, data.remark);
     closeModal(); toast('收货记录已更新，供应商端消息已同步', 'ok'); renderPage();
+    // 补传/替换收货拍照（记录已保存，失败不影响更新）
+    if (photoFile) {
+      try {
+        const path = await _uploadRecvPhoto(rec, photoFile);
+        const oldPath = (rec.rnote && rec.rnote.path && rec.rnote.path !== path) ? rec.rnote.path : null;
+        Data.update('receipts', rec.id, { rnote: { path: path, name: photoFile.name, size: photoFile.size, uploadedAt: new Date().toISOString() } });
+        if (oldPath) removeRecvPhotoFile(oldPath);
+        toast('收货拍照已上传云端', 'ok'); renderPage();
+      } catch (err) {
+        toast('收货拍照上传失败：' + (err.message || err) + '（记录已保存，可稍后重试）', 'err');
+      }
+    }
   });
 }
 /* ---------- 确认到货（核心：按实收数量生成收货记录 + 回写发货状态 + 差异反馈给供应商） ----------
@@ -329,7 +395,8 @@ function confirmShipReceive(rec) {
     '<div><label class="req">本次实收数量</label><input id="cfQty" type="number" min="0" step="1" required value="' + remainShip + '"></div>' +
     '<div><label class="req">收货日期</label><input id="cfDate" type="date" required value="' + todayStr() + '"></div>' +
     '<div><label>收货人</label><input id="cfPerson" value="' + esc(Session.user.name || '') + '"></div>' +
-    '<div style="grid-column:1/-1"><label>差异 / 反馈给供应商</label><input id="cfRemark" placeholder="如：实收短缺 2 只，短装部分不再补发"></div></div>' +
+    '<div style="grid-column:1/-1"><label>差异 / 反馈给供应商</label><input id="cfRemark" placeholder="如：实收短缺 2 只，短装部分不再补发"></div>' +
+    '<div style="grid-column:1/-1"><label>收货拍照（PDF / 图片，≤' + RECV_PHOTO_MAX_MB + 'MB，供应商可见）</label><input id="cfPhoto" type="file" accept="' + RECV_PHOTO_ACCEPT + '"></div></div>' +
     '<div class="amt-hint" id="cfHint"></div>' +
     '<div class="modal-foot"><button type="button" class="btn btn-outline" onclick="closeModal()">取消</button><button class="btn btn-primary">确认到货</button></div></form>', 'wide');
   const hint = () => {
@@ -344,7 +411,7 @@ function confirmShipReceive(rec) {
   };
   $('#cfQty').addEventListener('input', hint);
   hint();
-  $('#cfF').addEventListener('submit', e => {
+  $('#cfF').addEventListener('submit', async e => {
     e.preventDefault();
     const q = +$('#cfQty').value || 0;
     const o2 = contractByNo(rec.contractNumber);
@@ -352,13 +419,16 @@ function confirmShipReceive(rec) {
     const p2 = (o2.products || []).find(p => p.name === rec.product);
     const ordered2 = p2 ? (+p2.quantity || 0) : 0;
     const already2 = receivedQty(rec.contractNumber, rec.product) - doneBefore;
+    const photoFile = $('#cfPhoto') ? $('#cfPhoto').files[0] : null;
+    if (photoFile) { const pe = _recvPhotoErr(photoFile); if (pe) { toast(pe, 'err'); return; } }
     // ① 生成收货记录（挂在发货单下，供供应商查看）
     const rc = {
       id: uid(), company: rec.company || curCo(), receiptNumber: nextNo('RCV-'),
       contractNumber: rec.contractNumber, supplier: rec.supplier, product: rec.product,
       quantity: q, receiptDate: $('#cfDate').value, person: $('#cfPerson').value.trim(),
       remark: $('#cfRemark').value.trim(), shipNumber: rec.shipNumber,
-      status: RECV_CONFIRMED, source: 'ship-confirm', createdAt: new Date().toISOString()
+      status: RECV_CONFIRMED, source: 'ship-confirm', createdAt: new Date().toISOString(),
+      rnote: null
     };
     Data.add('receipts', rc);
     // ② 回写发货记录状态与需方反馈（供应商在「发货管理 → 需方消息」查看；重置已读以便再次提示）
@@ -367,7 +437,9 @@ function confirmShipReceive(rec) {
     Data.update('shipments', rec.id, { status: st, receivedAt: new Date().toISOString(), receiveRemark: $('#cfRemark').value.trim(), supplierReadAt: '' });
     closeModal();
     const diff = ordered2 - (already2 + newDone);
-    if (diff < 0) { // ③ 实收超出合同 → 提示按实收调整合同数量（防超付）
+    if (diff < 0 && !Session.canTouchRec(o2)) // ③ 实收超出合同但合同为他人创建：确认继续，数量调整交由创建人/管理员
+      toast('已确认到货。合同由「' + (o2.createdByName || o2.createdBy || '其他经办人') + '」创建，按实收调整数量请联系创建人或管理员', 'info');
+    else if (diff < 0) { // ③ 实收超出合同 → 提示按实收调整合同数量（防超付）
       const ok = confirm('本次确认后累计收货 ' + fmtNum(already2 + newDone) + '，已超出合同数量 ' + fmtNum(ordered2) + ' 共 ' + fmtNum(-diff) + '。\n\n是否将合同「' + rec.product + '」的数量按实收合计（' + fmtNum(already2 + newDone) + '）调整？\n（调整后合同金额同步重算，避免多付款）');
       if (ok) {
         const prods = (o2.products || []).map(p => p.name === rec.product
@@ -378,6 +450,16 @@ function confirmShipReceive(rec) {
         toast('合同数量已按实收调整为 ' + fmtNum(already2 + newDone) + '，金额已重算', 'ok');
       } else toast('已确认到货，结果已回馈供应商', 'ok');
     } else toast('已确认到货，结果已回馈供应商', 'ok');
+    // ④ 收货拍照上传云端（记录已保存，失败不影响确认，可稍后补传）
+    if (photoFile) {
+      try {
+        const path = await _uploadRecvPhoto(rc, photoFile);
+        Data.update('receipts', rc.id, { rnote: { path: path, name: photoFile.name, size: photoFile.size, uploadedAt: new Date().toISOString() } });
+        toast('收货拍照已上传云端', 'ok');
+      } catch (err) {
+        toast('收货拍照上传失败：' + (err.message || err) + '（收货记录已保存，可稍后补传）', 'err');
+      }
+    }
     renderPage();
   });
 }
