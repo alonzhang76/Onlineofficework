@@ -2,9 +2,9 @@
 <html lang="zh-CN">
 <head>
 	<script>
-	/* 采购一体化命名空间：木箱测算结果通过 pis_plyPaste 剪贴到采购合同页，需与主应用同云端 */
+	/* 采购一体化命名空间：木箱测算结果通过 pis_plyPaste 剪贴到采购合同页（同源 localStorage 共享，无需云端同步） */
 	window.CLOUDBASE_APP_ID='purchase-integrated';
-	window.CLOUDBASE_APP_KEYS=['pis_plyPaste'];
+	window.CLOUDBASE_APP_KEYS=[];
 	</script>
 	<script src="../cloudbase-sync.js?v=20260924f"></script>
     <meta charset="UTF-8">
@@ -832,7 +832,7 @@
                     // 直接读取右侧栏计算结果的木箱价格（动态值），四舍五入
                     const priceVal = parseFloat(totalPrice.textContent) || 0;
                     const unitPrice = Math.round(priceVal);
-                    localStorage.setItem('pis_plyPaste', JSON.stringify({ spec: dimensions, unit: '只', price: unitPrice }));
+                    localStorage.setItem(JSON.stringify({ spec: dimensions, unit: '只', price: unitPrice }));
                 } catch (err) {}
                 
                 // 复制到剪贴板
@@ -1438,7 +1438,7 @@
                     const pA = parseFloat(document.getElementById('priceAbove6').value) || 7;
                     const bagArea = (length * width + 2 * length * height + 2 * width * height) / 10000;
                     const unitPrice = Math.round(bagArea * ((bagArea * qty) < 6 ? p6 : pA));
-                    localStorage.setItem('pis_plyPaste', JSON.stringify({ spec: dimensions, unit: '只', price: unitPrice }));
+                    localStorage.setItem(JSON.stringify({ spec: dimensions, unit: '只', price: unitPrice }));
                 } catch (err) {}
                 
                 // 复制到剪贴板

@@ -1,0 +1,1507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../portal-auth-guard.js"></script>
+<script>
+/* 生产排程应用：草稿与存档经 cloudbase-sync 云端备份/多端同步 */
+window.CLOUDBASE_APP_ID='productionschedule';
+window.CLOUDBASE_APP_KEYS=['pds_draft_v2','pds_records_v2'];
+</script>
+<script src="../cloudbase-sync.js?v=20260924f"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Production &amp; Delivery Schedule</title>
+<style>
+  :root{
+    --ink:#122a44; --muted:#5d7086; --line:#d7dfe8; --line-soft:#eaeff5;
+    --accent:#0b5394; --accent-soft:#e9f1fa;
+    --amber:#a25c00; --amber-soft:#fdf1df;
+    --green:#12704a; --green-soft:#e6f4ec;
+    --red:#b02a2a; --bg:#f2f5f8;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);color:var(--ink);
+    font-family:"Helvetica Neue",Helvetica,Arial,"Segoe UI",sans-serif;
+    font-size:13px;line-height:1.45;-webkit-font-smoothing:antialiased;
+  }
+
+  /* ---------- Toolbar ---------- */
+  .toolbar{
+    position:sticky;top:0;z-index:60;display:flex;flex-wrap:wrap;gap:9px;align-items:center;
+    padding:10px 18px;background:#fff;border-bottom:1px solid var(--line);
+    box-shadow:0 1px 6px rgba(18,42,68,.06);
+  }
+  .toolbar .brand{font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--accent);text-transform:uppercase;margin-right:auto}
+  button{
+    font-family:inherit;font-size:12px;font-weight:600;padding:8px 14px;border-radius:6px;
+    border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;transition:.15s;
+  }
+  button:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 1px 3px rgba(11,83,148,.35)}
+  button.primary:hover{background:#0a457c;border-color:#0a457c;color:#fff}
+  button.go{background:var(--green);border-color:var(--green);color:#fff}
+  button.go:hover{background:#0d5a3b;border-color:#0d5a3b;color:#fff}
+  button.tiny{padding:3px 8px;font-size:11px;line-height:1.2}
+  button.link{border:0;background:transparent;color:var(--accent);padding:2px 4px;text-decoration:underline;font-size:11.5px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:#fff}
+  .seg label{font-size:12px;font-weight:600;padding:8px 13px;cursor:pointer;color:var(--muted);border-right:1px solid var(--line)}
+  .seg label:last-child{border-right:0}
+  .seg input{display:none}
+  .seg label:has(input:checked){background:var(--accent);color:#fff}
+  .hint{font-size:11px;color:var(--muted)}
+  .chip{
+    font-size:11px;font-weight:600;color:var(--green);background:var(--green-soft);
+    border:1px solid #b9ddc9;border-radius:20px;padding:4px 11px;display:inline-flex;align-items:center;gap:7px;
+  }
+  .chip .x{cursor:pointer;color:#5d7086;font-weight:700}
+
+  /* ---------- Wrapper ---------- */
+  .wrap{max-width:1180px;margin:20px auto 60px;padding:0 4px}
+  .card{
+    background:#fff;border:1px solid var(--line);border-radius:7px;padding:16px 20px 18px;
+    margin-bottom:14px;box-shadow:0 1px 4px rgba(18,42,68,.05);
+  }
+  .card > h3{
+    margin:0 0 13px;font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--accent);display:flex;align-items:center;gap:9px;
+  }
+  .card > h3::before{content:"";width:4px;height:14px;background:var(--accent);border-radius:2px}
+  .card > h3 small{margin-left:auto;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted);font-size:11px;display:flex;align-items:center;gap:12px}
+
+  .fgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px 16px}
+  .fld{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .fld.wide{grid-column:span 2}
+  .fld.full{grid-column:1 / -1}
+  .fld > span{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  .fld input, .fld select{
+    font-family:inherit;font-size:13px;color:var(--ink);padding:8px 9px;
+    border:1px solid var(--line);border-radius:5px;background:#fbfcfe;width:100%;outline:none;
+  }
+  .fld input:focus, .fld select:focus{border-color:var(--accent);background:#fff;box-shadow:0 0 0 2px rgba(11,83,148,.10)}
+  .fld input[type="number"]{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+  .fld .tip{font-size:10.5px;color:#8395a8}
+  .fld .auto{
+    font-style:normal;font-size:8.5px;font-weight:700;letter-spacing:.06em;color:var(--green);
+    background:var(--green-soft);border:1px solid #b9ddc9;border-radius:3px;padding:1px 5px;margin-left:5px;
+    text-transform:uppercase;vertical-align:1px;
+  }
+  .ro-line{display:flex;gap:7px;align-items:center}
+  .ro-line input{
+    flex:1;min-width:0;font-weight:700;letter-spacing:.06em;color:var(--accent);
+    background:#eef4fa;border-color:#d6e2ef;cursor:default;
+  }
+  .ro-line input:focus{border-color:#d6e2ef;background:#eef4fa;box-shadow:none}
+  button.mini{padding:8px 10px;font-size:12px;line-height:1;flex:0 0 auto}
+
+  table.form-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.form-tbl th{background:#eef4fa;color:var(--accent);font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:7px 8px;text-align:left;border-bottom:1px solid var(--line)}
+  table.form-tbl td{padding:5px 6px;border-bottom:1px solid var(--line-soft)}
+  table.form-tbl input{font-family:inherit;font-size:13px;padding:7px 8px;border:1px solid var(--line);border-radius:5px;background:#fbfcfe;width:100%;outline:none}
+  table.form-tbl input:focus{border-color:var(--accent);background:#fff}
+  table.form-tbl input.num{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+  .seq{width:26px;text-align:center;font-weight:700;color:var(--muted)}
+
+  /* ---------- Records search ---------- */
+  .recher{display:flex;align-items:center;gap:9px;margin:0 0 12px}
+  .recher input{
+    flex:1;min-width:0;font-family:inherit;font-size:13px;color:var(--ink);padding:9px 12px;
+    border:1px solid var(--line);border-radius:6px;background:#fbfcfe;outline:none;
+  }
+  .recher input:focus{border-color:var(--accent);background:#fff;box-shadow:0 0 0 2px rgba(11,83,148,.10)}
+  .recher input::-webkit-search-cancel-button{display:none}
+  #recFound{white-space:nowrap}
+  .rec-docno{font-weight:700;color:var(--accent);letter-spacing:.03em;font-variant-numeric:tabular-nums;white-space:nowrap}
+  mark.hit{background:#fff3bf;color:inherit;padding:0 1px;border-radius:2px}
+  td.empty{text-align:center;color:var(--muted);padding:22px 10px;font-size:12.5px}
+  td.orders-cell{text-align:center}
+  td.orders-cell small{display:block;text-align:left;font-size:10px;color:var(--muted);line-height:1.3;margin-top:2px}
+
+  /* ---------- Generated document ---------- */
+  .page{background:#fff;box-shadow:0 4px 24px rgba(18,42,68,.10);border:1px solid var(--line)}
+  .sheet{padding:26px 30px 30px}
+  .sheet + .sheet{border-top:0}
+  .doc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;padding-bottom:14px;border-bottom:2px solid var(--accent)}
+  .co-name{font-size:17px;font-weight:700;color:var(--accent);line-height:1.3}
+  .co-sub{font-size:11px;color:var(--muted);margin-top:3px;letter-spacing:.04em}
+  .doc-title{margin-top:16px;font-size:23px;font-weight:700;letter-spacing:.02em}
+  .doc-sub{font-size:12px;color:var(--muted);margin-top:2px}
+  .doc-meta{min-width:270px;border:1px solid var(--line);border-radius:4px;overflow:hidden}
+  .doc-meta table{width:100%;border-collapse:collapse;font-size:12px}
+  .doc-meta td{padding:5px 10px;border-bottom:1px solid var(--line-soft)}
+  .doc-meta tr:last-child td{border-bottom:0}
+  .doc-meta td:first-child{width:96px;background:#f7f9fc;color:var(--muted);font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em}
+  .docno{font-weight:700;letter-spacing:.05em;color:var(--accent);font-variant-numeric:tabular-nums}
+
+  /* editable fields inside the document */
+  .ed{display:inline-block;min-width:22px;border-bottom:1px dotted #a8bccd;padding:0 2px;outline:none}
+  .ed:focus{background:#fff8e5;border-bottom:1px solid var(--accent)}
+  .ed.block{display:block;border-bottom:0}
+  .ed.block:hover{background:#f2f7fc}
+
+  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin:18px 0 4px}
+  .kpi{border:1px solid var(--line);border-radius:5px;padding:9px 11px;background:#fbfcfe}
+  .kpi .k{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .kpi .v{font-size:17px;font-weight:700;color:var(--accent);margin-top:2px}
+  .kpi .u{font-size:10px;color:var(--muted);font-weight:600;margin-left:2px}
+  .kpi.alt .v{color:var(--amber)}
+  .kpi.ok .v{color:var(--green)}
+
+  .sec{margin-top:24px}
+  .sec-title{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:9px}
+  .sec-title::before{content:"";width:4px;height:14px;background:var(--accent);border-radius:2px}
+  .sec-title .note{margin-left:auto;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted);font-size:11px}
+
+  table.grid{width:100%;border-collapse:collapse;font-size:11.5px}
+  table.grid th{background:var(--accent);color:#fff;font-weight:600;font-size:10.5px;letter-spacing:.03em;text-transform:uppercase;padding:8px 7px;text-align:left;border:1px solid #0a457c}
+  table.grid td{border:1px solid var(--line);padding:7px}
+  table.grid tbody tr:nth-child(even) td{background:#fbfcfe}
+  table.grid td.c,table.grid th.c{text-align:center}
+  table.grid td.r,table.grid th.r{text-align:right}
+  table.grid tfoot td{background:var(--accent-soft)!important;font-weight:700;border-color:#c3d8ec}
+  tr{page-break-inside:avoid}
+  .bar-cell{background:var(--amber-soft)!important;color:var(--amber);font-weight:700;white-space:nowrap}
+  .ready-cell{background:var(--green-soft)!important;color:var(--green);font-weight:700;white-space:nowrap}
+  .pn{font-weight:700}
+  .in-cell{font-family:inherit;font-size:11.5px;color:inherit;background:transparent;border:0;border-bottom:1px dotted #a8bccd;padding:1px 2px;width:100%;outline:none}
+  .in-cell:focus{background:#fff8e5;border-bottom:1px solid var(--accent)}
+  .in-cell.num{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+
+  .two-col{display:grid;grid-template-columns:1.35fr 1fr;gap:22px;align-items:start}
+  .spec-box{border:1px solid var(--line);border-radius:5px;padding:11px 13px;background:#fbfcfe}
+  .spec-box h4{margin:0 0 7px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+  .spec-box table{width:100%;border-collapse:collapse;font-size:11.5px}
+  .spec-box td{padding:3px 0}
+  .spec-box td:first-child{color:var(--muted);width:52%}
+
+  .gantt{border:1px solid var(--line);border-radius:5px;overflow:hidden}
+  .g-row{display:flex;border-bottom:1px solid var(--line-soft)}
+  .g-row:last-child{border-bottom:0}
+  .g-row.head{background:#f7f9fc}
+  .g-label{width:152px;flex:0 0 152px;padding:7px 10px;font-size:10.5px;font-weight:700;border-right:1px solid var(--line);background:#fbfcfe;line-height:1.25}
+  .g-label small{display:block;font-weight:500;color:var(--muted);font-size:10px}
+  .g-plot{position:relative;flex:1;height:34px}
+  .g-row.head .g-plot{height:30px}
+  .g-axis{display:flex;height:100%}
+  .g-axis > div{flex:1;border-left:1px solid var(--line-soft);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--muted)}
+  .g-axis > div:first-child{border-left:0}
+  .g-axis > div.off{background:#eef1f5;color:#a9b6c4}
+  .g-axis .mth{display:block;font-size:8.5px;color:#93a5b8;margin-top:-1px}
+  .g-grid{position:absolute;inset:0;background-image:repeating-linear-gradient(to right,#eef2f7 0 1px,transparent 1px var(--step));pointer-events:none}
+  .g-bar{position:absolute;top:8px;height:17px;border-radius:3px;display:flex;align-items:center;padding:0 6px;font-size:9.5px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden}
+  .g-bar.prod{background:linear-gradient(180deg,#1a6cb0,#0b5394)}
+  .g-bar.fin{background:linear-gradient(180deg,#c8871f,#a25c00)}
+  .g-mark{position:absolute;top:5px;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid var(--green)}
+  .g-today{position:absolute;top:0;bottom:0;width:0;border-left:2px dashed var(--red);z-index:4;pointer-events:none}
+  .g-today span{position:absolute;top:0;left:3px;font-size:8.5px;font-weight:700;color:var(--red);background:rgba(255,255,255,.88);padding:0 3px;border-radius:2px;white-space:nowrap}
+  .legend{display:flex;gap:18px;align-items:center;margin-top:9px;font-size:10.5px;color:var(--muted)}
+  .legend i{display:inline-block;width:12px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+  .legend .l-prod{background:#0b5394}
+  .legend .l-fin{background:#a25c00}
+  .legend .l-ready{width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid #12704a;border-radius:0}
+  .legend .l-off{background:#eef1f5;border:1px solid var(--line)}
+  .legend .l-today{width:14px;height:0;border-radius:0;background:none;border-top:2px dashed var(--red)}
+
+  ol.notes{margin:0;padding-left:20px;font-size:11.5px;color:#2c3e55}
+  ol.notes li{margin-bottom:4px}
+
+  .sign{display:flex;gap:40px;margin-top:26px;padding-top:14px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}
+  .sign .sg{flex:1;min-width:0}
+  .sign .sg-date{flex:0 0 190px}
+  .sign .cap{display:block;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:1px}
+  .sign .ln{position:relative;display:block;height:32px;border-bottom:1px solid #9db3c9}
+  .sign-name{
+    position:absolute;left:2px;bottom:-4px;
+    font-family:"Snell Roundhand","Segoe Script","Bradley Hand","Brush Script MT",cursive;
+    font-size:21px;font-weight:600;color:#16385c;line-height:1;white-space:nowrap;
+  }
+  .sign-name.ed{border-bottom:0}
+  .footnote{margin-top:14px;font-size:10px;color:#8395a8;text-align:center;letter-spacing:.04em}
+
+  /* ---------- Records ---------- */
+  .actions{white-space:nowrap}
+  .empty{padding:26px;text-align:center;color:var(--muted)}
+
+  /* ---------- Toast ---------- */
+  .toast{
+    position:fixed;right:20px;bottom:20px;z-index:99;background:#122a44;color:#fff;
+    font-size:12.5px;font-weight:600;padding:11px 16px;border-radius:7px;
+    box-shadow:0 6px 20px rgba(18,42,68,.28);opacity:0;transform:translateY(8px);
+    transition:.22s;pointer-events:none;max-width:60vw;
+  }
+  .toast.on{opacity:1;transform:translateY(0)}
+
+  /* ---------- Print ---------- */
+  /* margin:0 — Chrome suppresses its built-in page header/footer (title / URL / date)
+     when the CSS page margin is zero; padding is handled by .sheet instead */
+  @page{size:A4 landscape;margin:0}
+  @media print{
+    body{background:#fff;font-size:11px}
+    .no-print{display:none!important}
+    .wrap{max-width:none;margin:0;padding:0}
+    .page{border:0;box-shadow:none}
+    .sheet{padding:9mm 10mm;break-after:page}
+    .sheet:last-child{break-after:auto;padding-bottom:12mm}
+    #viewEdit{display:block!important}
+    #formPanel,#viewRecords{display:none!important}
+    .ed{border-bottom:0!important;background:transparent!important}
+    .in-cell{border-bottom:0}
+    table.grid{font-size:10px}
+    table.grid th{padding:6px 5px;font-size:9.5px}
+    table.grid td{padding:5px}
+    .kpi .v{font-size:15px}
+    .doc-title{font-size:20px}
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  }
+</style>
+</head>
+<body>
+
+<!-- ================= TOOLBAR ================= -->
+<div class="toolbar no-print">
+  <div class="brand">Production &amp; Delivery Schedule</div>
+  <div class="seg" id="tabs">
+    <label><input type="radio" name="tab" value="edit" checked><span>① Input &amp; Schedule</span></label>
+    <label><input type="radio" name="tab" value="recs"><span>② Saved Records (<span id="recCount">0</span>)</span></label>
+  </div>
+  <button class="go" id="saveBtn">💾 Save Version</button>
+  <button class="primary" id="printBtn">🖨 Print / Save as PDF</button>
+  <button id="resetBtn">Reset</button>
+  <button id="csvBtn">⇩ CSV 排程</button>
+  <span class="chip" id="loadedChip" style="display:none"></span>
+  <span class="hint" id="cloudHint"></span>
+</div>
+
+<div class="wrap">
+
+  <!-- ================= TAB 1 : INPUT + GENERATED SCHEDULE ================= -->
+  <div id="viewEdit">
+
+    <div class="card no-print" id="formPanel">
+      <h3>Input Information
+        <small>
+          <span class="hint">everything recalculates as you type · fields in the document below are editable too</span>
+          <button class="link" id="toggleForm">Hide ▲</button>
+        </small>
+      </h3>
+
+      <div id="formBody">
+        <datalist id="customerList"></datalist>
+        <datalist id="signerList"></datalist>
+        <div class="fgrid">
+          <label class="fld full"><span>Company name <i class="auto">from customs system</i></span>
+            <select id="coNameSel" data-bind="coName"></select></label>
+          <label class="fld wide"><span>Address / subtitle</span>
+            <input type="text" data-bind="coSub"></label>
+          <label class="fld wide"><span>Customer</span>
+            <input type="text" data-bind="customer" list="customerList" autocomplete="off"
+                   placeholder="Type a keyword to search customers …"></label>
+          <div class="fld wide"><span>Doc No. <i class="auto">auto</i></span>
+            <div class="ro-line">
+              <input type="text" id="docNoInput" readonly tabindex="-1" title="Automatic document number (read only)">
+              <button type="button" class="mini" id="regenDocNo" title="Generate a new document number">↻</button>
+            </div></div>
+          <label class="fld wide"><span>Product</span>
+            <input type="text" data-bind="product"></label>
+          <label class="fld"><span>Issue date</span>
+            <input type="date" data-bind="issue"></label>
+          <label class="fld"><span>Revision</span>
+            <input type="text" data-bind="rev"></label>
+          <label class="fld"><span>Issued by (signature)</span>
+            <input type="text" data-bind="sign" list="signerList" autocomplete="off"
+                   placeholder="Pick a name or type any name"></label>
+          <label class="fld wide"><span>Document subtitle</span>
+            <input type="text" data-bind="docSub"></label>
+
+          <label class="fld wide"><span>Wooden box size (L × W × H)</span>
+            <input type="text" data-bind="dim"></label>
+          <label class="fld"><span>Pcs per box</span>
+            <input type="number" min="1" data-bind="perBox"></label>
+          <label class="fld"><span>Gross weight / box (kg)</span>
+            <input type="number" min="0" data-bind="gw"></label>
+          <label class="fld"><span>Boxes per 40'HQ (est.)</span>
+            <input type="number" min="1" data-bind="perCtn"></label>
+          <label class="fld"><span>Production start date</span>
+            <input type="date" data-bind="start"></label>
+          <label class="fld"><span>Daily output capacity (pcs/day)</span>
+            <input type="number" min="1" data-bind="cap"></label>
+          <label class="fld"><span>Finishing lead time (days)</span>
+            <input type="number" min="0" data-bind="lead"></label>
+          <label class="fld"><span>Working days</span>
+            <select data-bind="work">
+              <option value="7">7 days / week (continuous)</option>
+              <option value="6">6 days / week (no Sunday)</option>
+              <option value="5">5 days / week (no Sat &amp; Sun)</option>
+            </select></label>
+          <label class="fld full"><span>Additional non-working dates (holidays) — optional</span>
+            <input type="text" data-bind="holidays" placeholder="2026-12-25, 2027-01-01, 2027-02-06 …">
+            <span class="tip">Comma or space separated, format YYYY-MM-DD. These days are skipped in production and finishing.</span></label>
+        </div>
+
+        <div class="sec" style="margin-top:20px">
+          <div class="sec-title">Orders <span class="note">production runs in this sequence, top to bottom</span></div>
+          <table class="form-tbl">
+            <thead>
+              <tr>
+                <th style="width:40px">#</th>
+                <th style="width:22%">Order No.</th>
+                <th style="width:16%">Quantity (pcs)</th>
+                <th style="width:36%">Remark</th>
+                <th style="width:120px"></th>
+              </tr>
+            </thead>
+            <tbody id="formOrdBody"></tbody>
+          </table>
+          <div style="margin-top:11px;display:flex;gap:9px;align-items:center">
+            <button id="addRow">+ Add order</button>
+            <span class="hint" id="ordSummary"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page" id="docPage"></div>
+
+  </div>
+
+  <!-- ================= TAB 2 : SAVED RECORDS ================= -->
+  <div id="viewRecords" style="display:none">
+    <div class="card">
+      <h3>Saved Records <span class="hint" id="recTotal"></span>
+        <small>
+          <span class="hint">registered by <b>Doc No.</b> · click <b>Load</b> to bring one back into the editor</span>
+          <button class="go" id="saveBtn2">💾 Save current as a new version</button>
+        </small>
+      </h3>
+
+      <div class="recher">
+        <input type="search" id="recSearch" autocomplete="off"
+               placeholder="Search all saved content — Doc No., customer, product, order no., remark, dates, quantities …">
+        <button type="button" class="tiny" id="recSearchClear" style="display:none">✕ Clear</button>
+        <span class="hint" id="recFound"></span>
+      </div>
+
+      <table class="grid" id="recTbl">
+        <thead>
+          <tr>
+            <th class="c" style="width:4%">#</th>
+            <th style="width:16%">Doc No.</th>
+            <th class="c" style="width:11%">Saved At</th>
+            <th style="width:14%">Customer</th>
+            <th style="width:12%">Product</th>
+            <th class="c" style="width:14%">Orders</th>
+            <th class="r" style="width:8%">Total Qty</th>
+            <th class="c" style="width:10%">Final Ready</th>
+            <th class="c" style="width:11%">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="recBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ================= helpers ================= */
+  var MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  var $=function(id){ return document.getElementById(id); };
+  function pad(n){ return (n<10?"0":"")+n; }
+  function ymd(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+  function todayISO(){ return ymd(new Date()); }
+  function parseDate(s){
+    var m=/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/.exec(String(s||"").trim());
+    return m? new Date(+m[1],(+m[2])-1,+m[3]) : null;
+  }
+  function addDays(d,n){ var x=new Date(d.getTime()); x.setDate(x.getDate()+n); return x; }
+  function diffDays(a,b){
+    var A=new Date(a.getFullYear(),a.getMonth(),a.getDate());
+    var B=new Date(b.getFullYear(),b.getMonth(),b.getDate());
+    return Math.round((B-A)/86400000);
+  }
+  function fDate(d){ return d? MON[d.getMonth()]+" "+d.getDate()+", "+d.getFullYear() : "\u2014"; }
+  function fShort(d){ return d? MON[d.getMonth()]+" "+d.getDate() : "\u2014"; }
+  function fDow(d){ return d? DOW[d.getDay()] : ""; }
+  function num(n){ return (n===null||n===undefined||isNaN(n))?"\u2014":Number(n).toLocaleString("en-US"); }
+  function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+  function isoHuman(iso){ var d=parseDate(iso); return d? fDate(d) : (iso||"\u2014"); }
+  function isoInput(iso){ var d=parseDate(iso); return d? ymd(d) : ""; }
+
+  /* ---- automatic document number: LORI-YYYYMMDD-NNNN ---- */
+  function newDocSeed(){ return String(Math.floor(1000+Math.random()*9000)); }
+  function docNoOf(c){
+    c=c||cfg;
+    if (!c.docSeed || !/^\d{3,6}$/.test(String(c.docSeed))) c.docSeed=newDocSeed();
+    var d=parseDate(c.issue)||new Date();
+    return "LORI-"+d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+"-"+c.docSeed;
+  }
+
+  function toast(msg){
+    var t=$("toast"); t.textContent=msg; t.classList.add("on");
+    clearTimeout(t._tm); t._tm=setTimeout(function(){ t.classList.remove("on"); },2100);
+  }
+
+  /* ================= base data: companies / customers / signers ================= */
+  /* 公司信息与报关系统（apps/wicketorders customs-doc-generator）保持一致：
+     本地同名裸键 cdg_companies 可即时读取，再从云端键 wicketorders__cdg_companies 刷新；
+     客户来自外贸系统 customerRecords（云端 wicketorders__customerRecords）。 */
+  var BUILTIN_COMPANIES=[
+    { nameEn:"Purimate (Changzhou) Environmental Engineering Technology Co., Ltd",
+      address:"6-1, zhongnan gaoke industrial park, #8 zhounan road, xueyan town, wujin district, Changzhou City, Jiangsu Province, China" },
+    { nameEn:"WUXI TIANLIANG FOREIGN TRADE CO.,LTD",
+      address:"ROOM605, XINGSHENG BUILDING NO.900 JIEFANG EAST STREET, WUXI,JIANGSU,CHINA" },
+    { nameEn:"Wuxi Longli Iron-Printing Equipment Manufacturing Co., Ltd",
+      address:"6-1, zhongnan gaoke industrial park, #8 zhounan road, xueyan town, wujin district, Changzhou City, Jiangsu Province, China" }
+  ];
+  var BUILTIN_SIGNERS=["Alon Zhang"];
+  var SIGNERS_KEY="pds_signers";
+
+  var companies=[], customers=[];
+
+  function localJSON(k){
+    try{ var raw=localStorage.getItem(k); return raw? JSON.parse(raw) : null; }catch(e){ return null; }
+  }
+  function mergeById(a,b,idFn){
+    var map={}, out=[];
+    a.concat(b||[]).forEach(function(x){
+      if(!x) return;
+      var key=idFn(x);
+      if(key==null || key===""){ out.push(x); return; }
+      if(!map[key]){ map[key]=x; out.push(x); }
+    });
+    return out;
+  }
+  function companyByName(name){
+    return companies.filter(function(c){ return c && c.nameEn===name; })[0] || null;
+  }
+
+  function renderCompanySelect(){
+    var sel=$("coNameSel"); if(!sel || !cfg) return;
+    var seen={}, html="";
+    companies.forEach(function(c){
+      var n=(c && c.nameEn || "").trim();
+      if(!n || seen[n]) return;
+      seen[n]=1;
+      html += '<option value="'+esc(n)+'">'+esc(n)+'</option>';
+    });
+    if (cfg.coName && !seen[cfg.coName]){
+      html += '<option value="'+esc(cfg.coName)+'">'+esc(cfg.coName)+' (current)</option>';
+    }
+    sel.innerHTML=html;
+    sel.value=cfg.coName;
+  }
+  function renderCustomerList(){
+    var el=$("customerList"); if(!el) return;
+    var seen={}, html="";
+    customers.forEach(function(c){
+      if(!c) return;
+      if (c.customerType==="供应商") return;   /* 排程表只列客户，不列供应商 */
+      var n=String(c.customerName==null?"":c.customerName).trim();
+      if(!n || seen[n]) return;
+      seen[n]=1;
+      html += '<option value="'+esc(n)+'">';
+    });
+    el.innerHTML=html;
+  }
+  function loadSigners(){
+    var saved=localJSON(SIGNERS_KEY);
+    var list=BUILTIN_SIGNERS.slice();
+    if(Array.isArray(saved)) saved.forEach(function(n){
+      n=String(n==null?"":n).trim();
+      if(n && list.indexOf(n)<0) list.push(n);
+    });
+    return list;
+  }
+  function renderSignerList(){
+    var el=$("signerList"); if(!el) return;
+    el.innerHTML=loadSigners().map(function(n){ return '<option value="'+esc(n)+'">'; }).join("");
+  }
+  function rememberSigner(name){
+    name=String(name==null?"":name).trim();
+    if(!name) return;
+    var list=loadSigners().filter(function(n){ return n!==name; });
+    list.unshift(name);
+    list=list.slice(0,20);
+    try{ localStorage.setItem(SIGNERS_KEY, JSON.stringify(list)); }catch(e){}
+    renderSignerList();
+  }
+
+  /* ---- 跨命名空间读取外贸系统云端数据（CloudBase HTTP API + 同步账号） ---- */
+  var CB_ENV=window.CLOUDBASE_ENV||"onlineofficework-d4e93l98bdf879e";
+  var CB_BASE="https://"+CB_ENV+".api.tcloudbasegateway.com";
+  var _cbTok=null,_cbTokExp=0;
+  function cbToken(){
+    if(_cbTok && Date.now()<_cbTokExp-60000) return Promise.resolve(_cbTok);
+    return fetch(CB_BASE+"/auth/v1/token",{
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({grant_type:"password",username:"sync@lori.app",
+        password:"LoriSync2026!",client_id:CB_ENV})
+    }).then(function(r){ return r.json(); }).then(function(d){
+      if(!d.access_token) throw new Error("no token");
+      _cbTok=d.access_token;
+      _cbTokExp=Date.now()+((+d.expires_in||3600)*1000);
+      return _cbTok;
+    });
+  }
+  function payloadOf(row){
+    var d=(row&&row.data)||{}, val=d.payload;
+    if(typeof val==="string"){ try{ val=JSON.parse(val); }catch(e){} }
+    return val;
+  }
+  function cbFetchWicket(){
+    return cbToken().then(function(tok){
+      var url=CB_BASE+"/v1/rdb/rest/app_data_store?select=id,data"+
+        "&id=in.(wicketorders__cdg_companies,wicketorders__customerRecords)";
+      return fetch(url,{headers:{Authorization:"Bearer "+tok},cache:"no-store"});
+    }).then(function(r){
+      if(!r.ok) throw new Error("REST "+r.status);
+      return r.json();
+    }).then(function(rows){
+      var cloudCos=[], cloudCust=[];
+      (rows||[]).forEach(function(row){
+        var sk=(row&&row.data&&row.data.store_key)||row.id||"";
+        var val=payloadOf(row);
+        if(sk.indexOf("cdg_companies")>=0 && Array.isArray(val)) cloudCos=val;
+        else if(sk.indexOf("customerRecords")>=0 && Array.isArray(val)) cloudCust=val;
+      });
+      /* 合并：本地即时数据 + 云端最新数据（按 nameEn / id 去重，云端在前优先） */
+      var localCos=localJSON("cdg_companies");
+      var localCust=localJSON("customerRecords");
+      companies=mergeById(cloudCos, Array.isArray(localCos)?localCos:[], function(c){ return c.nameEn; });
+      if(!companies.length) companies=BUILTIN_COMPANIES.slice();
+      customers=mergeById(cloudCust, Array.isArray(localCust)?localCust:[], function(c){
+        return c.id!=null? String(c.id) : (c.customerName||"");
+      });
+      renderCompanySelect(); renderCustomerList();
+    }).catch(function(e){
+      console.warn("[PDS] 外贸基础数据云端读取失败：", e&&e.message?e.message:e);
+    });
+  }
+  function initBaseData(){
+    /* 同步：内置公司 + 本机已缓存的外贸数据，保证离线立即可用 */
+    var localCos=localJSON("cdg_companies");
+    companies = Array.isArray(localCos)&&localCos.length
+      ? mergeById(localCos, BUILTIN_COMPANIES, function(c){ return c.nameEn; })
+      : BUILTIN_COMPANIES.slice();
+    var localCust=localJSON("customerRecords");
+    customers = Array.isArray(localCust)? localCust : [];
+    renderCompanySelect(); renderCustomerList(); renderSignerList();
+    /* 异步：从云端刷新 */
+    cbFetchWicket();
+  }
+
+  /* ================= model ================= */
+  var DRAFT_KEY="pds_draft_v2", RECS_KEY="pds_records_v2";
+  var OLD_DRAFT="pds_draft_v1", OLD_RECS="pds_records_v1";
+
+  var DEFAULTS={
+    coName:"Wuxi Longli Iron-Printing Equipment Manufacturing Co., Ltd",
+    coSub:"Wuxi · Jiangsu · P.R. China",
+    docSub:"Manufacturing sequence, finishing (plating & packing) and shipment readiness plan",
+    customer:"K&B MetalPrint GmbH", product:"A22671 I-beam wicket",
+    issue:todayISO(), rev:"Rev. 01", sign:"Alon Zhang",
+    dim:"2280 × 1070 × 1270 mm", perBox:250, gw:620, perCtn:20,
+    start:"2026-10-13", cap:700, lead:2, work:"7", holidays:"",
+    docSeed:"",
+    orders:[
+      { no:"2606695", qty:4000, remark:"Priority lot" },
+      { no:"2606696", qty:4000, remark:"" },
+      { no:"TBD",     qty:3650, remark:"Order pending confirmation" }
+    ]
+  };
+
+  var NUM_BINDS=["perBox","gw","perCtn","cap","lead"];
+  var DATE_BINDS=["issue","start"];
+
+  var cfg=null, currentRecId=null, planView="daily";
+
+  function normalize(d){
+    var o={}, k;
+    for (k in DEFAULTS) o[k]=DEFAULTS[k];
+    if (d) for (k in d){ if (d[k]!==undefined && d[k]!==null) o[k]=d[k]; }
+    o.perBox=+o.perBox||DEFAULTS.perBox; o.gw=(+o.gw||0); o.perCtn=+o.perCtn||DEFAULTS.perCtn;
+    o.cap=+o.cap||DEFAULTS.cap; o.lead=(+o.lead||0);
+    o.work=String(o.work||"7");
+    o.docSeed=(o.docSeed && /^\d{3,6}$/.test(String(o.docSeed)))? String(o.docSeed) : newDocSeed();
+    o.orders=(d && Array.isArray(d.orders) && d.orders.length)? d.orders.map(function(r){
+      return { no:String(r.no==null?"":r.no), qty:+r.qty||0, remark:String(r.remark==null?"":r.remark) };
+    }) : JSON.parse(JSON.stringify(DEFAULTS.orders));
+    return o;
+  }
+  function fromOldSnapshot(s){
+    if (!s) return null;
+    var st=s.state||{};
+    return normalize({
+      coName:s.coName, coSub:s.coSub, docSub:s.docSub, customer:s.customer,
+      product:s.product, issue:s.issue, rev:s.rev, sign:"Alon Zhang", dim:s.dim,
+      perBox:st.perBox, gw:st.gw, perCtn:st.perCtn,
+      start:st.startDate, cap:st.capacity, lead:st.lead, work:st.workMode,
+      holidays:"", orders:st.orders
+    });
+  }
+
+  /* ================= storage ================= */
+  function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+  function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+  function loadRecs(){
+    var raw=lsGet(RECS_KEY);
+    if (!raw){
+      var old=lsGet(OLD_RECS);            /* one-time migration from the earlier version */
+      if (old){
+        try{
+          var arr=JSON.parse(old)||[], out=[];
+          arr.forEach(function(r){
+            var c=fromOldSnapshot(r.snap);
+            if (!c) return;
+            out.push({ id:"r"+(Date.now()+out.length), at:(r.at||"")+" (imported)", savedAt:"",
+                       customer:c.customer||"Untitled", docNo:docNoOf(c), product:c.product||"\u2014",
+                       ordersCount:c.orders.length, totalQty:r.totalQty||0, ready:r.ready||"\u2014", cfg:c });
+          });
+          if (out.length){ lsSet(RECS_KEY, JSON.stringify(out)); return out; }
+        }catch(e){}
+      }
+      return [];
+    }
+    try{ return JSON.parse(raw)||[]; }catch(e){ return []; }
+  }
+  function storeRecs(r){ lsSet(RECS_KEY, JSON.stringify(r)); scheduleCloudPush(1200); }
+  function updateRecCount(){ $("recCount").textContent=loadRecs().length; }
+
+  /* ================= cloud auto push ================= */
+  /* 与其它应用一致：草稿/存档直接写云端（cloudbase-sync 为手动上传模式，
+     故在本地变更后防抖调用 pushAll；无需 JSON 导入导出）。 */
+  var _pushTimer=null, _pushing=false;
+  function setCloudHint(txt){ var h=$("cloudHint"); if(h) h.textContent=txt; }
+  function scheduleCloudPush(delay){
+    if(!window.CloudbaseSync || typeof window.CloudbaseSync.pushAll!=="function") return;
+    if(_pushTimer) clearTimeout(_pushTimer);
+    _pushTimer=setTimeout(doCloudPush, typeof delay==="number"? delay:1500);
+  }
+  function doCloudPush(){
+    _pushTimer=null;
+    if(_pushing) return;
+    if(!window.CloudbaseSync || typeof window.CloudbaseSync.pushAll!=="function") return;
+    _pushing=true; setCloudHint("☁ 同步中…");
+    Promise.resolve(window.CloudbaseSync.pushAll(false)).then(function(r){
+      if(r && r.ok===false){ setCloudHint("☁ 同步失败"); console.warn("[PDS] 云端推送未完成：",r.msg||""); }
+      else setCloudHint("☁ 已同步云端");
+    }).catch(function(e){
+      setCloudHint("☁ 同步失败");
+      console.warn("[PDS] 云端推送失败：", e&&e.message?e.message:e);
+    }).then(function(){ _pushing=false; });
+  }
+
+  /* ================= scheduling engine ================= */
+  function holidaySet(str){
+    var set={};
+    String(str||"").split(/[,;\s]+/).forEach(function(t){ var d=parseDate(t); if(d) set[ymd(d)]=true; });
+    return set;
+  }
+  function buildCalendar(c){
+    var hol=holidaySet(c.holidays);
+    function isWorkDay(d){
+      if (hol[ymd(d)]) return false;
+      if (c.work==="7") return true;
+      if (c.work==="6") return d.getDay()!==0;
+      return d.getDay()!==0 && d.getDay()!==6;
+    }
+    function nextWorkDay(d){ var x=addDays(d,1),g=0; while(!isWorkDay(x)&&g++<90) x=addDays(x,1); return x; }
+    function firstWorkDay(d){ var x=new Date(d.getTime()),g=0; while(!isWorkDay(x)&&g++<90) x=addDays(x,1); return x; }
+    return { isWorkDay:isWorkDay, nextWorkDay:nextWorkDay, firstWorkDay:firstWorkDay, holidays:hol };
+  }
+
+  function compute(c){
+    var cal=buildCalendar(c);
+    var cap=Math.max(1,c.cap||1), perBox=Math.max(1,c.perBox||1);
+    var gw=+c.gw||0, lead=Math.max(0,+c.lead||0);
+    var cursor=cal.firstWorkDay(parseDate(c.start)||new Date());
+    var rows=[];
+
+    (c.orders||[]).forEach(function(o,i){
+      if (i>0) cursor=cal.nextWorkDay(cursor);
+      var qty=Math.max(0,Math.round(+o.qty||0));
+      var days=qty>0? Math.ceil(qty/cap) : 0;
+      var daily=[], cum=0, d=new Date(cursor.getTime());
+      for (var k=0;k<days;k++){
+        if (k>0) d=cal.nextWorkDay(d);
+        var out=Math.min(cap,qty-cum); cum+=out;
+        daily.push({ date:new Date(d.getTime()), out:out, cum:cum });
+      }
+      var prodStart=days? new Date(cursor.getTime()) : null;
+      var prodEnd=days? new Date(daily[days-1].date.getTime()) : null;
+      var finStart=null, finEnd=null;
+      if (prodEnd){
+        finStart=cal.nextWorkDay(prodEnd);
+        finEnd=new Date(finStart.getTime());
+        for (var j=1;j<lead;j++) finEnd=cal.nextWorkDay(finEnd);
+      }
+      var boxes=qty>0? Math.ceil(qty/perBox) : 0;
+      rows.push({
+        no:o.no||"", qty:qty, remark:o.remark||"", cap:cap, days:days, daily:daily,
+        prodStart:prodStart, prodEnd:prodEnd, finStart:finStart, finEnd:finEnd, ready:finEnd,
+        boxes:boxes, full:Math.floor(qty/perBox), remain:qty%perBox, weight:boxes*gw
+      });
+      if (prodEnd) cursor=new Date(prodEnd.getTime());
+    });
+
+    var minDate=(rows.length&&rows[0].prodStart)? rows[0].prodStart : cal.firstWorkDay(parseDate(c.start)||new Date());
+    var maxDate=minDate;
+    rows.forEach(function(r){ if (r.ready && diffDays(minDate,r.ready)>diffDays(minDate,maxDate)) maxDate=r.ready; });
+
+    return {
+      rows:rows, cal:cal, minDate:minDate, maxDate:maxDate,
+      totalDays:rows.reduce(function(s,r){ return s+r.days; },0),
+      totalQty:rows.reduce(function(s,r){ return s+r.qty; },0),
+      totalBoxes:rows.reduce(function(s,r){ return s+r.boxes; },0),
+      totalWeight:rows.reduce(function(s,r){ return s+r.weight; },0)
+    };
+  }
+
+  /* ================= form <-> model ================= */
+  function pushToForm(){
+    renderCompanySelect();   /* 先保证当前公司名（可能来自存档）在下拉选项中 */
+    document.querySelectorAll("[data-bind]").forEach(function(el){
+      if (el.closest("#docPage")) return;
+      var k=el.getAttribute("data-bind");
+      if (k.indexOf("orders.")===0) return;
+      var v=cfg[k];
+      if (DATE_BINDS.indexOf(k)>=0) el.value=isoInput(v);
+      else el.value=(v==null?"":v);
+    });
+    renderFormRows();
+    syncDocNo();
+  }
+  function syncDocNo(){
+    var v=docNoOf(cfg);
+    var i=$("docNoInput"); if (i && i.value!==v) i.value=v;
+    var s=$("spDocNo"); if (s && s.textContent!==v) s.textContent=v;
+    return v;
+  }
+  function fieldTag(bind){
+    if (bind.indexOf("orders.")===0) return "order";
+    if (NUM_BINDS.indexOf(bind)>=0) return "num";
+    if (DATE_BINDS.indexOf(bind)>=0) return "date";
+    return "text";
+  }
+  function renderFormRows(){
+    var tb=$("formOrdBody");
+    tb.innerHTML=cfg.orders.map(function(o,i){
+      return '<tr>' +
+        '<td class="seq">'+(i+1)+'</td>' +
+        '<td><input type="text" data-bind="orders.'+i+'.no" value="'+esc(o.no)+'" placeholder="Order No."></td>' +
+        '<td><input type="number" class="num" min="0" step="1" data-bind="orders.'+i+'.qty" value="'+(o.qty||0)+'"></td>' +
+        '<td><input type="text" data-bind="orders.'+i+'.remark" value="'+esc(o.remark||"")+'" placeholder="optional"></td>' +
+        '<td style="white-space:nowrap">' +
+          '<button class="tiny" data-act="up" data-i="'+i+'" title="Move up">▲</button> ' +
+          '<button class="tiny" data-act="down" data-i="'+i+'" title="Move down">▼</button> ' +
+          '<button class="tiny" data-act="del" data-i="'+i+'" title="Delete">×</button>' +
+        '</td></tr>';
+    }).join("");
+    updateOrderSummary();
+  }
+  function updateOrderSummary(){
+    var t=cfg.orders.reduce(function(s,o){ return s+(+o.qty||0); },0);
+    $("ordSummary").textContent=cfg.orders.length+" order(s) · total "+num(t)+" pcs";
+  }
+
+  /* ================= document ================= */
+  function metaRow(label,bind){
+    return '<tr><td>'+label+'</td><td><span class="ed" data-bind="'+bind+'">'+esc(cfg[bind])+'</span></td></tr>';
+  }
+  function specBoxes(){
+    return '<div class="spec-box"><h4>Packing Specification (per wooden box)</h4><table>' +
+        '<tr><td>Box size (L × W × H)</td><td id="spDim">\u2014</td></tr>' +
+        '<tr><td>Quantity per box</td><td id="spPerBox">\u2014</td></tr>' +
+        '<tr><td>Gross weight per box</td><td id="spGw">\u2014</td></tr>' +
+        '<tr><td>Boxes per 40\'HQ (est.)</td><td id="spPerCtn">\u2014</td></tr>' +
+      '</table></div>' +
+      '<div class="spec-box"><h4>Production Parameters</h4><table>' +
+        '<tr><td>Production start date</td><td id="spStart">\u2014</td></tr>' +
+        '<tr><td>Daily output capacity</td><td id="spCap">\u2014</td></tr>' +
+        '<tr><td>Finishing lead time</td><td id="spLead">\u2014</td></tr>' +
+        '<tr><td>Working days</td><td id="spWork">\u2014</td></tr>' +
+        '<tr id="spHolRow" style="display:none"><td>Non-working dates</td><td id="spHol">\u2014</td></tr>' +
+      '</table></div>';
+  }
+  function buildDoc(){
+    $("docPage").innerHTML =
+      '<section class="sheet">' +
+        '<div class="doc-head">' +
+          '<div style="flex:1;min-width:0">' +
+            '<div class="co-name ed block" data-bind="coName">'+esc(cfg.coName)+'</div>' +
+            '<div class="co-sub ed block" data-bind="coSub">'+esc(cfg.coSub)+'</div>' +
+            '<div class="doc-title">Production &amp; Delivery Schedule</div>' +
+            '<div class="doc-sub ed block" data-bind="docSub">'+esc(cfg.docSub)+'</div>' +
+          '</div>' +
+          '<div class="doc-meta"><table>' +
+            metaRow("Customer","customer") +
+            '<tr><td>Doc No.</td><td><span class="docno" id="spDocNo">\u2014</span></td></tr>' +
+            metaRow("Product","product") +
+            '<tr><td>Issue date</td><td><span id="spIssue">\u2014</span></td></tr>' +
+            metaRow("Revision","rev") +
+          '</table></div>' +
+        '</div>' +
+        '<div class="kpis" id="kpiRow"></div>' +
+        '<div class="sec">' +
+          '<div class="sec-title">1. Order &amp; Delivery Schedule <span class="note">order no. / qty / remark are editable right here</span></div>' +
+          '<table class="grid"><thead><tr>' +
+            '<th style="width:10%">Order No.</th>' +
+            '<th class="r" style="width:9%">Qty (pcs)</th>' +
+            '<th class="c" style="width:7%">Boxes</th>' +
+            '<th class="r" style="width:10%">Total G.W. (kg)</th>' +
+            '<th class="c" style="width:7%">Prod. Days</th>' +
+            '<th class="c" style="width:11%">Production Start</th>' +
+            '<th class="c" style="width:11%">Production Finish</th>' +
+            '<th class="c" style="width:12%">Plating &amp; Packing</th>' +
+            '<th class="c" style="width:12%">Ready for Shipment</th>' +
+            '<th style="width:11%">Remark</th></tr></thead>' +
+            '<tbody id="orderBody"></tbody><tfoot id="orderFoot"></tfoot></table>' +
+        '</div>' +
+        '<div class="sec two-col">' + specBoxes() + '</div>' +
+      '</section>' +
+      '<section class="sheet">' +
+        '<div class="sec" id="planBlock"></div>' +
+        '<div class="sec" id="ganttBlock"></div>' +
+        '<div class="sec" id="notesBlock"></div>' +
+        '<div class="sign" id="signBlock"></div>' +
+        '<div class="footnote" id="footNote"></div>' +
+      '</section>';
+    buildOrderRows(compute(cfg));
+    refreshAll();
+  }
+
+  function docRow(r,i){
+    return '<tr>' +
+      '<td><input class="in-cell pn" data-bind="orders.'+i+'.no" value="'+esc(r.no)+'"></td>' +
+      '<td class="r"><input class="in-cell num" type="number" min="0" step="1" data-bind="orders.'+i+'.qty" value="'+r.qty+'"></td>' +
+      '<td class="c" data-c="boxes">'+num(r.boxes)+'</td>' +
+      '<td class="r" data-c="weight">'+num(r.weight)+'</td>' +
+      '<td class="c" data-c="days">'+r.days+'</td>' +
+      '<td class="c" data-c="start">'+fDate(r.prodStart)+'</td>' +
+      '<td class="c" data-c="finish">'+fDate(r.prodEnd)+'</td>' +
+      '<td class="c bar-cell" data-c="pack">'+(r.finStart? fShort(r.finStart)+" – "+fShort(r.finEnd) : "\u2014")+'</td>' +
+      '<td class="c ready-cell" data-c="ready">'+fDate(r.ready)+'</td>' +
+      '<td><input class="in-cell" data-bind="orders.'+i+'.remark" value="'+esc(r.remark)+'"></td>' +
+    '</tr>';
+  }
+  function buildOrderRows(m){
+    $("orderBody").innerHTML=m.rows.map(docRow).join("");
+    renderOrderFoot(m);
+  }
+  function renderOrderFoot(m){
+    var last=m.rows.length? m.rows[m.rows.length-1] : null;
+    $("orderFoot").innerHTML='<tr>' +
+      '<td>TOTAL</td>' +
+      '<td class="r">'+num(m.totalQty)+'</td>' +
+      '<td class="c">'+num(m.totalBoxes)+'</td>' +
+      '<td class="r">'+num(m.totalWeight)+'</td>' +
+      '<td class="c">'+m.totalDays+'</td>' +
+      '<td class="c" colspan="2">'+fDate(m.minDate)+' → '+fDate(last? last.prodEnd : null)+'</td>' +
+      '<td class="c">'+num(Math.ceil(m.totalBoxes/Math.max(1,cfg.perCtn||1)))+' × container (est.)</td>' +
+      '<td class="c">Final ready: '+fDate(last? last.ready : null)+'</td>' +
+      '<td></td></tr>';
+  }
+  function updateOrderComputed(m){
+    var trs=$("orderBody").querySelectorAll("tr");
+    if (trs.length!==m.rows.length){ buildOrderRows(m); return; }
+    m.rows.forEach(function(r,i){
+      var row=trs[i];
+      function set(n,v){ var td=row.querySelector('[data-c="'+n+'"]'); if (td) td.textContent=v; }
+      set("boxes",num(r.boxes)); set("weight",num(r.weight)); set("days",r.days);
+      set("start",fDate(r.prodStart)); set("finish",fDate(r.prodEnd));
+      set("pack",r.finStart? fShort(r.finStart)+" – "+fShort(r.finEnd) : "\u2014");
+      set("ready",fDate(r.ready));
+    });
+    renderOrderFoot(m);
+  }
+
+  function kpi(k,v,u,cls){
+    return '<div class="kpi '+(cls||"")+'"><div class="k">'+k+'</div><div class="v">'+v+'<span class="u">'+(u||"")+'</span></div></div>';
+  }
+  function renderKpis(m){
+    var last=m.rows.length? m.rows[m.rows.length-1] : null;
+    $("kpiRow").innerHTML =
+      kpi("Total orders",m.rows.length,"") +
+      kpi("Total quantity",num(m.totalQty),"pcs") +
+      kpi("Total boxes",num(m.totalBoxes),"boxes") +
+      kpi("Total gross weight",(m.totalWeight/1000).toFixed(2),"t") +
+      kpi("Production days",m.totalDays,"days","alt") +
+      kpi("Ready for shipment",last? fShort(last.ready):"\u2014","","ok");
+  }
+  function workLabel(w){ return w==="6"? "6 days / week (no Sunday)" : (w==="5"? "5 days / week (no Sat &amp; Sun)" : "7 days / week (continuous)"); }
+
+  function renderSpecs(m){
+    $("spIssue").textContent=isoHuman(cfg.issue);
+    $("spDim").textContent=cfg.dim;
+    $("spPerBox").textContent=num(cfg.perBox)+" pcs";
+    $("spGw").textContent=num(cfg.gw)+" kg";
+    $("spPerCtn").textContent=num(cfg.perCtn)+" boxes";
+    $("spStart").textContent=isoHuman(cfg.start);
+    $("spCap").textContent=num(cfg.cap)+" pcs / day";
+    $("spLead").innerHTML=(+cfg.lead)+" days (plating &amp; packing)";
+    $("spWork").innerHTML=workLabel(cfg.work);
+    var hol=Object.keys(m.cal.holidays).sort();
+    $("spHolRow").style.display = hol.length? "" : "none";
+    if (hol.length) $("spHol").textContent=hol.join(", ");
+  }
+
+  function renderPlanBlock(m){
+    var head, body="";
+    var caption = planView==="daily" ? "Day-by-day output (subject to confirmation)" : "Weekly aggregation (subject to confirmation)";
+
+    if (planView==="daily"){
+      head='<tr><th class="c" style="width:6%">Day</th><th class="c" style="width:14%">Date</th><th style="width:13%">Order No.</th>' +
+           '<th class="r" style="width:12%">Output (pcs)</th><th class="r" style="width:14%">Cumulative (order)</th>' +
+           '<th class="c" style="width:12%">Order Progress</th><th style="width:29%">Remark</th></tr>';
+      var dayNo=0;
+      m.rows.forEach(function(r){
+        r.daily.forEach(function(d,k){
+          dayNo++;
+          var pct=r.qty? (d.cum/r.qty)*100 : 0;
+          var note=[];
+          if (k===0) note.push("Order start");
+          if (d.out<r.cap) note.push("Balance lot "+num(d.out)+" pcs");
+          if (k===r.daily.length-1) note.push("Production complete");
+          if (!note.length) note.push("Rated output "+num(d.out)+" pcs");
+          body += '<tr><td class="c">'+dayNo+'</td><td class="c">'+fDow(d.date)+', '+fShort(d.date)+'</td>' +
+                  '<td class="pn">'+esc(r.no)+'</td><td class="r">'+num(d.out)+'</td>' +
+                  '<td class="r">'+num(d.cum)+' / '+num(r.qty)+'</td><td class="c">'+pct.toFixed(0)+'%</td>' +
+                  '<td>'+note.join(" · ")+'</td></tr>';
+        });
+      });
+    } else {
+      head='<tr><th class="c" style="width:8%">Week</th><th class="c" style="width:22%">Period</th><th style="width:20%">Order No.</th>' +
+           '<th class="r" style="width:16%">Output (pcs)</th><th class="r" style="width:34%">Cumulative (order)</th></tr>';
+      function weekStart(d){ var x=new Date(d.getTime()); var off=(x.getDay()+6)%7; x.setDate(x.getDate()-off); return x; }
+      var buckets=[];
+      m.rows.forEach(function(r){
+        r.daily.forEach(function(d){
+          var ws=weekStart(d.date), key=ws.getTime()+"|"+r.no;
+          var f=buckets.filter(function(b){ return b.key===key; })[0];
+          if (!f){ f={key:key, ws:ws, no:r.no, out:0, cum:0, order:r}; buckets.push(f); }
+          f.out+=d.out; f.cum=d.cum;
+        });
+      });
+      buckets.sort(function(a,b){ return a.ws-b.ws; });
+      var weeks=[];
+      buckets.forEach(function(b){
+        var f=weeks.filter(function(w){ return +w.date===+b.ws; })[0];
+        if (!f){ f={date:b.ws, items:[]}; weeks.push(f); }
+        f.items.push(b);
+      });
+      weeks.forEach(function(w,wi){
+        w.items.forEach(function(b,bi){
+          var pct=b.order.qty? (b.cum/b.order.qty)*100 : 0;
+          body += '<tr>';
+          if (bi===0) body += '<td class="c" rowspan="'+w.items.length+'">W'+(wi+1)+'</td>';
+          if (bi===0) body += '<td class="c" rowspan="'+w.items.length+'">'+fShort(w.date)+' – '+fShort(addDays(w.date,6))+'</td>';
+          body += '<td class="pn">'+esc(b.no)+'</td><td class="r">'+num(b.out)+'</td>' +
+                  '<td class="r">'+num(b.cum)+' / '+num(b.order.qty)+' ('+pct.toFixed(0)+'%)</td></tr>';
+        });
+      });
+    }
+    $("planBlock").innerHTML='<div class="sec-title">2. Production Plan <span class="note">'+caption+'</span></div>' +
+      '<table class="grid"><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';
+  }
+
+  function renderGanttBlock(m){
+    var start=m.minDate, end=m.maxDate;
+    var total=Math.max(1, diffDays(start,end)+1);
+    var cal=m.cal;
+
+    /* 今日标记线：仅当今天落在排程区间内时显示（表头带标签，数据行仅线条） */
+    var _n=new Date(), today0=new Date(_n.getFullYear(),_n.getMonth(),_n.getDate());
+    var _tp=diffDays(start,today0);
+    var todayLine = (_tp>=0 && _tp<total)
+      ? '<div class="g-today" style="left:'+(_tp/total*100)+'%"></div>'
+      : "";
+    var todayLineHead = todayLine
+      ? '<div class="g-today" style="left:'+(_tp/total*100)+'%"><span>TODAY</span></div>'
+      : "";
+
+    var axis='<div class="g-row head"><div class="g-label" style="background:#f7f9fc">Timeline</div><div class="g-plot"><div class="g-axis">';
+    for (var i=0;i<total;i++){
+      var d=addDays(start,i);
+      var showMonth=(d.getDate()===1 || i===0);
+      axis += '<div class="'+(cal.isWorkDay(d)?"":"off")+'">'+d.getDate()+
+              '<span class="mth">'+(showMonth? MON[d.getMonth()] : "&nbsp;")+'</span></div>';
+    }
+    axis += todayLineHead + '</div></div></div>';
+
+    var body="";
+    m.rows.forEach(function(r){
+      var pL=r.prodStart? (diffDays(start,r.prodStart)/total)*100 : 0;
+      var pW=r.days? (r.days/total)*100 : 0;
+      var fL=r.finStart? (diffDays(start,r.finStart)/total)*100 : 0;
+      var fW=r.finStart? ((diffDays(r.finStart,r.finEnd)+1)/total)*100 : 0;
+      var mk=r.ready? (diffDays(start,r.ready)/total)*100 : 0;
+      body += '<div class="g-row">' +
+        '<div class="g-label">'+esc(r.no)+'<small>'+num(r.qty)+' pcs · '+r.days+' days</small></div>' +
+        '<div class="g-plot" style="--step:calc(100% / '+total+')">' +
+          '<div class="g-grid"></div>' +
+          (r.days? '<div class="g-bar prod" style="left:'+pL+'%;width:'+pW+'%">'+num(r.qty)+' pcs</div>' : "") +
+          (r.finStart? '<div class="g-bar fin" style="left:'+fL+'%;width:'+fW+'%">P&amp;P</div>' : "") +
+          (r.ready? '<div class="g-mark" style="left:calc('+mk+'% - 5px)"></div>' : "") +
+          todayLine +
+        '</div></div>';
+    });
+
+    var markRow='<div class="g-row"><div class="g-label" style="background:#fff">Ready for shipment<small>after finishing</small></div><div class="g-plot">';
+    m.rows.forEach(function(r){
+      if (!r.ready) return;
+      var mk=(diffDays(start,r.ready)/total)*100;
+      var align = mk>78 ? 'right:calc(100% - '+mk+'%)' : 'left:'+mk+'%';
+      markRow += '<div style="position:absolute;top:11px;font-size:9.5px;font-weight:700;color:#12704a;white-space:nowrap;'+align+'">▲ '+fShort(r.ready)+'</div>';
+    });
+    markRow += todayLine + '</div></div>';
+
+    var legend='<div class="legend"><span><i class="l-prod"></i>Production</span>' +
+      '<span><i class="l-fin"></i>Plating &amp; Packing</span>' +
+      '<span><i class="l-ready"></i>Ready for shipment</span>' +
+      (Object.keys(cal.holidays).length || cfg.work!=="7" ? '<span><i class="l-off"></i>Non-working day</span>' : '') +
+      (todayLine ? '<span><i class="l-today"></i>Today</span>' : '') +
+      '</div>';
+
+    $("ganttBlock").innerHTML='<div class="sec-title">3. Schedule Overview (Gantt)</div>' +
+      '<div class="gantt">'+axis+body+markRow+'</div>'+legend;
+  }
+
+  function renderNotesBlock(m){
+    var perBox=Math.max(1,cfg.perBox||1), perCtn=Math.max(1,cfg.perCtn||1);
+    var ctns=Math.ceil(m.totalBoxes/perCtn);
+    var boxDetail=m.rows.map(function(r){
+      return esc(r.no)+": "+r.full+" full"+(r.remain? " + 1 partial ("+r.remain+" pcs)" : "");
+    }).join("; ");
+    var first=m.rows[0], earlyReady=null;
+    if (first && first.daily.length>=2){
+      earlyReady=new Date(first.daily[1].date.getTime());
+      for (var j=0;j<Math.max(0,+cfg.lead||0);j++) earlyReady=m.cal.nextWorkDay(earlyReady);
+    }
+    var notes=[
+      "Production capacity is "+num(cfg.cap)+" pcs per day; the schedule above is based on sequential production in the order listed.",
+      "Finished goods are released for electro-plating and packing immediately after production and require "+(+cfg.lead)+" day(s) before they are ready for shipment.",
+      "\"Ready for Shipment\" = last production day + finishing lead time. Dates are indicative and subject to material readiness and customer confirmation.",
+      "Packing: 1 wooden box = "+num(perBox)+" pcs, box size "+esc(cfg.dim)+", gross weight "+num(cfg.gw)+" kg/box.",
+      "Box breakdown — "+boxDetail+". Total "+num(m.totalBoxes)+" boxes, approx. "+num(Math.round(m.totalWeight/1000))+" tonnes.",
+      "Estimated container loading: approx. "+num(perCtn)+" boxes per 40'HQ container → "+ctns+" × 40'HQ container(s) (final loading plan to be confirmed)."+
+        (earlyReady? " A first partial shipment can be arranged around "+fDate(earlyReady)+" subject to confirmation." : ""),
+      "Any change in order quantity, specification or starting date will shift the schedule accordingly; this document will be revised and re-issued."
+    ];
+    var hol=Object.keys(m.cal.holidays).sort();
+    if (hol.length) notes.splice(1,0,"Non-working dates excluded from the plan: "+hol.join(", ")+".");
+
+    $("notesBlock").innerHTML='<div class="sec-title">4. Notes &amp; Conditions</div><ol class="notes">' +
+      notes.map(function(t){ return "<li>"+t+"</li>"; }).join("") + '</ol>';
+  }
+
+  function renderSignBlock(){
+    $("signBlock").innerHTML =
+      '<div class="sg"><span class="cap">Issued by</span><span class="ln"><span class="sign-name ed" data-bind="sign">'+esc(cfg.sign)+'</span></span></div>' +
+      '<div class="sg"><span class="cap">Confirmed by customer</span><span class="ln"></span></div>' +
+      '<div class="sg sg-date"><span class="cap">Date</span><span class="ln"></span></div>';
+  }
+  function renderFootnote(){
+    $("footNote").textContent=cfg.coName+"  ·  Production & Delivery Schedule  ·  Generated " +
+      new Date().toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"});
+  }
+
+  /* ================= refresh ================= */
+  function refreshAll(opts){
+    opts=opts||{};
+    var m=compute(cfg);
+    renderKpis(m);
+    updateOrderComputed(m);
+    renderPlanBlock(m);
+    renderGanttBlock(m);
+    renderNotesBlock(m);
+    renderSpecs(m);
+    syncDocNo();
+    if (!opts.skipSign) renderSignBlock();
+    renderFootnote();
+    syncDisplays();
+    return m;
+  }
+  function syncDisplays(){
+    var active=document.activeElement, groups={};
+    document.querySelectorAll("[data-bind]").forEach(function(el){
+      var k=el.getAttribute("data-bind");
+      (groups[k]=groups[k]||[]).push(el);
+    });
+    Object.keys(groups).forEach(function(k){
+      var v=cfg[k];
+      if (k.indexOf("orders.")===0){
+        var seg=k.split("."), o=cfg.orders[+seg[1]];
+        if (!o) return;
+        v=o[seg[2]];
+      }
+      if (v===undefined) return;
+      groups[k].forEach(function(el){
+        if (el===active) return;
+        if (el.tagName==="INPUT" || el.tagName==="SELECT"){
+          var nv = DATE_BINDS.indexOf(k)>=0 ? isoInput(v) : String(v==null?"":v);
+          if (el.value!==nv) el.value=nv;
+        } else {
+          var txt = (DATE_BINDS.indexOf(k)>=0) ? isoHuman(v) : String(v==null?"":v);
+          if ((el.innerText||"").trim()!==txt.trim()) el.innerText=txt;
+        }
+      });
+    });
+  }
+
+  /* ================= editing ================= */
+  document.addEventListener("input", function(e){
+    var el=e.target;
+    var b=el.getAttribute && el.getAttribute("data-bind");
+    if (!b) return;
+    var tag=fieldTag(b);
+    var raw=(el.tagName==="INPUT"||el.tagName==="SELECT")? el.value : (el.innerText||"");
+
+    if (tag==="order"){
+      var seg=b.split("."), i=+seg[1], f=seg[2];
+      if (!cfg.orders[i]) return;
+      cfg.orders[i][f]=(f==="qty")? (parseFloat(raw)||0) : String(raw);
+      updateOrderSummary();
+      var m=compute(cfg);
+      renderKpis(m); updateOrderComputed(m); renderPlanBlock(m);
+      renderGanttBlock(m); renderNotesBlock(m); renderSpecs(m); renderFootnote();
+      syncDisplays();
+    } else if (tag==="num"){
+      cfg[b]=parseFloat(raw)||0;
+      refreshAll();
+    } else {
+      cfg[b]=String(raw).replace(/\s+$/," ");
+      if (b==="coName"){
+        /* 从报关公司下拉选择时，自动带出该公司的地址到 Address / subtitle */
+        if (el.tagName==="SELECT"){
+          var co=companyByName(raw);
+          if (co && co.address) cfg.coSub=co.address;
+        }
+        renderFootnote(); syncDisplays();
+      } else if (b==="sign"){
+        renderFootnote(); syncDisplays();
+      } else {
+        refreshAll({skipSign:(el.closest && !!el.closest("#signBlock"))});
+      }
+    }
+    scheduleDraft();
+  });
+
+  document.addEventListener("change", function(e){
+    var el=e.target;
+    if (el.getAttribute && el.getAttribute("data-bind") && (el.tagName==="SELECT" || el.type==="date")){
+      el.dispatchEvent(new Event("input",{bubbles:true}));
+    }
+  });
+
+  document.addEventListener("click", function(e){
+    var b=e.target.closest? e.target.closest("[data-act]") : null;
+    if (!b) return;
+    var act=b.getAttribute("data-act"), i=+b.getAttribute("data-i");
+    if (act==="up" || act==="down"){
+      var j=i+(act==="up"? -1 : 1);
+      if (j<0 || j>=cfg.orders.length) return;
+      var t=cfg.orders[i]; cfg.orders[i]=cfg.orders[j]; cfg.orders[j]=t;
+      renderFormRows(); buildDoc(); scheduleDraft();
+    } else if (act==="del"){
+      if (cfg.orders.length<=1){ toast("At least one order is required."); return; }
+      cfg.orders.splice(i,1); renderFormRows(); buildDoc(); scheduleDraft();
+    }
+  });
+
+  /* ================= draft ================= */
+  var draftTimer=null;
+  function scheduleDraft(){
+    clearTimeout(draftTimer);
+    draftTimer=setTimeout(function(){
+      lsSet(DRAFT_KEY, JSON.stringify(cfg));
+      scheduleCloudPush(2000);
+    },350);
+  }
+
+  /* ================= records ================= */
+  function makeRecord(){
+    var m=compute(cfg), last=m.rows.length? m.rows[m.rows.length-1] : null;
+    return {
+      id:"r"+Date.now(),
+      at:new Date().toLocaleString("en-US",{year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}),
+      savedAt:new Date().toISOString(),
+      customer:cfg.customer||"Untitled", docNo:docNoOf(cfg), product:cfg.product||"\u2014",
+      ordersCount:cfg.orders.length, totalQty:m.totalQty,
+      ready: last&&last.ready? fDate(last.ready) : "\u2014",
+      cfg: JSON.parse(JSON.stringify(cfg))
+    };
+  }
+  function saveVersion(){
+    rememberSigner(cfg.sign);
+    var rec=makeRecord();
+    var recs=loadRecs();
+    var dup=recs.filter(function(r){ return r.docNo && r.docNo===rec.docNo; })[0];
+
+    if (dup){                                   /* Doc No. is the registry key */
+      if (!confirm("Doc No. "+rec.docNo+" is already registered (saved "+dup.at+").\n\n"+
+                   "OK     = update that record with what is in the editor now\n"+
+                   "Cancel = stop this save — click ↻ next to Doc No. to get a new number")){
+        toast("Save stopped — "+rec.docNo+" is already registered.");
+        return null;
+      }
+      rec.id=dup.id;
+      rec.at=dup.at.indexOf("(updated)")>=0? dup.at : dup.at+" (updated)";
+      recs[recs.indexOf(dup)]=rec;
+      storeRecs(recs);
+      currentRecId=rec.id; showLoadedChip(rec);
+      updateRecCount(); renderRecords();
+      toast("Updated registry entry · "+rec.docNo);
+      return rec;
+    }
+
+    recs.unshift(rec); storeRecs(recs);
+    currentRecId=rec.id; showLoadedChip(rec);
+    updateRecCount(); renderRecords();
+    toast("Registered · "+rec.docNo+" · "+rec.at);
+    return rec;
+  }
+  function showLoadedChip(rec){
+    var chip=$("loadedChip");
+    if (!rec){ chip.style.display="none"; chip.innerHTML=""; return; }
+    chip.style.display="inline-flex";
+    chip.innerHTML='Editing: <b>'+esc(rec.customer)+'</b> · '+esc(rec.at)+' <span class="x" id="chipX" title="Detach from this version">×</span>';
+    var x=$("chipX");
+    if (x) x.addEventListener("click", function(){ currentRecId=null; showLoadedChip(null); });
+  }
+  /* ---- full-text search over everything stored in a record ---- */
+  var recQuery="";
+  function recTerms(){
+    return recQuery.toLowerCase().split(/\s+/).filter(function(t){ return !!t; });
+  }
+  function recHaystack(r){
+    var c=r.cfg||{}, parts=[];
+    parts.push(r.at, r.docNo, r.customer, r.product, r.ready, r.savedAt, r.ordersCount, r.totalQty);
+    Object.keys(c).forEach(function(k){
+      if (k==="orders"||k==="docSeed") return;
+      parts.push(c[k]);
+    });
+    parts.push(isoHuman(c.issue), isoHuman(c.start), workLabel(c.work), ys(c.perBox), ys(c.gw));
+    (c.orders||[]).forEach(function(o){ parts.push(o.no, o.qty, o.remark); });
+    return parts.join(" \u0001 ").toLowerCase();
+  }
+  function ys(v){ return v==null? "" : String(v); }
+  function filteredRecs(){
+    var recs=loadRecs(), terms=recTerms();
+    if (!terms.length) return recs;
+    return recs.filter(function(r){
+      var hay=recHaystack(r);
+      return terms.every(function(t){ return hay.indexOf(t)>=0; });
+    });
+  }
+  function escRe(s){ return String(s).replace(/[.*+?^${}()|[\]\\]/g,"\\$&"); }
+  function hl(v){
+    var t=String(v==null?"":v), terms=recTerms();
+    if (!terms.length) return esc(t);
+    var re=new RegExp("("+terms.map(escRe).join("|")+")","gi");
+    var out="", last=0, m;
+    while ((m=re.exec(t))!==null){
+      out += esc(t.slice(last,m.index)) + '<mark class="hit">' + esc(m[0]) + '</mark>';
+      last = m.index + m[0].length;
+      if (m.index===re.lastIndex) re.lastIndex++;
+    }
+    return out + esc(t.slice(last));
+  }
+
+  function renderRecords(){
+    var all=loadRecs(), list=filteredRecs(), tb=$("recBody"), terms=recTerms();
+    var tot=$("recTotal"); if (tot) tot.textContent = all.length? all.length+" record"+(all.length>1?"s":"")+" stored" : "";
+    var fnd=$("recFound");
+    if (fnd) fnd.textContent = terms.length? (list.length+" of "+all.length+" matched") : "";
+    var clr=$("recSearchClear"); if (clr) clr.style.display = recQuery? "" : "none";
+
+    if (!all.length){
+      tb.innerHTML='<tr><td colspan="9" class="empty">No saved records yet — click <b>💾 Save Version</b> to register the current schedule, then load it back here anytime.</td></tr>';
+      return;
+    }
+    if (!list.length){
+      tb.innerHTML='<tr><td colspan="9" class="empty">No record matches <b>'+esc(recQuery)+'</b>. '+
+        '<button class="link" id="recEmptyClear">Clear search</button></td></tr>';
+      var ec=$("recEmptyClear");
+      if (ec) ec.addEventListener("click", clearRecSearch);
+      return;
+    }
+
+    tb.innerHTML=list.map(function(r,i){
+      var isCur=r.id===currentRecId;
+      var ordNos=(r.cfg&&r.cfg.orders? r.cfg.orders.map(function(o){ return o.no||"\u2014"; }).join(", ") : "");
+      return '<tr'+(isCur? ' style="outline:2px solid #b9ddc9"' : '')+'>' +
+        '<td class="c">'+(i+1)+'</td>' +
+        '<td class="rec-docno">'+hl(r.docNo||r.po||"\u2014")+'</td>' +
+        '<td class="c">'+hl(r.at)+'</td>' +
+        '<td>'+hl(r.customer)+'</td>' +
+        '<td>'+hl(r.product)+'</td>' +
+        '<td class="orders-cell" title="Order No.: '+esc(ordNos)+'">'+esc(String(r.ordersCount))+
+          '<small>'+((r.cfg&&r.cfg.orders)? r.cfg.orders.map(function(o){ return hl(o.no||"\u2014"); }).join(", ") : "")+'</small></td>' +
+        '<td class="r">'+hl(num(r.totalQty))+'</td>' +
+        '<td class="c ready-cell">'+hl(r.ready)+'</td>' +
+        '<td class="c actions">' +
+          '<button class="tiny loadRec" data-id="'+r.id+'" title="Load into the editor">Load</button> ' +
+          '<button class="tiny updRec" data-id="'+r.id+'" title="Overwrite with current editor data">Update</button> ' +
+          '<button class="tiny delRec" data-id="'+r.id+'" title="Delete">×</button>' +
+        '</td></tr>';
+    }).join("");
+
+    tb.querySelectorAll(".loadRec").forEach(function(b){
+      b.addEventListener("click", function(){ loadRecord(b.getAttribute("data-id")); });
+    });
+    tb.querySelectorAll(".updRec").forEach(function(b){
+      b.addEventListener("click", function(){
+        var id=b.getAttribute("data-id");
+        if (!confirm("Overwrite this saved version with what is currently in the editor?")) return;
+        var fresh=makeRecord();
+        var recs2=loadRecs().map(function(r){
+          if (r.id!==id) return r;
+          fresh.id=r.id;
+          fresh.at=r.at.indexOf("(updated)")>=0? r.at : r.at+" (updated)";
+          return fresh;
+        });
+        storeRecs(recs2); currentRecId=id;
+        showLoadedChip(recs2.filter(function(r){ return r.id===id; })[0]);
+        updateRecCount(); renderRecords();
+        toast("Record updated.");
+      });
+    });
+    tb.querySelectorAll(".delRec").forEach(function(b){
+      b.addEventListener("click", function(){
+        var id=b.getAttribute("data-id");
+        if (!confirm("Delete this saved record?")) return;
+        storeRecs(loadRecs().filter(function(x){ return x.id!==id; }));
+        if (currentRecId===id){ currentRecId=null; showLoadedChip(null); }
+        updateRecCount(); renderRecords();
+        toast("Record deleted.");
+      });
+    });
+  }
+  function clearRecSearch(){
+    recQuery="";
+    var s=$("recSearch"); if (s) s.value="";
+    renderRecords();
+  }
+  function loadRecord(id){
+    var rec=loadRecs().filter(function(x){ return x.id===id; })[0];
+    if (!rec) return;
+    cfg=normalize(rec.cfg);
+    currentRecId=rec.id;
+    pushToForm(); buildDoc(); showLoadedChip(rec); scheduleDraft();
+    setTab("edit");
+    window.scrollTo({top:0,behavior:"smooth"});
+    toast("Loaded into the editor — edit and save again.");
+  }
+
+  /* ================= tabs & buttons ================= */
+  function setTab(v){
+    var isEdit = v==="edit";
+    $("viewEdit").style.display = isEdit? "" : "none";
+    $("viewRecords").style.display = isEdit? "none" : "";
+    var r=document.querySelector('input[name="tab"][value="'+v+'"]');
+    if (r) r.checked=true;
+    if (!isEdit) renderRecords();
+  }
+  document.querySelectorAll('input[name="tab"]').forEach(function(r){
+    r.addEventListener("change", function(){ setTab(this.value); });
+  });
+
+  $("saveBtn").addEventListener("click", function(){ saveVersion(); });
+  $("saveBtn2").addEventListener("click", function(){ saveVersion(); });
+  $("regenDocNo").addEventListener("click", function(){
+    cfg.docSeed=newDocSeed();
+    refreshAll(); pushToForm(); scheduleDraft();
+    toast("New document number: "+docNoOf(cfg));
+  });
+  $("recSearch").addEventListener("input", function(){ recQuery=this.value; renderRecords(); });
+  $("recSearch").addEventListener("keydown", function(e){
+    if (e.key==="Escape"){ e.preventDefault(); clearRecSearch(); }
+  });
+  $("recSearchClear").addEventListener("click", clearRecSearch);
+  $("printBtn").addEventListener("click", function(){ window.print(); });
+  $("addRow").addEventListener("click", function(){
+    cfg.orders.push({no:"",qty:0,remark:""});
+    renderFormRows(); buildDoc(); scheduleDraft();
+    var inputs=$("formOrdBody").querySelectorAll("tr:last-child input");
+    if (inputs.length) inputs[0].focus();
+  });
+  $("toggleForm").addEventListener("click", function(){
+    var b=$("formBody"), hidden=b.style.display==="none";
+    b.style.display = hidden? "" : "none";
+    this.textContent = hidden? "Hide ▲" : "Show ▼";
+  });
+  $("resetBtn").addEventListener("click", function(){
+    if (!confirm("Reset the editor back to the original sample data? (saved versions are kept)")) return;
+    cfg=normalize(null); currentRecId=null; showLoadedChip(null);
+    lsSet(DRAFT_KEY, JSON.stringify(cfg));
+    renderCompanySelect();
+    pushToForm(); buildDoc(); setTab("edit");
+    toast("Reset to sample data.");
+    scheduleCloudPush(1000);
+  });
+
+  /* ---- CSV 导出（中文表头 + BOM，Excel 直接打开不乱码） ---- */
+  function csvVal(v){
+    if (typeof v==="number" && isFinite(v)) return String(v);
+    v=(v==null?"":String(v));
+    return '"'+v.replace(/"/g,'""')+'"';
+  }
+  function csvDate(d){ return d? ymd(d) : ""; }
+  function downloadBlob(blob, name){
+    var a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(a.href); },2000);
+  }
+  $("csvBtn").addEventListener("click", function(){
+    var m=compute(cfg), L=[];
+    var workText=workLabel(cfg.work).replace(/&amp;/g,"&");
+    L.push(["生产交货排程表", docNoOf(cfg)].map(csvVal).join(","));
+    L.push(["客户", cfg.customer, "产品", cfg.product].map(csvVal).join(","));
+    L.push(["签发日期", cfg.issue||"", "生产开始", cfg.start||""].map(csvVal).join(","));
+    L.push(["日产能(只/天)", cfg.cap, "工作制", workText, "电镀包装周期(工作日)", (+cfg.lead||0)].map(csvVal).join(","));
+    L.push("");
+    L.push(["序号","订单号","数量(只)","箱数","毛重(kg)","生产天数","生产开始","生产结束","电镀包装起","电镀包装止","可发货日","备注"].map(csvVal).join(","));
+    m.rows.forEach(function(r,i){
+      L.push([i+1,r.no,r.qty,r.boxes,r.weight,r.days,csvDate(r.prodStart),csvDate(r.prodEnd),
+              csvDate(r.finStart),csvDate(r.finEnd),csvDate(r.ready),r.remark].map(csvVal).join(","));
+    });
+    var last=m.rows.length? m.rows[m.rows.length-1] : null;
+    L.push(["合计","",m.totalQty,m.totalBoxes,m.totalWeight,m.totalDays,"","","","",csvDate(last?last.ready:null),""].map(csvVal).join(","));
+    var csv="﻿"+L.join("\r\n");
+    downloadBlob(new Blob([csv],{type:"text/csv;charset=utf-8"}), "schedule-"+docNoOf(cfg)+".csv");
+    toast("已导出 CSV 排程表（可用 Excel 打开）");
+  });
+
+  document.addEventListener("keydown", function(e){
+    if ((e.metaKey||e.ctrlKey) && (e.key==="s"||e.key==="S")){ e.preventDefault(); saveVersion(); }
+  });
+
+  /* ================= init ================= */
+  (function init(){
+    var draft=null;
+    var raw=lsGet(DRAFT_KEY);
+    if (raw){ try{ draft=JSON.parse(raw); }catch(e){ draft=null; } }
+    if (!draft){
+      var old=lsGet(OLD_DRAFT);
+      if (old){ try{ draft=fromOldSnapshot(JSON.parse(old)); }catch(e){} }
+    }
+    cfg=normalize(draft||null);
+    initBaseData();
+    pushToForm();
+    buildDoc();
+    updateRecCount();
+    setTab(location.hash==="#records" ? "recs" : "edit");
+  })();
+})();
+</script>
+</body>
+</html>

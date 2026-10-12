@@ -4457,7 +4457,7 @@
                 </div>
                 <form id="orderForm" onsubmit="pageController.saveOrderRecord(event)">
                     <!-- 基本信息 -->
-                    <div class="grid grid-cols-4 gap-4 mb-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                         <div class="form-group relative">
                             <label class="form-label">客户 <span class="text-red-500">*</span></label>
                             <input type="text" id="orderCustomer" name="customer" class="form-input" required 
@@ -4646,7 +4646,7 @@
                     <input type="hidden" id="editOrderId">
                     
                     <!-- 基本信息 -->
-                    <div class="grid grid-cols-4 gap-4 mb-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                         <div class="form-group relative">
                             <label class="form-label">客户 <span class="text-red-500">*</span></label>
                             <input type="text" id="editOrderCustomer" name="customer" class="form-input" required 
@@ -5006,7 +5006,7 @@
                             <label class="form-label">客户行业/产品</label>
                             <input type="text" id="businessIndustry" class="form-input" placeholder="如：印刷包装、机械制造">
                         </div>
-                        <div class="grid grid-cols-4 gap-2 col-span-2">
+                        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 col-span-2">
                             <div class="form-group">
                                 <label class="form-label">联系日期</label>
                                 <input type="date" id="businessContactDate" class="form-input">
@@ -5577,6 +5577,41 @@
             #dataManagementMenu { bottom: 66px; top: auto !important; }
             /* 主内容区避让底部标签栏 */
             .full-width-container { padding-bottom: 88px !important; }
+
+            /* ====== 手机端内容区适配（桌面固定顶栏已转为底部标签栏）====== */
+            /* 清除桌面端为固定顶栏预留的顶部空间，避免大片空白 */
+            .container { margin-top: 0 !important; }
+            .full-width-container { padding-top: 8px !important; }
+            .full-width-container.px-4 { padding-left: 10px !important; padding-right: 10px !important; }
+            .export-submenu { position: static !important; box-shadow: none !important; border-bottom: 0 !important; }
+
+            /* 卡片 / 筛选区紧凑化 */
+            .card { padding: 12px !important; }
+            .filter-card { padding: 12px !important; }
+
+            /* 各页标题行（标题 + 新增/更多操作）允许换行，避免挤压溢出 */
+            .tab-content > .flex.justify-between { flex-wrap: wrap; gap: 8px; }
+            .tab-content h2 { font-size: 1.05rem !important; }
+
+            /* 查询筛选区：字段单列堆叠，取消内联 nowrap 与大 min-width */
+            .filter-card .flex.flex-wrap { flex-wrap: wrap !important; gap: 8px 10px !important; }
+            .filter-card [style*="white-space"] { white-space: normal !important; }
+            .filter-card .form-group { flex: 1 1 100% !important; min-width: 0 !important; margin-bottom: 0; }
+
+            /* 表格上方工具行（数量徽章 + 关键字搜索框）堆叠，搜索框全宽 */
+            .card > .flex.justify-between.items-center { flex-wrap: wrap; gap: 8px; }
+            #orderSearch { width: 100% !important; min-width: 0; }
+
+            /* 弹窗：近全屏宽度、降低内边距；弹窗内网格在窄屏统一单列，防止字段截断 */
+            .modal-content { width: 96% !important; max-width: none !important; max-height: 92vh; }
+            .modal-content .p-6 { padding: 14px !important; }
+            .modal-content [class*="grid-cols-"] { grid-template-columns: minmax(0, 1fr) !important; }
+            /* 订单产品明细行：两列排列，兼顾字段数量与可读性 */
+            .product-row .flex.flex-wrap { gap: 8px !important; }
+            .product-row .flex.flex-wrap > .form-group { flex: 1 1 calc(50% - 8px) !important; min-width: 0 !important; }
+
+            /* 分页按钮允许换行居中，防止撑破窄屏 */
+            .pagination-buttons { flex-wrap: wrap; justify-content: center; row-gap: 6px; }
         }
     </style>
 

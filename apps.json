@@ -117,6 +117,16 @@
       "sort_order": 8
     },
     {
+      "id": "productionschedule",
+      "name": "生产交货排程表",
+      "description": "按订单顺序、日产能与工作日历自动排产，生成含甘特图的可打印生产交货计划表",
+      "url": "apps/production-schedule/index.html",
+      "icon": "📅",
+      "color": "#0b5394",
+      "category": "furnace",
+      "sort_order": 9
+    },
+    {
       "id": "stainlessbusiness",
       "name": "不锈钢贸易管理",
       "description": "不锈钢进销存全流程系统",

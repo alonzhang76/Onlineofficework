@@ -19,7 +19,7 @@
    必须先拉云端账号再校验登录，否则本机只有种子 admin，其他账号全部登录失败。
    登录页不拉工具条（cloudbase-admin.js），仅做只读首拉 + 必要的本机写入同步。 */
 window.CLOUDBASE_APP_ID='purchase-integrated';
-window.CLOUDBASE_APP_KEYS=['pis_companies','pis_units','pis_terms','pis_roles','pis_users','pis_suppliers','pis_curCompany','pis_orders','pis_shipments','pis_receipts','pis_returns','pis_invoices','pis_payments','pis_tool_records','pis_poPageSize','pis_plyPaste'];
+window.CLOUDBASE_APP_KEYS=['pis_companies','pis_units','pis_terms','pis_roles','pis_users','pis_suppliers','pis_curCompany','pis_orders','pis_shipments','pis_receipts','pis_returns','pis_invoices','pis_payments','pis_tool_records','pis_poPageSize'];
 window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
 /* 云端首拉完成前禁止 common.js 播种默认 admin/角色：
    否则默认数据的时间戳比云端新会挡住云端账号落地，甚至被反向上传覆盖云端用户表。
