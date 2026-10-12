@@ -827,11 +827,11 @@
                 // 组合尺寸为 "length*width*height" 格式
                 const dimensions = `${length.toFixed(2)}*${width.toFixed(2)}*${height.toFixed(2)}`;
 
-                // 写入跨页粘贴载荷：采购合同表单粘贴"规格型号"时自动带出单位"只"与四舍五入单价
+                // 写入跨页粘贴载荷：采购合同表单粘贴"规格型号"时自动带出单位"只"与四舍五入木箱总价
                 try {
-                    const qty = parseInt(boxQuantityInput.value) || 1;
-                    const psqm = parseFloat(pricePerSqmInput.value) || 0;
-                    const unitPrice = Math.round(2 * (length * width + length * height + width * height) * psqm);
+                    // 直接读取右侧栏计算结果的木箱价格（动态值），四舍五入
+                    const priceVal = parseFloat(totalPrice.textContent) || 0;
+                    const unitPrice = Math.round(priceVal);
                     localStorage.setItem('pis_plyPaste', JSON.stringify({ spec: dimensions, unit: '只', price: unitPrice }));
                 } catch (err) {}
                 
