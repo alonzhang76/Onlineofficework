@@ -118,6 +118,32 @@ window.CLOUDBASE_APP_KEYS=['pds_draft_v2','pds_records_v2'];
   td.orders-cell{text-align:center}
   td.orders-cell small{display:block;text-align:left;font-size:10px;color:var(--muted);line-height:1.3;margin-top:2px}
 
+  /* ---------- Holiday calendar picker ---------- */
+  .hol-line{display:flex;gap:8px;align-items:center}
+  .hol-line input{flex:1;min-width:0;background:#f7f9fc}
+  .hol-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .hol-chips:empty{display:none}
+  .hol-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;
+    color:var(--accent);background:var(--accent-soft);border:1px solid #b9d0e8;border-radius:14px;padding:3px 10px}
+  .hol-chip .x{cursor:pointer;font-weight:700;color:#5d7086}
+  .hol-chip .x:hover{color:var(--red)}
+  #holPanel{margin-top:10px;border:1px solid var(--line);border-radius:7px;background:#fff;
+    padding:12px;box-shadow:0 2px 10px rgba(18,42,68,.07)}
+  .hol-head{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+  .hol-head b{font-size:12.5px;color:var(--accent);min-width:96px;text-align:center}
+  .hol-modes{margin-left:auto;display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .hol-modes button{border:0;border-radius:0;padding:5px 11px;font-size:11px}
+  .hol-modes button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .hol-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+  .hol-wd{font-size:10px;font-weight:700;color:var(--muted);text-align:center;padding:3px 0}
+  .hol-day{border:1px solid var(--line-soft);border-radius:5px;background:#fff;
+    font-size:11.5px;font-weight:600;color:var(--ink);padding:6px 0;text-align:center;cursor:pointer}
+  .hol-day:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+  .hol-day.we{color:#b3475d}
+  .hol-day.sel{background:var(--accent);border-color:var(--accent);color:#fff}
+  .hol-day.sel.we{color:#fff}
+  .hol-day.temp{background:var(--green);border-color:var(--green);color:#fff}
+
   /* ---------- Generated document ---------- */
   .page{background:#fff;border:0;box-shadow:none}
   .sheet{padding:26px 30px 30px}
@@ -335,8 +361,14 @@ window.CLOUDBASE_APP_KEYS=['pds_draft_v2','pds_records_v2'];
               <option value="5">5 days / week (no Sat &amp; Sun)</option>
             </select></label>
           <label class="fld full"><span>Additional non-working dates (holidays) — optional</span>
-            <input type="text" data-bind="holidays" placeholder="2026-12-25, 2027-01-01, 2027-02-06 …">
-            <span class="tip">Comma or space separated, format YYYY-MM-DD. These days are skipped in production and finishing.</span></label>
+            <div class="hol-line">
+              <input type="text" id="holDisplay" readonly tabindex="-1" placeholder="None — click 📅 Pick dates">
+              <button type="button" class="mini" id="holToggle">📅 Pick dates</button>
+              <button type="button" class="tiny" id="holClearAll" style="display:none">✕ Clear</button>
+            </div>
+            <div id="holChips" class="hol-chips"></div>
+            <div id="holPanel" style="display:none"></div>
+            <span class="tip">点选模式：单击日期选中/取消；区间模式：单击起、止两个日期即填入整段。选中日期在生产与电镀包装中跳过。</span></label>
         </div>
 
         <div class="sec" style="margin-top:20px">
@@ -460,7 +492,7 @@ window.CLOUDBASE_APP_KEYS=['pds_draft_v2','pds_records_v2'];
     { nameEn:"Wuxi Longli Iron-Printing Equipment Manufacturing Co., Ltd",
       address:"6-1, zhongnan gaoke industrial park, #8 zhounan road, xueyan town, wujin district, Changzhou City, Jiangsu Province, China" }
   ];
-  var BUILTIN_SIGNERS=["Alon Zhang"];
+  var BUILTIN_SIGNERS=["Alon Zhang","Anny Wu"];
   var SIGNERS_KEY="pds_signers";
 
   var companies=[], customers=[];
@@ -532,6 +564,90 @@ window.CLOUDBASE_APP_KEYS=['pds_draft_v2','pds_records_v2'];
     try{ localStorage.setItem(SIGNERS_KEY, JSON.stringify(list)); }catch(e){}
     renderSignerList();
   }
+
+  /* ---- Holiday calendar picker（点选 / 区间两种模式）----
+     数据模型不变：cfg.holidays 仍为逗号分隔的 YYYY-MM-DD 字符串，排程引擎照常解析。 */
+  var holMode="pick", holTemp=null, holMonth=null;
+  function holList(){ return Object.keys(holidaySet(cfg.holidays)).sort(); }
+  function setHolidays(arr){
+    var uniq={}; (arr||[]).forEach(function(s){ if(s) uniq[s]=1; });
+    cfg.holidays=Object.keys(uniq).sort().join(", ");
+    syncHolidayWidget(); refreshAll(); scheduleDraft();
+  }
+  function syncHolidayWidget(){
+    var list=holList();
+    var disp=$("holDisplay");
+    if (disp) disp.value=list.join(", ");
+    var cl=$("holClearAll"); if (cl) cl.style.display=list.length? "":"none";
+    var ch=$("holChips");
+    if (ch) ch.innerHTML=list.map(function(s){
+      return '<span class="hol-chip">'+s+' <span class="x" data-hol="'+s+'" title="Remove">✕</span></span>';
+    }).join("");
+    var p=$("holPanel");
+    if (p && p.style.display!=="none") renderHolPanel();
+  }
+  function renderHolPanel(){
+    if(!holMonth) holMonth=new Date();
+    var y=holMonth.getFullYear(), mo=holMonth.getMonth();
+    var sel={}; holList().forEach(function(s){ sel[s]=1; });
+    var startWd=new Date(y,mo,1).getDay();
+    var days=new Date(y,mo+1,0).getDate();
+    var html='<div class="hol-head">'+
+      '<button type="button" class="mini" id="holPrev">‹</button>'+
+      '<b>'+y+'-'+pad(mo+1)+'</b>'+
+      '<button type="button" class="mini" id="holNext">›</button>'+
+      '<span class="hol-modes">'+
+        '<button type="button" data-hmode="pick" class="'+(holMode==="pick"?"on":"")+'">点选</button>'+
+        '<button type="button" data-hmode="range" class="'+(holMode==="range"?"on":"")+'">区间</button>'+
+      '</span></div><div class="hol-grid">'+
+      ["Su","Mo","Tu","We","Th","Fr","Sa"].map(function(w){ return '<span class="hol-wd">'+w+'</span>'; }).join("");
+    for(var i=0;i<startWd;i++) html+='<span></span>';
+    for(var d=1;d<=days;d++){
+      var dt=new Date(y,mo,d), key=ymd(dt), cls="hol-day";
+      if(dt.getDay()===0||dt.getDay()===6) cls+=" we";
+      if(sel[key]) cls+=" sel";
+      if(holTemp===key) cls+=" temp";
+      html+='<button type="button" class="'+cls+'" data-hday="'+key+'">'+d+'</button>';
+    }
+    html+='</div>';
+    $("holPanel").innerHTML=html;
+  }
+  $("holToggle").addEventListener("click", function(){
+    var p=$("holPanel"), show=p.style.display==="none";
+    p.style.display=show? "":"none";
+    if(show){ holTemp=null; renderHolPanel(); }
+  });
+  $("holClearAll").addEventListener("click", function(){ setHolidays([]); });
+  document.addEventListener("click", function(e){
+    var t=e.target;
+    if(!t || !t.closest) return;
+    var el=t.closest("[data-hol],[data-hday],[data-hmode],#holPrev,#holNext");
+    if(!el) return;
+    if(el.id==="holPrev"){ holMonth=new Date(holMonth.getFullYear(),holMonth.getMonth()-1,1); renderHolPanel(); return; }
+    if(el.id==="holNext"){ holMonth=new Date(holMonth.getFullYear(),holMonth.getMonth()+1,1); renderHolPanel(); return; }
+    if(el.hasAttribute("data-hmode")){ holMode=el.getAttribute("data-hmode"); holTemp=null; renderHolPanel(); return; }
+    if(el.hasAttribute("data-hol")){
+      var s=el.getAttribute("data-hol");
+      setHolidays(holList().filter(function(x){ return x!==s; }));
+      return;
+    }
+    var key=el.getAttribute("data-hday");
+    if(!key) return;
+    if(holMode==="pick"){
+      var list=holList(), i=list.indexOf(key);
+      if(i>=0) list.splice(i,1); else list.push(key);
+      setHolidays(list);
+    } else {
+      if(!holTemp){ holTemp=key; renderHolPanel(); }
+      else{
+        var a=holTemp<key? holTemp:key, b2=holTemp<key? key:holTemp;
+        var list2=holList(), d=parseDate(a), end=parseDate(b2), guard=0;
+        while(d && d<=end && guard++<400){ var k2=ymd(d); if(list2.indexOf(k2)<0) list2.push(k2); d=addDays(d,1); }
+        holTemp=null;
+        setHolidays(list2);
+      }
+    }
+  });
 
   /* ---- 跨命名空间读取外贸系统云端数据（CloudBase HTTP API + 同步账号） ---- */
   var CB_ENV=window.CLOUDBASE_ENV||"onlineofficework-d4e93l98bdf879e";
@@ -777,6 +893,7 @@ window.CLOUDBASE_APP_KEYS=['pds_draft_v2','pds_records_v2'];
     });
     renderFormRows();
     syncDocNo();
+    syncHolidayWidget();
   }
   function syncDocNo(){
     var v=docNoOf(cfg);
