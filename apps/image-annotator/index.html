@@ -2,9 +2,16 @@
 <html lang="zh-CN">
 <head>
 <script src="../portal-auth-guard.js"></script>
+<script src="../vendor/pdf.min.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>图片标注工具</title>
+<script>
+// 配置 PDF.js worker（同目录下的 pdf.worker.min.js）
+if (window['pdfjsLib'] && window['pdfjsLib'].GlobalWorkerOptions) {
+  window['pdfjsLib'].GlobalWorkerOptions.workerSrc = '../vendor/pdf.worker.min.js';
+}
+</script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 :root{
@@ -100,6 +107,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","H
     <span class="nav-brand">🖼 标注工具</span>
     <input type="file" id="annotFile" accept="image/*" multiple style="display:none" onchange="loadAnnotImage(event)">
     <input type="file" id="insertImgFile" accept="image/*" style="display:none" onchange="insertImage(event)">
+    <input type="file" id="annotPdfFile" accept="application/pdf,.pdf" style="display:none" onchange="loadAnnotPdf(event)">
     <ul class="nav-tabs">
       <li class="topnav">
         <span class="tab-label">📏 线条<span class="caret">▼</span></span>
@@ -146,6 +154,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","H
         <span class="tab-label">🖼 图像<span class="caret">▼</span></span>
         <ul class="dropdown-menu">
           <li><a onclick="document.getElementById('annotFile').click()">📁 上传图片</a></li>
+          <li><a onclick="document.getElementById('annotPdfFile').click()">📄 上传PDF</a></li>
           <li><a onclick="document.getElementById('insertImgFile').click()">🖼 插入图片</a></li>
           <li><a class="tool-selectable" data-tool="mosaic" onclick="setAnnotTool('mosaic',this)">🔳 马赛克</a></li>
           <li class="divider"></li>
@@ -348,6 +357,87 @@ function loadAnnotImage(event) {
     reader.readAsDataURL(file);
   });
   event.target.value = '';
+}
+
+// ==================== PDF 导入：用 PDF.js 逐页渲染，拼接到画布 ====================
+async function loadAnnotPdf(event) {
+  const file = event.target.files[0];
+  event.target.value = '';
+  if (!file) return;
+  if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') {
+    showToast('请选择 PDF 文件', 'error');
+    return;
+  }
+  if (!window['pdfjsLib']) {
+    showToast('PDF.js 库未加载，无法解析 PDF', 'error');
+    return;
+  }
+  showToast('正在解析 PDF…', 'info');
+  try {
+    const buf = await file.arrayBuffer();
+    const pdf = await window['pdfjsLib'].getDocument({ data: buf }).promise;
+    const numPages = pdf.numPages;
+    const wrap = document.getElementById('annotCanvasWrap');
+    const maxW = wrap.clientWidth - 20;
+    const maxH = wrap.clientHeight - 20;
+    const gap = 10;
+
+    // 先把所有页渲染成 canvas，按页宽自适应
+    const pageCanvases = [];
+    let renderScale = 2.0; // 默认渲染倍率，保证清晰度
+    for (let i = 1; i <= numPages; i++) {
+      const page = await pdf.getPage(i);
+      const viewport0 = page.getViewport({ scale: 1 });
+      // 按 maxW 限制宽度计算实际 scale
+      let scale = renderScale;
+      if (viewport0.width * scale > maxW) {
+        scale = maxW / viewport0.width;
+      }
+      const viewport = page.getViewport({ scale });
+      const pc = document.createElement('canvas');
+      pc.width = Math.round(viewport.width);
+      pc.height = Math.round(viewport.height);
+      const ctx = pc.getContext('2d');
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      pageCanvases.push(pc);
+    }
+
+    // 计算布局：等宽并排（单页直接用），过宽则整体缩小
+    const targetW = Math.min(maxW, ...pageCanvases.map(c => c.width));
+    const scaled = pageCanvases.map(c => {
+      const ratio = targetW / c.width;
+      return { canvas: c, w: Math.round(c.width * ratio), h: Math.round(c.height * ratio) };
+    });
+    // 按单列竖排（PDF 多页一般为竖排）
+    const totalH = scaled.reduce((s, p) => s + p.h, 0) + gap * (scaled.length - 1);
+    const cw = scaled[0].w;
+    const ch = Math.max(totalH, scaled[0].h);
+
+    wrap.innerHTML = '';
+    const canvas = document.createElement('canvas');
+    canvas.width = cw; canvas.height = ch;
+    canvas.style.maxWidth = '100%';
+    wrap.appendChild(canvas);
+    annotState.canvas = canvas;
+    annotState.ctx = canvas.getContext('2d');
+    annotState.img = null;
+    annotState.shapes = [];
+    let yPos = 0;
+    scaled.forEach(p => {
+      // 用 canvas 作为图像源放入 shapes
+      annotState.shapes.push({ type: 'image', img: p.canvas, x: 0, y: yPos, w: p.w, h: p.h });
+      yPos += p.h + gap;
+    });
+    bindCanvasEvents(canvas);
+    drawCanvas();
+    const msg = numPages === 1
+      ? `已加载 PDF（${numPages} 页），可开始标注`
+      : `已加载 PDF（${numPages} 页，纵向拼接），可使用移动工具拖动换位`;
+    showToast(msg, 'success');
+  } catch (err) {
+    console.error('[PDF] 解析失败:', err);
+    showToast('PDF 解析失败：' + (err && err.message || err), 'error');
+  }
 }
 
 // 插入图片到现有画布中央
