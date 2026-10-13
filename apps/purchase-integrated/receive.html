@@ -108,8 +108,10 @@ function pageReceive(root) {
     [['pending', '待确认到货'], ['receipt', '收货记录'], ['diff', '数量差异'], ['return', '退货记录'], ['inventory', '库存统计']]
       .map(t => '<button class="tab' + ((State.receiveTab || 'pending') === t[0] ? ' active' : '') + '" data-tab="' + t[0] + '">' + t[1] +
         (t[0] === 'pending' && pendingCnt ? ' <span class="msg-dot">' + pendingCnt + '</span>' : '') + '</button>').join('') +
-    '</div><div id="rcvBox"></div></div>';
+    '</div><div style="margin-bottom:10px"><div style="display:flex;gap:8px;align-items:center"><input id="rcvSearch" class="form-input" style="flex:1;max-width:340px" placeholder="合同号 / 供应商 / 产品 / 单号"></div></div><div id="rcvBox"></div></div>';
   root.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => { State.receiveTab = t.dataset.tab; renderPage(); }));
+  $('#rcvSearch').addEventListener('input', () => drawReceive());
+  $('#rcvSearch').value = State.rcvKw || '';
   $('#rcvMoreWrap').innerHTML = moreMenuHTML('rcvMore', [
     { m: 'export', label: '📤 导出EXCEL（当前页签）' }
   ].concat(canW ? [{ m: 'import', label: '📥 导入收货EXCEL' }] : [])
@@ -208,8 +210,10 @@ function diffRows() {
 }
 function drawReceive() {
   const box = $('#rcvBox'); const canW = Session.canWrite('receive');
+  const kw = ((State.rcvKw = ($('#rcvSearch') || { value: '' }).value || '').trim().toLowerCase());
+  const match = (...fields) => !kw || fields.some(f => String(f || '').toLowerCase().includes(kw));
   if (State.receiveTab === 'pending') {
-    const rows = pendingShipRows();
+    const rows = pendingShipRows().filter(r => match(r.shipNumber, r.contractNumber, r.supplier, r.product));
     const newCnt = rows.filter(r => r.isNew).length;
     box.innerHTML =
       '<div class="hint" style="margin-bottom:10px">供应商在「发货管理」登记发货后，发货单会列在此处。请核对实收数量后点 <b>「确认到货」</b>——系统会自动生成收货记录，并把确认结果与差异反馈以消息形式推送给供应商查看' + (newCnt ? ' · 当前有 <b style="color:var(--red)">' + newCnt + '</b> 条新到货待处理' : '') + '。</div>' +
@@ -227,7 +231,7 @@ function drawReceive() {
       else if (b.dataset.a === 'd') shipDetail(r.rec);
     }));
   } else if (State.receiveTab === 'receipt') {
-    const list = Data.list('receipts');
+    const list = Data.list('receipts').filter(r => match(r.receiptNumber, r.contractNumber, r.supplier, r.product));
     list.sort((a, b) => (b.receiptDate || '').localeCompare(a.receiptDate || ''));
     box.innerHTML = list.length ? '<div class="tbl-wrap" style="max-height:60vh"><table><thead><tr><th>收货单号</th><th>合同号</th><th>供应商</th><th>产品</th><th class="num">实收数量</th><th>收货日期</th><th>收货人</th><th>来源</th><th>备注</th>' + (canW ? '<th>操作</th>' : '') + '</tr></thead><tbody>' +
       list.map(r => '<tr><td class="mono">' + esc(r.receiptNumber) + '</td><td class="mono">' + esc(r.contractNumber) + '</td><td>' + esc(r.supplier) + '</td><td>' + esc(r.product) + '</td><td class="num"><b>' + fmtNum(r.quantity) + '</b></td><td>' + esc(r.receiptDate || '') + '</td><td>' + esc(r.person || '') + '</td>' +
@@ -242,7 +246,7 @@ function drawReceive() {
       else if (confirm('删除该收货记录？' + (rec.source === 'ship-confirm' ? '\n（该记录由「' + (rec.shipNumber || '') + '」确认到货生成，删除后发货单会回到「待确认到货」列表）' : ''))) { Data.remove('receipts', rec.id); toast('已删除', 'ok'); renderPage(); }
     }));
   } else if (State.receiveTab === 'diff') {
-    const rows = diffRows();
+    const rows = diffRows().filter(r => match(r.cno, r.sup, r.name));
     box.innerHTML = rows.length ? '<div class="hint" style="margin-bottom:10px">按 <b>实收合计</b> 与 <b>合同数量</b> 比对（不含退货）。差异行可直接「按实收调整合同数量」，使合同数量 = 实收合计，避免多付或少付。</div>' +
       '<div class="tbl-wrap" style="max-height:60vh"><table><thead><tr><th>合同号</th><th>供应商</th><th>产品</th><th class="num">合同数量</th><th class="num">实收合计</th><th class="num">差异</th><th>差异类型</th>' + (canW ? '<th style="width:180px">操作</th>' : '') + '</tr></thead><tbody>' +
       rows.map((r, i) => '<tr><td class="mono">' + esc(r.cno) + '</td><td>' + esc(r.sup) + '</td><td>' + esc(r.name) + '</td>' +
@@ -254,7 +258,7 @@ function drawReceive() {
       : '<div class="empty">暂无数量差异<br><span class="subtle">合同数量与实收合计一致时不会列示</span></div>';
     if (canW) box.querySelectorAll('button[data-a="fix"]').forEach(b => b.addEventListener('click', () => adjustContractQty(rows[+b.dataset.i])));
   } else if (State.receiveTab === 'return') {
-    const list = Data.list('returns');
+    const list = Data.list('returns').filter(r => match(r.returnNumber, r.contractNumber, r.supplier, r.product));
     list.sort((a, b) => (b.returnDate || '').localeCompare(a.returnDate || '') || (b.returnNumber || '').localeCompare(a.returnNumber || ''));
     box.innerHTML = list.length ? '<div class="tbl-wrap" style="max-height:60vh"><table><thead><tr><th>退货单号</th><th>合同号</th><th>供应商</th><th>产品</th><th class="num">数量</th><th>退货日期</th><th>退货原因</th>' + (canW ? '<th>操作</th>' : '') + '</tr></thead><tbody>' +
       list.map(r => '<tr><td class="mono">' + esc(r.returnNumber) + '</td><td class="mono">' + esc(r.contractNumber) + '</td><td>' + esc(r.supplier) + '</td><td>' + esc(r.product) + '</td><td class="num"><b>' + fmtNum(r.quantity) + '</b></td><td>' + esc(r.returnDate || '') + '</td><td>' + esc(r.reason || '') + '</td>' +
@@ -267,7 +271,7 @@ function drawReceive() {
       else if (confirm('删除该退货记录？')) { Data.remove('returns', rec.id); toast('已删除', 'ok'); renderPage(); }
     }));
   } else {
-    const rows = inventoryRows().filter(r => r.ordered > 0 || r.rec > 0);
+    const rows = inventoryRows().filter(r => (r.ordered > 0 || r.rec > 0) && match(r.cno, r.sup, r.name));
     box.innerHTML = rows.length ? '<div class="tbl-wrap" style="max-height:60vh"><table><thead><tr><th>合同号</th><th>供应商</th><th>产品</th><th class="num">合同数量</th><th class="num">已收货</th><th class="num">已退货</th><th class="num">结存</th><th>收货进度</th></tr></thead><tbody>' +
       rows.map(r => {
         const pct = r.ordered > 0 ? Math.min(100, Math.round(r.stock / r.ordered * 100)) : 0;

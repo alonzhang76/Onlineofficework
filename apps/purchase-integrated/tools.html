@@ -70,7 +70,7 @@ function pageTools(root) {
     '<div><label>单价≥6㎡ (元/㎡)</label><input id="bgP2" type="number" step="0.01" min="0" value="7"></div>' +
     '</div><div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-primary" type="submit">计算</button><button class="btn btn-outline" type="button" id="bgSave">保存记录</button></div></form>' +
     '<div class="result-box" style="margin-top:12px" id="bgResult"><div class="empty">输入尺寸后点击计算</div></div></div></div>' +
-    '<div class="card"><h3>计算记录</h3><div style="margin-bottom:10px"><span id="toolMoreWrap"></span></div><div id="toolRecBox"></div></div>';
+    '<div class="card"><h3>计算记录</h3><div style="margin-bottom:10px;display:flex;gap:8px;align-items:center"><input id="toolSearch" class="form-input" style="flex:1;max-width:280px" placeholder="类型 / 尺寸 / 数量"><span id="toolMoreWrap" style="margin-left:auto"></span></div><div id="toolRecBox"></div></div>';
   let lastBox = null, lastBag = null;
   $('#boxF').addEventListener('submit', e => {
     e.preventDefault();
@@ -122,13 +122,16 @@ function pageTools(root) {
   $('#bxSave').addEventListener('click', () => saveRec(lastBox));
   $('#bgSave').addEventListener('click', () => saveRec(lastBag));
   const drawRecs = () => {
-    const arr = DB.get('tool_records', []);
+    const kw = (($('#toolSearch') || { value: '' }).value || '').trim().toLowerCase();
+    const all = DB.get('tool_records', []);
+    const arr = kw ? all.filter(r => [r.type, r.L, r.W, r.H, r.Q, (r.totalArea || r.area)].some(v => String(v || '').toLowerCase().includes(kw))) : all;
     $('#toolRecBox').innerHTML = arr.length ? '<div class="tbl-wrap" style="max-height:30vh"><table><thead><tr><th>时间</th><th>类型</th><th>尺寸</th><th>数量</th><th class="num">表面积</th><th class="num">总价</th></tr></thead><tbody>' +
       arr.map(r => '<tr><td style="white-space:nowrap">' + (r.at || '').replace('T', ' ').slice(0, 16) + '</td><td><span class="badge b-blue">' + r.type + '</span></td>' +
         '<td>' + (r.type === '木箱' ? r.L + '×' + r.W + '×' + r.H + 'm' : r.L + '×' + r.W + '×' + r.H + 'cm') + '</td><td>' + r.Q + '</td>' +
         '<td class="num">' + (r.totalArea || r.area).toFixed(2) + ' ㎡</td><td class="num"><b>' + fmtMoney(r.total) + '</b></td></tr>').join('') + '</tbody></table></div>'
       : '<div class="empty">暂无计算记录</div>';
   };
+  $('#toolSearch').addEventListener('input', () => drawRecs());
   /* 「更多」菜单：导出EXCEL / 清空记录（计算记录为本地工具数据，无导入） */
   $('#toolMoreWrap').innerHTML = moreMenuHTML('toolMore', [
     { m: 'export', label: '📤 导出EXCEL' },
