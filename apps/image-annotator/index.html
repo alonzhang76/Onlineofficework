@@ -378,35 +378,44 @@ async function loadAnnotPdf(event) {
     const pdf = await window['pdfjsLib'].getDocument({ data: buf }).promise;
     const numPages = pdf.numPages;
     const wrap = document.getElementById('annotCanvasWrap');
-    const maxW = wrap.clientWidth - 20;
+    const maxW = Math.max(200, wrap.clientWidth - 20);
     const maxH = wrap.clientHeight - 20;
     const gap = 10;
 
-    // 先把所有页渲染成 canvas，按页宽自适应
+    // 每页按「长边目标像素」高清渲染，与容器宽度无关——这样导出的 JPG/PNG 才清晰。
+    // 整幅画布的总像素受预算限制，避免多页 PDF 占用过大内存。
+    const HI_RES_LONG = 2600;   // 每页长边渲染像素（A4 约 230 DPI）
+    const MAX_PIXELS = 80e6;    // 所有页面合计像素上限
     const pageCanvases = [];
-    let renderScale = 2.0; // 默认渲染倍率，保证清晰度
+    const pageJobs = [];
     for (let i = 1; i <= numPages; i++) {
       const page = await pdf.getPage(i);
-      const viewport0 = page.getViewport({ scale: 1 });
-      // 按 maxW 限制宽度计算实际 scale
-      let scale = renderScale;
-      if (viewport0.width * scale > maxW) {
-        scale = maxW / viewport0.width;
-      }
-      const viewport = page.getViewport({ scale });
+      const vp0 = page.getViewport({ scale: 1 });
+      pageJobs.push({ page: page, w: vp0.width, h: vp0.height });
+    }
+    const perPageBudget = MAX_PIXELS / Math.max(1, pageJobs.length);
+    for (let i = 0; i < pageJobs.length; i++) {
+      const job = pageJobs[i];
+      const baseLong = Math.max(job.w, job.h) || 1;
+      let scale = HI_RES_LONG / baseLong;                       // 目标长边
+      const budgetScale = Math.sqrt(perPageBudget / (job.w * job.h || 1));
+      if (scale > budgetScale) scale = budgetScale;             // 受像素预算限制
+      scale = Math.max(1, Math.min(scale, 6));
+      const viewport = job.page.getViewport({ scale: scale });
       const pc = document.createElement('canvas');
       pc.width = Math.round(viewport.width);
       pc.height = Math.round(viewport.height);
       const ctx = pc.getContext('2d');
-      await page.render({ canvasContext: ctx, viewport }).promise;
+      await job.page.render({ canvasContext: ctx, viewport: viewport }).promise;
       pageCanvases.push(pc);
     }
 
-    // 计算布局：等宽并排（单页直接用），过宽则整体缩小
-    const targetW = Math.min(maxW, ...pageCanvases.map(c => c.width));
+    // 布局尺寸（工作画布，按容器宽度自适应，与上面的高清源分离）：
+    // 高清页 canvas 作为图像源，缩放到容器宽度绘制，屏幕上依旧是自适应显示。
     const scaled = pageCanvases.map(c => {
-      const ratio = targetW / c.width;
-      return { canvas: c, w: Math.round(c.width * ratio), h: Math.round(c.height * ratio) };
+      const w = Math.min(maxW, c.width);
+      const h = Math.round(c.height * (w / c.width));
+      return { canvas: c, w: w, h: h };
     });
     // 按单列竖排（PDF 多页一般为竖排）
     const totalH = scaled.reduce((s, p) => s + p.h, 0) + gap * (scaled.length - 1);
@@ -1079,8 +1088,8 @@ function drawSign(ctx, s) {
 }
 
 // 全图水印：文字倾斜 45° 平铺整张图
-function drawWatermark(ctx) {
-  const W = ctx.canvas.width, H = ctx.canvas.height;
+function drawWatermark(ctx, LW, LH) {
+  const W = LW || ctx.canvas.width, H = LH || ctx.canvas.height;
   const text = annotState.watermarkText;
   if (!text) return;
   const fs = Math.max(20, Math.round(Math.min(W, H) / 10));
@@ -1430,7 +1439,10 @@ function drawStrikeText(ctx, s) {
   ctx.restore();
 }
 
-function drawMosaic(ctx, x, y, w, h, blockSize) {
+function drawMosaic(ctx, x, y, w, h, blockSize, k) {
+  // k = ctx 的缩放倍率（1 为屏幕显示；导出高清时为放大倍数）。
+  // getImageData 只认设备像素，不受 ctx 变换影响，故采样坐标需按 k 放大。
+  const K = k || 1;
   if (w < 0) { x += w; w = -w; }
   if (h < 0) { y += h; h = -h; }
   x = Math.max(0, Math.floor(x));
@@ -1443,7 +1455,9 @@ function drawMosaic(ctx, x, y, w, h, blockSize) {
     for (let bx = 0; bx < w; bx += bs) {
       const bw = Math.min(bs, w - bx);
       const bh = Math.min(bs, h - by);
-      const data = ctx.getImageData(x + bx, y + by, bw, bh).data;
+      const gx = Math.round((x + bx) * K), gy = Math.round((y + by) * K);
+      const gw = Math.max(1, Math.round(bw * K)), gh = Math.max(1, Math.round(bh * K));
+      const data = ctx.getImageData(gx, gy, gw, gh).data;
       let r = 0, g = 0, b = 0, count = 0;
       for (let i = 0; i < data.length; i += 4) { r += data[i]; g += data[i+1]; b += data[i+2]; count++; }
       ctx.fillStyle = `rgb(${Math.round(r/count)},${Math.round(g/count)},${Math.round(b/count)})`;
@@ -1509,13 +1523,10 @@ function drawDimLabel(ctx, s) {
   ctx.restore();
 }
 
-function drawCanvas() {
-  if (!annotState.ctx || !annotState.canvas) return;
-  const ctx = annotState.ctx;
-  ctx.clearRect(0, 0, annotState.canvas.width, annotState.canvas.height);
-  // 白色背景
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, annotState.canvas.width, annotState.canvas.height);
+// 绘制全部图形到指定 ctx。k = ctx 缩放倍率（1=屏幕显示，>1=导出高清重绘）
+function paintShapes(ctx, k) {
+  const K = k || 1;
+  const LW = annotState.canvas.width, LH = annotState.canvas.height;
   // 按住空格：仅显示原图
   const preview = annotState.previewOriginal;
   annotState.shapes.forEach(s => {
@@ -1548,7 +1559,7 @@ function drawCanvas() {
     else if (s.type === 'callout') drawCallout(ctx, s);
     else if (s.type === 'rect') ctx.strokeRect(s.x, s.y, s.w, s.h);
     else if (s.type === 'circle') { ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.stroke(); }
-    else if (s.type === 'mosaic') drawMosaic(ctx, s.x, s.y, s.w, s.h, s.blockSize);
+    else if (s.type === 'mosaic') drawMosaic(ctx, s.x, s.y, s.w, s.h, s.blockSize, K);
     else if (s.type === 'brush') drawBrush(ctx, s);
     else if (s.type === 'numBadge') drawNumBadge(ctx, s);
     else if (s.type === 'sign') drawSign(ctx, s);
@@ -1562,7 +1573,17 @@ function drawCanvas() {
     ctx.restore();
   });
   // 全图水印（45° 平铺，半透明）
-  if (annotState.watermarkText && !preview) drawWatermark(ctx);
+  if (annotState.watermarkText && !preview) drawWatermark(ctx, LW, LH);
+}
+
+function drawCanvas() {
+  if (!annotState.ctx || !annotState.canvas) return;
+  const ctx = annotState.ctx;
+  ctx.clearRect(0, 0, annotState.canvas.width, annotState.canvas.height);
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, annotState.canvas.width, annotState.canvas.height);
+  const preview = annotState.previewOriginal;
+  paintShapes(ctx, 1);
   // 裁剪模式遮罩
   if (annotState.tool === 'crop') {
     const cr = annotState.cropRect;
@@ -1707,28 +1728,64 @@ function resetCanvas() {
 }
 
 // ==================== 保存下载 / 剪贴板 ====================
-function downloadAnnotImage() {
-  if (!annotState.canvas) { showToast('请先上传图片', 'error'); return; }
-  const dataUrl = annotState.canvas.toDataURL('image/png');
-  const a = document.createElement('a');
+// ---- 高清导出：把整幅画布按「源图分辨率」重绘到更大的离屏画布 ----
+// 工作画布只按屏幕尺寸渲染，导出时以原图/PDF 高清源为上限放大重绘，
+// 这样 PDF 正文与矢量标注都会清晰，不会因屏幕分辨率低而模糊。
+const EXPORT_SCALE_MAX = 4;      // 最大放大倍数
+const EXPORT_MAX_PIXELS = 60e6;  // 导出画布像素总量上限
+function computeExportScale() {
+  const w = annotState.canvas.width, h = annotState.canvas.height;
+  let best = 1;
+  annotState.shapes.forEach(s => {
+    if (s.type === 'image' && s.img && s.w > 0) {
+      const nw = s.img.naturalWidth || s.img.width || 0;
+      if (nw > 0) best = Math.max(best, nw / s.w);
+    }
+  });
+  let sc = Math.min(EXPORT_SCALE_MAX, Math.max(1, best));
+  if (w * h * sc * sc > EXPORT_MAX_PIXELS) sc = Math.max(1, Math.sqrt(EXPORT_MAX_PIXELS / (w * h)));
+  return sc;
+}
+function renderExportCanvas() {
+  const w = annotState.canvas.width, h = annotState.canvas.height;
+  const sc = computeExportScale();
+  if (sc <= 1.001) return annotState.canvas;
+  const out = document.createElement('canvas');
+  out.width = Math.round(w * sc);
+  out.height = Math.round(h * sc);
+  const octx = out.getContext('2d');
+  octx.fillStyle = '#fff';
+  octx.fillRect(0, 0, out.width, out.height);
+  octx.save();
+  octx.scale(sc, sc);
+  paintShapes(octx, sc);
+  octx.restore();
+  return out;
+}
+function annotFileName(ext) {
   const ts = new Date();
   const pad = n => String(n).padStart(2, '0');
-  a.download = `标注图片_${ts.getFullYear()}${pad(ts.getMonth()+1)}${pad(ts.getDate())}_${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}.png`;
-  a.href = dataUrl;
+  return `标注图片_${ts.getFullYear()}${pad(ts.getMonth()+1)}${pad(ts.getDate())}_${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}.${ext}`;
+}
+
+function downloadAnnotImage() {
+  if (!annotState.canvas) { showToast('请先上传图片', 'error'); return; }
+  const out = renderExportCanvas();
+  const a = document.createElement('a');
+  a.download = annotFileName('png');
+  a.href = out.toDataURL('image/png');
   a.click();
-  showToast('PNG 已保存下载', 'success');
+  showToast(out === annotState.canvas ? 'PNG 已保存下载' : `PNG 已保存下载（高清 ${out.width}×${out.height}）`, 'success');
 }
 
 function downloadAnnotJPG() {
   if (!annotState.canvas) { showToast('请先上传图片', 'error'); return; }
-  const dataUrl = annotState.canvas.toDataURL('image/jpeg', 0.92);
+  const out = renderExportCanvas();
   const a = document.createElement('a');
-  const ts = new Date();
-  const pad = n => String(n).padStart(2, '0');
-  a.download = `标注图片_${ts.getFullYear()}${pad(ts.getMonth()+1)}${pad(ts.getDate())}_${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}.jpg`;
-  a.href = dataUrl;
+  a.download = annotFileName('jpg');
+  a.href = out.toDataURL('image/jpeg', 0.95);
   a.click();
-  showToast('JPG 已保存下载（体积小，适合微信发送）', 'success');
+  showToast(out === annotState.canvas ? 'JPG 已保存下载' : `JPG 已保存下载（高清 ${out.width}×${out.height}）`, 'success');
 }
 
 function copyAnnotToClipboard() {

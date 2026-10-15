@@ -1997,47 +1997,76 @@ function importExcel(input) {
         else if (/备注/.test(h)) colMap.notes = i;
       });
       const ci = (k, fallback) => colMap[k] !== undefined ? colMap[k] : fallback;
+      // 判重键：所有业务字段完全一致才视为「重复」，任一项不同都会作为新记录加入。
+      // 日期统一用 UI.fmtDate 归一化，避免 2026/10/1 与 2026-10-01 被判成两条。
+      const normStr = v => String(v == null ? '' : v).trim();
+      const normNum = v => (parseFloat(v) || 0).toFixed(2);
+      const dedupKey = rec => [
+        UI.fmtDate(rec.date), normStr(rec.employee), normStr(rec.process),
+        normNum(rec.unitPrice), normNum(rec.quantity), normNum(rec.totalAmount),
+        normStr(rec.customer), normStr(rec.orderNo), normStr(rec.notes)
+      ].join('\u0001');
+
       const validRows = [];
+      const seenInFile = new Set();
+      let dupInFile = 0;
       for (let i = 1; i < rows.length; i++) {
         const r = rows[i];
         const dateRaw = r[ci('date', 1)];
-        const employee = String(r[ci('employee', 2)] || '').trim();
-        const process = String(r[ci('process', 3)] || '').trim();
+        const employee = normStr(r[ci('employee', 2)]);
+        const process = normStr(r[ci('process', 3)]);
         if (!dateRaw && !employee) continue;
         if (!employee || !process) continue;
-        let ds = dateRaw;
-        if (ds instanceof Date) { ds = ds.getFullYear() + '-' + String(ds.getMonth()+1).padStart(2,'0') + '-' + String(ds.getDate()).padStart(2,'0'); }
-        else if (typeof ds === 'number') { const d = XLSX.SSF.parse_date_code(ds); ds = d.y + '-' + String(d.m).padStart(2,'0') + '-' + String(d.d).padStart(2,'0'); }
-        else ds = String(ds).slice(0, 10);
-        validRows.push({
-          date: ds, employee, process,
+        let ds;
+        if (dateRaw instanceof Date) ds = UI.fmtDate(dateRaw);
+        else if (typeof dateRaw === 'number') { const d = XLSX.SSF.parse_date_code(dateRaw); ds = UI.fmtDate(d.y + '-' + String(d.m).padStart(2,'0') + '-' + String(d.d).padStart(2,'0')); }
+        else ds = UI.fmtDate(normStr(dateRaw));
+        const rec = {
+          date: ds, employee: employee, process: process,
           unitPrice: parseFloat(r[ci('unitPrice', 4)]) || 0,
           quantity: parseFloat(r[ci('quantity', 5)]) || 0,
           totalAmount: parseFloat(r[ci('totalAmount', 6)]) || 0,
-          customer: String(r[ci('customer', 7)] || ''),
-          orderNo: String(r[ci('orderNo', 8)] || ''),
-          notes: String(r[ci('notes', 9)] || '').trim()
-        });
+          customer: normStr(r[ci('customer', 7)]),
+          orderNo: normStr(r[ci('orderNo', 8)]),
+          notes: normStr(r[ci('notes', 9)])
+        };
+        const key = dedupKey(rec);
+        if (seenInFile.has(key)) { dupInFile++; continue; }
+        seenInFile.add(key);
+        validRows.push(rec);
       }
-      if (validRows.length === 0) { UI.toast('未找到有效数据', 'error'); input.value = ''; return; }
-      const overwrite = confirm('将导入 ' + validRows.length + ' 条记录，是否覆盖现有数据？\n\n确定=覆盖现有记录\n取消=追加到现有记录');
-      if (!overwrite) {
-        if (!confirm('将追加 ' + validRows.length + ' 条记录到现有数据中？')) { input.value = ''; return; }
+      if (validRows.length === 0) {
+        UI.toast(dupInFile > 0 ? '文件内 ' + dupInFile + ' 条全部重复，无新增数据' : '未找到有效数据', 'error');
+        input.value = '';
+        return;
       }
+
+      // 与现有记录逐条比对：完全一致的跳过，其余追加。
+      // 只写 wage_records，不清空任何已有记录；月度汇总的绩效奖/房贴等存在
+      // 独立的 wage_adjustments 中，导入不会触碰。
+      const existing = new Set(DB.records.map(dedupKey));
+      const toAdd = validRows.filter(rec => !existing.has(dedupKey(rec)));
+      const dupWithExisting = validRows.length - toAdd.length;
+
+      if (toAdd.length === 0) {
+        UI.toast('无新增：' + dupWithExisting + ' 条与现有记录完全重复，已全部跳过');
+        input.value = '';
+        return;
+      }
+      const msg = '将新增 ' + toAdd.length + ' 条记录，跳过重复 ' + (dupWithExisting + dupInFile) + ' 条'
+        + '（与现有记录重复 ' + dupWithExisting + ' 条 / 文件内重复 ' + dupInFile + ' 条）\n\n'
+        + '现有记录 ' + DB.records.length + ' 条全部保留，不清空。\n'
+        + '月度汇总中已填写的绩效奖、房贴等不受影响。\n\n'
+        + '确认导入？';
+      if (!confirm(msg)) { input.value = ''; return; }
+
       const now = new Date().toISOString();
-      if (overwrite) { DB.records = []; }
-      for (let i = 0; i < validRows.length; i++) {
-        const rec = validRows[i];
-        rec.id = DB.uid();
-        rec.createdAt = now;
-        DB.records.push(rec);
-      }
+      toAdd.forEach(rec => { rec.id = DB.uid(); rec.createdAt = now; DB.records.push(rec); });
       DB.save('records');
-      localStorage.setItem('wage_records_cleared', '1');
       executeQuery();
       renderTodayRecords();
       UI.renderDataOverview();
-      UI.toast('成功导入 ' + validRows.length + ' 条记录');
+      UI.toast('新增 ' + toAdd.length + ' 条记录，跳过重复 ' + (dupWithExisting + dupInFile) + ' 条');
     } catch (err) {
       UI.toast('导入失败: ' + err.message, 'error');
     }
