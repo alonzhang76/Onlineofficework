@@ -102,7 +102,8 @@ function noteFailure(context) {
 
 var WAGE_KEYS = [
   'wage_records', 'wage_employees', 'wage_processes', 'wage_orders',
-  'wage_adjustments', 'wage_dropdown_options', 'wage_calendar_events', 'wage_calendar_event_types'
+  'wage_adjustments', 'wage_dropdown_options', 'wage_calendar_events', 'wage_calendar_event_types',
+  'pis_prods_v2', 'pis_cur_prod', 'pis_lang'
 ];
 // 当前应用云端键前缀：用于按应用过滤云端行/清理残留（wage 应用使用裸 wage_* 键）
 var APP_KEY_PREFIX = 'wage_';
