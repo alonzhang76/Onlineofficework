@@ -330,7 +330,11 @@ window.CLOUDBASE_SYNC = { email: 'sync@lori.app', password: 'LoriSync2026!' };
       <div style="flex:1 1 500px; min-width:420px;">
         <div class="row">
           <b>产品标识图</b>
-          <select id="bmProd" onchange="bmSwitchProduct(this.value)" style="margin-left:auto;min-width:220px"></select>
+          <div style="margin-left:auto;position:relative;min-width:220px;">
+            <input id="bmProd" autocomplete="off" placeholder="输入关键字搜索产品…" style="width:260px;">
+            <div id="bmProdDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:#fff;border:1px solid var(--line);border-radius:6px;max-height:260px;overflow:auto;z-index:200;box-shadow:0 4px 14px rgba(0,0,0,.12);">
+            </div>
+          </div>
         </div>
         <div id="bmPreview" style="border:1px solid var(--line);border-radius:8px;background:#fafafa;overflow:auto;height:360px;"></div>
         <div style="margin:8px 0 4px;"><b>测量部位与公差要求</b> <span class="hint" id="bmPartCount"></span></div>
@@ -1030,9 +1034,102 @@ initProducts();
 /* ================= 产品切换 ================= */
 function renderProdSel(){
   const opts=products.map(p=>`<option value="${p.id}">${escHtml((p.model||'未命名')+(p.name?' · '+p.name:''))}</option>`).join('');
-  ['prodSel','insProdSel','bmProd'].forEach(id=>{const s=$(id);if(s){s.innerHTML=opts;s.value=curId;}});
+  ['prodSel','insProdSel'].forEach(id=>{const s=$(id);if(s){s.innerHTML=opts;s.value=curId;}});
+  fillBmProdInput();
   if($('hdrProduct'))$('hdrProduct').textContent=`${cur.model||'未命名'}${cur.name?' / '+cur.name:''} · 部位 ${(cur.parts||[]).length} 件 · 抽检 ${(cur.batches||[]).length} 批`;
 }
+
+/* ---- 新增抽检批次弹窗：产品可搜索输入框 ---- */
+let _bmProdHighlight=-1;           /* 键盘导航当前高亮索引 */
+function bmProdDisplayText(p){ return (p.model||'未命名')+(p.name?' · '+p.name:''); }
+function fillBmProdInput(){
+  const inp=$('bmProd'); if(!inp)return;
+  if(cur) inp.value=bmProdDisplayText(cur);
+  else inp.value='';
+  inp.dataset.productId = cur ? cur.id : '';
+  bmProdHideDropdown();
+}
+function bmProdShowDropdown(){
+  const dd=$('bmProdDropdown'); if(!dd)return;
+  const kw=($('bmProd').value||'').trim().toLowerCase();
+  const list=products.filter(p=>{
+    if(!kw)return true;
+    return (p.model||'').toLowerCase().includes(kw)
+        || (p.name||'').toLowerCase().includes(kw);
+  });
+  if(!list.length){
+    dd.innerHTML='<div style="padding:12px;color:var(--sub);text-align:center;font-size:12px;">无匹配产品</div>';
+  } else {
+    dd.innerHTML=list.map((p,i)=>{
+      const isCur=(p.id===curId);
+      return `<div data-id="${p.id}" data-idx="${i}"
+        style="padding:7px 10px;cursor:pointer;border-bottom:1px solid var(--line);font-size:13px;${isCur?'background:#e5efff;font-weight:600;':''}"
+        onmouseenter="bmProdHoverItem(this)"
+        onmousedown="bmProdPick('${p.id}')">
+        ${escHtml(bmProdDisplayText(p))}
+        ${isCur?'<span style="float:right;color:var(--blue);font-size:11px;">当前</span>':''}
+      </div>`;
+    }).join('');
+  }
+  _bmProdHighlight=-1;
+  dd.style.display='block';
+}
+function bmProdHideDropdown(){
+  const dd=$('bmProdDropdown'); if(dd)dd.style.display='none';
+  _bmProdHighlight=-1;
+}
+function bmProdHoverItem(el){
+  const dd=$('bmProdDropdown'); if(!dd)return;
+  dd.querySelectorAll('[data-idx]').forEach(n=>n.style.background='');
+  el.style.background='#f0f6ff';
+  _bmProdHighlight=parseInt(el.dataset.idx,10)||-1;
+}
+function bmProdPick(id){
+  if(!id)return;
+  bmProdHideDropdown();
+  bmSwitchProduct(id);
+}
+function bmProdKeyNav(e){
+  const dd=$('bmProdDropdown'); if(!dd||dd.style.display==='none'){ if(e.key==='ArrowDown'||e.key==='ArrowUp'){ bmProdShowDropdown(); e.preventDefault();} return; }
+  const items=Array.from(dd.querySelectorAll('[data-idx]'));
+  if(!items.length){ if(e.key==='Escape')bmProdHideDropdown(); return; }
+  if(e.key==='ArrowDown'){
+    e.preventDefault();
+    _bmProdHighlight=(_bmProdHighlight+1) % items.length;
+  } else if(e.key==='ArrowUp'){
+    e.preventDefault();
+    _bmProdHighlight=(_bmProdHighlight-1+items.length) % items.length;
+  } else if(e.key==='Enter'){
+    e.preventDefault();
+    if(_bmProdHighlight>=0){ const it=items[_bmProdHighlight]; bmProdPick(it.dataset.id); }
+    return;
+  } else if(e.key==='Escape'){
+    bmProdHideDropdown(); return;
+  } else { return; }
+  items.forEach(n=>n.style.background='');
+  items[_bmProdHighlight].style.background='#f0f6ff';
+  items[_bmProdHighlight].scrollIntoView({block:'nearest'});
+}
+function initBmProdInput(){
+  const inp=$('bmProd'); if(!inp||inp.dataset.bound==='1')return;
+  inp.dataset.bound='1';
+  inp.addEventListener('focus',function(){
+    if(bmReadonly)return;
+    bmProdShowDropdown();
+  });
+  inp.addEventListener('input',function(){
+    if(bmReadonly)return;
+    bmProdShowDropdown();
+  });
+  inp.addEventListener('keydown',function(e){ bmProdKeyNav(e); });
+  // 点击外部关闭下拉
+  document.addEventListener('click',function(e){
+    const dd=$('bmProdDropdown'), inp2=$('bmProd');
+    if(!dd||!inp2)return;
+    if(!dd.contains(e.target)&&!inp2.contains(e.target)){ bmProdHideDropdown(); }
+  });
+}
+initBmProdInput();
 function switchProduct(id){
   if(!id||id===curId)return;
   const p=products.find(x=>x.id===id);if(!p)return;
@@ -1920,7 +2017,7 @@ function openBatch(i, readonly){
   $('bmInspector').value=b?(b.inspector||''):'';
   $('bmNote').value=b?(b.note||''):'';
   ['bmDate','bmCustomer','bmOrder','bmShip','bmQty','bmInspector','bmNote'].forEach(id=>{const el=$(id);if(el)el.readOnly=bmReadonly;});
-  if($('bmProd'))$('bmProd').disabled=bmReadonly;
+  if($('bmProd')){ $('bmProd').readOnly=bmReadonly; if(bmReadonly)bmProdHideDropdown(); }
   if($('bmSave'))$('bmSave').style.display=bmReadonly?'none':'';
   if($('bmChkManage'))$('bmChkManage').style.display=bmReadonly?'none':'';
   if($('bmClose'))$('bmClose').textContent=bmReadonly?'关闭':'取消';
@@ -1930,8 +2027,9 @@ function openBatch(i, readonly){
 }
 function closeBatch(){ $('batchModalBg').style.display='none'; bmEditIdx=-1; bmReadonly=false; }
 function bmSwitchProduct(id){
-  if(!id||id===curId)return;
+  if(!id||id===curId){ fillBmProdInput(); return; }
   switchProduct(id);
+  fillBmProdInput();
   const keep=(bmEditIdx>=0&&cur.batches[bmEditIdx])?{results:cur.batches[bmEditIdx].results}:null;
   bmRenderLeft(); bmRenderRight(keep); bmRenderChecks(null);
 }
