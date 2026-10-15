@@ -10,6 +10,8 @@ window.CLOUDBASE_SYNC = { email: 'sync@lori.app', password: 'LoriSync2026!' };
 </script>
 <script type="module" src="js/cloudbase.js?v=20260915l"></script>
 <script src="js/cloudbase-store.js?v=20261015a"></script>
+<!-- 默认产品项：来自 A22671.json 备份内容（无产品时作为初始默认产品） -->
+<script src="js/default-product.js?v=20261016a"></script>
 <style>
   :root{
     --bg:#f4f5f7; --panel:#fff; --line:#e0e4ea; --txt:#22262c; --sub:#767e8c;
@@ -866,6 +868,12 @@ function migrateIns(p){
   return Object.values(map).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
 }
 function initProducts(){
+  /* 默认产品项：首次运行时把 A22671.json 备份内容注入产品列表（按 id 去重，不覆盖既有编辑） */
+  const seed=window.PIS_SEED_A22671;
+  if(seed && !load('pis_seed_a22671_done',false)){
+    if(!products.some(p=>p.id===seed.id)) products.push(JSON.parse(JSON.stringify(seed)));
+    save('pis_seed_a22671_done',true);
+  }
   if(!products.length){const p=blankProduct();p.model='A22227';products.push(p);save(LS,products);curId=p.id;}
   products.forEach(p=>{
     try{
