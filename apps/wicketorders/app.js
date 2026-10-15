@@ -3920,6 +3920,17 @@ function clearAllCustomers() {
     }
 }
 
+// 打开报价系统快捷方式（从客户管理页跳转，自动带入搜索关键词作为客户名）
+function openQuotationSystem() {
+    var keyword = '';
+    try { keyword = (document.getElementById('customer-search-input') || {}).value || ''; } catch (e) {}
+    var url = '报价系统.html';
+    if (keyword.trim()) {
+        url += '?customerName=' + encodeURIComponent(keyword.trim());
+    }
+    window.open(url, '_blank');
+}
+
 // 清空所有收汇记录
 function clearAllReceipts() {
     if (confirm('确定要清空所有收汇记录吗？此操作不可恢复！')) {
