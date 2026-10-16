@@ -163,6 +163,7 @@ window.CLOUDBASE_SYNC = { email: 'sync@lori.app', password: 'LoriSync2026!' };
       <button class="btn gray" onclick="setMode('dim')" id="mDim">📏 直线标注</button>
       <button class="btn gray" onclick="setMode('text')" id="mText">🅣 文本框</button>
       <button class="btn gray" onclick="setMode('arrow')" id="mArrow">➤ 指示箭头</button>
+      <button class="btn gray" onclick="setMode('arrowLine')" id="mArrowLine">→ 箭头直线</button>
       <button class="btn red small" onclick="delSelected()">删除选中 ⌫</button>
       <button class="btn gray small" onclick="clearAnno()">清空图上标注</button>
       <button class="btn gray small" onclick="undo()" id="undoBtn" title="撤销 (Ctrl+Z)">↶ 撤销</button>
@@ -357,7 +358,9 @@ window.CLOUDBASE_SYNC = { email: 'sync@lori.app', password: 'LoriSync2026!' };
         </div>
         <div style="margin:10px 0 4px;"><b>实测结果</b> <span class="hint" id="bmSummary"></span></div>
         <div style="overflow:auto;max-height:330px;border:1px solid var(--line);border-radius:6px;">
-          <table><thead><tr><th style="width:42px">#</th><th>测量部位</th><th>标准±公差</th><th>合格范围</th><th>实测(mm)</th><th>判定</th></tr></thead>
+          <table><thead><tr><th style="width:42px">#</th><th>测量部位</th><th>标准±公差</th><th>合格范围</th>
+            <th colspan="5">实测(mm) — 5 组</th><th>判定</th></tr>
+            <tr><th colspan="4"></th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th></th></tr></thead>
             <tbody id="bmResults"></tbody></table>
         </div>
         <div style="margin:10px 0 4px;display:flex;align-items:center;">
@@ -479,12 +482,30 @@ function _localGet(k,d){ try{ return JSON.parse(localStorage.getItem(k))||d; }ca
 function _localSet(k,v){
   try{ localStorage.setItem(k,JSON.stringify(v)); }
   catch(err){
+    /* localStorage 爆了就放弃本地缓存（上限 5-10MB，产品带图片很容易超），
+       靠 SupabaseStore 的云端持久化兜底。不再弹 alert 打断操作。 */
     if(err&&(err.name==='QuotaExceededError'||err.name==='NS_ERROR_DOM_QUOTA_REACHED'||err.code===22)){
-      alert(L('本地存储空间不足（浏览器上限约 5–10MB），本次改动可能未保存。建议：删除不用的产品，或改用分辨率更低的图片 / PDF。',
-              'Not enough local storage (browsers allow roughly 5-10MB). This change may not have been saved. Try deleting unused products or using a lower-resolution image / PDF.'));
+      console.warn('[inspection] localStorage quota exceeded for key='+k+', relying on cloud storage only.');
     } else throw err;
   }
 }
+/* 验货记录自己的云端自动上传定时器（debounce 5s）。
+   因为 inspection.html 在独立 iframe 里，和主页面的 SupabaseStore 是**两个独立实例**，
+   主界面的"上传云端"按钮上传不到这里的改动，所以需要自己调 pushAll()。 */
+let _pisUploadTimer=null;
+function _pisScheduleUpload(){
+  if(_pisUploadTimer)clearTimeout(_pisUploadTimer);
+  _pisUploadTimer=setTimeout(()=>{
+    _pisUploadTimer=null;
+    const store=window.SupabaseStore;
+    if(!store||typeof store.pushAll!=='function')return;
+    store.pushAll().then(r=>{
+      if(r&&r.ok) console.log('[inspection] 云端已同步（上传 %d 个 key）', r.uploaded);
+      else if(r) console.warn('[inspection] 云端同步结果：', r);
+    }).catch(e=>{ console.warn('[inspection] 云端同步异常', e); });
+  },5000);
+}
+
 const load=(k,d)=>{
   const store=window.SupabaseStore;
   if(store){
@@ -497,6 +518,7 @@ const save=(k,v)=>{
   _localSet(k,v);
   const store=window.SupabaseStore;
   if(store){ try{ store.set(k,v); }catch(e){} }
+  _pisScheduleUpload();
 };
 const $=id=>document.getElementById(id);
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
@@ -859,10 +881,11 @@ function migrateIns(p){
       shipDate:'',qty:'',inspector:r.inspector||'',note:'',results:[]};
     const nm=String(r.part||'').replace(/^\s*\d+[\.、]\s*/,'').trim();
     const match=(p.parts||[]).find(q=>q.name===nm);
+    const actVal=(r.act===''||r.act===undefined||r.act===null)?'':Number(r.act);
     map[key].results.push({
       partId:match?match.id:'', name:nm||String(r.part||''),
       std:Number(r.std)||0, tolUp:Number(r.tolUp)||0, tolLow:Number(r.tolLow)||0,
-      act:(r.act===''||r.act===undefined||r.act===null)?'':Number(r.act),
+      act:actVal, acts:[actVal,'','','',''], judges:[r.judge||'','','','',''],
       judge:r.judge||''});
   });
   return Object.values(map).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
@@ -883,6 +906,19 @@ function initProducts(){
       if(!p.annos.dims)p.annos.dims=[];
       if(!p.annos.texts)p.annos.texts=[];
       if(!p.annos.arrows)p.annos.arrows=[];
+      /* arrows 区分两种：callout（现有指示箭头，有文字 label）vs simple（直线箭头，纯 x1,y1→x2,y2）
+         旧数据没有 kind 字段，按字段特征自动识别：有 tx/ty → callout；有 x1/y1 → simple */
+      p.annos.arrows.forEach(ar=>{
+        if(!ar.kind){ ar.kind=(ar.tx!==undefined)?'callout':'simple'; }
+        if(ar.kind==='callout'){
+          if(ar.size===undefined)ar.size=13; if(!ar.color)ar.color=EC; if(!ar.bg)ar.bg='#ffffff';
+        } else {
+          /* simple arrow：保证有 color（默认蓝色），缺失端点时补零 */
+          if(!ar.color)ar.color=DC;
+          if(ar.x1===undefined)ar.x1=0; if(ar.y1===undefined)ar.y1=0;
+          if(ar.x2===undefined)ar.x2=ar.x1+20; if(ar.y2===undefined)ar.y2=ar.y1;
+        }
+      });
       p.annos.dims.forEach(d=>{ if(!d.color)d.color=DC; if(!d.extColor)d.extColor=EC; });
       p.annos.points.forEach(o=>{ if(o.rot===undefined)o.rot=0; });
       if(p.seq===undefined)p.seq=(p.parts.length||0)+1;
@@ -892,7 +928,20 @@ function initProducts(){
         if(!b.id)b.id=uid();
         if(!Array.isArray(b.results))b.results=[];
         b.results.forEach(r=>{ r.tolUp=Number(r.tolUp)||0; r.tolLow=Number(r.tolLow)||0;
-          r.std=Number(r.std)||0; if(r.act!==''&&r.act!==undefined&&r.act!==null)r.act=Number(r.act); });
+          r.std=Number(r.std)||0; if(r.act!==''&&r.act!==undefined&&r.act!==null)r.act=Number(r.act);
+          /* acts/judges：旧批次自动迁移为 5 列，且值归一为 Number */
+          if(!Array.isArray(r.acts)) r.acts=(r.act!==''&&r.act!==undefined)?[r.act,'','','','']:['','','','',''];
+          r.acts=r.acts.slice(0,5).map(v=>(v===''||v===null||v===undefined)?'':Number(v));
+          while(r.acts.length<5)r.acts.push('');
+          if(!Array.isArray(r.judges)) r.judges=(r.judge)?[r.judge,'','','','']:['','','','',''];
+          while(r.judges.length<5)r.judges.push('');
+          r.judges=r.judges.slice(0,5);
+          /* 保持整体 judge 与 acts 一致（旧数据可能 judge 对但 acts 空） */
+          if(!r.judge && r.acts.some(v=>v!=='')){
+            const jv=r.acts.map((_,i)=>judgeVal(r.std,r.tolUp,r.tolLow,r.acts[i]));
+            r.judge=jv.includes('NG')?'NG':(jv.filter(Boolean).length>0&&jv.every(j=>!j||j==='OK')?'OK':'');
+          }
+        });
         if(!Array.isArray(b.checkResults))b.checkResults=[];
         b.checkResults.forEach(r=>{ r.result=(r.result==='OK'||r.result==='NG'||r.result==='NA')?r.result:''; });
       });
@@ -1037,7 +1086,20 @@ async function pdfRenderPage(doc,no){
   if(url.length>3500000)url=cv.toDataURL('image/jpeg',0.9);   /* 存储紧张时降级 */
   return {url:url,total:total,no:Math.min(Math.max(1,parseInt(no,10)||1),total),w:cv.width,h:cv.height};
 }
-initProducts();
+/* ===== 启动：先等 SupabaseStore 从云端拉数据，再初始化产品 ===== */
+(async function boot(){
+  /* SupabaseStore 在 iframe 里是独立实例，必须自己 init() 才能拉云端 + 启动定时刷新 */
+  if(window.SupabaseStore && window.SupabaseStore.init){
+    try{ await window.SupabaseStore.init(); }catch(e){ console.warn('[inspection] SupabaseStore init failed:', e); }
+  }
+  initProducts();
+  $('batchModalBg').onclick=e=>{if(e.target===$('batchModalBg'))closeBatch();};
+  $('partModalBg').onclick=e=>{if(e.target===$('partModalBg'))closePartModal();};
+  $('chkModalBg').onclick=e=>{if(e.target===$('chkModalBg'))closeChkModal();};
+  window.addEventListener('beforeunload',()=>saveProductInfo(true));
+  loadProductUI();setMode('point');renderList();renderCat();
+  applyLang();   /* 按上次选择的语言渲染（默认中文） */
+})();
 
 /* ================= 产品切换 ================= */
 function renderProdSel(){
@@ -1392,9 +1454,12 @@ function renderList(){
     box.appendChild(d);
   };
   A.texts.forEach(t=>add('text',t,'文','#c98a00'));
-  A.arrows.forEach(t=>add('arrow',t,'箭','#0f9d58'));
+  A.arrows.forEach(t=>{
+    if(t.kind==='simple') add('arrow',t,'线箭',DC);
+    else add('arrow',t,'箭',EC);
+  });
   if(!A.texts.length&&!A.arrows.length)
-    box.innerHTML='<div style="padding:8px;color:var(--sub);font-size:12px">暂无文本框 / 指示箭头</div>';
+    box.innerHTML='<div style="padding:8px;color:var(--sub);font-size:12px">暂无文本框 / 箭头</div>';
 }
 
 /* --- 鼠标：绘制 --- */
@@ -1449,7 +1514,7 @@ stage.addEventListener('mousedown',e=>{
   if(mode==='arrow'){
     if(tgt&&tgt.classList.contains('arrowlbl'))return;
     e.preventDefault();
-    const ar={id:uid(),tx:p.x,ty:p.y,lx:p.x,ly:p.y,text:'双击我编辑文字',size:13,color:EC,bg:'#ffffff'};
+    const ar={id:uid(),kind:'callout',tx:p.x,ty:p.y,lx:p.x,ly:p.y,text:'双击我编辑文字',size:13,color:EC,bg:'#ffffff'};
     getAnn().arrows.push(ar); dragArrow=ar;
     const mv=ev=>{const q=stagePct(ev);ar.lx=q.x;ar.ly=q.y;renderAnno();};
     const up=()=>{
@@ -1459,6 +1524,23 @@ stage.addEventListener('mousedown',e=>{
       if(L<14){getAnn().arrows=getAnn().arrows.filter(o=>o!==ar);renderAnno();return;}
       persist(); sel={kind:'arrow',id:ar.id}; renderAnno(); syncProps(); renderList();
       setTimeout(()=>focusKeepScroll($('tText'),true),60);
+    };
+    document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);
+    return;
+  }
+  /* 简单直线箭头：起点→终点，终点带箭头 head，无文字 label */
+  if(mode==='arrowLine'){
+    if(tgt)return;
+    e.preventDefault();
+    const ar={id:uid(),kind:'simple',x1:p.x,y1:p.y,x2:p.x,y2:p.y,color:DC};
+    getAnn().arrows.push(ar); dragArrow=ar;
+    const mv=ev=>{const q=stagePct(ev);ar.x2=q.x;ar.y2=q.y;renderAnno();};
+    const up=()=>{
+      document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);
+      dragArrow=null;
+      const L=Math.hypot((ar.x2-ar.x1)/100*stage.clientWidth,(ar.y2-ar.y1)/100*stage.clientHeight);
+      if(L<10){getAnn().arrows=getAnn().arrows.filter(o=>o!==ar);renderAnno();return;}
+      persist(); sel={kind:'arrow',id:ar.id}; renderAnno(); syncProps(); renderList();
     };
     document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);
     return;
@@ -1619,18 +1701,57 @@ function renderAnno(){
     stage.appendChild(d);
   });
 
-  /* 4. 指示箭头 */
+  /* 4. 箭头（两种：callout 指示箭头 + simple 直线箭头） */
   A.arrows.forEach(ar=>{
+    if(ar.kind==='simple'){
+      /* ===== simple 直线箭头 ===== */
+      const s={x:ar.x1/100*sw,y:ar.y1/100*sh}, e={x:ar.x2/100*sw,y:ar.y2/100*sh};
+      const dx=e.x-s.x, dy=e.y-s.y, L=Math.hypot(dx,dy)||1;
+      const ux=dx/L, uy=dy/L;       /* 指向终点的单位向量 */
+      const px=-uy, py=ux;          /* 垂直方向 */
+      const col=ar.color||DC;
+      const isSel=(sel.kind==='arrow'&&sel.id===ar.id);
+      const aw=10, aW=4.2;          /* 箭头 head 尺寸 */
+      const g=document.createElement('div'); g.className='dimline';
+      g.style.left='0'; g.style.top='0'; g.style.width='0'; g.style.height='0';
+      let svg='<svg style="width:'+sw+'px;height:'+sh+'px;position:absolute;left:0;top:0;overflow:visible;">';
+      svg+='<line x1="'+s.x+'" y1="'+s.y+'" x2="'+e.x+'" y2="'+e.y+'" stroke="'+col+'" stroke-width="1.8" stroke-linecap="round"/>';
+      /* 箭头 head：三角形，尖在终点 e */
+      const hx1=e.x-ux*aw+px*aW, hy1=e.y-uy*aw+py*aW;
+      const hx2=e.x-ux*aw-px*aW, hy2=e.y-uy*aw-py*aW;
+      svg+='<polygon points="'+e.x+','+e.y+' '+hx1+','+hy1+' '+hx2+','+hy2+'" fill="'+col+'"/>';
+      /* 透明粗线用于更容易点击 */
+      svg+='<line x1="'+s.x+'" y1="'+s.y+'" x2="'+e.x+'" y2="'+e.y+'" stroke="'+col+'" stroke-width="14" opacity="0.001" style="pointer-events:stroke;cursor:pointer"/>';
+      svg+='</svg>';
+      g.innerHTML=svg;
+      g.querySelectorAll('svg line')[1].addEventListener('click',ev=>{ev.stopPropagation();selectItem('arrow',ar.id);});
+      g.querySelectorAll('svg line')[1].addEventListener('contextmenu',ev=>{ev.preventDefault();
+        if(confirm('删除该直线箭头？')){delItem('arrow',ar.id);renderAnno();renderList();syncProps();}});
+      stage.appendChild(g);
+      /* 选中时显示两端可拖动的白色方块 */
+      if(isSel){
+        const mkHandler=(propX,propY)=>ev=>{ev.preventDefault();ev.stopPropagation();
+          const mv2=e2=>{const q=stagePct(e2);ar[propX]=q.x;ar[propY]=q.y;renderAnno();};
+          const up2=()=>{document.removeEventListener('mousemove',mv2);document.removeEventListener('mouseup',up2);persist();};
+          document.addEventListener('mousemove',mv2);document.addEventListener('mouseup',up2);};
+        const hd1=document.createElement('div'); hd1.className='ep-handle'; hd1.style.left=s.x+'px'; hd1.style.top=s.y+'px';
+        hd1.addEventListener('mousedown',mkHandler('x1','y1')); stage.appendChild(hd1);
+        const hd2=document.createElement('div'); hd2.className='ep-handle'; hd2.style.left=e.x+'px'; hd2.style.top=e.y+'px';
+        hd2.addEventListener('mousedown',mkHandler('x2','y2')); stage.appendChild(hd2);
+      }
+      return;
+    }
+    /* ===== callout 指示箭头（原有） ===== */
     const t={x:ar.tx/100*sw,y:ar.ty/100*sh}, l={x:ar.lx/100*sw,y:ar.ly/100*sh};
-    const L=Math.hypot(l.x-t.x,l.y-t.y)||1;
-    const ux=(t.x-l.x)/L, uy=(t.y-l.y)/L, px=-uy, py=ux;
+    const LL=Math.hypot(l.x-t.x,l.y-t.y)||1;
+    const ux=(t.x-l.x)/LL, uy=(t.y-l.y)/LL, px=-uy, py=ux;
     const aw=12,aW=4.6;
     const col=ar.color||EC;
     const isSel=(sel.kind==='arrow'&&sel.id===ar.id);
     const g=document.createElement('div'); g.className='dimline';
     g.style.left=ar.tx+'%'; g.style.top=ar.ty+'%'; g.style.width='0'; g.style.height='0';
-    const x=l.x-t.x, y=l.y-t.y, LL=Math.hypot(x,y)||1;
-    const lx=x/LL, ly=y/LL, ppx=-ly, ppy=lx;
+    const x=l.x-t.x, y=l.y-t.y, LL2=Math.hypot(x,y)||1;
+    const lx=x/LL2, ly=y/LL2, ppx=-ly, ppy=lx;
     let svg='<svg style="width:'+sw+'px;height:'+sh+'px;position:absolute;left:0;top:0;overflow:visible;">';
     svg+='<line x1="0" y1="0" x2="'+x+'" y2="'+y+'" stroke="'+col+'" stroke-width="1.6"/>';
     svg+='<polygon points="0,0 '+(ux*aw+px*aW)+','+(uy*aw+py*aW)+' '+(ux*aw-px*aW)+','+(uy*aw-py*aW)+'" fill="'+col+'"/>';
@@ -1711,10 +1832,12 @@ function setMode(m){
   $('mDim').className='btn'+(m==='dim'?'':' gray');
   $('mText').className='btn'+(m==='text'?'':' gray');
   $('mArrow').className='btn'+(m==='arrow'?'':' gray');
+  $('mArrowLine').className='btn'+(m==='arrowLine'?'':' gray');
   const H={point:'测量部位：先在右侧选中部位，再点击图上位置放置',
     dim:'直线标注：起点按住左键 → 拖到终点 → 松开后在右侧「数值 mm」填写；选中后拖黄色圆点可旋转、拖白色方块可微调端点',
     text:'文本框：点击图上任意位置放置，在右侧输入文字',
-    arrow:'指示箭头：从目标点按住拖到文字位置，松开后输入文字'};
+    arrow:'指示箭头：从目标点按住拖到文字位置，松开后输入文字',
+    arrowLine:'箭头直线：起点按住拖到终点，松开即生成（终点带单头箭头）；选中后可拖两端白点调整位置'};
   $('modeHint').textContent=H[m]||'';
   renderAnno();
 }
@@ -1950,11 +2073,23 @@ function judgeVal(std,u,l,act){
 function batchStats(b){
   const rs=b.results||[];
   const cs=(b.checkResults||[]).filter(r=>r.result!=='NA');   /* 不适用项不计入统计 */
-  const ok=rs.filter(r=>r.judge==='OK').length + cs.filter(r=>r.result==='OK').length;
-  const ng=rs.filter(r=>r.judge==='NG').length + cs.filter(r=>r.result==='NG').length;
-  const un=rs.filter(r=>!r.judge).length + cs.filter(r=>!r.result).length;
+  /* 测量值：每个部位有 5 个实测值，独立计入统计；空值算 un */
+  let ok=0,ng=0,un=0;
+  rs.forEach(r=>{
+    const acts=(r.acts && Array.isArray(r.acts))? r.acts : [r.act||''];
+    const judges=(r.judges && Array.isArray(r.judges))? r.judges : [r.judge||''];
+    for(let i=0;i<5;i++){
+      const v=(acts[i]!==undefined&&acts[i]!==null)?acts[i]:'';
+      const j=judges[i]||'';
+      if(v===''||v===null||v===undefined||isNaN(Number(v))){ un++; continue; }
+      if(j==='OK')ok++; else if(j==='NG')ng++; else un++;
+    }
+  });
+  ok += cs.filter(r=>r.result==='OK').length;
+  ng += cs.filter(r=>r.result==='NG').length;
+  un += cs.filter(r=>!r.result).length;
   const judged=ok+ng;
-  return {total:rs.length+cs.length,ok,ng,un,rate:judged?Math.round(ok/judged*100):0,
+  return {total:ok+ng+un,ok,ng,un,rate:judged?Math.round(ok/judged*100):0,
     overall:(ng?'NG':(un?'':'OK'))};
 }
 function renderIns(){
@@ -2081,7 +2216,7 @@ function bmRenderParts(){
 function bmRenderRight(b){
   const rt=$('bmResults'); if(!rt)return; rt.innerHTML='';
   const parts=cur.parts||[];
-  if(!parts.length){ rt.innerHTML='<tr><td colspan="6" style="padding:12px;color:var(--sub)">该产品还没有测量部位</td></tr>'; bmSummary(); return; }
+  if(!parts.length){ rt.innerHTML='<tr><td colspan="10" style="padding:12px;color:var(--sub)">该产品还没有测量部位</td></tr>'; bmSummary(); return; }
   const byPart={},byName={};
   ((b&&b.results)||[]).forEach(r=>{ if(r.partId)byPart[r.partId]=r; if(r.name)byName[r.name]=r; });
   parts.forEach((p,i)=>{
@@ -2089,26 +2224,38 @@ function bmRenderRight(b){
     const std=has?Number(p.dim):0;
     const [lo,hi]=tolRange(std,p.tolUp,p.tolLow);
     const r=byPart[p.id]||byName[p.name]||{};
-    const act=(r.act===undefined||r.act===null)?'':r.act;
+    /* 向后兼容：老批次只有 act 单值，自动迁移为 5 列 */
+    let acts=(r.acts && Array.isArray(r.acts)) ? r.acts.slice(0,5) : [r.act];
+    while(acts.length<5)acts.push('');
+    acts=acts.map(v=>(v===undefined||v===null)?'':v);
     const tr=document.createElement('tr');
     tr.innerHTML=`<td>${p.no||i+1}</td><td style="text-align:left">${escHtml(p.name)}</td>
       <td>${dimTolText(p)}</td>
       <td>${has?lo+' ~ '+hi:'—'}</td>
-      <td><input type="number" step="0.1" data-pid="${p.id}" value="${act}" style="width:88px"></td>
+      ${acts.map(v=>`<td><input type="number" step="0.1" data-pid="${p.id}" value="${v}" style="width:52px"></td>`).join('')}
       <td><span class="pill ok">—</span></td>`;
     rt.appendChild(tr);
-    const inp=tr.querySelector('input'), sp=tr.querySelector('span');
-    if(bmReadonly){
-      inp.readOnly=true; inp.style.background='var(--yellow)';
-      const j=r.judge||(has?judgeVal(std,p.tolUp,p.tolLow,act):'');
-      sp.textContent=j||'—'; sp.className='pill '+(j==='NG'?'ng':'ok');
-    } else {
-      inp.addEventListener('input',()=>{
+    const inputs=[...tr.querySelectorAll('input[data-pid]')], sp=tr.querySelector('span');
+    const syncJudge=()=>{
+      const js=inputs.map(inp=>{
         const v=inp.value===''?'':Number(inp.value);
-        const j=has?judgeVal(std,p.tolUp,p.tolLow,v):'';
-        sp.textContent=j||'—'; sp.className='pill '+(j==='NG'?'ng':'ok'); bmSummary();
+        return has?judgeVal(std,p.tolUp,p.tolLow,v):'';
       });
-      inp.dispatchEvent(new Event('input'));
+      /* 整体判定：5 列里只要有一个 NG → 就 NG；否则全部 OK → OK；还没填完 → 待填 */
+      const hasNG=js.includes('NG');
+      const allOK=js.every(j=>j==='OK');
+      const jTxt=hasNG?'NG':(allOK?'OK':'');
+      sp.textContent=jTxt||'—'; sp.className='pill '+(jTxt==='NG'?'ng':'ok');
+      return js;
+    };
+    if(bmReadonly){
+      inputs.forEach(inp=>{ inp.readOnly=true; inp.style.background='var(--yellow)'; });
+      syncJudge();
+    } else {
+      inputs.forEach(inp=>{
+        inp.addEventListener('input',()=>{ syncJudge(); bmSummary(); });
+      });
+      syncJudge();
     }
   });
 }
@@ -2160,7 +2307,8 @@ function bmSummary(){
     const p=parts.find(q=>q.id===inp.getAttribute('data-pid')); if(!p)return;
     const has=(p.dim!==''&&p.dim!==undefined);
     const v=inp.value===''?'':Number(inp.value);
-    if(!has){ return; }
+    if(!has)return;                /* 没标注尺寸的部位不计入 */
+    if(v===''){ un++; return; }    /* 空值 → 待填 */
     const j=judgeVal(Number(p.dim),p.tolUp,p.tolLow,v);
     if(j==='OK')ok++; else if(j==='NG')ng++; else un++;
   });
@@ -2177,14 +2325,25 @@ function saveBatch(){
   const date=$('bmDate').value; if(!date)return alert('请填写检验日期');
   const parts=cur.parts||[];
   const results=[];
-  document.querySelectorAll('#bmResults input[data-pid]').forEach(inp=>{
-    const pid=inp.getAttribute('data-pid');
-    const p=parts.find(q=>q.id===pid); if(!p)return;
+  /* 每个部位 → 5 个实测值 acts[] + 每列判定 judges[] + 整体 judge（只要有一个 NG 就 NG） */
+  document.querySelectorAll('#bmResults tr').forEach(tr=>{
+    const pid=tr.querySelector('input[data-pid]'); if(!pid)return;  /* 跳过提示行 */
+    const p=parts.find(q=>q.id===pid.getAttribute('data-pid')); if(!p)return;
     const has=(p.dim!==''&&p.dim!==undefined);
     const std=has?Number(p.dim):0;
-    const act=inp.value===''?'':Number(inp.value);
+    const inputs=[...tr.querySelectorAll('input[data-pid]')];
+    const acts=inputs.map(inp=>{const v=inp.value===''?'':Number(inp.value); return v;});
+    const judges=acts.map(v=>{
+      if(!has) return '';
+      if(v==='') return '';
+      return judgeVal(std,p.tolUp,p.tolLow,v);
+    });
+    const hasNG=judges.includes('NG');
+    const allOK=judges.filter(Boolean).length>0 && judges.every(j=>!j||j==='OK');
+    const overall=hasNG?'NG':(allOK?'OK':'');
     results.push({partId:p.id,name:p.name,std,tolUp:Number(p.tolUp)||0,tolLow:Number(p.tolLow)||0,
-      act,judge:has?judgeVal(std,p.tolUp,p.tolLow,act):(act===''?'':judgeVal(std,p.tolUp,p.tolLow,act))});
+      acts,judges,judge:overall, act:acts[0]!==''?acts[0]:'', /* act 保留第一列，向后兼容 */
+    });
   });
   const prev=(bmEditIdx>=0)?cur.batches[bmEditIdx]:null;
   /* 外观 / 其它检查项：判定 + 备注（快照名称与分组，清单日后修改不影响历史批次） */
@@ -2254,19 +2413,24 @@ function buildBatchReport(i){
       备注：${escHtml(b.note||'')}</div>`;
   area.appendChild(head);
   const tbl=document.createElement('table'); tbl.style.marginTop='10px';
-  tbl.innerHTML='<thead><tr><th style="width:40px">#</th><th>测量部位</th><th>标准(mm)</th><th>公差</th><th>合格范围</th><th>实测(mm)</th><th>判定</th></tr></thead>';
+  /* A4 宽度紧张：去掉"合格范围"列，公差信息已在"公差"列里 */
+  tbl.innerHTML='<thead><tr><th style="width:40px">#</th><th>测量部位</th><th>标准(mm)</th><th>公差</th>'
+    +'<th colspan="5">实测(mm) — 5 组</th><th>判定</th></tr>'
+    +'<tr><th colspan="4"></th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th></th></tr></thead>';
   const tb=document.createElement('tbody');
   (b.results||[]).forEach((r,idx)=>{
-    const [lo,hi]=tolRange(r.std,r.tolUp,r.tolLow);
+    let acts=(r.acts && Array.isArray(r.acts))? r.acts : [r.act||''];
+    while(acts.length<5)acts.push('');
     const tr=document.createElement('tr');
     tr.innerHTML=`<td>${idx+1}</td><td style="text-align:left">${escHtml(r.name)}</td><td>${r.std}</td>
-      <td>${tolText(r)}</td><td>${lo} ~ ${hi}</td><td><b>${r.act===''?'—':r.act}</b></td>
+      <td>${tolText(r)}</td>
+      ${acts.map(v=>`<td>${v===''?'':v}</td>`).join('')}
       <td>${r.judge||'待填'}</td>`;
     tb.appendChild(tr);
   });
   tbl.appendChild(tb); area.appendChild(tbl);
-  /* 外观 / 其它检查（定性判定） */
-  const crs=b.checkResults||[];
+  /* 外观 / 其它检查（定性判定）—— 只显示有判定的项，没判定说明该款产品无此检查项 */
+  const crs=(b.checkResults||[]).filter(r=>r.result);
   CHECK_GROUPS.forEach(g=>{
     const rows=crs.filter(r=>r.group===g.key);
     if(!rows.length)return;
@@ -2617,14 +2781,7 @@ function scheduleAnnoRender(){
 window.addEventListener('resize',scheduleAnnoRender);
 if(window.ResizeObserver&&stage){ try{ new ResizeObserver(scheduleAnnoRender).observe(stage); }catch(e){} }
 if(img)img.addEventListener('load',scheduleAnnoRender);
-
-/* ================= 初始化 ================= */
-$('batchModalBg').onclick=e=>{if(e.target===$('batchModalBg'))closeBatch();};
-$('partModalBg').onclick=e=>{if(e.target===$('partModalBg'))closePartModal();};
-$('chkModalBg').onclick=e=>{if(e.target===$('chkModalBg'))closeChkModal();};
-window.addEventListener('beforeunload',()=>saveProductInfo(true));
-loadProductUI();setMode('point');renderList();renderCat();
-applyLang();   /* 按上次选择的语言渲染（默认中文） */
+/* 启动代码已移至上方 async boot() 函数 */
 </script>
 </body>
 </html>
