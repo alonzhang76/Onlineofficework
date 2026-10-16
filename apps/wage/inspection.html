@@ -10,8 +10,8 @@ window.CLOUDBASE_SYNC = { email: 'sync@lori.app', password: 'LoriSync2026!' };
 </script>
 <script type="module" src="js/cloudbase.js?v=20260915l"></script>
 <script src="js/cloudbase-store.js?v=20261015a"></script>
-<!-- 默认产品项：来自 A22671.json 备份内容（无产品时作为初始默认产品） -->
-<script src="js/default-product.js?v=20261016a"></script>
+<!-- 默认产品项：来自 A22671.json 备份内容（始终作为默认产品存在） -->
+<script src="js/default-product.js?v=20261016b"></script>
 <style>
   :root{
     --bg:#f4f5f7; --panel:#fff; --line:#e0e4ea; --txt:#22262c; --sub:#767e8c;
@@ -891,11 +891,18 @@ function migrateIns(p){
   return Object.values(map).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
 }
 function initProducts(){
-  /* 默认产品项：首次运行时把 A22671.json 备份内容注入产品列表（按 id 去重，不覆盖既有编辑） */
-  const seed=window.PIS_SEED_A22671;
-  if(seed && !load('pis_seed_a22671_done',false)){
-    if(!products.some(p=>p.id===seed.id)) products.push(JSON.parse(JSON.stringify(seed)));
-    save('pis_seed_a22671_done',true);
+  /* 默认产品项：确保 A22671.json 备份产品始终存在于产品列表；备份内容版本变化时覆盖为该备份。
+     不依赖旧的 pis_seed_a22671_done 标记——该标记云端存的是空数组 []，JS 里 [] 为真值，
+     会让 !load(...) 恒为 false，导致默认产品永远注入不进来。 */
+  const seed=window.PIS_SEED_A22671, seedVer=window.PIS_SEED_A22671_VER||'';
+  if(seed){
+    /* 清掉「无部位、无批次」的自动兜底空白产品（列表为空时自动生成的 A22227），避免它与备份产品并存 */
+    products=products.filter(p=>!(p&&(p.model||'')==='A22227'&&!(p.parts||[]).length&&!(p.batches||[]).length));
+    const applied=load('pis_seed_a22671_ver','');
+    const i=products.findIndex(p=>p.id===seed.id);
+    if(i<0) products.push(JSON.parse(JSON.stringify(seed)));
+    else if(applied!==seedVer) products[i]=JSON.parse(JSON.stringify(seed));
+    if(applied!==seedVer) save('pis_seed_a22671_ver',seedVer);
   }
   if(!products.length){const p=blankProduct();p.model='A22227';products.push(p);save(LS,products);curId=p.id;}
   products.forEach(p=>{
