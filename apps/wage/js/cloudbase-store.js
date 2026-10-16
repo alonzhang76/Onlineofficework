@@ -351,16 +351,18 @@ async function pushAll(alsoDelete, onProgress) {
   var seenKeys = {};
   for (var i = 0; i < WAGE_KEYS.length; i++) {
     var key = WAGE_KEYS[i];
-    var raw = null;
-    try { raw = localStorage.getItem(key); } catch (e) {}
-    if (raw === null || raw === undefined || raw === '') {
-      // localStorage 没有但内存缓存有数据 → 也上传（防 localStorage 写入失败丢数据）
-      if (_cache[key] !== undefined && _countValue(_cache[key]) > 0) {
-        keysToUpload.push({ key: key, value: _cache[key] });
-        seenKeys[key] = true;
-      }
+    /* 内存缓存优先于 localStorage：set() 总是先写 _cache，_cache 永远不比 localStorage 旧；
+       而 localStorage 超配额时写入会静默失败（inspection _localSet 的 quota 分支），
+       其中存的可能是云端回写的旧值。2026-10-16 事故：B 电脑保存 18 标注新版时
+       _localSet quota 失败，pushAll 误把 localStorage 里的 A22227 空占位推上云端。 */
+    if (_cache[key] !== undefined) {
+      keysToUpload.push({ key: key, value: _cache[key] });
+      seenKeys[key] = true;
       continue;
     }
+    var raw = null;
+    try { raw = localStorage.getItem(key); } catch (e) {}
+    if (raw === null || raw === undefined || raw === '') continue;
     var value;
     try { value = JSON.parse(raw); } catch (e) { value = raw; }
     keysToUpload.push({ key: key, value: value });
