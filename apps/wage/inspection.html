@@ -490,16 +490,82 @@ function _localSet(k,v){
     } else throw err;
   }
 }
+/* ===== 云端上传安全守卫 =====
+   _pisCloudOk：本次会话是否成功联系过云端并完成启动守卫比对。
+   仅当其为 true 才允许自动上传——防止「清空数据/离线打开页面 → 本地生成占位默认产品
+   → 自动推回云端覆盖他端已保存数据」（2026-10-16 A22671 被占位 A22227 覆盖事故）。 */
+let _pisCloudOk=false;
+/* 判定本地数据是否仅为启动时生成的占位默认产品（1 个产品且无任何实质内容） */
+function _pisIsPlaceholder(arr){
+  if(!Array.isArray(arr)||arr.length!==1) return false;
+  const p=arr[0]||{};
+  if((p.batches||[]).length) return false;
+  if((p.parts||[]).length) return false;
+  const a=p.annos||{};
+  if((a.points||[]).length||(a.dims||[]).length||(a.texts||[]).length||(a.arrows||[]).length) return false;
+  return true;
+}
+/* 启动/上传前的云端守卫：比较云端 updated_at 与本地最后编辑时间（pis_prods_v2_mts）。
+   返回 'pulled'(已采用云端) / 'local-newer'(本地更新需补传) / 'same' / 'no-cloud'(云端无此键)，
+   失败态 'error' / 'no-client' / '__timeout'。 */
+function _pisCloudGuard(){
+  function _wt(p,ms){ return Promise.race([Promise.resolve(p), new Promise(function(res){ setTimeout(function(){res('__timeout');},ms); })]); }
+  return _wt((async function(){
+    var sb=window.supabase;
+    if(!sb||!sb.from) return 'no-client';
+    function unwrap(p){ return (p&&typeof p==='object'&&!Array.isArray(p)&&p.data!==undefined)?p.data:p; }
+    var res=await sb.from('app_data_store').select('store_key, payload, updated_at').eq('id',LS);
+    if(res&&res.error) return 'error';
+    var rows=(res&&res.data)||[];
+    var row=null;
+    for(var i=0;i<rows.length;i++){ var r=rows[i]; if(r&&r.store_key===LS&&(!row||String(r.updated_at||'')>String(row.updated_at||''))) row=r; }
+    if(!row) return 'no-cloud';
+    var cloudTs=new Date(row.updated_at||0).getTime()||0;
+    var localMts=parseInt(localStorage.getItem(LS+'_mts')||'0',10)||0;
+    /* 占位默认数据（离线打开生成的空产品）即使 _mts 较新也不允许覆盖云端 */
+    if(localMts>cloudTs && _pisIsPlaceholder(load(LS,[]))) localMts=0;
+    if(cloudTs>localMts){
+      var val=unwrap(row.payload);
+      _localSet(LS,val);
+      if(window.SupabaseStore&&window.SupabaseStore.set){ try{ await window.SupabaseStore.set(LS,val); }catch(e){} }
+      /* 当前选中产品也跟随云端（另一台电脑可能切换了产品） */
+      try{
+        var res2=await sb.from('app_data_store').select('store_key, payload, updated_at').eq('id','pis_cur_prod');
+        var rows2=(res2&&res2.data)||[];
+        if(rows2.length){ var v2=unwrap(rows2[0].payload); _localSet('pis_cur_prod',v2); if(window.SupabaseStore&&window.SupabaseStore.set){ try{ await window.SupabaseStore.set('pis_cur_prod',v2); }catch(e){} } }
+      }catch(e){}
+      return 'pulled';
+    }
+    if(localMts>cloudTs) return 'local-newer';
+    return 'same';
+  })(), 10000);
+}
+
 /* 验货记录自己的云端自动上传定时器（debounce 5s）。
    因为 inspection.html 在独立 iframe 里，和主页面的 SupabaseStore 是**两个独立实例**，
    主界面的"上传云端"按钮上传不到这里的改动，所以需要自己调 pushAll()。 */
 let _pisUploadTimer=null;
 function _pisScheduleUpload(){
   if(_pisUploadTimer)clearTimeout(_pisUploadTimer);
-  _pisUploadTimer=setTimeout(()=>{
+  _pisUploadTimer=setTimeout(async ()=>{
     _pisUploadTimer=null;
     const store=window.SupabaseStore;
     if(!store||typeof store.pushAll!=='function')return;
+    /* 启动时云端守卫未成功（离线/超时打开）→ 禁止盲目上传，先重试守卫：
+       拉到云端则改用云端（本地占位内容不上传）；仍不可达则放弃本次上传，本地数据保留待联网重试 */
+    if(!_pisCloudOk){
+      let g='error';
+      try{ g=await _pisCloudGuard(); }catch(e){}
+      if(g==='pulled'){
+        _pisCloudOk=true;
+        products=load(LS,[]); curId=load('pis_cur_prod','');
+        initProducts(); loadProductUI(); renderList(); renderCat();
+        console.log('[inspection] 已改用云端数据（本地占位内容未上传）');
+        return;
+      }
+      if(g==='local-newer'||g==='same'||g==='no-cloud'){ _pisCloudOk=true; }
+      else{ console.warn('[inspection] 云端不可达，本次自动上传已取消（本地数据已保留，联网后会自动重试）'); return; }
+    }
     store.pushAll().then(r=>{
       if(r&&r.ok) console.log('[inspection] 云端已同步（上传 %d 个 key）', r.uploaded);
       else if(r) console.warn('[inspection] 云端同步结果：', r);
@@ -1114,43 +1180,19 @@ async function pdfRenderPage(doc,no){
   if(window.SupabaseStore && window.SupabaseStore.init){
     try{
       var r0=await withTimeout(window.SupabaseStore.init(), 12000);
-      if(r0==='__timeout'){ console.warn('[inspection] 云端初始化超时，先用本地数据渲染'); }
+      if(r0==='__timeout'){ console.warn('[inspection] 云端初始化超时，先用本地数据渲染（自动上传已锁定，联网后重试）'); }
       else{
-        /* 启动时按时间戳守卫拉取云端产品数据：
-           - 云端 updated_at 比本地最后编辑时间（pis_prods_v2_mts）新 → 采用云端；
-           - 本地更新（编辑尚未传上去）→ 保留本地并立即补传，防止被云端旧值覆盖。 */
-        var r1=await withTimeout((async function(){
-          var sb=window.supabase;
-          if(!sb||!sb.from) return 'no-client';
-          function unwrap(p){ return (p&&typeof p==='object'&&!Array.isArray(p)&&p.data!==undefined)?p.data:p; }
-          var res=await sb.from('app_data_store').select('store_key, payload, updated_at').eq('id',LS);
-          if(res&&res.error) return 'error';
-          var rows=(res&&res.data)||[];
-          var row=null;
-          for(var i=0;i<rows.length;i++){ var r=rows[i]; if(r&&r.store_key===LS&&(!row||String(r.updated_at||'')>String(row.updated_at||''))) row=r; }
-          if(!row) return 'no-cloud';
-          var cloudTs=new Date(row.updated_at||0).getTime()||0;
-          var localMts=parseInt(localStorage.getItem(LS+'_mts')||'0',10)||0;
-          if(cloudTs>localMts){
-            var val=unwrap(row.payload);
-            _localSet(LS,val);
-            if(window.SupabaseStore&&window.SupabaseStore.set){ try{ await window.SupabaseStore.set(LS,val); }catch(e){} }
-            /* 当前选中产品也跟随云端（另一台电脑可能切换了产品） */
-            try{
-              var res2=await sb.from('app_data_store').select('store_key, payload, updated_at').eq('id','pis_cur_prod');
-              var rows2=(res2&&res2.data)||[];
-              if(rows2.length){ var v2=unwrap(rows2[0].payload); _localSet('pis_cur_prod',v2); if(window.SupabaseStore&&window.SupabaseStore.set){ try{ await window.SupabaseStore.set('pis_cur_prod',v2); }catch(e){} } }
-            }catch(e){}
-            return 'pulled';
-          }
-          if(localMts>cloudTs) return 'local-newer';
-          return 'same';
-        })(), 10000);
-        if(r1==='__timeout'){ console.warn('[inspection] 启动拉取云端超时，先用本地数据渲染'); }
-        else if(r1==='pulled'){ products=load(LS,[]); curId=load('pis_cur_prod',''); }
-        else if(r1==='local-newer'){ console.log('[inspection] 本地编辑比云端新，启动补传云端'); _pisScheduleUpload(); }
+        /* 启动时按时间戳守卫拉取云端产品数据（逻辑见 _pisCloudGuard）：
+           - 云端比本地新 → 采用云端；本地更新 → 保留并补传；
+           - 守卫未成功时 _pisCloudOk 保持 false，锁定一切自动上传。 */
+        var r1='error';
+        try{ r1=await _pisCloudGuard(); }catch(e){}
+        if(r1==='pulled'){ _pisCloudOk=true; products=load(LS,[]); curId=load('pis_cur_prod',''); }
+        else if(r1==='local-newer'){ _pisCloudOk=true; console.log('[inspection] 本地编辑比云端新，启动补传云端'); _pisScheduleUpload(); }
+        else if(r1==='same'||r1==='no-cloud'){ _pisCloudOk=true; }
+        else{ console.warn('[inspection] 启动云端守卫未通过（'+r1+'），先用本地数据渲染；自动上传已锁定，联网后自动重试'); }
       }
-    }catch(e){ console.warn('[inspection] 云端初始化失败，先用本地数据渲染:', e); }
+    }catch(e){ console.warn('[inspection] 云端初始化失败，先用本地数据渲染（自动上传已锁定）:', e); }
   }
   initProducts();
   $('batchModalBg').onclick=e=>{if(e.target===$('batchModalBg'))closeBatch();};
