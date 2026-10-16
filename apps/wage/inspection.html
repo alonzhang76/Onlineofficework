@@ -279,6 +279,7 @@ window.CLOUDBASE_SYNC = { email: 'sync@lori.app', password: 'LoriSync2026!' };
   <div class="panel">
     <h2>产品目录 <span class="hint" id="catCount"></span></h2>
     <div class="toolbar no-print">
+      <input id="catQ" placeholder="🔍 搜索：型号 / 名称" style="width:220px" oninput="renderCat()">
       <span class="spacer"></span>
       <span class="hint">这里保存并管理所有产品；点「编辑测量」进入该产品的测量标注页；点「导出 PDF」导出该产品的标识图；新建产品请用右上角「+ 新建产品」</span>
     </div>
@@ -571,6 +572,7 @@ const I18N_EN={
   '① 新增产品测量':'① Product Measurement',
   '② 产品目录':'② Product Catalog',
   '产品目录':'Product Catalog',
+  '没有匹配的产品。':'No matching products.',
   '③ 抽检记录':'③ Inspection Records',
   '+ 新建产品':'+ New Product',
   '切换产品':'Switch product',
@@ -720,6 +722,7 @@ const I18N_EN={
   '产品：':'Product: ',
   '+ 新增抽检批次':'+ New Batch',
   '🔍 搜索：客户 / 订单号 / 检验人 / 备注':'🔍 Search: customer / order / inspector / note',
+  '🔍 搜索：型号 / 名称':'🔍 Search: model / name',
   '全部判定':'All results',
   '仅全部合格':'Passed only',
   '仅有不合格':'Has NG',
@@ -805,6 +808,7 @@ const I18N_EN={
 /* 带变量的整句（正则 → 英文） */
 const I18N_RULES=[
   [/^（共 (\d+) 个产品）$/,'($1 products)'],
+  [/^（匹配 (\d+) \/ 共 (\d+) 个产品）$/,'($1 matched of $2 products)'],
   [/^（共 (\d+) 件，已标注 (\d+) 件）$/,'($1 points, $2 marked)'],
   [/^（共 (\d+) 项）$/,'($1 items)'],
   [/^共 (\d+) 项：合格 (\d+) · 不合格 (\d+) · 待填 (\d+)$/,'Total $1: OK $2 · NG $3 · Pending $4'],
@@ -1302,9 +1306,15 @@ function delProductOf(id){
 function renderCat(){
   const tb=$('catBody'); if(!tb)return;
   tb.innerHTML='';
-  if($('catCount'))$('catCount').textContent=`（共 ${products.length} 个产品）`;
+  /* 搜索过滤：型号 / 名称不区分大小写；编号保持原序号不变 */
+  const q=(($('catQ')&&$('catQ').value)||'').trim().toLowerCase();
+  const hit=p=>!q||((p.model||'')+' '+(p.name||'')).toLowerCase().indexOf(q)>=0;
+  const list=products.filter(hit);
+  if($('catCount'))$('catCount').textContent=q?`（匹配 ${list.length} / 共 ${products.length} 个产品）`:`（共 ${products.length} 个产品）`;
   if(!products.length){ tb.innerHTML='<tr><td colspan="7" style="padding:20px;color:var(--sub)">还没有产品，点左上「+ 新建产品」。</td></tr>'; return; }
+  if(!list.length){ tb.innerHTML='<tr><td colspan="7" style="padding:20px;color:var(--sub)">没有匹配的产品。</td></tr>'; return; }
   products.forEach((p,i)=>{
+    if(!hit(p))return;
     const tr=document.createElement('tr');
     if(p.id===curId)tr.className='ok-row';
     tr.innerHTML=`<td>${i+1}</td>
