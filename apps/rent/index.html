@@ -3067,6 +3067,7 @@ function startApp() {
   }
 
   var subtle = window.crypto.subtle;
+  console.log('[rent] 保险库模块 v20261018b · PBKDF2=纯JS优化版');
   var VAULT_KEY = 'rent_vault_v1';      // 云端同步的唯一键（密文）
   var PWD_STORE = '__rent_vault_pwd__'; // sessionStorage 会话口令
   var PBKDF2_ITER = 200000;
@@ -3260,10 +3261,12 @@ function startApp() {
   // 派生改走纯 JS 优化实现（同步计算约 0.2~0.5s），密钥仍以 AES-GCM CryptoKey 使用；
   // setTimeout 让「正在加密…/解密中…」文字先渲染，避免界面看似无响应。
   function deriveKey(pwd, saltBytes) {
+    var t0 = Date.now();
     return new Promise(function (resolve, reject) {
       setTimeout(function () {
         try {
           var keyBytes = pbkdf2Fast(pwd, saltBytes, PBKDF2_ITER, 32);
+          console.log('[rent] PBKDF2 派生完成，耗时 ' + (Date.now() - t0) + 'ms');
           resolve(subtle.importKey('raw', keyBytes, 'AES-GCM', false, ['encrypt', 'decrypt']));
         } catch (e) { reject(e); }
       }, 30);
