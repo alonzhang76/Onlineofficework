@@ -20,8 +20,8 @@
     },
     {
       "id": "poultry",
-      "name": "家禽业务",
-      "icon": "🐔",
+      "name": "个人事务",
+      "icon": "🗂️",
       "color": "#d97706"
     }
   ],
@@ -145,6 +145,16 @@
       "color": "#d97706",
       "category": "poultry",
       "sort_order": 1
+    },
+    {
+      "id": "rent",
+      "name": "商铺收租登记",
+      "description": "商铺/车位租赁合同、账期与收租登记（端侧加密，云端仅存密文）",
+      "url": "apps/rent/index.html",
+      "icon": "🏪",
+      "color": "#2f6fed",
+      "category": "poultry",
+      "sort_order": 2
     }
   ],
   "admin_email": "alonzhang76@outlook.com"

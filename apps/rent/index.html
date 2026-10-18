@@ -1,0 +1,3482 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<script src="../portal-auth-guard.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>商铺收租登记系统</title>
+<!-- ===== 云端配置（必须在 cloudbase-sync.js 之前）=====
+     明文数据键全部排除、永不上云；仅同步端侧加密后的 rent_vault_v1 密文保险库。
+     加密口令仅存本会话 sessionStorage，绝不上云（与工资管理系统同一方案）。 -->
+<script>
+  window.SUPABASE_APP_ID = 'rent';
+  window.CLOUDBASE_APP_KEYS = ['rent_vault_v1'];
+  window.CLOUDBASE_EXCLUDE_KEYS = [
+    'rent_shops_v1', 'rent_tenants_v1', 'rent_contracts_v1', 'rent_leases_v1',
+    'rent_meta_v1', 'rent_tpls_v1', 'rent_pwd_hash', 'rent_session', 'rent_remember_user'
+  ];
+</script>
+<script src="../cloudbase-sync.js?v=20261010a"></script>
+<style>
+:root{
+  --brand:#2f6fed; --brand-d:#1d54c4; --brand-l:#eaf1ff;
+  --bg:#f5f7fb; --card:#fff; --line:#e5e9f2; --line-2:#f0f3f8;
+  --txt:#1e2633; --txt-2:#465269; --muted:#7b879c;
+  --ok:#0f9d58; --ok-l:#e9f7ef; --warn:#d97706; --warn-l:#fef5e7; --bad:#e04b4b; --bad-l:#fdecec;
+  --shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px -18px rgba(16,24,40,.25);
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;min-height:100%}
+body{
+  font-family:"Microsoft YaHei","PingFang SC",-apple-system,"Segoe UI",Roboto,sans-serif;
+  background:var(--bg); color:var(--txt); font-size:14px; -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4,p{margin:0}
+button{font-family:inherit}
+input,select,textarea{font-family:inherit;font-size:14px}
+.muted{color:var(--muted)}
+.small{font-size:12.5px}
+.num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.mono{font-variant-numeric:tabular-nums;letter-spacing:.02em}
+
+/* ================= 登录页 ================= */
+#loginPage{
+  position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;
+  background:
+    radial-gradient(1100px 560px at 12% 8%,#e6eeff 0%,transparent 62%),
+    radial-gradient(900px 520px at 88% 96%,#e4f8f4 0%,transparent 58%),
+    #f4f6fb;
+}
+.login-card{
+  width:900px;max-width:100%;display:grid;grid-template-columns:1.02fr 1fr;
+  background:#fff;border:1px solid #e8ecf5;border-radius:20px;overflow:hidden;
+  box-shadow:0 28px 70px -32px rgba(18,38,90,.35),0 2px 6px rgba(18,38,90,.05);
+}
+.login-art{
+  position:relative;padding:40px 36px;color:#fff;overflow:hidden;
+  background:linear-gradient(155deg,#173a9b 0%,#2f6fed 52%,#1aa7bf 100%);
+}
+.login-art:after{
+  content:"";position:absolute;inset:-40% -20% auto auto;width:420px;height:420px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,255,255,.22),transparent 65%);
+}
+.la-brand{display:flex;align-items:center;gap:10px;position:relative;z-index:1}
+.la-logo{width:38px;height:38px;border-radius:11px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);display:grid;place-items:center}
+.la-brand b{font-size:15px;letter-spacing:.02em}
+.la-brand i{display:block;font-style:normal;font-size:10.5px;letter-spacing:.16em;opacity:.72;margin-top:2px}
+.la-title{position:relative;z-index:1;margin-top:46px;font-size:29px;font-weight:700;letter-spacing:.02em;line-height:1.35}
+.la-sub{position:relative;z-index:1;margin-top:12px;font-size:13px;line-height:1.9;opacity:.82;max-width:300px}
+.la-feats{position:relative;z-index:1;margin-top:34px;display:flex;flex-direction:column;gap:11px}
+.la-feats div{display:flex;align-items:center;gap:9px;font-size:12.5px;opacity:.9}
+.la-feats svg{flex:0 0 auto;opacity:.95}
+.la-art-svg{position:absolute;right:-26px;bottom:-12px;opacity:.55;z-index:0}
+
+.login-form{padding:44px 44px 34px;display:flex;flex-direction:column;justify-content:center}
+.lf-title{font-size:21px;font-weight:700;letter-spacing:.01em}
+.lf-tip{margin-top:7px;font-size:12.5px;color:var(--muted)}
+.field{margin-top:20px}
+.field label{display:block;font-size:12.5px;color:var(--txt-2);margin-bottom:7px;font-weight:600}
+.input-wrap{position:relative;display:flex;align-items:center}
+.input-wrap>svg{position:absolute;left:13px;color:#9aa6ba;pointer-events:none}
+.input-wrap input{
+  width:100%;height:44px;padding:0 42px 0 40px;border:1px solid #dfe4ee;border-radius:10px;
+  background:#fbfcfe;color:var(--txt);outline:none;transition:border-color .15s,box-shadow .15s,background .15s;
+}
+.input-wrap input::placeholder{color:#aab4c6}
+.input-wrap input:focus{border-color:#9dbcf8;background:#fff;box-shadow:0 0 0 3px rgba(47,111,237,.12)}
+.eye{position:absolute;right:6px;width:34px;height:34px;border:0;background:transparent;color:#9aa6ba;border-radius:8px;cursor:pointer;display:grid;place-items:center}
+.eye:hover{background:#f1f4fa;color:#5b6a85}
+.lf-row{display:flex;align-items:center;justify-content:space-between;margin-top:14px;font-size:12.5px;color:var(--txt-2)}
+.lf-row label{display:flex;align-items:center;gap:6px;cursor:pointer}
+.lf-row input[type=checkbox]{accent-color:var(--brand);width:14px;height:14px}
+.lf-btn{
+  margin-top:20px;height:46px;width:100%;border:0;border-radius:10px;cursor:pointer;
+  background:linear-gradient(180deg,#3b7bf6,#2f6fed);color:#fff;font-size:15px;font-weight:600;letter-spacing:.12em;
+  box-shadow:0 10px 22px -12px rgba(47,111,237,.9);transition:transform .08s,filter .15s,opacity .15s;
+}
+.lf-btn:hover{filter:brightness(1.04)}
+.lf-btn:active{transform:translateY(1px)}
+.lf-btn[disabled]{opacity:.65;cursor:not-allowed;filter:none}
+.login-err{margin-top:12px;font-size:12.5px;color:var(--bad);min-height:18px;line-height:1.5}
+.lf-foot{margin-top:22px;padding-top:16px;border-top:1px solid var(--line-2);font-size:11.5px;color:#9aa6ba;display:flex;justify-content:space-between}
+@media (max-width:820px){
+  .login-card{grid-template-columns:1fr}
+  .login-art{display:none}
+  .login-form{padding:32px 26px}
+}
+
+/* ================= 应用骨架 ================= */
+#appShell{display:flex;min-height:100vh}
+.sidebar{
+  width:228px;flex:0 0 228px;background:#fff;border-right:1px solid var(--line);
+  padding:16px 12px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;
+}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 8px 18px}
+.brand .logo{
+  width:36px;height:36px;border-radius:11px;display:grid;place-items:center;color:#fff;
+  background:linear-gradient(145deg,#2f6fed,#1aa7bf);box-shadow:0 8px 16px -10px rgba(47,111,237,.9);
+}
+.brand b{font-size:14.5px;display:block;letter-spacing:.01em}
+.brand i{font-style:normal;font-size:10.5px;color:#9aa6ba;letter-spacing:.1em}
+.nav{display:flex;flex-direction:column;gap:2px;margin-top:4px}
+.nav-item{
+  display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;
+  color:#4a5568;cursor:pointer;font-size:13.5px;user-select:none;border:0;background:transparent;text-align:left;width:100%;
+}
+.nav-item svg{color:#8c98ad;flex:0 0 auto}
+.nav-item:hover{background:#f4f7fd}
+.nav-item.on{background:var(--brand-l);color:var(--brand-d);font-weight:600}
+.nav-item.on svg{color:var(--brand-d)}
+.side-foot{margin-top:auto;padding:12px 10px 4px;border-top:1px solid var(--line-2);font-size:11px;color:#9aa6ba;line-height:1.7}
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{
+  height:62px;flex:0 0 62px;background:rgba(255,255,255,.86);backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:0 24px;position:sticky;top:0;z-index:20;
+}
+.tb-title{font-size:15px;font-weight:600}
+.tb-sub{font-size:12px;color:var(--muted);margin-left:2px}
+.tb-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.chip{
+  display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:8px;
+  background:#f3f6fc;color:#4a5568;font-size:12.5px;border:1px solid #e8edf7;
+}
+.avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(145deg,#2f6fed,#1aa7bf);color:#fff;display:grid;place-items:center;font-size:12.5px;font-weight:700}
+.content{padding:22px 24px 46px;width:100%;max-width:1440px}
+
+/* ================= 通用组件 ================= */
+.page-head{display:flex;align-items:flex-end;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+.page-head h2{font-size:19px;font-weight:700;letter-spacing:.01em}
+.page-head p{margin-top:5px;font-size:12.5px;color:var(--muted)}
+.head-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.btn{
+  height:34px;padding:0 14px;border-radius:9px;border:1px solid #dfe4ee;background:#fff;color:var(--txt-2);
+  font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:.15s;white-space:nowrap;
+}
+.btn:hover{border-color:#c9d3e6;background:#fbfcff;color:var(--txt)}
+.btn-primary{background:var(--brand);border-color:var(--brand);color:#fff;box-shadow:0 8px 16px -12px rgba(47,111,237,.95)}
+.btn-primary:hover{background:var(--brand-d);border-color:var(--brand-d);color:#fff}
+.btn-sm{height:28px;padding:0 10px;font-size:12.5px;border-radius:7px}
+.btn-ghost{background:transparent;border-color:transparent;color:var(--brand)}
+.btn-ghost:hover{background:var(--brand-l);border-color:transparent;color:var(--brand-d)}
+.btn-danger{color:var(--bad);border-color:#f3d6d6}
+.btn-danger:hover{background:var(--bad-l);border-color:#eebcbc;color:#c33}
+.link{color:var(--brand);cursor:pointer;font-size:12.5px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+.card-h{display:flex;align-items:center;gap:10px;padding:15px 18px;border-bottom:1px solid var(--line-2)}
+.card-h h3{font-size:14px;font-weight:600}
+.card-h .link{margin-left:auto}
+.card-b{padding:16px 18px}
+.grid-2{display:grid;grid-template-columns:1.55fr 1fr;gap:16px;margin-top:16px}
+.grid-2e{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:1080px){.grid-2,.grid-2e{grid-template-columns:1fr}}
+
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+@media (max-width:1080px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stat{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 17px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.stat .k{font-size:12.5px;color:var(--muted)}
+.stat .v{font-size:24px;font-weight:700;margin-top:9px;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.stat .v i{font-style:normal;font-size:13px;color:var(--muted);font-weight:500}
+.stat .s{margin-top:7px;font-size:12px;color:var(--muted)}
+.stat .bar{position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--brand)}
+.stat.green .bar{background:var(--ok)} .stat.red .bar{background:var(--bad)} .stat.amber .bar{background:var(--warn)} .stat.navy .bar{background:#173a9b}
+.stat .v.green{color:var(--ok)} .stat .v.red{color:var(--bad)} .stat .v.amber{color:var(--warn)}
+
+.tbl-wrap{overflow:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+.tbl th{
+  text-align:left;font-weight:600;color:#6b7688;font-size:12.5px;background:#f8fafc;
+  padding:10px 14px;border-bottom:1px solid var(--line);white-space:nowrap;
+}
+.tbl td{padding:11px 14px;border-bottom:1px solid var(--line-2);vertical-align:middle}
+.tbl tbody tr:hover{background:#fafcff}
+.tbl tbody tr:last-child td{border-bottom:0}
+.cell-main{font-weight:600;color:var(--txt)}
+.cell-sub{font-size:12px;color:var(--muted);margin-top:3px}
+.ops{white-space:nowrap;text-align:right}
+.ops .btn{vertical-align:middle}
+.badge{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:6px;font-size:12px;font-weight:500}
+.badge:before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}
+.b-ok{background:var(--ok-l);color:#0b7a45}
+.b-warn{background:var(--warn-l);color:#a25b00}
+.b-bad{background:var(--bad-l);color:#b83232}
+.b-info{background:var(--brand-l);color:var(--brand-d)}
+.b-gray{background:#f1f4f9;color:#6b7688}
+.empty{padding:44px 20px;text-align:center;color:var(--muted);font-size:13px}
+.empty b{display:block;color:var(--txt-2);font-size:14px;margin-bottom:6px;font-weight:600}
+
+.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 18px;border-bottom:1px solid var(--line-2)}
+.toolbar .sp{margin-left:auto}
+.inp{
+  height:34px;padding:0 11px;border:1px solid #dfe4ee;border-radius:9px;background:#fbfcfe;color:var(--txt);outline:none;
+}
+.inp:focus{border-color:#9dbcf8;background:#fff;box-shadow:0 0 0 3px rgba(47,111,237,.1)}
+.search{position:relative}
+.search svg{position:absolute;left:10px;top:9px;color:#9aa6ba;pointer-events:none}
+.search input{padding-left:32px;padding-right:30px;width:230px}
+.search-x{
+  position:absolute;right:4px;top:4px;width:26px;height:26px;border:0;border-radius:7px;background:transparent;
+  color:#9aa6ba;font-size:11px;cursor:pointer;display:grid;place-items:center;line-height:1;padding:0;
+}
+.search-x:hover{background:#eef2f9;color:#5b6a85}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chipbtn{
+  height:30px;padding:0 11px;border-radius:8px;border:1px solid #e6eaf3;background:#fff;color:#5b6a85;
+  font-size:12.5px;cursor:pointer;
+}
+.chipbtn.on{background:var(--brand-l);border-color:#c9dbff;color:var(--brand-d);font-weight:600}
+.chipbtn .c{opacity:.65;margin-left:3px;font-variant-numeric:tabular-nums}
+
+.sumstrip{display:flex;gap:26px;padding:13px 18px;background:#fbfcfe;border-bottom:1px solid var(--line-2);flex-wrap:wrap}
+.sumstrip div{font-size:12.5px;color:var(--muted)}
+.sumstrip b{display:block;font-size:16px;color:var(--txt);margin-top:4px;font-variant-numeric:tabular-nums}
+
+.chart{padding:12px 14px 6px}
+.svg-chart{width:100%;height:auto;display:block}
+.axis{font-size:11px;fill:#94a1b8}
+.legend{margin-left:auto;display:flex;gap:12px;font-size:12px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend span:before{content:"";width:9px;height:9px;border-radius:3px;background:#c9dbff}
+.legend .lg-paid:before{background:var(--brand)}
+
+.todo{padding:6px 0}
+.todo-item{display:flex;gap:10px;align-items:flex-start;padding:10px 18px;border-bottom:1px dashed var(--line-2)}
+.todo-item:last-child{border-bottom:0}
+.todo-dot{width:7px;height:7px;border-radius:50%;background:var(--warn);margin-top:6px;flex:0 0 auto}
+.todo-main{flex:1;min-width:0}
+.todo-main b{font-size:13px;font-weight:600}
+.todo-main p{font-size:12px;color:var(--muted);margin-top:3px}
+.todo-act{font-size:12px;color:var(--brand);cursor:pointer;white-space:nowrap}
+
+.kv{display:flex;justify-content:space-between;gap:14px;padding:10px 0;border-bottom:1px dashed var(--line-2);font-size:13px}
+.kv:last-child{border-bottom:0}
+.kv span{color:var(--muted)}
+.kv b{font-weight:600}
+.row-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+
+/* ================= 弹窗 ================= */
+#modalRoot .mask{
+  position:fixed;inset:0;background:rgba(20,30,55,.42);backdrop-filter:blur(2px);
+  display:flex;align-items:center;justify-content:center;padding:24px;z-index:100;animation:fade .12s ease-out;
+}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.modal{
+  width:560px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;background:#fff;border-radius:16px;
+  box-shadow:0 30px 80px -30px rgba(12,25,60,.5);overflow:hidden;animation:pop .14s ease-out;
+}
+@keyframes pop{from{transform:translateY(8px) scale(.99);opacity:.6}to{transform:none;opacity:1}}
+/* 点到遮罩时轻微抖动，提示「要关闭请点取消/✕」 */
+.modal.nudge{animation:nudge .32s cubic-bezier(.36,.07,.19,.97)}
+@keyframes nudge{0%,100%{transform:translateX(0)}20%{transform:translateX(-5px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
+.modal.wide{width:660px}
+.modal.full{width:1080px;max-height:92vh}
+/* ---------- 合同正文编辑器 / 预览 ---------- */
+.tpl-edit-wrap{display:grid;grid-template-columns:300px 1fr;gap:16px;min-height:420px}
+.tpl-edit-left{border:1px solid var(--line-2);border-radius:10px;overflow:auto;max-height:56vh;background:#fbfcfe}
+.tpl-edit-right{display:flex;flex-direction:column;min-width:0}
+.tpl-edit-hd{font-size:12px;color:#7a879e;padding:8px 10px;border-bottom:1px solid var(--line-2);background:#f6f8fc;font-weight:600}
+.tpl-edit-right .tpl-edit-hd{border:1px solid var(--line-2);border-radius:10px 10px 0 0}
+.tpl-fields{padding:8px}
+.tpl-fld{display:block;margin-bottom:9px}
+.tpl-fld>span{display:block;font-size:11.5px;color:#7a879e;margin-bottom:3px}
+.tpl-fld-row{display:flex;gap:6px;align-items:center}
+.tpl-fld-row input,.tpl-fld-row select{flex:1;min-width:0;height:30px;padding:0 8px;border:1px solid #dfe5ef;border-radius:7px;font-size:12.5px;background:#fff;font-family:inherit}
+.tpl-fld-row input:focus,.tpl-fld-row select:focus{outline:none;border-color:#2f6fed;box-shadow:0 0 0 3px rgba(47,111,237,.12)}
+.tpl-body{flex:1;width:100%;min-height:430px;padding:16px 18px;border:1px solid var(--line-2);border-top:0;border-radius:0 0 10px 10px;font-family:"宋体",serif;font-size:13px;line-height:2;resize:vertical;background:#fff}
+.tpl-body:focus{outline:none;border-color:#2f6fed}
+.doc-paper{max-width:760px;margin:0 auto;padding:34px 44px;background:#fff;border:1px solid var(--line-2);border-radius:8px;box-shadow:0 2px 14px -6px rgba(20,40,80,.12);font-family:"宋体",SimSun,serif;font-size:13.5px;line-height:2.1;color:#1b2436}
+.doc-line{white-space:pre-wrap;word-break:break-word}
+.doc-line.ind{text-indent:2em}
+.doc-title{text-align:center;font-family:"黑体",SimHei,sans-serif;font-size:18px;font-weight:700;letter-spacing:.12em;margin-bottom:14px;text-indent:0!important}
+.doc-blank{height:.9em}
+.tpl-blank{color:#c0392b;font-style:normal;border-bottom:1px dashed #e0a9a2}
+@media print{
+  body.print-contract #printArea{display:block!important;padding:0}
+  body.print-contract .doc-paper{border:0;box-shadow:none;padding:0;max-width:none;font-size:10.5pt}
+  body.print-contract .doc-line.ind{text-indent:2em}
+  body.print-contract .tpl-blank{color:#000;border-bottom:0}
+}
+.m-head{display:flex;align-items:center;padding:16px 20px;border-bottom:1px solid var(--line-2)}
+.m-head h3{font-size:15px;font-weight:600}
+.m-x{margin-left:auto;width:30px;height:30px;border:0;background:transparent;border-radius:8px;color:#93a0b8;cursor:pointer;font-size:15px}
+.m-x:hover{background:#f2f5fa;color:#5b6a85}
+.m-body{padding:18px 20px;overflow:auto}
+.m-foot{display:flex;justify-content:flex-end;gap:9px;padding:14px 20px;border-top:1px solid var(--line-2);background:#fbfcfe}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:520px){.form-grid{grid-template-columns:1fr}}
+.fld{display:block}
+.fld.span2{grid-column:1/-1}
+.fld>span{display:block;font-size:12.5px;color:var(--txt-2);font-weight:600;margin-bottom:6px}
+.fld input,.fld select,.fld textarea{
+  width:100%;height:38px;padding:0 11px;border:1px solid #dfe4ee;border-radius:9px;background:#fbfcfe;color:var(--txt);outline:none;
+}
+.fld textarea{height:72px;padding:9px 11px;resize:vertical;line-height:1.6}
+.fld input:focus,.fld select:focus,.fld textarea:focus{border-color:#9dbcf8;background:#fff;box-shadow:0 0 0 3px rgba(47,111,237,.1)}
+.fld input[readonly]{background:#f6f8fc;color:#5b6a85}
+.info-box{background:#f7f9fd;border:1px solid #e8edf7;border-radius:11px;padding:13px 15px;margin-bottom:16px}
+.info-box .big{font-size:20px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
+.info-box .sub{font-size:12.5px;color:var(--muted);margin-top:5px}
+.pay-list{margin-top:16px;border-top:1px dashed var(--line-2);padding-top:12px}
+.pay-list h4{font-size:12.5px;color:var(--txt-2);margin-bottom:8px}
+.pay-line{display:flex;align-items:center;gap:10px;font-size:12.5px;padding:7px 0;border-bottom:1px dashed var(--line-2)}
+.pay-line:last-child{border-bottom:0}
+.pay-line .del{margin-left:auto;color:var(--bad);cursor:pointer;font-size:12px}
+.hint{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.7}
+
+/* ================= Toast ================= */
+#toastBox{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);display:flex;flex-direction:column;gap:8px;z-index:200;align-items:center}
+.toast{
+  padding:10px 16px;border-radius:10px;background:#1f2937;color:#fff;font-size:13px;
+  box-shadow:0 12px 30px -12px rgba(0,0,0,.5);animation:tin .18s ease-out;max-width:80vw;
+}
+.toast.ok{background:#0f7a45}
+.toast.bad{background:#c33}
+@keyframes tin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* ================= 打印收据 ================= */
+#printArea{display:none}
+@media print{
+  body{background:#fff}
+  body>*:not(#printArea){display:none!important}
+  #printArea{display:block!important;padding:0}
+  .receipt{width:148mm;margin:0 auto;border:1px solid #333;padding:10mm 12mm;color:#000;font-size:12pt}
+  .receipt h1{font-size:17pt;text-align:center;letter-spacing:.4em;margin-bottom:4mm;font-weight:700}
+  .receipt .rc-no{text-align:right;font-size:9pt;color:#444;margin-bottom:6mm}
+  .receipt table{width:100%;border-collapse:collapse}
+  .receipt td{padding:3.2mm 0;font-size:11.5pt;border-bottom:1px dotted #999;vertical-align:top}
+  .receipt td.k{width:26mm;color:#333}
+  .receipt .rc-amount{font-size:15pt;font-weight:700}
+  .receipt .rc-sign{margin-top:14mm;display:flex;justify-content:space-between;font-size:11pt}
+  .receipt .rc-foot{margin-top:10mm;font-size:8.5pt;color:#666;text-align:center}
+}
+
+@media (max-width:900px){
+  #appShell{flex-direction:column}
+  .sidebar{width:auto;flex:none;height:auto;position:static;border-right:0;border-bottom:1px solid var(--line);padding:10px}
+  .brand{padding:4px 6px 10px}
+  .nav{flex-direction:row;overflow:auto;gap:4px}
+  .nav-item{white-space:nowrap;width:auto;padding:8px 11px}
+  .side-foot{display:none}
+  .topbar{padding:0 14px}
+  .content{padding:16px 14px 40px}
+  .stats{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+
+<!-- ==================== 登录页 ==================== -->
+<div id="loginPage" hidden>
+  <div class="login-card">
+    <div class="login-art">
+      <div class="la-brand">
+        <div class="la-logo">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-6 9 6v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21V10h6v11"/></svg>
+        </div>
+        <div><b>商铺收租登记</b><i>RENT REGISTER</i></div>
+      </div>
+      <div class="la-title">把每一间铺子<br>每一笔租金，都记清楚</div>
+      <div class="la-sub">商铺档案、租赁合同、每月账单、收款台账与年度报表，一个页面全部管住。</div>
+      <div class="la-feats">
+        <div><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>自动生成本月租金账单</div>
+        <div><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>欠租、部分收款、逾期一目了然</div>
+        <div><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>合同到期提前提醒，收据一键打印</div>
+      </div>
+      <svg class="la-art-svg" width="240" height="190" viewBox="0 0 240 190" fill="none">
+        <g stroke="rgba(255,255,255,.45)" stroke-width="1.2" fill="none">
+          <rect x="24" y="86" width="52" height="96" rx="3"/><rect x="88" y="58" width="58" height="124" rx="3"/>
+          <rect x="158" y="100" width="46" height="82" rx="3"/><path d="M4 182h232"/>
+        </g>
+        <g fill="rgba(255,255,255,.4)">
+          <rect x="36" y="100" width="10" height="9"/><rect x="54" y="100" width="10" height="9"/>
+          <rect x="36" y="118" width="10" height="9"/><rect x="54" y="118" width="10" height="9"/>
+          <rect x="102" y="74" width="12" height="10"/><rect x="122" y="74" width="12" height="10"/>
+          <rect x="102" y="94" width="12" height="10"/><rect x="122" y="94" width="12" height="10"/>
+          <rect x="170" y="114" width="9" height="8"/><rect x="185" y="114" width="9" height="8"/>
+        </g>
+      </svg>
+    </div>
+
+    <div class="login-form">
+      <div class="lf-title">登录系统</div>
+      <div class="lf-tip">请输入管理员分配的用户名与密码</div>
+
+      <form id="loginForm" autocomplete="on" novalidate>
+        <div class="field">
+          <label for="loginUser">用户名</label>
+          <div class="input-wrap">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <input id="loginUser" name="username" placeholder="请输入用户名" autocomplete="username" spellcheck="false">
+          </div>
+        </div>
+        <div class="field">
+          <label for="loginPwd">密码</label>
+          <div class="input-wrap">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <input id="loginPwd" name="password" type="password" placeholder="请输入密码" autocomplete="current-password">
+            <button type="button" class="eye" id="pwdEye" aria-label="显示密码">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="lf-row">
+          <label><input type="checkbox" id="rememberMe" checked>7 天内自动登录</label>
+          <span class="muted small" id="lockTip"></span>
+        </div>
+        <button class="lf-btn" type="submit" id="loginBtn">登 录</button>
+        <div class="login-err" id="loginErr"></div>
+      </form>
+
+      <div class="lf-foot">
+        <span>© 2026 商铺收租登记 · 数据端侧加密后云端同步</span>
+        <span>v3.2</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 应用 ==================== -->
+<div id="appShell" hidden>
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-6 9 6v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21V10h6v11"/></svg>
+      </div>
+      <div><b>商铺收租登记</b><i>RENT REGISTER</i></div>
+    </div>
+    <nav class="nav" id="nav">
+      <button class="nav-item on" data-view="dash">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        概览
+      </button>
+      <button class="nav-item" data-view="shops">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M4 9h16v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M9 21v-6h6v6"/></svg>
+        商铺档案
+      </button>
+      <button class="nav-item" data-view="tenants">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13A4 4 0 0 1 19 7a4 4 0 0 1-3 3.87"/></svg>
+        租户与合同
+      </button>
+      <button class="nav-item" data-view="tpls">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h4"/></svg>
+        合同范本
+      </button>
+      <button class="nav-item" data-view="rent">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/></svg>
+        租金登记
+      </button>
+      <button class="nav-item" data-view="parking">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 17V7h4a3 3 0 0 1 0 6H9"/></svg>
+        住宅车位
+      </button>
+      <button class="nav-item" data-view="ledger">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h13l3 3v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+        收款台账
+      </button>      <button class="nav-item" data-view="report">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><rect x="5" y="11" width="3.5" height="9"/><rect x="10.5" y="6" width="3.5" height="14"/><rect x="16" y="14" width="3.5" height="6"/></svg>
+        报表
+      </button>
+      <button class="nav-item" data-view="settings">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 7 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15a1.7 1.7 0 0 0-1.6-1H1a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 3 9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 9 3V3a2 2 0 1 1 4 0v.1A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 9h.1a2 2 0 1 1 0 4H21a1.7 1.7 0 0 0-1.6 2z"/></svg>
+        设置
+      </button>
+    </nav>
+    <div class="side-foot">
+      数据加密后云端同步<br>任何电脑解锁口令即可访问
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div>
+        <span class="tb-title" id="tbTitle">概览</span>
+        <span class="tb-sub" id="tbSub"></span>
+      </div>
+      <div class="tb-right">
+        <span class="chip" id="chipDate"></span>
+        <span class="avatar" title="alonzhang">A</span>
+        <button class="btn btn-sm" id="logoutBtn">退出</button>
+      </div>
+    </header>
+    <div class="content" id="viewRoot"></div>
+  </div>
+</div>
+
+<div id="modalRoot"></div>
+<div id="toastBox"></div>
+<div id="printArea"></div>
+
+<script src="js/seed-data.js"></script>
+<script>
+'use strict';
+/* ==========================================================
+   基础工具
+   ========================================================== */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.prototype.slice.call(r.querySelectorAll(s));
+const pad2 = n => (n < 10 ? '0' : '') + n;
+const uid = p => p + Date.now().toString(36).slice(-5) + Math.random().toString(36).slice(2, 6);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const num = v => { const n = Number(v); return isFinite(n) ? n : 0; };
+const sum = (arr, f) => arr.reduce((s, x) => s + (f ? num(f(x)) : num(x)), 0);
+
+function todayISO() {
+  const d = new Date();
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+}
+function curYM() { return todayISO().slice(0, 7); }
+function daysInMonth(ym) { const p = ym.split('-').map(Number); return new Date(p[0], p[1], 0).getDate(); }
+function monthEnd(ym) { return ym + '-' + pad2(daysInMonth(ym)); }
+function addDays(iso, n) {
+  const p = iso.split('-').map(Number);
+  const d = new Date(p[0], p[1] - 1, p[2] + n);
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+}
+function addMonths(ym, n) {
+  const p = ym.split('-').map(Number);
+  const d = new Date(p[0], p[1] - 1 + n, 1);
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1);
+}
+function monthName(ym) { const p = ym.split('-'); return p[0] + '年' + Number(p[1]) + '月'; }
+function money(n, withSign) {
+  const v = num(n);
+  const s = Math.abs(v).toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  return (v < 0 ? '-' : (withSign ? '+' : '')) + '¥' + s;
+}
+function fmtShort(v) {
+  if (v >= 10000) return (v / 10000).toFixed(1).replace(/\.0$/, '') + '万';
+  return String(Math.round(v));
+}
+function daysBetween(a, b) {
+  return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000);
+}
+function toast(msg, type) {
+  const box = $('#toastBox'); if (!box) return;
+  const el = document.createElement('div');
+  el.className = 'toast ' + (type || '');
+  el.textContent = msg;
+  box.appendChild(el);
+  setTimeout(() => { el.style.transition = 'opacity .2s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 220); }, 2200);
+}
+
+/* SHA-256（纯 JS，离线可用，中文/ASCII 均可） */
+function sha256(str) {
+  function rr(v, a) { return (v >>> a) | (v << (32 - a)); }
+  const utf8 = unescape(encodeURIComponent(str));
+  const maxWord = Math.pow(2, 32);
+  let result = '';
+  const words = [];
+  const asciiBitLength = utf8.length * 8;
+  let hash = sha256.h = sha256.h || [];
+  const k = sha256.k = sha256.k || [];
+  let primeCounter = k.length;
+  const isComposite = {};
+  for (let candidate = 2; primeCounter < 64; candidate++) {
+    if (!isComposite[candidate]) {
+      for (let i = 0; i < 313; i += candidate) isComposite[i] = candidate;
+      hash[primeCounter] = (Math.pow(candidate, .5) * maxWord) | 0;
+      k[primeCounter++] = (Math.pow(candidate, 1 / 3) * maxWord) | 0;
+    }
+  }
+  let s = utf8 + '\x80';
+  while (s.length % 64 - 56) s += '\x00';
+  for (let i = 0; i < s.length; i++) {
+    const j = s.charCodeAt(i);
+    if (j >> 8) return '';
+    words[i >> 2] |= j << ((3 - i) % 4) * 8;
+  }
+  words[words.length] = ((asciiBitLength / maxWord) | 0);
+  words[words.length] = asciiBitLength;
+  for (let j = 0; j < words.length;) {
+    const w = words.slice(j, j += 16);
+    const oldHash = hash.slice(0);
+    let a, e, temp1, temp2;
+    for (let i = 0; i < 64; i++) {
+      const w15 = w[i - 15], w2 = w[i - 2];
+      a = hash[0]; e = hash[4];
+      temp1 = hash[7]
+        + (rr(e, 6) ^ rr(e, 11) ^ rr(e, 25))
+        + ((e & hash[5]) ^ ((~e) & hash[6]))
+        + k[i]
+        + (w[i] = (i < 16) ? w[i] : (w[i - 16]
+          + (rr(w15, 7) ^ rr(w15, 18) ^ (w15 >>> 3))
+          + w[i - 7]
+          + (rr(w2, 17) ^ rr(w2, 19) ^ (w2 >>> 10))) | 0);
+      temp2 = (rr(a, 2) ^ rr(a, 13) ^ rr(a, 22)) + ((a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2]));
+      hash = [(temp1 + temp2) | 0].concat(hash);
+      hash[4] = (hash[4] + temp1) | 0;
+    }
+    for (let i = 0; i < 8; i++) hash[i] = (hash[i] + oldHash[i]) | 0;
+  }
+  for (let i = 0; i < 8; i++) {
+    for (let j = 3; j + 1; j--) {
+      const b = (hash[i] >> (j * 8)) & 255;
+      result += ((b < 16) ? 0 : '') + b.toString(16);
+    }
+  }
+  return result;
+}
+
+/* ==========================================================
+   存储层
+   ========================================================== */
+const K = {
+  shops: 'rent_shops_v1',
+  tenants: 'rent_tenants_v1',
+  contracts: 'rent_contracts_v1',
+  leases: 'rent_leases_v1',
+  meta: 'rent_meta_v1',
+  tpls: 'rent_tpls_v1',
+  pwd: 'rent_pwd_hash',
+  sess: 'rent_session',
+  remember: 'rent_remember_user'
+};
+const Store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { toast('本地存储写入失败：' + e.message, 'bad'); return false; } },
+  del(k) { try { localStorage.removeItem(k); } catch (e) { } }
+};
+
+const db = { shops: [], tenants: [], contracts: [], leases: [], meta: {} };
+
+function loadDB() {
+  db.shops = Store.get(K.shops, []) || [];
+  db.tenants = Store.get(K.tenants, []) || [];
+  db.contracts = Store.get(K.contracts, []) || [];
+  db.leases = Store.get(K.leases, []) || [];
+  db.meta = Store.get(K.meta, {}) || {};
+  db.tpls = Store.get(K.tpls, []) || [];
+  // 结构兜底，防止老数据缺字段导致渲染中断
+  db.shops.forEach(s => {
+    s.code = s.code || ''; s.name = s.name || '未命名商铺';
+    s.area = num(s.area); s.rent = num(s.rent);
+    s.kind = s.kind === 'parking' ? 'parking' : 'shop';
+    s.elecNo = s.elecNo || ''; s.waterNo = s.waterNo || '';
+  });
+  db.contracts.forEach(c => {
+    c.rent = num(c.rent); c.deposit = num(c.deposit);
+    if (c.rentDay == null) c.rentDay = '';
+    if (c.rentMode !== 'fixed' && c.rentMode !== 'varies') c.rentMode = 'varies';
+  });
+  db.leases.forEach(l => {
+    l.rent = num(l.rent);
+    if (!Array.isArray(l.payments)) l.payments = [];
+    l.payments.forEach(p => { p.amount = num(p.amount); });
+  });
+}
+function saveDB() {
+  Store.set(K.shops, db.shops);
+  Store.set(K.tenants, db.tenants);
+  Store.set(K.contracts, db.contracts);
+  Store.set(K.leases, db.leases);
+  Store.set(K.meta, db.meta);
+  Store.set(K.tpls, db.tpls || []);
+}
+
+/* ==========================================================
+   业务工具
+   ========================================================== */
+const shopById = id => db.shops.find(s => s.id === id);
+const tenantById = id => db.tenants.find(t => t.id === id);
+const contractById = id => db.contracts.find(c => c.id === id);
+const leaseById = id => db.leases.find(l => l.id === id);
+const isParking = s => !!s && s.kind === 'parking';
+const signed = v => (v > 0 ? '+' : v < 0 ? '−' : '');
+
+function leasesOfContract(cid) {
+  return db.leases.filter(l => l.contractId === cid).sort((a, b) => String(a.start).localeCompare(String(b.start)));
+}
+function leasesOfShop(shopId) {
+  const cids = db.contracts.filter(c => c.shopId === shopId).map(c => c.id);
+  return db.leases.filter(l => cids.indexOf(l.contractId) >= 0)
+    .sort((a, b) => String(a.start).localeCompare(String(b.start)));
+}
+/** 当前（今天）有效的合同：按起止日判断，无重叠 */
+function currentContractOfShop(shopId) {
+  const t = todayISO();
+  return db.contracts.filter(c => c.shopId === shopId && c.start <= t && c.end >= t)
+    .sort((a, b) => b.start.localeCompare(a.start))[0];
+}
+/** 商铺的历史/在租情况 */
+function shopState(shopId) {
+  const t = todayISO();
+  const cur = currentContractOfShop(shopId);
+  if (cur) return { k: 'rented', t: '在租' };
+  const future = db.contracts.some(c => c.shopId === shopId && c.start > t);
+  if (future) return { k: 'future', t: '待起租' };
+  const any = db.contracts.some(c => c.shopId === shopId);
+  return any ? { k: 'vacant', t: '空置' } : { k: 'none', t: '未签约' };
+}
+function contractStatus(c) {
+  const t = todayISO();
+  if (c.start > t) return { k: 'future', t: '未开始', cls: 'b-info' };
+  if (c.end < t) return { k: 'ended', t: '已结束', cls: 'b-gray' };
+  return { k: 'active', t: '履行中', cls: 'b-ok' };
+}
+function paidOf(l) { return sum(l.payments || [], p => p.amount); }
+function leaseStatus(l) {
+  const paid = paidOf(l);
+  if (paid >= l.rent - 0.005) return { k: 'paid', t: '已收清', cls: 'b-ok' };
+  if (paid > 0.005) return { k: 'part', t: '部分收款', cls: 'b-warn' };
+  if (l.end < todayISO()) return { k: 'over', t: '逾期未收', cls: 'b-bad' };
+  if (l.start > todayISO()) return { k: 'todo', t: '待收', cls: 'b-gray' };
+  return { k: 'unpaid', t: '未收', cls: 'b-gray' };
+}
+/** 最近一笔收款 / 最近一次缴款日期 */
+function lastPayDate(l) {
+  const ps = (l.payments || []).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  return ps.length ? ps[0].date : '';
+}
+function shopsOfTenant(tenantId) {
+  const ids = db.contracts.filter(c => c.tenantId === tenantId).map(c => c.shopId);
+  return db.shops.filter(s => ids.indexOf(s.id) >= 0);
+}
+function last12(ym) {
+  const out = [];
+  for (let i = 11; i >= 0; i--) out.push(addMonths(ym, -i));
+  return out;
+}
+/** 年份列表（账期覆盖年份 ∪ 合同覆盖年份 ∪ 当前年起的未来若干年），倒序 */
+const FUTURE_YEARS = 6; // 当前年之后额外预留的年数，方便提前登记未来账期
+function allYears() {
+  const ys = new Set();
+  db.leases.forEach(l => { ys.add(Number(String(l.start).slice(0, 4))); ys.add(Number(String(l.end).slice(0, 4))); });
+  db.contracts.forEach(c => { ys.add(Number(String(c.start).slice(0, 4))); ys.add(Number(String(c.end).slice(0, 4))); });
+  const cy = new Date().getFullYear();
+  for (let y = cy + FUTURE_YEARS; y >= cy - 2; y--) ys.add(y);
+  return Array.from(ys).filter(y => y > 1990 && !isNaN(y)).sort((a, b) => b - a);
+}
+
+/* ==========================================================
+   登录 / 会话
+   ========================================================== */
+const AUTH_USER = 'alonzhang';
+const DEFAULT_HASH = '1fb34e66b7b603eefdb51c5a0877a127cd588a5d5a52e42ebb2e7eb521d5585c'; // 'rent$' + 密码
+const SALT = 'rent$';
+const SESSION_TTL = 7 * 24 * 3600 * 1000;
+
+let failCount = 0, lockUntil = 0, lockTimer = null;
+
+function pwdHash() { return localStorage.getItem(K.pwd) || DEFAULT_HASH; }
+
+function readSession() {
+  const raw = sessionStorage.getItem(K.sess) || localStorage.getItem(K.sess);
+  if (!raw) return null;
+  try {
+    const s = JSON.parse(raw);
+    if (!s || !s.u || !s.exp) return null;
+    if (Date.now() > s.exp) { clearSession(); return null; }
+    return s;
+  } catch (e) { return null; }
+}
+function clearSession() {
+  sessionStorage.removeItem(K.sess);
+  localStorage.removeItem(K.sess);
+}
+
+function initLogin() {
+  const rem = localStorage.getItem(K.remember);
+  if (rem) { $('#loginUser').value = rem; $('#rememberMe').checked = true; }
+  $('#loginForm').addEventListener('submit', e => { e.preventDefault(); doLogin(); });
+  $('#pwdEye').addEventListener('click', () => {
+    const p = $('#loginPwd');
+    p.type = p.type === 'password' ? 'text' : 'password';
+    $('#pwdEye').style.color = p.type === 'text' ? '#2f6fed' : '#9aa6ba';
+  });
+  setTimeout(() => { ($('#loginUser').value ? $('#loginPwd') : $('#loginUser')).focus(); }, 60);
+}
+
+function doLogin() {
+  if (Date.now() < lockUntil) return;
+  const un = $('#loginUser').value.trim();
+  const pwd = $('#loginPwd').value;
+  const err = $('#loginErr');
+  err.textContent = '';
+  if (!un || !pwd) { err.textContent = '请输入用户名和密码'; return; }
+  const okUser = un.toLowerCase() === AUTH_USER;
+  const okPwd = sha256(SALT + pwd) === pwdHash();
+  if (!okUser || !okPwd) {
+    failCount++;
+    if (failCount >= 5) { startLock(); return; }
+    err.textContent = '用户名或密码错误，还可尝试 ' + (5 - failCount) + ' 次';
+    $('#loginPwd').value = '';
+    $('#loginPwd').focus();
+    return;
+  }
+  failCount = 0;
+  const btn = $('#loginBtn');
+  btn.disabled = true; btn.textContent = '登 录 中…';
+  const remember = $('#rememberMe').checked;
+  const sess = { u: AUTH_USER, name: '阿龙', exp: Date.now() + (remember ? SESSION_TTL : 12 * 3600 * 1000) };
+  if (remember) { localStorage.setItem(K.sess, JSON.stringify(sess)); localStorage.setItem(K.remember, un); }
+  else { sessionStorage.setItem(K.sess, JSON.stringify(sess)); localStorage.removeItem(K.remember); }
+  setTimeout(() => {
+    btn.disabled = false; btn.textContent = '登 录';
+    enterApp(true);
+  }, 260);
+}
+
+function startLock() {
+  lockUntil = Date.now() + 60000;
+  $('#loginBtn').disabled = true;
+  $('#loginErr').textContent = '尝试次数过多，请 60 秒后再试';
+  clearInterval(lockTimer);
+  lockTimer = setInterval(() => {
+    const left = Math.ceil((lockUntil - Date.now()) / 1000);
+    if (left <= 0) {
+      clearInterval(lockTimer); lockUntil = 0; failCount = 0;
+      $('#loginBtn').disabled = false; $('#loginErr').textContent = ''; $('#lockTip').textContent = '';
+    } else {
+      $('#lockTip').textContent = '锁定 ' + left + 's';
+    }
+  }, 500);
+}
+
+function enterApp(fresh) {
+  $('#loginPage').hidden = true;
+  $('#appShell').hidden = false;
+  /* 所有页面的年份筛选默认「全部年份」 */
+  ui.ym = 'all'; ui.parkYear = 'all'; ui.ledgerYear = 'all'; ui.reportYear = 'all';
+  renderView();
+  updateTopbar();
+}
+function logout() {
+  clearSession();
+  closeModal();
+  $('#appShell').hidden = true;
+  $('#loginPage').hidden = false;
+  $('#loginPwd').value = '';
+  $('#loginErr').textContent = '';
+  $('#loginUser').value = AUTH_USER;
+  toast('已退出登录');
+}
+
+/* ==========================================================
+   视图状态
+   ========================================================== */
+const ui = {
+  view: 'dash',
+  ym: 'all',            // 租金登记年份筛选，默认「全部年份」
+  scope: 'all',
+  shopKw: '',
+  ledgerKw: '',
+  ledgerYear: 'all',
+  reportYear: 'all',    // 报表默认「全部年份」
+  parkYear: 'all'       // 住宅车位默认「全部年份」
+};
+const VIEW_META = {
+  dash: ['概览', '在租情况与累计收缴'],
+  shops: ['商铺档案', 'A座 / B座 档案、水电户号与租约历史'],
+  tenants: ['租户与合同', '租户信息、协议租金与账期'],
+  tpls: ['合同范本', 'Word 合同正文，可编辑可套用'],
+  rent: ['租金登记', '按账期登记收款，历史数据可追溯'],
+  parking: ['住宅车位', '车位租金单独记账'],
+  ledger: ['收款台账', '每一笔实收流水'],
+  report: ['报表', '逐年收缴与商铺收益'],
+  settings: ['设置', '账号与数据管理']
+};
+
+function updateTopbar() {
+  const m = VIEW_META[ui.view] || ['', ''];
+  $('#tbTitle').textContent = m[0];
+  $('#tbSub').textContent = '· ' + m[1];
+  $('#chipDate').textContent = todayISO().replace(/-/g, '/');
+  $$('.nav-item').forEach(b => b.classList.toggle('on', b.dataset.view === ui.view));
+}
+
+function switchView(v) {
+  ui.view = v;
+  updateTopbar();
+  renderView();
+  window.scrollTo(0, 0);
+}
+
+/* ==========================================================
+   渲染入口
+   ========================================================== */
+function renderView() {
+  const root = $('#viewRoot');
+  const map = {
+    dash: viewDash, shops: viewShops, tenants: viewTenants,
+    rent: viewRent, parking: viewParking, ledger: viewLedger, tpls: viewTpls,
+    report: viewReport, settings: viewSettings
+  };
+  const fn = map[ui.view] || viewDash;
+  try {
+    root.innerHTML = fn();
+  } catch (e) {
+    console.error(e);
+    root.innerHTML = '<div class="card"><div class="empty"><b>页面渲染出错</b>' + esc(e.message) + '</div></div>';
+  }
+}
+
+/* ---------- 概览 ---------- */
+function viewDash() {
+  const shops = db.shops.filter(s => !isParking(s));
+  const parks = db.shops.filter(s => isParking(s));
+  const rented = shops.filter(s => shopState(s.id).k === 'rented').length;
+  const vacant = shops.filter(s => shopState(s.id).k === 'vacant').length;
+
+  const sLeases = db.leases.filter(l => { const c = contractById(l.contractId); const sp = c && shopById(c.shopId); return sp && !isParking(sp); });
+  const pLeases = db.leases.filter(l => { const c = contractById(l.contractId); const sp = c && shopById(c.shopId); return sp && isParking(sp); });
+  const sDue = sum(sLeases, l => l.rent), sPaid = sum(sLeases, l => paidOf(l));
+  const pDue = sum(pLeases, l => l.rent), pPaid = sum(pLeases, l => paidOf(l));
+  const outstanding = sDue - sPaid;
+
+  // 待收（未收清的账期，按起始日）
+  const openLeases = sLeases.concat(pLeases)
+    .filter(l => paidOf(l) < l.rent - 0.005)
+    .sort((a, b) => String(a.start).localeCompare(String(b.start)));
+
+  const t = todayISO();
+  const expiring = db.contracts
+    .filter(c => c.end >= t && c.end <= addDays(t, 120))
+    .sort((a, b) => a.end.localeCompare(b.end)).slice(0, 4);
+
+  // 历年图：只取有账期的年份，避免未来空年份占位
+  const yrs = allYears().filter(y => y <= new Date().getFullYear() &&
+    db.leases.some(l => Number(String(l.start).slice(0, 4)) === y)).slice(0, 8).sort((a, b) => a - b);
+  const yearly = yrs.map(y => {
+    const ls = db.leases.filter(l => Number(String(l.start).slice(0, 4)) === y);
+    const sk = ls.filter(l => { const c = contractById(l.contractId); const sp = c && shopById(c.shopId); return sp && !isParking(sp); });
+    const pk = ls.filter(l => { const c = contractById(l.contractId); const sp = c && shopById(c.shopId); return sp && isParking(sp); });
+    return { m: String(y), due: sum(sk, l => l.rent), paid: sum(sk, l => paidOf(l)), park: sum(pk, l => paidOf(l)) };
+  });
+
+  // 每家店的累计实收（商铺，不含车位；车位单独一行）
+  const byTenant = {};
+  sLeases.forEach(l => {
+    const c = contractById(l.contractId); if (!c) return;
+    byTenant[c.tenantId] = byTenant[c.tenantId] || { paid: 0, due: 0, shopId: c.shopId };
+    byTenant[c.tenantId].paid += paidOf(l); byTenant[c.tenantId].due += l.rent;
+  });
+  const rank = Object.keys(byTenant).map(tid => ({
+    tenant: tenantById(tid) || { name: '已删除租户' },
+    shop: shopById(byTenant[tid].shopId) || { name: '—', code: '' },
+    paid: byTenant[tid].paid, due: byTenant[tid].due
+  })).sort((a, b) => b.paid - a.paid);
+
+  return `
+  <div class="page-head">
+    <div>
+      <h2>经营概览</h2>
+      <p>${shops.length} 间商铺（A座 / B座）· ${db.contracts.filter(c => !isParking(shopById(c.shopId))).length} 份合同 · 数据源自《商铺租金记录表》</p>
+    </div>
+    <div class="head-actions">
+      <button class="btn" data-act="go" data-view="ledger">看收款台账</button>
+      <button class="btn btn-primary" data-act="go" data-view="rent">登记收款</button>
+    </div>
+  </div>
+
+  <div class="stats">
+    ${statCard('在租 / 商铺', rented + ' <i>/ ' + shops.length + ' 间</i>', vacant > 0 ? '空置 ' + vacant + ' 间' : '两间均在租', 'navy')}
+    ${statCard('累计协议租金', money(sDue), sLeases.length + ' 个账期（不含车位）', '')}
+    ${statCard('累计实收', money(sPaid), '收缴率 ' + (sDue ? Math.round(sPaid / sDue * 100) : 0) + '%', 'green')}
+    ${statCard('尚欠金额', money(outstanding), outstanding > 0 ? openLeases.filter(l => { const c = contractById(l.contractId); const sp = c && shopById(c.shopId); return sp && !isParking(sp); }).length + ' 个账期未收清' : '已全部收清', outstanding > 0 ? 'red' : 'green')}
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-h"><h3>历年租金收缴</h3>
+        <div class="legend"><span class="lg-due">协议租金</span><span class="lg-paid">实收</span></div>
+      </div>
+      <div class="chart">${chartBars(yearly)}</div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>当期租约</h3></div>
+      ${(function () {
+        const cur = db.contracts.filter(c => c.start <= t && c.end >= t);
+        if (!cur.length) return '<div class="empty">当前没有履行中的合同</div>';
+        return '<div class="card-b" style="padding-top:6px">' + cur.map(c => {
+          const s = shopById(c.shopId) || {}, tt = tenantById(c.tenantId) || {};
+          return `<div class="kv"><span>${esc(s.code || '')} · ${esc(tt.name)}</span><b>${esc(c.start)} ~ ${esc(c.end)}</b></div>`;
+        }).join('') + '</div>';
+      })()}
+      ${pLeases.length ? `<div class="todo-item"><span class="todo-dot" style="background:#2f6fed"></span>
+        <div class="todo-main"><b>住宅车位累计实收 ${money(pPaid)}</b>
+        <p>协议 ${money(pDue)} · 单独记账，不计入商铺合计</p></div>
+        <span class="todo-act" data-act="go" data-view="parking">查看</span></div>` : ''}
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-h"><h3>租户累计实收排行</h3><span class="muted small">商铺租金，不含车位</span></div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>租户</th><th>商铺</th><th class="num">协议租金</th><th class="num">实收</th><th class="num">欠款</th></tr></thead>
+        <tbody>${rank.map(r => `<tr>
+          <td><div class="cell-main">${esc(r.tenant.name)}</div></td>
+          <td class="small">${esc(r.shop.code || '')}</td>
+          <td class="num">${money(r.due)}</td>
+          <td class="num"><b>${money(r.paid)}</b></td>
+          <td class="num" style="color:${r.due - r.paid > 0.005 ? 'var(--bad)' : 'var(--muted)'}">${r.due - r.paid > 0.005 ? money(r.due - r.paid) : '—'}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>待办提醒</h3></div>
+      <div class="todo">
+        ${openLeases.filter(l => paidOf(l) < l.rent - 0.005).slice(0, 3).map(l => {
+          const c = contractById(l.contractId) || {}, tt = tenantById(c.tenantId) || {}, s = shopById(c.shopId) || {};
+          return `<div class="todo-item"><span class="todo-dot" style="background:#e04b4b"></span>
+            <div class="todo-main"><b>${esc(tt.name)} · 待收 ${money(l.rent - paidOf(l))}</b>
+            <p>${esc(s.code || '')} · ${esc(l.label)}</p></div>
+            <span class="todo-act" data-act="lease-pay" data-id="${l.id}">去收款</span></div>`;
+        }).join('')}
+        ${expiring.map(c => {
+          const s = shopById(c.shopId) || { name: '—' }, tt = tenantById(c.tenantId) || { name: '—' };
+          const left = daysBetween(t, c.end);
+          return `<div class="todo-item"><span class="todo-dot"></span>
+            <div class="todo-main"><b>${esc(tt.name)} · 合同将到期</b>
+            <p>${esc(s.code || '')} · 至 ${c.end}（剩 ${left} 天）</p></div>
+            <span class="todo-act" data-act="contract-edit" data-id="${c.id}">续签</span></div>`;
+        }).join('')}
+        ${openLeases.length === 0 && expiring.length === 0 ? '<div class="empty">暂无待办，全部收清</div>' : ''}
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="card-h"><h3>各店收款一览</h3><span class="link" data-act="rent-all" style="margin-left:auto">查看全部账期 →</span></div>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>商铺 / 租户</th><th>账期</th><th class="num">协议租金</th><th class="num">实收</th><th class="num">未收</th><th>最近收款</th><th>状态</th><th></th></tr></thead>
+      <tbody>${db.leases.slice().sort((a, b) => String(b.start).localeCompare(String(a.start))).slice(0, 10).map(l => {
+        const c = contractById(l.contractId) || {}, s = shopById(c.shopId) || {}, tt = tenantById(c.tenantId) || {};
+        const st = leaseStatus(l), left = l.rent - paidOf(l);
+        return `<tr>
+          <td><div class="cell-main">${esc(tt.name)}</div><div class="cell-sub">${esc(s.code || '')}</div></td>
+          <td class="small">${esc(l.label)}</td>
+          <td class="num">${money(l.rent)}</td>
+          <td class="num">${money(paidOf(l))}</td>
+          <td class="num" style="color:${left > 0.005 ? 'var(--bad)' : 'var(--muted)'}">${left > 0.005 ? money(left) : '—'}</td>
+          <td class="mono small">${lastPayDate(l) || '—'}</td>
+          <td><span class="badge ${st.cls}">${st.t}</span></td>
+          <td class="ops"><button class="btn btn-sm ${st.k === 'paid' ? '' : 'btn-primary'}" data-act="lease-pay" data-id="${l.id}">${st.k === 'paid' ? '明细' : '收款'}</button></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>
+  </div>`;
+}
+
+function statCard(label, value, sub, tone) {
+  return `<div class="stat ${tone || ''}"><span class="bar"></span>
+    <div class="k">${label}</div>
+    <div class="v ${tone === 'green' ? 'green' : tone === 'red' ? 'red' : ''}">${value}</div>
+    <div class="s">${sub}</div>
+  </div>`;
+}
+function emptyBox(title, sub, act, btn) {
+  return `<div class="empty"><b>${title}</b>${sub}${act ? `<div style="margin-top:14px"><button class="btn btn-primary" data-act="${act}">${btn}</button></div>` : ''}</div>`;
+}
+/* ==========================================================
+   搜索框（独立渲染，输入时只换列表不重建输入框）
+   ----------------------------------------------------------
+   中文输入法（IME）在拼写阶段输入框处于 composition 状态，
+   若此时重建整页 DOM，浏览器会中断组字，拼音/候选字被清空，
+   于是「只能输英文/数字，打不出中文」。解决：输入框永不重建，
+   仅在其兄弟容器 #srList 内重绘结果。
+   ========================================================== */
+function searchBoxHTML(id, ph, kw) {
+  return `<div class="search">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input class="inp" id="${id}" data-search="1" placeholder="${esc(ph)}" autocomplete="off" spellcheck="false" value="${esc(kw || '')}">
+    ${kw ? `<button class="search-x" data-act="search-clear" data-for="${id}" title="清空">✕</button>` : ''}
+  </div>`;
+}
+/** 局部重绘：只替换搜索结果区域，输入框本身（含光标、组字状态）保持不动 */
+function refreshSearchList() {
+  const el = $('#srList');
+  if (!el) return false;
+  const map = { dash: viewDash, shops: viewShops, tenants: viewTenants, rent: viewRent, parking: viewParking, ledger: viewLedger, report: viewReport, tpls: viewTpls, settings: viewSettings };
+  const fn = map[ui.view];
+  if (!fn) return false;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = fn();
+  const next = tmp.querySelector('#srList');
+  if (!next) return false;
+
+  // 1) 只换列表内容，输入框 DOM 原地不动（关键：IME 组字不被中断）
+  el.innerHTML = next.innerHTML;
+
+  // 2) 同步同一卡片内其它依赖 ui 的文字（如「共 N 笔 · 合计 ¥X」），
+  //    用文本节点回填，避免整块重建把输入框冲掉
+  const card = el.parentNode;
+  if (card) {
+    // 页面头（page-head）在 card 之外，单独按文本回填
+    const pageHead = document.querySelector('.content .page-head p');
+    const tmpPageHead = tmp.querySelector('.page-head p');
+    if (pageHead && tmpPageHead) pageHead.textContent = tmpPageHead.textContent;
+
+    // 工具栏里的统计文字（收款台账的 .sp）
+    const sp = card.querySelector('.toolbar .sp.muted');
+    const nsp = tmp.querySelector('.toolbar .sp.muted');
+    if (sp && nsp) sp.textContent = nsp.textContent;
+
+    // 其它只读提示（.toolbar 里的 muted small）
+    const ms = card.querySelectorAll('.toolbar > .muted');
+    const nms = tmp.querySelectorAll('.toolbar > .muted');
+    ms.forEach((n, i) => { if (nms[i]) n.textContent = nms[i].textContent; });
+  }
+
+  // 3) 同步「清空」按钮显隐（不碰输入框）
+  $$('#viewRoot [data-search]').forEach(inp => {
+    const box = inp.parentNode;
+    const hasX = !!box.querySelector('.search-x');
+    if (inp.value && !hasX) {
+      const b = document.createElement('button');
+      b.className = 'search-x'; b.dataset.act = 'search-clear'; b.dataset.for = inp.id;
+      b.title = '清空'; b.textContent = '✕';
+      box.appendChild(b);
+    } else if (!inp.value && hasX) {
+      box.querySelector('.search-x').remove();
+    }
+  });
+  return true;
+}
+
+function chartBars(list, unit) {
+  const W = 720, H = 250, pl = 58, pr = 14, pt = 16, pb = 30;
+  const max = Math.max(1000, ...list.map(d => Math.max(d.due, d.paid)));
+  const step = (W - pl - pr) / Math.max(1, list.length);
+  const bw = Math.min(16, step * 0.3);
+  let g = '';
+  for (let i = 0; i <= 4; i++) {
+    const y = pt + (H - pt - pb) * i / 4;
+    const v = max * (1 - i / 4);
+    g += `<line x1="${pl}" y1="${y}" x2="${W - pr}" y2="${y}" stroke="#eef1f7"/>`
+      + `<text x="${pl - 8}" y="${y + 4}" text-anchor="end" class="axis">${fmtShort(v)}</text>`;
+  }
+  list.forEach((d, i) => {
+    const cx = pl + step * i + step / 2;
+    const hDue = (H - pt - pb) * (d.due / max);
+    const hPaid = (H - pt - pb) * (d.paid / max);
+    const lb = d.m.length === 7 ? monthName(d.m) : (d.m + '年');
+    g += `<rect x="${(cx - bw - 2).toFixed(1)}" y="${(H - pb - hDue).toFixed(1)}" width="${bw}" height="${Math.max(0, hDue).toFixed(1)}" rx="3" fill="#c9dbff"><title>${lb} 应收 ${money(d.due)}</title></rect>`;
+    g += `<rect x="${(cx + 2).toFixed(1)}" y="${(H - pb - hPaid).toFixed(1)}" width="${bw}" height="${Math.max(0, hPaid).toFixed(1)}" rx="3" fill="#2f6fed"><title>${lb} 实收 ${money(d.paid)}</title></rect>`;
+    g += `<text x="${cx.toFixed(1)}" y="${H - pb + 16}" text-anchor="middle" class="axis">${d.m.length === 7 ? Number(d.m.slice(5)) + '月' : d.m}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" class="svg-chart" role="img">${g}</svg>`;
+}
+
+/* ---------- 商铺档案 ---------- */
+function viewShops() {
+  const kw = ui.shopKw.trim().toLowerCase();
+  let list = db.shops.slice().sort((a, b) => String(a.code).localeCompare(String(b.code), 'zh'));
+  if (kw) list = list.filter(s => {
+    // 编号 / 名称 / 地址 / 户号 / 当前或历史租户名 都能搜
+    const tnames = db.contracts.filter(c => c.shopId === s.id)
+      .map(c => (tenantById(c.tenantId) || {}).name || '').join(' ');
+    return (s.code + s.name + (s.address || '') + (s.remark || '') + s.elecNo + s.waterNo + ' ' + tnames).toLowerCase().includes(kw);
+  });
+  const shops = db.shops.filter(s => !isParking(s));
+
+  return `
+  <div class="page-head">
+    <div><h2>商铺档案</h2><p>${kw ? `筛选出 ${list.length} / ${db.shops.length} 个，关键词「${esc(ui.shopKw)}」` : `共 ${shops.length} 间商铺 · 用电/用水只需登记户号，抄表与缴费仍按原 Excel 习惯线下处理`}</p></div>
+    <div class="head-actions">
+      <button class="btn" data-act="go" data-view="tenants">管理合同</button>
+      <button class="btn btn-primary" data-act="shop-add">+ 新增商铺</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="toolbar">
+      ${searchBoxHTML('shopSearch', '搜索编号 / 名称 / 户号 / 租户', ui.shopKw)}
+      <span class="muted small">按编号排序</span>
+    </div>
+    <div id="srList">
+    ${list.length === 0 ? emptyBox(kw ? '没有匹配的商铺' : '还没有登记商铺', kw ? '换个关键词试试' : '先把铺子建好，再签合同、登记收款', 'shop-add', '新增商铺') : `
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>编号</th><th>商铺</th><th>当前租户</th><th>当前合同期</th><th class="num">租约数</th><th class="num">累计实收</th><th>用电户号</th><th>用水户号</th><th>状态</th><th></th></tr></thead>
+      <tbody>${list.map(s => {
+        const c = currentContractOfShop(s.id);
+        const t = c ? tenantById(c.tenantId) : null;
+        const ls = leasesOfShop(s.id);
+        const st = isParking(s) ? { k: 'park', t: '车位' } : shopState(s.id);
+        const cls = st.k === 'rented' ? 'b-ok' : st.k === 'vacant' ? 'b-gray' : st.k === 'future' ? 'b-info' : 'b-gray';
+        return `<tr>
+          <td class="mono">${esc(s.code || '—')}</td>
+          <td><div class="cell-main">${esc(s.name)}</div><div class="cell-sub">${esc(s.address || s.remark || '')}</div></td>
+          <td>${t ? esc(t.name) : '<span class="muted">—</span>'}</td>
+          <td class="small mono">${c ? c.start + ' ~ ' + c.end : '<span class="muted">未签约</span>'}</td>
+          <td class="num">${ls.length}</td>
+          <td class="num">${money(sum(ls, l => paidOf(l)))}</td>
+          <td class="mono small">${esc(s.elecNo || '—')}</td>
+          <td class="mono small">${esc(s.waterNo || '—')}</td>
+          <td><span class="badge ${cls}">${st.t}</span></td>
+          <td class="ops">
+            <button class="btn btn-sm" data-act="shop-edit" data-id="${s.id}">编辑</button>
+            <button class="btn btn-sm btn-danger" data-act="shop-del" data-id="${s.id}">删除</button>
+          </td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`}
+    </div>
+  </div>`;
+}
+
+/* ---------- 租户与合同 ---------- */
+function viewTenants() {
+  const tenants = db.tenants.slice().sort((a, b) => String(a.name).localeCompare(String(b.name), 'zh'));
+  const contracts = db.contracts.slice().sort((a, b) => String(b.start).localeCompare(String(a.start)));
+  return `
+  <div class="page-head">
+    <div><h2>租户与合同</h2><p>${db.tenants.length} 位租户 · ${db.contracts.length} 份合同（一份合同可拆多个账期，账期各自登记收款）</p></div>
+    <div class="head-actions">
+      <button class="btn" data-act="tenant-add">+ 新增租户</button>
+      <button class="btn btn-primary" data-act="contract-add">+ 新增合同</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h3>租户</h3><span class="muted small">一位租户可对应多间商铺 / 多份合同</span></div>
+    ${tenants.length === 0 ? emptyBox('还没有租户', '新增租户后即可为其签订租赁合同', 'tenant-add', '新增租户') : `
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>名称</th><th>电话</th><th>承租商铺</th><th>备注</th><th></th></tr></thead>
+      <tbody>${tenants.map(t => {
+        const ss = shopsOfTenant(t.id);
+        return `<tr>
+          <td><div class="cell-main">${esc(t.name)}</div></td>
+          <td class="mono">${esc(t.phone || '—')}</td>
+          <td>${ss.length ? ss.map(s => esc(s.code || s.name)).join('、') : '<span class="muted">—</span>'}</td>
+          <td class="small muted" style="max-width:340px">${esc(t.remark || '—')}</td>
+          <td class="ops">
+            <button class="btn btn-sm" data-act="tenant-edit" data-id="${t.id}">编辑</button>
+            <button class="btn btn-sm btn-danger" data-act="tenant-del" data-id="${t.id}">删除</button>
+          </td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`}
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="card-h"><h3>合同（协议租金）</h3><span class="muted small">总租金由各账期自动汇总</span></div>
+    ${contracts.length === 0 ? emptyBox('还没有合同', '合同是登记账期与收款的依据', 'contract-add', '新增合同') : `
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>商铺</th><th>租户</th><th>租期</th><th class="num">账期数</th><th class="num">协议租金</th><th class="num">实收</th><th class="num">欠收</th><th>状态</th><th></th></tr></thead>
+      <tbody>${contracts.map(c => {
+        const s = shopById(c.shopId) || { name: '已删除商铺' };
+        const t = tenantById(c.tenantId) || { name: '已删除租户' };
+        const st = contractStatus(c);
+        const ls = leasesOfContract(c.id);
+        const due = sum(ls, l => l.rent), paid = sum(ls, l => paidOf(l));
+        return `<tr>
+          <td><div class="cell-main">${esc(s.name)}</div><div class="cell-sub">${esc(s.code || '')}</div></td>
+          <td>${esc(t.name)}</td>
+          <td class="small mono">${c.start} ~ ${c.end}${c.remark ? `<div class="cell-sub" style="max-width:260px;white-space:normal">${esc(c.remark.split('\n').slice(-1)[0])}</div>` : ''}</td>
+          <td class="num">${ls.length}</td>
+          <td class="num">${money(due)}</td>
+          <td class="num">${money(paid)}</td>
+          <td class="num" style="color:${due - paid > 0.005 ? 'var(--bad)' : 'var(--muted)'}">${due - paid > 0.005 ? money(due - paid) : '—'}</td>
+          <td><span class="badge ${st.cls}">${st.t}</span></td>
+          <td class="ops">
+            <button class="btn btn-sm btn-ghost" data-act="${c.body ? 'contract-doc' : 'b-edit'}" data-id="${c.id}">${c.body ? '正文' : '拟正文'}</button>
+            <button class="btn btn-sm btn-ghost" data-act="go-rent" data-id="${c.id}">账期</button>
+            <button class="btn btn-sm" data-act="contract-edit" data-id="${c.id}">编辑</button>
+            <button class="btn btn-sm btn-danger" data-act="contract-del" data-id="${c.id}">删除</button>
+          </td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`}
+  </div>`;
+}
+
+/* ---------- 租金登记（按账期） ---------- */
+function leaseRows(filterFn) {
+  return db.leases.filter(filterFn || (() => true))
+    .slice()
+    .sort((a, b) => String(b.start).localeCompare(String(a.start)));
+}
+function shopOfLease(l) {
+  const c = contractById(l.contractId) || {};
+  return { c: c, shop: shopById(c.shopId) || { name: '已删除商铺', code: '' }, tenant: tenantById(c.tenantId) || { name: '—' } };
+}
+function leaseTable(list, opts) {
+  opts = opts || {};
+  if (!list.length) return opts.empty || '<div class="empty">暂无记录</div>';
+  // opts.year：指定年份时，额外显示「本年收款」（按收款日期归属年份，避免跨年账期被整条计入某一年）
+  const yr = opts.year && opts.year !== 'all' ? String(opts.year) : null;
+  const paidInYear = l => (l.payments || []).filter(p => String(p.date).slice(0, 4) === yr).reduce((a, p) => a + num(p.amount), 0);
+  return `<div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>商铺</th><th>租户</th><th>账期</th><th class="num">协议租金</th><th class="num">实收<small class="muted">累计</small></th>${yr ? '<th class="num">本年收款<small class="muted">' + yr + '</small></th>' : ''}<th class="num">未收</th><th>最近收款</th><th>状态</th><th></th></tr></thead>
+    <tbody>${list.map(l => {
+      const o = shopOfLease(l);
+      const st = leaseStatus(l), left = l.rent - paidOf(l);
+      const py = yr ? paidInYear(l) : 0;
+      const overlapped = yr && String(l.start).slice(0, 4) !== yr;
+      return `<tr>
+        <td><div class="cell-main">${esc(o.shop.code || o.shop.name)}</div><div class="cell-sub">${esc(o.shop.name)}</div></td>
+        <td>${esc(o.tenant.name)}</td>
+        <td class="small">${esc(l.label)}${overlapped ? '<div class="cell-sub">跨年账期</div>' : ''}</td>
+        <td class="num">${money(l.rent)}</td>
+        <td class="num">${money(paidOf(l))}</td>
+        ${yr ? `<td class="num" style="color:${py > 0 ? 'var(--ok)' : 'var(--muted)'}">${py > 0 ? money(py) : '—'}</td>` : ''}
+        <td class="num" style="color:${left > 0.005 ? 'var(--bad)' : 'var(--muted)'}">${left > 0.005 ? money(left) : '—'}</td>
+        <td class="mono small">${lastPayDate(l) || '—'}</td>
+        <td><span class="badge ${st.cls}">${st.t}</span></td>
+        <td class="ops">
+          <button class="btn btn-sm ${st.k === 'paid' ? '' : 'btn-primary'}" data-act="lease-pay" data-id="${l.id}">${st.k === 'paid' ? '明细' : '收款'}</button>
+          <button class="btn btn-sm" data-act="lease-edit" data-id="${l.id}">编辑</button>
+          ${opts.noDel ? '' : `<button class="btn btn-sm btn-danger" data-act="lease-del" data-id="${l.id}">删除</button>`}
+        </td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
+}
+function viewRent() {
+  const year = String(ui.ym);
+  const isAllYear = year === 'all';
+  const cats = db.categories || [];
+  const cat = ui.scope === 'all' ? null : db.contracts.find(c => c.id === ui.scope);
+  const inCat = l => { const c = contractById(l.contractId); return c && !isParking(shopById(c.shopId)); };
+  let list = isAllYear ? leaseRows(() => true) : leaseRows(l => String(l.start).slice(0, 4) === year);
+  list = list.filter(inCat);
+  if (cat) list = list.filter(l => l.contractId === cat.id);
+  // 全部年份：按账期起始日期倒序，最近的排前面
+  if (isAllYear) list.sort((a, b) => String(b.start).localeCompare(String(a.start)));
+  const due = sum(list, l => l.rent), paid = sum(list, l => paidOf(l));
+  const openN = list.filter(l => paidOf(l) < l.rent - 0.005).length;
+  const allCat = db.contracts.filter(c => !isParking(shopById(c.shopId)));
+
+  return `
+  <div class="page-head">
+    <div><h2>租金登记</h2><p>按账期登记实收，支持一次付清、分次付款；未收清的账期会自动提醒</p></div>
+    <div class="head-actions">
+      <select class="inp" id="rentYear">
+        <option value="all" ${isAllYear ? 'selected' : ''}>全部年份</option>
+        ${allYears().map(y => `<option value="${y}" ${String(y) === year ? 'selected' : ''}>${y} 年</option>`).join('')}
+      </select>
+      <button class="btn" data-act="export-rent">${isAllYear ? '导出全部 CSV' : '导出本年 CSV'}</button>
+      <button class="btn btn-primary" data-act="lease-add">+ 新增账期</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sumstrip">
+      <div>协议租金<b>${money(due)}</b></div>
+      <div>实收<b style="color:var(--ok)">${money(paid)}</b></div>
+      <div>未收<b style="color:${due - paid > 0.005 ? 'var(--bad)' : 'var(--ok)'}">${money(due - paid)}</b></div>
+      <div>收缴率<b>${due ? Math.round(paid / due * 100) : 0}%</b></div>
+      <div>账期数<b>${list.length}${openN ? ' <span style="color:var(--bad);font-size:12px">(' + openN + ' 待收)</span>' : ''}</b></div>
+    </div>
+    <div class="toolbar">
+      <div class="chips">
+        <button class="chipbtn ${ui.scope === 'all' ? 'on' : ''}" data-act="rent-scope" data-f="all">全部商铺</button>
+        ${allCat.map(c => {
+          const s = shopById(c.shopId) || {};
+          return `<button class="chipbtn ${ui.scope === c.id ? 'on' : ''}" data-act="rent-scope" data-f="${c.id}">${esc((s.code || '') + ' ' + (tenantById(c.tenantId) || {}).name)}</button>`;
+        }).join('')}
+      </div>
+      ${isAllYear ? '' : `<span class="muted small" style="margin-left:auto">口径：账期起始日在 ${year} 年内的账期；「本年收款」按收款日期统计</span>`}
+    </div>
+    ${leaseTable(list, { year: year, empty: emptyBox(isAllYear ? '暂无任何账期' : year + ' 年暂无账期', '点右上角「新增账期」登记；或先到「租户与合同」签一份合同', 'lease-add', '新增账期') })}
+  </div>
+
+  ${cat ? (function () {
+    const o = { shop: shopById(cat.shopId) || {}, tenant: tenantById(cat.tenantId) || {} };
+    return `<div class="card" style="margin-top:16px">
+      <div class="card-h"><h3>协议租金 · ${esc(o.tenant.name)} / ${esc(o.shop.code || '')}</h3>
+        <span class="link" data-act="contract-edit" data-id="${cat.id}">编辑合同</span></div>
+      <div class="card-b" style="white-space:pre-line;line-height:2;font-size:13px;color:#465269">${esc(cat.remark || '（无备注）')}</div>
+    </div>`;
+  })() : ''}`;
+}
+
+/* ---------- 住宅车位 ---------- */
+function viewParking() {
+  const parks = db.shops.filter(isParking);
+  const year = String(ui.parkYear);
+  const isAllYear = year === 'all';
+  const all = leaseRows(l => { const c = contractById(l.contractId); return c && isParking(shopById(c.shopId)); });
+  const list = isAllYear ? all.slice().sort((a, b) => String(b.start).localeCompare(String(a.start)))
+    : all.filter(l => String(l.start).slice(0, 4) === year);
+  const due = sum(all, l => l.rent), paid = sum(all, l => paidOf(l));
+  return `
+  <div class="page-head">
+    <div><h2>住宅车位</h2><p>${parks.length ? parks.map(s => esc(s.name)).join('、') : '暂无车位档案'} · 车位租金单独记账，不计入商铺合计</p></div>
+    <div class="head-actions">
+      <select class="inp" id="parkYear">
+        <option value="all" ${isAllYear ? 'selected' : ''}>全部年份</option>
+        ${allYears().map(y => `<option value="${y}" ${String(y) === year ? 'selected' : ''}>${y} 年</option>`).join('')}
+      </select>
+      <button class="btn btn-primary" data-act="lease-add" data-park="1">+ 新增车位账期</button>
+    </div>
+  </div>
+  <div class="stats" style="grid-template-columns:repeat(3,1fr)">
+    ${statCard('累计协议车位费', money(due), all.length + ' 个账期', 'navy')}
+    ${statCard('累计实收', money(paid), '已收清 ' + all.filter(l => paidOf(l) >= l.rent - 0.005).length + ' 个账期', 'green')}
+    ${statCard('尚未收齐', money(due - paid), due - paid > 0.005 ? '请核对收款' : '已全部收清', due - paid > 0.005 ? 'red' : 'green')}
+  </div>
+  <div class="card" style="margin-top:16px">
+    <div class="card-h"><h3>${isAllYear ? '全部车位账期' : year + ' 年车位账期'}</h3><span class="muted small">全部账期共 ${all.length} 个</span></div>
+    ${list.length ? leaseTable(list, { year: year }) : `<div class="empty">${isAllYear ? '暂无车位账期' : year + ' 年暂无车位账期'}</div>`}
+  </div>
+  ${!isAllYear && all.length !== list.length ? `<div class="card" style="margin-top:16px">
+    <div class="card-h"><h3>其它年份账期</h3></div>
+    ${leaseTable(all.filter(l => String(l.start).slice(0, 4) !== year))}
+  </div>` : ''}`;
+}
+
+/* ---------- 收款台账 ---------- */
+function viewLedger() {
+  let rows = [];
+  db.leases.forEach(l => (l.payments || []).forEach(p => rows.push({ p: p, l: l })));
+  if (ui.ledgerYear !== 'all') rows = rows.filter(r => String(r.p.date || '').slice(0, 4) === ui.ledgerYear);
+  const kw = ui.ledgerKw.trim().toLowerCase();
+  if (kw) {
+    rows = rows.filter(r => {
+      const o = shopOfLease(r.l);
+      return ((o.shop.name || '') + (o.shop.code || '') + (o.tenant.name || '') + (r.p.note || '') + (r.l.label || '')).toLowerCase().includes(kw);
+    });
+  }
+  rows.sort((a, b) => String(b.p.date).localeCompare(String(a.p.date)));
+  const total = sum(rows, r => r.p.amount);
+  const allCount = db.leases.reduce((s, l) => s + (l.payments || []).length, 0);
+  let acc = total, running = new Map();
+  // 计算倒序累计（自上而下“截至当日累计”）
+  rows.forEach(r => { running.set(r.p.id, acc); acc -= r.p.amount; });
+
+  return `
+  <div class="page-head">
+    <div><h2>收款台账</h2><p>共 ${rows.length}${rows.length !== allCount ? ' / ' + allCount : ''} 笔 · 合计 ${money(total)}（与 Excel 各店小计一致）</p></div>
+    <div class="head-actions">
+      <button class="btn btn-primary" data-act="export-ledger">导出流水 CSV</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="toolbar">
+      <select class="inp" id="ledgerYear">
+        <option value="all" ${ui.ledgerYear === 'all' ? 'selected' : ''}>全部年份</option>
+        ${allYears().map(y => `<option value="${y}" ${String(ui.ledgerYear) === String(y) ? 'selected' : ''}>${y} 年</option>`).join('')}
+      </select>
+      <div class="search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input class="inp" id="ledgerKw" data-search="1" placeholder="搜索商铺 / 租户 / 账期 / 备注" autocomplete="off" spellcheck="false" value="${esc(ui.ledgerKw)}">
+        ${ui.ledgerKw ? `<button class="search-x" data-act="search-clear" data-for="ledgerKw" title="清空">✕</button>` : ''}
+      </div>
+      <span class="sp muted small">按收款日期倒序 · 「截至当日累计」自上而下累计</span>
+    </div>
+    <div id="srList">
+    ${rows.length === 0 ? '<div class="empty"><b>暂无收款记录</b>去「租金登记」登记第一笔吧</div>' : `
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>收款日期</th><th>商铺</th><th>租户</th><th>所属账期</th><th class="num">金额</th><th>方式</th><th class="num">截至当日累计</th></tr></thead>
+      <tbody>${rows.map(r => {
+        const o = shopOfLease(r.l);
+        return `<tr>
+          <td class="mono">${esc(r.p.date || '—')}</td>
+          <td><div class="cell-main">${esc(o.shop.code || o.shop.name)}</div><div class="cell-sub">${esc(o.shop.name)}</div></td>
+          <td>${esc(o.tenant.name)}</td>
+          <td class="small">${esc(r.l.label)}</td>
+          <td class="num"><b>${money(r.p.amount)}</b></td>
+          <td>${esc(r.p.method || '—')}</td>
+          <td class="num muted">${money(running.get(r.p.id))}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`}
+    </div>
+  </div>`;
+}
+
+/* ---------- 报表 ---------- */
+function viewReport() {
+  const year = String(ui.reportYear);
+  const isAll = year === 'all';
+  const years = allYears();
+  const shopLease = l => { const c = contractById(l.contractId); const s = c && shopById(c.shopId); return s && !isParking(s); };
+  const parkLease = l => { const c = contractById(l.contractId); const s = c && shopById(c.shopId); return s && isParking(s); };
+
+  /* ===== 全部年份：按年汇总 ===== */
+  if (isAll) {
+    /* 只列真正有账期的年份（避免把空年份也铺进报表） */
+    const yl = Array.from(new Set(db.leases.map(l => String(l.start).slice(0, 4)))).sort();
+    const rows = yl.map(y => {
+      const ls = db.leases.filter(l => String(l.start).slice(0, 4) === String(y));
+      const sk = ls.filter(shopLease), pk = ls.filter(parkLease);
+      const due = sum(sk, l => l.rent), paid = sum(sk, l => paidOf(l));
+      return { y: y, n: sk.length, due: due, paid: paid, rate: due ? Math.round(paid / due * 100) : 0,
+        pn: pk.length, pdue: sum(pk, l => l.rent), ppaid: sum(pk, l => paidOf(l)) };
+    });
+    const tDue = rows.reduce((a, r) => a + r.due, 0), tPaid = rows.reduce((a, r) => a + r.paid, 0);
+    const tPn = rows.reduce((a, r) => a + r.pn, 0), tPDue = rows.reduce((a, r) => a + r.pdue, 0), tPPaid = rows.reduce((a, r) => a + r.ppaid, 0);
+    // 商铺收益（全部年份累计）
+    const byShop = {};
+    db.leases.filter(shopLease).forEach(l => {
+      const c = contractById(l.contractId), s = shopById(c.shopId);
+      byShop[s.id] = byShop[s.id] || { paid: 0, due: 0, s: s };
+      byShop[s.id].paid += paidOf(l); byShop[s.id].due += l.rent;
+    });
+    const shopList = Object.keys(byShop).map(k => byShop[k]).sort((a, b) => b.paid - a.paid);
+    const maxShop = Math.max(1, ...shopList.map(r => r.paid));
+    const chartYears = rows.filter(r => r.due > 0 || r.paid > 0).slice(-10);
+
+    return `
+    <div class="page-head">
+      <div><h2>报表</h2><p>全部年份 · 商铺协议租金 ${money(tDue)} · 实收 ${money(tPaid)} · 收缴率 ${tDue ? Math.round(tPaid / tDue * 100) : 0}%${tPDue ? ' ｜ 车位 ' + money(tPPaid) : ''}</p></div>
+      <div class="head-actions">
+        <select class="inp" id="reportYear">
+          <option value="all" selected>全部年份</option>
+          ${years.map(y => `<option value="${y}">${y} 年</option>`).join('')}
+        </select>
+        <button class="btn" data-act="export-year">导出全部报表</button>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-h"><h3>历年收缴</h3>
+          <div class="legend"><span class="lg-due">协议租金</span><span class="lg-paid">实收</span></div>
+        </div>
+        <div class="chart">${chartYears.length ? chartBars(chartYears.map(r => ({ m: String(r.y), due: r.due, paid: r.paid }))) : '<div class="empty">暂无数据</div>'}</div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h3>商铺收益</h3><span class="muted small">全部年份累计实收</span></div>
+        <div class="card-b" style="padding-top:8px">
+          ${shopList.length === 0 ? '<div class="empty">暂无数据</div>' : shopList.map(r => `
+            <div style="padding:9px 0">
+              <div style="display:flex;font-size:12.5px"><b style="font-weight:600">${esc(r.s.name)}</b><span class="muted" style="margin-left:6px">${esc(r.s.code || '')}</span><b style="margin-left:auto;font-variant-numeric:tabular-nums">${money(r.paid)}</b></div>
+              <div style="height:6px;border-radius:4px;background:#eef2f9;margin-top:7px;overflow:hidden"><div style="height:100%;width:${Math.max(2, Math.round(r.paid / maxShop * 100))}%;background:linear-gradient(90deg,#2f6fed,#5b9bff);border-radius:4px"></div></div>
+            </div>`).join('')}
+          ${tPDue ? `<div class="kv" style="margin-top:10px"><span>住宅车位（单列）</span><b>${money(tPPaid)} / ${money(tPDue)}</b></div>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="card-h"><h3>逐年明细</h3><span class="muted small">按账期起始年归属 · 车位单列 · 收缴率超 100% 表示提前预收了次年租金</span></div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>年份</th><th class="num">账期数</th><th class="num">协议租金</th><th class="num">实收</th><th class="num">未收</th><th class="num">收缴率</th><th class="num">车位实收</th></tr></thead>
+        <tbody>
+          ${rows.map(r => `<tr>
+            <td><b>${r.y}</b> 年</td>
+            <td class="num">${r.n || '—'}</td>
+            <td class="num">${r.due ? money(r.due) : '—'}</td>
+            <td class="num">${r.paid ? money(r.paid) : '—'}</td>
+            <td class="num" style="color:${r.due - r.paid > 0.005 ? 'var(--bad)' : 'var(--muted)'}">${r.due - r.paid > 0.005 ? money(r.due - r.paid) : (r.paid - r.due > 0.005 ? '<span title="含提前预收下一年度租金">预收 ' + money(r.paid - r.due) + '</span>' : '—')}</td>
+            <td class="num">${r.due ? `<span title="${r.paid - r.due > 0.005 ? '超过 100% 是因为提前预收了下一年度租金' : ''}">${r.rate}%</span>` : '—'}</td>
+            <td class="num">${r.ppaid ? money(r.ppaid) : '—'}</td>
+          </tr>`).join('')}
+          <tr style="background:#fbfcfe;font-weight:700">
+            <td>合计</td><td class="num">${rows.reduce((a, r) => a + r.n, 0)}</td>
+            <td class="num">${money(tDue)}</td><td class="num">${money(tPaid)}</td>
+            <td class="num">${money(tDue - tPaid)}</td>
+            <td class="num">${tDue ? Math.round(tPaid / tDue * 100) + '%' : '—'}</td>
+            <td class="num">${money(tPPaid)}</td>
+          </tr>
+        </tbody>
+      </table></div>
+    </div>`;
+  }
+
+  /* ===== 单一年份 ===== */
+  const rows = [];
+  let yDue = 0, yPaid = 0;
+  for (let m = 1; m <= 12; m++) {
+    const pre = year + '-' + pad2(m);
+    const ls = db.leases.filter(l => String(l.start).slice(0, 7) === pre && shopLease(l));
+    const due = sum(ls, l => l.rent), paid = sum(ls, l => paidOf(l));
+    yDue += due; yPaid += paid;
+    rows.push({ m: m, due: due, paid: paid, rate: due > 0 ? Math.round(paid / due * 100) : 0, n: ls.length });
+  }
+  const byShop = {};
+  db.leases.forEach(l => {
+    if (!shopLease(l) || String(l.start).slice(0, 4) !== year) return;
+    const c = contractById(l.contractId), s = shopById(c.shopId);
+    byShop[s.id] = byShop[s.id] || { paid: 0, due: 0, s: s };
+    byShop[s.id].paid += paidOf(l); byShop[s.id].due += l.rent;
+  });
+  const shopList = Object.keys(byShop).map(k => byShop[k]).sort((a, b) => b.paid - a.paid);
+  const maxShop = Math.max(1, ...shopList.map(r => r.paid));
+  const yPark = db.leases.filter(l => parkLease(l) && String(l.start).slice(0, 4) === year);
+  const parkDue = sum(yPark, l => l.rent), parkPaid = sum(yPark, l => paidOf(l));
+
+  return `
+  <div class="page-head">
+    <div><h2>报表</h2><p>${year} 年 商铺协议租金 ${money(yDue)} · 实收 ${money(yPaid)} · 收缴率 ${yDue ? Math.round(yPaid / yDue * 100) : 0}%${parkDue ? ' ｜ 车位 ' + money(parkPaid) : ''}</p></div>
+    <div class="head-actions">
+      <select class="inp" id="reportYear">
+        <option value="all">全部年份</option>
+        ${years.map(y => `<option value="${y}" ${String(y) === year ? 'selected' : ''}>${y} 年</option>`).join('')}
+      </select>
+      <button class="btn" data-act="export-year">导出年度报表</button>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-h"><h3>${year} 年逐月收缴</h3>
+        <div class="legend"><span class="lg-due">协议租金</span><span class="lg-paid">实收</span></div>
+      </div>
+      <div class="chart">${chartBars(rows.map(r => ({ m: year + '-' + pad2(r.m), due: r.due, paid: r.paid })))}</div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>商铺收益</h3><span class="muted small">${year} 年实收</span></div>
+      <div class="card-b" style="padding-top:8px">
+        ${shopList.length === 0 ? '<div class="empty">该年度暂无数据</div>' : shopList.map(r => `
+          <div style="padding:9px 0">
+            <div style="display:flex;font-size:12.5px"><b style="font-weight:600">${esc(r.s.name)}</b><span class="muted" style="margin-left:6px">${esc(r.s.code || '')}</span><b style="margin-left:auto;font-variant-numeric:tabular-nums">${money(r.paid)}</b></div>
+            <div style="height:6px;border-radius:4px;background:#eef2f9;margin-top:7px;overflow:hidden"><div style="height:100%;width:${Math.max(2, Math.round(r.paid / maxShop * 100))}%;background:linear-gradient(90deg,#2f6fed,#5b9bff);border-radius:4px"></div></div>
+          </div>`).join('')}
+        ${parkDue ? `<div class="kv" style="margin-top:10px"><span>住宅车位（单列）</span><b>${money(parkPaid)} / ${money(parkDue)}</b></div>` : ''}
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="card-h"><h3>${year} 年逐月明细</h3><span class="muted small">按账期起始月归属</span></div>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>月份</th><th class="num">账期数</th><th class="num">协议租金</th><th class="num">实收</th><th class="num">未收</th><th class="num">收缴率</th></tr></thead>
+      <tbody>
+        ${rows.map(r => `<tr>
+          <td>${r.m} 月</td>
+          <td class="num">${r.n || '—'}</td>
+          <td class="num">${r.due ? money(r.due) : '—'}</td>
+          <td class="num">${r.paid ? money(r.paid) : '—'}</td>
+          <td class="num" style="color:${r.due - r.paid > 0.005 ? 'var(--bad)' : 'var(--muted)'}">${r.due - r.paid > 0.005 ? money(r.due - r.paid) : '—'}</td>
+          <td class="num">${r.due ? r.rate + '%' : '—'}</td>
+        </tr>`).join('')}
+        <tr style="background:#fbfcfe;font-weight:700">
+          <td>合计</td><td class="num">${rows.reduce((a, r) => a + r.n, 0)}</td>
+          <td class="num">${money(yDue)}</td><td class="num">${money(yPaid)}</td>
+          <td class="num">${money(yDue - yPaid)}</td>
+          <td class="num">${yDue ? Math.round(yPaid / yDue * 100) + '%' : '—'}</td>
+        </tr>
+      </tbody>
+    </table></div>
+  </div>`;
+}
+
+/* ---------- 设置 ---------- */
+function viewSettings() {
+  const payCount = db.leases.reduce((s, l) => s + (l.payments || []).length, 0);
+  return `
+  <div class="page-head"><div><h2>设置</h2><p>账号、数据备份与系统信息</p></div></div>
+  <div class="grid-2e">
+    <div class="card">
+      <div class="card-h"><h3>账号</h3></div>
+      <div class="card-b">
+        <div class="kv"><span>登录账号</span><b class="mono">alonzhang</b></div>
+        <div class="kv"><span>自动登录</span><b>7 天（关闭则关闭浏览器即退出）</b></div>
+        <div class="kv"><span>本机会话</span><b>${readSession() ? '已登录' : '未登录'}</b></div>
+        <div class="row-btns">
+          <button class="btn" data-act="pwd-modal">修改登录密码</button>
+          <button class="btn" data-act="vault-pwd">修改数据口令</button>
+          <button class="btn" data-act="logout">退出登录</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>数据备份</h3></div>
+      <div class="card-b">
+        <p class="muted small" style="line-height:1.8">数据在本机加密后自动同步到云端（云端只存密文）。<br>任何电脑打开本系统、输入数据口令解锁即可访问；仍建议定期导出备份。</p>
+        <div class="row-btns">
+          <button class="btn btn-primary" data-act="export-json">导出备份 JSON</button>
+          <button class="btn" data-act="import-json">导入备份</button>
+        </div>
+        <div class="hint">导入会覆盖当前全部数据，请谨慎操作。</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>数据概况</h3></div>
+      <div class="card-b">
+        <div class="kv"><span>商铺</span><b>${db.shops.filter(s => !isParking(s)).length} 间（另有 ${db.shops.filter(isParking).length} 个车位）</b></div>
+        <div class="kv"><span>租户 / 合同</span><b>${db.tenants.length} 位 / ${db.contracts.length} 份</b></div>
+        <div class="kv"><span>账期</span><b>${db.leases.length} 个</b></div>
+        <div class="kv"><span>收款流水</span><b>${payCount} 笔</b></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>数据来源</h3></div>
+      <div class="card-b">
+        <p class="muted small" style="line-height:1.9">首次打开已按《商铺租金记录表.xlsx》逐格录入：<br>
+        · 美甲店 / 吉它店 → B座；海参粥 / 理发店 / 面包店 → A座<br>
+        · 车位费（住宅车位）→ 单独模块，不计入商铺合计<br>
+        · 用电 / 用水 → 只登记户号，不录抄表缴费</p>
+        <div class="row-btns"><button class="btn" data-act="reseed">重新载入原始数据</button></div>
+        <div class="hint">会覆盖当前全部数据，请先导出备份。</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>清空数据</h3></div>
+      <div class="card-b">
+        <p class="muted small" style="line-height:1.8">清空后商铺、租户、合同、账期与收款记录都会删除，且不可恢复。</p>
+        <div class="row-btns"><button class="btn btn-danger" data-act="clear-all">清空全部数据</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="card-h"><h3>使用说明</h3></div>
+    <div class="card-b small muted" style="line-height:2">
+      1. 「商铺档案」登记铺子（A座 / B座）与用电、用水户号；<br>
+      2. 「租户与合同」给每间铺子签合同，协议租金写清各年金额；<br>
+      3. 在合同下拆「账期」（如第一年 106,000、第二年 61,000），账期是收款的单位；<br>
+      4. 「租金登记」按年查看账期，点「收款」登记实收，可分多次付款，弹窗里可「打印收据」；<br>
+      5. 「住宅车位」单独记车位费；「收款台账」看每一笔流水；「报表」看逐年收缴与商铺收益；<br>
+      6. 「合同范本」保存了两份 Word 合同，改字填空后可「套用签合同」，正文可打印 / 导出 Word；<br>
+      7. 数据端侧加密后自动同步云端，换电脑输入数据口令即可接管；也可用「导出备份 JSON」→「导入备份」迁移。
+    </div>
+  </div>`;
+}
+
+/* ==========================================================
+   弹窗基础
+   ----------------------------------------------------------
+   关闭策略（防误触丢数据）：
+   · 点击遮罩空白处 —— 不关闭（只轻微抖动提示），必须点「取消 / ✕」
+   · 表单有未保存改动时点「取消 / ✕ / Esc」—— 二次确认后才关闭
+   · 确认类弹窗（confirmDialog）允许点遮罩关闭（本就是危险操作的二次确认）
+   ========================================================== */
+let modalSnapshot = null;   // 打开时的表单快照，用于判断是否有未保存改动
+let modalCancelHook = null; // 取消确认时用于还原原界面的回调
+
+/** 采集当前弹窗的可编辑控件值，作为「是否改动过」的比对依据 */
+function snapshotModal() {
+  const out = {};
+  $$('#modalRoot .m-body input, #modalRoot .m-body select, #modalRoot .m-body textarea').forEach((el, i) => {
+    if (el.type === 'checkbox' || el.type === 'radio') return;
+    out[el.id || ('#' + i + el.tagName)] = el.value;
+  });
+  return out;
+}
+function modalDirty() {
+  if (!modalSnapshot) return false;
+  const now = snapshotModal();
+  const keys = Object.keys(now);
+  for (let i = 0; i < keys.length; i++) {
+    const k = keys[i];
+    if (modalSnapshot[k] !== undefined && modalSnapshot[k] !== now[k]) return true;
+  }
+  return false;
+}
+
+function openModal(html, opts) {
+  opts = opts || {};
+  const root = $('#modalRoot');
+  const cls = (opts.wide ? 'wide' : '') + (opts.full ? ' full' : '');
+  root.innerHTML = `<div class="mask" data-mask="1"><div class="modal ${cls}" role="dialog" aria-modal="true">${html}</div></div>`;
+  const mask = root.querySelector('[data-mask]');
+  mask.addEventListener('mousedown', e => {
+    // 只有「按下和松开都在遮罩上」才算真正的外部点击，避免在弹窗内拖拽选字松手到外面被误判
+    mask._downOnSelf = e.target === mask;
+  });
+  mask.addEventListener('click', e => {
+    if (e.target !== mask || !mask._downOnSelf) { mask._downOnSelf = false; return; }
+    mask._downOnSelf = false;
+    if (opts.dismissible) { closeModal(); return; }
+    nudgeModal();   // 表单类弹窗：不关闭，只抖动提示
+  });
+  document.addEventListener('keydown', modalKeys);
+  const first = root.querySelector('.m-body input:not([readonly]),.m-body select,.m-body textarea');
+  if (first) setTimeout(() => first.focus(), 40);
+  modalSnapshot = opts.noTrack ? null : snapshotModal();
+  modalCancelHook = opts.onCancel || null;
+}
+/** 遮罩误触时给点反馈：弹窗轻微抖动 */
+function nudgeModal() {
+  const m = $('#modalRoot .modal');
+  if (!m) return;
+  m.classList.remove('nudge');
+  void m.offsetWidth;
+  m.classList.add('nudge');
+  toast('点「取消」或右上角 ✕ 才会关闭');
+}
+/**
+ * 把弹窗当前状态序列化为 HTML 字符串（用于「取消确认」后原样还原）
+ * 注意：input/textarea 的实时输入值不会体现在 outerHTML 里，
+ * 必须先同步回 value 属性，否则还原后填写的内容全丢。
+ */
+function serializeModal() {
+  const box = $('#modalRoot .modal');
+  if (!box) return '';
+  const clone = box.cloneNode(true);
+  // 用实时值覆盖克隆体的属性
+  const live = box.querySelectorAll('input, textarea, select');
+  const copy = clone.querySelectorAll('input, textarea, select');
+  live.forEach((src, i) => {
+    const dst = copy[i];
+    if (!dst) return;
+    if (src.tagName === 'SELECT') {
+      Array.prototype.forEach.call(dst.options, o => { o.selected = (o.value === src.value); });
+      dst.setAttribute('data-v', src.value);
+    } else if (src.type === 'checkbox' || src.type === 'radio') {
+      if (src.checked) dst.setAttribute('checked', 'checked'); else dst.removeAttribute('checked');
+    } else if (src.tagName === 'TEXTAREA') {
+      dst.textContent = src.value;
+    } else {
+      dst.setAttribute('value', src.value);
+    }
+  });
+  return clone.outerHTML;
+}
+/** 「取消」语义的关闭：✕ / 取消 / 关闭 / Esc —— 有未保存改动则二次确认，并执行还原回调 */
+function cancelModal() {
+  if (modalSnapshot && modalDirty()) {
+    const scene = {
+      html: serializeModal(),
+      snapshot: modalSnapshot,
+      focusId: (document.activeElement && document.activeElement.id) || '',
+      selStart: (document.activeElement && (document.activeElement.selectionStart || 0)) || 0
+    };
+    const hook = modalCancelHook;
+    modalSnapshot = null;
+    // 确认框里的「取消」= 回到原表单继续填，不执行外层还原回调
+    confirmDialog('放弃填写？', '当前表单有<b>尚未保存</b>的修改，关闭后这些内容会丢失。', () => {
+      modalSnapshot = null; modalCancelHook = null; doCloseModal();
+      if (hook) hook();
+    }, '放弃并关闭', true, () => restoreModalScene(scene));
+    return;
+  }
+  modalSnapshot = null;
+  const hook = modalCancelHook;
+  modalCancelHook = null;
+  doCloseModal();
+  if (hook) hook();
+}
+/** 关闭前的守卫：表单有未保存改动时二次确认；传 true 直接关闭（保存后调用） */
+function closeModal(force) {
+  if (force === true) { modalSnapshot = null; modalCancelHook = null; doCloseModal(); return; }
+  cancelModal();
+}
+/** 从确认框「取消」时，把原来的表单原样放回来（含已填内容与光标位置） */
+function restoreModalScene(scene) {
+  doCloseModal();               // 先清掉确认框，否则快照采集会抓到确认框的控件
+  const root = $('#modalRoot');
+  root.innerHTML = `<div class="mask" data-mask="1">${scene.html}</div>`;
+  const mask = root.querySelector('[data-mask]');
+  mask.addEventListener('mousedown', e => { mask._downOnSelf = e.target === mask; });
+  mask.addEventListener('click', e => {
+    if (e.target !== mask || !mask._downOnSelf) { mask._downOnSelf = false; return; }
+    mask._downOnSelf = false;
+    nudgeModal();
+  });
+  document.addEventListener('keydown', modalKeys);
+  // 还原后仍以「原始快照」为基准，这样第二次点取消依然会提示未保存
+  modalSnapshot = scene.snapshot;
+  modalCancelHook = null;
+  if (scene.focusId) {
+    const el = $('#' + scene.focusId);
+    if (el && el.focus) { el.focus(); try { el.setSelectionRange(scene.selStart, scene.selStart); } catch (err) { } }
+  }
+}
+function doCloseModal() {
+  $('#modalRoot').innerHTML = '';
+  document.removeEventListener('keydown', modalKeys);
+}
+function modalKeys(e) {
+  if (e.key === 'Escape') { cancelModal(); return; }
+  if (e.key === 'Enter' && e.target && /^(INPUT|SELECT)$/.test(e.target.tagName)) {
+    const btn = $('#modalRoot .m-foot [data-enter]');
+    if (btn) { e.preventDefault(); btn.click(); }
+  }
+}
+/**
+ * 通用确认框
+ * @param onOk     点确认后执行
+ * @param okText   确认按钮文字
+ * @param danger   是否危险操作（红色按钮）；传 false 时用主色
+ * @param onCancel 点取消/✕/遮罩后执行（用于还原被覆盖的界面）
+ */
+function confirmDialog(title, msg, onOk, okText, danger, onCancel) {
+  openModal(`
+    <div class="m-head"><h3>${esc(title)}</h3><button class="m-x" data-close="1">✕</button></div>
+    <div class="m-body"><div style="font-size:13.5px;line-height:1.9">${msg}</div></div>
+    <div class="m-foot">
+      <button class="btn" data-close="1">取消</button>
+      <button class="btn ${danger === false ? 'btn-primary' : 'btn-danger'}" id="confirmOk" data-enter="1">${esc(okText || '确认')}</button>
+    </div>`, { dismissible: true, noTrack: true, onCancel: onCancel });
+  $('#confirmOk').addEventListener('click', () => { doCloseModal(); modalSnapshot = null; onOk(); });
+}
+
+/* ==========================================================
+   商铺弹窗（含用电 / 用水户号）
+   ========================================================== */
+function shopModal(id) {
+  const s = id ? shopById(id) : null;
+  const isP = s && isParking(s);
+  openModal(`
+    <div class="m-head"><h3>${s ? '编辑' + (isP ? '车位' : '商铺') : '新增商铺'}</h3><button class="m-x" data-close="1">✕</button></div>
+    <div class="m-body">
+      <div class="form-grid">
+        <label class="fld"><span>编号 *</span><input id="f_code" value="${esc(s ? s.code : '')}" placeholder="如 A座 / B座"></label>
+        <label class="fld"><span>名称 *</span><input id="f_name" value="${esc(s ? s.name : '')}" placeholder="如 A座商铺"></label>
+        <label class="fld span2"><span>地址 / 位置</span><input id="f_addr" value="${esc(s ? (s.address || '') : '')}" placeholder="选填"></label>
+        <label class="fld"><span>面积（㎡）</span><input id="f_area" type="number" step="0.1" min="0" value="${s && s.area ? s.area : ''}"></label>
+        <label class="fld"><span>参考租金（元）</span><input id="f_rent" type="number" step="1" min="0" value="${s && s.rent ? s.rent : ''}"></label>
+        <label class="fld"><span>类型</span><select id="f_kind">
+          <option value="shop" ${!isP ? 'selected' : ''}>商铺</option>
+          <option value="parking" ${isP ? 'selected' : ''}>住宅车位</option>
+        </select></label>
+        <label class="fld"><span>备注</span><input id="f_note" value="${esc(s ? (s.remark || '') : '')}" placeholder="朝向、承租历史等"></label>
+        <label class="fld"><span>用电户号</span><input id="f_elec" value="${esc(s ? (s.elecNo || '') : '')}" placeholder="只需登记户号"></label>
+        <label class="fld"><span>用水户号</span><input id="f_water" value="${esc(s ? (s.waterNo || '') : '')}" placeholder="只需登记户号"></label>
+      </div>
+      <div class="hint">用电、用水只登记户号，抄表与缴费仍按原 Excel 习惯线下处理。</div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" data-close="1">取消</button>
+      <button class="btn btn-primary" data-act="shop-save" data-id="${s ? s.id : ''}" data-enter="1">保存</button>
+    </div>`);
+}
+
+function saveShop(id) {
+  const code = $('#f_code').value.trim();
+  const name = $('#f_name').value.trim();
+  if (!code) return toast('请填写编号', 'bad');
+  if (!name) return toast('请填写名称', 'bad');
+  const dup = db.shops.find(s => s.code.toLowerCase() === code.toLowerCase() && s.id !== id);
+  if (dup) return toast('编号「' + code + '」已被使用', 'bad');
+  const data = {
+    code: code, name: name,
+    address: $('#f_addr').value.trim(),
+    area: num($('#f_area').value),
+    rent: num($('#f_rent').value),
+    kind: $('#f_kind').value,
+    remark: $('#f_note').value.trim(),
+    elecNo: $('#f_elec').value.trim(),
+    waterNo: $('#f_water').value.trim()
+  };
+  if (id) {
+    const s = shopById(id);
+    if (s) Object.assign(s, data);
+  } else {
+    db.shops.push(Object.assign({ id: uid('s'), createdAt: todayISO() }, data));
+  }
+  saveDB(); closeModal(true); renderView();
+  toast(id ? '已保存' : '已新增', 'ok');
+}
+
+/* ==========================================================
+   租户弹窗
+   ========================================================== */
+function tenantModal(id) {
+  const t = id ? tenantById(id) : null;
+  openModal(`
+    <div class="m-head"><h3>${t ? '编辑租户' : '新增租户'}</h3><button class="m-x" data-close="1">✕</button></div>
+    <div class="m-body">
+      <div class="form-grid">
+        <label class="fld"><span>名称 / 称呼 *</span><input id="t_name" value="${esc(t ? t.name : '')}" placeholder="如 刘彬彬（美甲店）"></label>
+        <label class="fld"><span>联系电话</span><input id="t_phone" value="${esc(t ? (t.phone || '') : '')}" placeholder="手机号"></label>
+        <label class="fld span2"><span>备注</span><input id="t_note" value="${esc(t ? (t.remark || '') : '')}" placeholder="保证金、税费、其他约定"></label>
+      </div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" data-close="1">取消</button>
+      <button class="btn btn-primary" data-act="tenant-save" data-id="${t ? t.id : ''}" data-enter="1">保存</button>
+    </div>`);
+}
+function saveTenant(id) {
+  const name = $('#t_name').value.trim();
+  if (!name) return toast('请填写租户名称', 'bad');
+  const data = { name: name, phone: $('#t_phone').value.trim(), remark: $('#t_note').value.trim() };
+  if (id) { const t = tenantById(id); if (t) Object.assign(t, data); }
+  else db.tenants.push(Object.assign({ id: uid('t'), createdAt: todayISO() }, data));
+  saveDB(); closeModal(true); renderView();
+  toast(id ? '已保存' : '已新增', 'ok');
+}
+
+/* ==========================================================
+   合同弹窗
+   ========================================================== */
+function contractModal(id, presetShopId) {
+  const c = id ? contractById(id) : null;
+  if (db.shops.length === 0) return toast('请先新增商铺', 'bad');
+  const shopOpts = db.shops.slice().sort((a, b) => String(a.code).localeCompare(String(b.code), 'zh'))
+    .map(s => `<option value="${s.id}" ${(c ? c.shopId : presetShopId) === s.id ? 'selected' : ''}>${esc((s.code || '') + ' · ' + s.name)}</option>`).join('');
+  const tenantOpts = db.tenants.map(t => `<option value="${t.id}" ${c && c.tenantId === t.id ? 'selected' : ''}>${esc(t.name + (t.phone ? '（' + t.phone + '）' : ''))}</option>`).join('');
+  const today = todayISO();
+
+  openModal(`
+    <div class="m-head"><h3>${c ? '编辑合同' : '新增租赁合同'}</h3><button class="m-x" data-close="1">✕</button></div>
+    <div class="m-body">
+      ${db.tenants.length === 0 ? `<div class="info-box" style="background:#fff8ec;border-color:#f8e3bd">
+        <b style="font-size:13px">还没有租户</b>
+        <div class="hint" style="margin-top:4px">请先在「租户与合同」页新增租户，再回来签合同。
+        <span class="link" data-act="tenant-add">立即新增租户 →</span></div></div>` : ''}
+      <div class="form-grid">
+        <label class="fld"><span>商铺 *</span><select id="c_shop">${shopOpts}</select></label>
+        <label class="fld"><span>租户 *</span><select id="c_tenant">${tenantOpts}</select></label>
+        <label class="fld"><span>起租日</span><input id="c_start" type="date" value="${c ? c.start : today}"></label>
+        <label class="fld"><span>到期日</span><input id="c_end" type="date" value="${c ? c.end : addDays(today, 364)}"></label>
+        <label class="fld"><span>押金（元）</span><input id="c_deposit" type="number" step="1" min="0" value="${c ? c.deposit : ''}"></label>
+        <label class="fld"><span>租金模式</span><select id="c_mode">
+          <option value="varies" ${!c || c.rentMode === 'varies' ? 'selected' : ''}>按账期（逐年/分段登记）</option>
+          <option value="fixed" ${c && c.rentMode === 'fixed' ? 'selected' : ''}>固定月租 / 年租</option>
+        </select></label>
+        <label class="fld"><span>固定租金（元 / 期）</span><input id="c_rent" type="number" step="1" min="0" value="${c ? c.rent : ''}" placeholder="仅固定模式填"></label>
+        <label class="fld"><span>收租日（日）</span><input id="c_day" type="number" min="1" max="31" value="${c ? (c.rentDay || '') : ''}" placeholder="选填"></label>
+        <label class="fld span2"><span>协议租金 / 备注（可多行）</span><textarea id="c_note" placeholder="如：2019/11/8~2020/5/8 租金 50,000&#10;2020/5/8~2021/6/7 租金 70,000">${esc(c ? (c.remark || '') : '')}</textarea></label>
+      </div>
+      <div class="hint">合同本身不直接收款，「账期」才是收款单位；保存后可在「租金登记 → 新增账期」里逐期登记。</div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" data-close="1">取消</button>
+      <button class="btn btn-primary" data-act="contract-save" data-id="${c ? c.id : ''}" data-enter="1">保存合同</button>
+    </div>`, { wide: true });
+}
+function saveContract(id) {
+  if (!$('#c_shop')) return;
+  const shopId = $('#c_shop').value, tenantId = $('#c_tenant').value;
+  const start = $('#c_start').value, end = $('#c_end').value;
+  const deposit = num($('#c_deposit').value);
+  const rentMode = $('#c_mode').value;
+  const rent = num($('#c_rent').value);
+  const dayV = $('#c_day').value;
+  const rentDay = dayV === '' ? '' : Math.min(31, Math.max(1, num(dayV)));
+  if (!shopId) return toast('请选择商铺', 'bad');
+  if (!tenantId) return toast('请选择租户', 'bad');
+  if (!start || !end) return toast('请填写起止日期', 'bad');
+  if (start > end) return toast('到期日不能早于起租日', 'bad');
+  const overlap = db.contracts.find(c => c.id !== id && c.shopId === shopId && c.start <= end && c.end >= start);
+  if (overlap) return toast('该商铺在所选期间已有合同（' + overlap.start + ' ~ ' + overlap.end + '）', 'bad');
+
+  const data = {
+    shopId: shopId, tenantId: tenantId, start: start, end: end,
+    deposit: deposit, rentMode: rentMode, rent: rent, rentDay: rentDay,
+    remark: $('#c_note').value.trim()
+  };
+  if (id) { const c = contractById(id); if (c) Object.assign(c, data); }
+  else db.contracts.push(Object.assign({ id: uid('c'), createdAt: todayISO() }, data));
+  saveDB(); closeModal(true); renderView();
+  toast(id ? '合同已更新' : '合同已保存，可在「租金登记」新增账期', 'ok');
+}
+
+/* ==========================================================
+   合同正文（范本库 + 已签合同正文）
+   ----------------------------------------------------------
+   db.tpls[]   范本库：{id,key,name,shop,note,fields[{k,label,v}],body,updatedAt}
+   db.contracts[].fields / .body / .tplName  已签合同套用的字段与正文
+   正文里用 {{字段key}} 占位，渲染时替换为字段值
+   ========================================================== */
+/** 首次运行把 seed 里的两份 Word 合同灌入范本库（只做一次，之后以库内版本为准） */
+function loadTpls(force) {
+  const src = window.CONTRACT_TPL || [];
+  if (!src.length) return;
+  const ver = 20261017;
+  if (!force && db.meta && db.meta.tplVer === ver) return;
+  db.tpls = src.map(t => ({
+    id: uid('tpl'), key: t.key, name: t.name, shop: t.shop, note: t.note,
+    fields: t.fields.map(f => ({ k: f.k, label: f.label, v: f.v })),
+    body: t.body, createdAt: todayISO(), updatedAt: todayISO()
+  }));
+  db.meta = db.meta || {}; db.meta.tplVer = ver;
+  // 给两份现行合同自动关联范本并生成正文（面包店=A座范本，美甲店=B座范本）
+  const link = [['面包', 'tpl-A'], ['美甲', 'tpl-B']];
+  db.contracts.forEach(c => {
+    if (c.body) return;
+    const t = tenantById(c.tenantId); if (!t) return;
+    const hit = link.find(x => String(t.name).indexOf(x[0]) >= 0); if (!hit) return;
+    const tpl = (db.tpls || []).find(x => x.key === hit[1]); if (!tpl) return;
+    c.tplId = tpl.id; c.tplName = tpl.name;
+    c.fields = fieldsForContract(tpl, c);
+    c.body = tpl.body;
+  });
+  saveDB();
+}
+function tplById(id) { return (db.tpls || []).find(t => t.id === id) || null; }
+/** 把 {{key}} 替换成字段值；未填的关键字段保留高亮空位便于发现 */
+function renderBody(body, fields, opts) {
+  opts = opts || {};
+  const map = {};
+  (fields || []).forEach(f => { map[f.k] = f.v == null ? '' : String(f.v); });
+  return String(body || '').replace(/\{\{\s*([\w\u4e00-\u9fa5]+)\s*\}\}/g, (m, k) => {
+    const v = map[k];
+    if (v !== undefined && v !== '') return v;
+    return opts.blank ? '______' : '<span class="tpl-blank">' + esc(k) + '</span>';
+  });
+}
+/** 「2026-11-30」→「2026年11月30日」 */
+function cnDate(iso) {
+  const p = String(iso || '').split('-');
+  if (p.length !== 3) return iso || '';
+  return p[0] + '年' + Number(p[1]) + '月' + Number(p[2]) + '日';
+}
+/** 用范本 + 合同信息生成字段表（未填的自动从合同/租户/商铺带出） */
+function fieldsForContract(tpl, c) {
+  const tenant = c ? (tenantById(c.tenantId) || {}) : {};
+  const shop = c ? (shopById(c.shopId) || {}) : {};
+  return (tpl.fields || []).map(f => {
+    // 先做通用占位符替换，再按字段 key 用合同真实数据覆盖
+    let v = String(f.v == null ? '' : f.v)
+      .replace(/\{\{\s*租户\s*\}\}/g, tenant.name || '')
+      .replace(/\{\{\s*租户电话\s*\}\}/g, tenant.phone || '')
+      .replace(/\{\{\s*起租日\s*\}\}/g, c ? cnDate(c.start) : '')
+      .replace(/\{\{\s*到期日\s*\}\}/g, c ? cnDate(c.end) : '')
+      .replace(/\{\{\s*签约日期\s*\}\}/g, cnDate(todayISO()));
+    if (f.k === 'tenantName' && c) v = tenant.name || v;
+    if (f.k === 'tenantPhone' && tenant.phone) v = tenant.phone;
+    if (f.k === 'start' && c) v = cnDate(c.start);
+    if (f.k === 'end' && c) v = cnDate(c.end);
+    if (f.k === 'elecNo' && shop.elecNo) v = shop.elecNo;
+    if (f.k === 'waterNo' && shop.waterNo) v = shop.waterNo;
+    return { k: f.k, label: f.label, v: v };
+  });
+}
+
+/** 合同范本库视图（可编辑正文） */
+function viewTpls() {
+  const list = db.tpls || [];
+  return `
+  <div class="page-head">
+    <div><h2>合同范本</h2><p>把 Word 合同搬进系统：改字、填空、一键套用签新合同</p></div>
+    <div class="head-actions">
+      <button class="btn" data-act="tpl-reset">恢复 Word 原版</button>
+      <button class="btn btn-primary" data-act="tpl-add">+ 新建范本</button>
+    </div>
+  </div>
+  <div class="stats" style="grid-template-columns:repeat(3,1fr)">
+    ${statCard('范本数量', list.length + ' 份', 'A座 / B座 各一份', 'navy')}
+    ${statCard('可编辑正文', list.reduce((a, t) => a + String(t.body || '').length, 0).toLocaleString() + ' 字', '占位符自动填充', '')}
+    ${statCard('已套用合同', (db.contracts || []).filter(c => c.body).length + ' 份', '正文独立保存，改范本不影响旧合同', 'green')}
+  </div>
+  <div class="card" style="margin-top:16px">
+    <div class="card-h"><h3>范本列表</h3><span class="muted small">点「编辑正文」可逐条修改条款；范本改动只影响之后新签的合同</span></div>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>范本名称</th><th>适用商铺</th><th class="num">字段</th><th class="num">字数</th><th>最近修改</th><th></th></tr></thead>
+      <tbody>${list.length === 0 ? `<tr><td colspan="6"><div class="empty">还没有范本，点右上角「恢复 Word 原版」导入</div></td></tr>` :
+      list.map(t => `<tr>
+        <td><div class="cell-main">${esc(t.name)}</div><div class="cell-sub" style="max-width:420px;white-space:normal">${esc(t.note || '')}</div></td>
+        <td>${esc(t.shop || '—')}</td>
+        <td class="num">${(t.fields || []).length}</td>
+        <td class="num">${String(t.body || '').length}</td>
+        <td class="mono small">${esc((t.updatedAt || '').slice(0, 10))}</td>
+        <td class="ops">
+          <button class="btn btn-sm btn-primary" data-act="tpl-use" data-id="${t.id}">套用签合同</button>
+          <button class="btn btn-sm" data-act="tpl-edit" data-id="${t.id}">编辑正文</button>
+          <button class="btn btn-sm" data-act="tpl-del" data-id="${t.id}">删除</button>
+        </td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  </div>`;
+}
+
+/** 合同正文编辑器（范本 / 已签合同共用） */
+function bodyModal(id, contractId) {
+  const isTpl = !contractId;
+  const tpl = isTpl ? tplById(id) : null;
+  const c = isTpl ? null : contractById(contractId);
+  if (isTpl && !tpl) return toast('范本不存在', 'bad');
+  if (!isTpl && !c) return toast('合同不存在', 'bad');
+
+  const name = isTpl ? tpl.name : (tplById(c.tplId) ? tplById(c.tplId).name : (c.tplName || '自定义正文'));
+  const fields = isTpl ? (tpl.fields || []) : (c.fields || []);
+  const body = isTpl ? tpl.body : c.body;
+  const tplSel = (db.tpls || []).map(t => `<option value="${t.id}" ${(c && c.tplId === t.id) ? 'selected' : ''}>${esc(t.name)}</option>`).join('');
+
+  openModal(`
+    <div class="m-head"><h3>${isTpl ? '编辑范本正文' : '合同正文'} · ${esc(name)}</h3><button class="m-x" data-close="1">✕</button></div>
+    <div class="m-body">
+      ${!isTpl ? `<div class="form-grid" style="margin-bottom:10px">
+        <label class="fld"><span>套用范本</span><select id="b_tpl"><option value="">（不套用）</option>${tplSel}</select></label>
+        <label class="fld"><span>　　　　　</span><button class="btn" data-act="b-refill" data-id="${contractId}">按范本重新填充字段</button></label>
+      </div>` : ''}
+      <div class="tpl-edit-wrap">
+        <div class="tpl-edit-left">
+          <div class="tpl-edit-hd">字段（点「插入」可把占位符放到正文光标处）</div>
+          <div id="b_fields" class="tpl-fields">
+            ${fields.map(f => `<label class="tpl-fld"><span>${esc(f.label || f.k)}</span>
+              <div class="tpl-fld-row"><input data-fk="${esc(f.k)}" value="${esc(f.v || '')}">
+              <button class="btn btn-sm" data-act="b-insert" data-k="${esc(f.k)}" title="插入占位符">插入</button></div></label>`).join('') || '<div class="muted small">无字段</div>'}
+          </div>
+        </div>
+        <div class="tpl-edit-right">
+          <div class="tpl-edit-hd">正文（可直接改写条款，{{字段}} 会被自动替换）</div>
+          <textarea id="b_body" class="tpl-body">${esc(body || '')}</textarea>
+        </div>
+      </div>
+      <div class="hint">提示：正文里的 <code>{{字段名}}</code> 会在打印/预览时替换成左侧对应值；留空的字段显示为下划线空位。</div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" data-close="1">取消</button>
+      <button class="btn" data-act="b-preview" data-id="${isTpl ? '' : contractId}" data-tpl="${isTpl ? id : ''}">预览</button>
+      <button class="btn btn-primary" data-act="b-save" data-id="${isTpl ? '' : contractId}" data-tpl="${isTpl ? id : ''}" data-enter="1">保存</button>
+    </div>`, { full: true });
+}
+/** 从编辑器收集字段（含显示名）与正文 */
+function collectBodyWithLabels() {
+  const res = [];
+  document.querySelectorAll('#b_fields .tpl-fld').forEach(lab => {
+    const label = (lab.querySelector('span') || {}).textContent || '';
+    const inp = lab.querySelector('input[data-fk]');
+    if (inp) res.push({ k: inp.dataset.fk, label: label.trim(), v: inp.value });
+  });
+  return { fields: res, body: ($('#b_body') || {}).value || '' };
+}
+function saveBody(contractId, tplId) {
+  const { fields, body } = collectBodyWithLabels();
+  if (!body.trim()) return toast('正文不能为空', 'bad');
+  if (tplId) {
+    const t = tplById(tplId); if (!t) return toast('范本不存在', 'bad');
+    t.fields = fields; t.body = body; t.updatedAt = todayISO();
+    saveDB(); closeModal(true); renderView(); return toast('范本已保存', 'ok');
+  }
+  const c = contractById(contractId); if (!c) return toast('合同不存在', 'bad');
+  c.fields = fields; c.body = body;
+  const sel = $('#b_tpl'); if (sel) { c.tplId = sel.value || ''; const t = tplById(c.tplId); c.tplName = t ? t.name : ''; }
+  saveDB(); closeModal(true); renderView(); return toast('合同正文已保存', 'ok');
+}
+
+/** 合同正文预览（可打印 / 导出 Word） */
+function previewBody(contractId, tplId) {
+  const tpl = tplId ? tplById(tplId) : null;
+  const c = contractId ? contractById(contractId) : null;
+  if (!tpl && !c) return toast('内容不存在', 'bad');
+  const el = document.querySelector('#b_body');
+  const body = el ? el.value : (tpl ? tpl.body : c.body);
+  let fields;
+  if (document.querySelector('#b_fields')) fields = collectBodyWithLabels().fields;
+  else fields = tpl ? tpl.fields : (c.fields || []);
+  const title = tpl ? tpl.name : ((c && (c.tplName || '合同正文')) || '合同正文');
+  const html = bodyToHtml(body, fields);  openModal(`
+    <div class="m-head"><h3>预览 · ${esc(title)}</h3><button class="m-x" data-close="1">✕</button></div>
+    <div class="m-body"><div class="doc-paper" id="docPaper">${html}</div></div>
+    <div class="m-foot">
+      <button class="btn" data-close="1">关闭</button>
+      <button class="btn" data-act="b-word" data-id="${contractId || ''}" data-tpl="${tplId || ''}">导出 Word</button>
+      <button class="btn btn-primary" data-act="b-print">打印</button>
+    </div>`, { full: true });
+}
+/** 打印合同：写入 #printArea 后调用浏览器打印 */
+function printContract() {
+  const paper = document.querySelector('#docPaper');
+  if (!paper) return;
+  const area = $('#printArea');
+  if (!area) return;
+  area.innerHTML = paper.innerHTML;
+  document.body.classList.add('print-contract');
+  window.print();
+  setTimeout(() => { document.body.classList.remove('print-contract'); area.innerHTML = ''; }, 300);
+}
+/** 导出 Word（.doc，Word 可直接打开并继续编辑） */
+function exportContractWord(contractId, tplId) {
+  const paper = document.querySelector('#docPaper');
+  if (!paper) return toast('请先预览', 'bad');
+  const tpl = tplId ? tplById(tplId) : null;
+  const c = contractId ? contractById(contractId) : null;
+  const title = tpl ? tpl.name : ((c && (c.tplName || '合同')) || '合同');
+  const inner = paper.innerHTML.replace(/<div class="doc-blank"><\/div>/g, '<p>&nbsp;</p>')
+    .replace(/<div class="doc-line">/g, '<p style="margin:0;line-height:1.9;text-indent:2em">')
+    .replace(/<\/div>/g, '</p>')
+    .replace(/<i class="tpl-blank">([^<]*)<\/i>/g, '<span style="color:#c00">______</span>');
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">
+<head><meta charset="utf-8"><title>${esc(title)}</title>
+<style>@page{size:A4;margin:2.4cm 2.6cm}body{font-family:"宋体",serif;font-size:10.5pt;line-height:1.9}h1{text-align:center;font-family:"黑体";font-size:16pt;margin:0 0 18pt}p{margin:0;text-indent:2em}</style>
+</head><body><h1>${esc(title)}</h1>${inner}</body></html>`;
+  const blob = new Blob(['\ufeff' + html], { type: 'application/msword;charset=utf-8' });
+  const a = document.createElement('a');
+  const nm = (c ? ((tenantById(c.tenantId) || {}).name || '合同') : title).replace(/[\\/:*?"<>|]/g, '');
+  a.href = URL.createObjectURL(blob);
+  a.download = '租赁合同_' + nm + '_' + todayISO() + '.doc';
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  toast('已导出 Word 文件', 'ok');
+}
+
+/** 把正文渲染为 HTML 段落：{{字段}} 替换 + 空字段高亮 */
+function bodyToHtml(body, fields) {
+  const map = {};
+  (fields || []).forEach(f => { map[f.k] = f.v == null ? '' : String(f.v); });
+  // 兜底：字段值本身还是 {{xxx}} 时，按中文别名解析（{{租户}}→tenantName，{{起租日}}→start…）
+  const alias = { '租户': 'tenantName', '租户电话': 'tenantPhone', '起租日': 'start', '到期日': 'end' };
+  Object.keys(map).forEach(k => {
+    map[k] = map[k].replace(/\{\{\s*([\w\u4e00-\u9fa5]+)\s*\}\}/g, (mm, kk) => {
+      if (kk === '签约日期') return cnDate(todayISO());
+      const target = alias[kk] || kk;
+      if (target && target !== k && map[target] !== undefined && !/\{\{/.test(map[target])) return map[target];
+      return '';
+    });
+  });
+  return String(body || '').split(/\n/).map(line => {
+    const raw = line.replace(/\s+$/, '');
+    if (!raw.trim()) return '<div class="doc-blank"></div>';
+    // 逐段转义，同时把 {{k}} 替换成高亮空位或实际值
+    let out = '', last = 0;
+    const re = /\{\{\s*([\w\u4e00-\u9fa5]+)\s*\}\}/g; let m;
+    while ((m = re.exec(raw))) {
+      out += esc(raw.slice(last, m.index));
+      const v = map[m[1]];
+      // 未定义或为空的占位符 → 下划线空位（鼠标悬停显示字段名）
+      out += (v !== undefined && v !== '') ? esc(v)
+        : '<i class="tpl-blank" title="未填写：' + esc(m[1]) + '">______</i>';
+      last = m.index + m[0].length;
+    }
+    out += esc(raw.slice(last));
+    const indent = /^[\s\u3000]/.test(raw);
+    const isTitle = /^商铺租赁合同$|^房[屋产]租赁合同$/.test(raw.trim());
+    return '<div class="doc-line' + (indent ? ' ind' : '') + (isTitle ? ' doc-title' : '') + '">' + out.replace(/^[\s\u3000]+/, '') + '</div>';
+  }).join('');
+}
+
+/** 新建空范本 */
+function tplAddModal() {
+  openModal(`
+    <div class="m-head"><h3>新建合同范本</h3><button class="m-x" data-close="1">✕</button></div>
+    <div class="m-body">
+      <div class="form-grid">
+        <label class="fld span2"><span>范本名称 *</span><input id="t_name" placeholder="如 A座合同范本（续签用）"></label>
+        <label class="fld"><span>适用商铺</span><select id="t_shop"><option value="">（通用）</option>${db.shops.map(s => `<option value="${esc(s.code || s.name)}">${esc((s.code || '') + ' ' + s.name)}</option>`).join('')}</select></label>
+        <label class="fld"><span>说明</span><input id="t_note" placeholder="选填"></label>
+      </div>
+      <div class="tpl-fld-row" style="margin-top:10px">
+        <select id="t_copy"><option value="">（空白正文）</option>${(db.tpls || []).map(t => `<option value="${t.id}">复制自：${esc(t.name)}</option>`).join('')}</select>
+        <span class="muted small">从现有范本复制可省去重新录入条款</span>
+      </div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" data-close="1">取消</button>
+      <button class="btn btn-primary" id="t_ok" data-enter="1">创建</button>
+    </div>`);
+  $('#t_ok').addEventListener('click', () => {
+    const name = $('#t_name').value.trim();
+    if (!name) return toast('请填写范本名称', 'bad');
+    const copy = tplById($('#t_copy').value);
+    const t = {
+      id: uid('tpl'), key: '', name: name, shop: $('#t_shop').value, note: $('#t_note').value.trim(),
+      fields: copy ? JSON.parse(JSON.stringify(copy.fields)) : [],
+      body: copy ? copy.body : '商铺租赁合同\n\n出租方（甲方）：{{landlord}}    身份证号：{{landlordId}}\n承租方（乙方）：{{tenantName}}    身份证号：{{tenantId}}\n\n第一条：租赁房屋坐落地址及商铺面积\n　　商铺坐落地址：{{address}}。使用面积约 {{area}} 平方米。\n\n第二条：租赁用途：{{usage}}。\n\n第三条：租赁期限\n　　租期：{{termYear}} 年，自 {{start}} 至 {{end}} 止。\n',
+      createdAt: todayISO(), updatedAt: todayISO()
+    };
+    db.tpls = db.tpls || []; db.tpls.push(t);
+    saveDB(); closeModal(true); renderView(); toast('范本已创建，可继续编辑正文', 'ok');
+  });
+}
+
+/** 套用范本 → 新建合同：同时带出账期 */
+function tplUseModal(tplId) {
+  const t = tplById(tplId);
+  if (!t) return toast('范本不存在', 'bad');
+  if (!db.shops.length) return toast('请先新增商铺', 'bad');
+  if (!db.tenants.length) return toast('请先新增租户', 'bad');
+  const shopOpts = db.shops.slice().sort((a, b) => String(a.code).localeCompare(String(b.code), 'zh'))
+    .map(s => `<option value="${s.id}" ${(t.shop && (s.code === t.shop || s.name === t.shop)) ? 'selected' : ''}>${esc((s.code || '') + ' · ' + s.name)}</option>`).join('');
+  const tenantOpts = db.tenants.map(x => `<option value="${x.id}">${esc(x.name + (x.phone ? '（' + x.phone + '）' : ''))}</option>`).join('');
+  const today = todayISO();
+  openModal(`
+    <div class="m-head"><h3>套用范本签合同 · ${esc(t.name)}</h3><button class="m-x" data-close="1">✕</button></div>
+    <div class="m-body">
+      <div class="info-box"><b style="font-size:13px">${esc(t.name)}</b>
+        <div class="hint" style="margin-top:4px">${esc(t.note || '')}　套用后正文可再逐条修改，与范本互不影响。</div></div>
+      <div class="form-grid">
+        <label class="fld"><span>商铺 *</span><select id="u_shop">${shopOpts}</select></label>
+        <label class="fld"><span>租户 *</span><select id="u_tenant">${tenantOpts}</select></label>
+        <label class="fld"><span>起租日</span><input id="u_start" type="date" value="${today}"></label>
+        <label class="fld"><span>到期日</span><input id="u_end" type="date" value="${addDays(today, 364)}"></label>
+        <label class="fld"><span>押金（元）</span><input id="u_deposit" type="number" step="1" min="0" value=""></label>
+        <label class="fld"><span>收租日（日）</span><input id="u_day" type="number" min="1" max="31" value=""></label>
+        <label class="fld span2"><span>协议租金 / 备注</span><textarea id="u_note" placeholder="如：年租金 60,000，物业费 3,000/年"></textarea></label>
+      </div>
+      <div class="hint">保存后会同时生成该合同正文，并在「租金登记」中自动建一个按起租日命名的账期（金额稍后可改）。</div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" data-close="1">取消</button>
+      <button class="btn btn-primary" id="u_ok" data-enter="1">签订合同</button>
+    </div>`, { wide: true });
+  $('#u_ok').addEventListener('click', () => {
+    const shopId = $('#u_shop').value, tenantId = $('#u_tenant').value;
+    const start = $('#u_start').value, end = $('#u_end').value;
+    if (!shopId || !tenantId) return toast('请选择商铺与租户', 'bad');
+    if (!start || !end) return toast('请填写起止日期', 'bad');
+    if (start > end) return toast('到期日不能早于起租日', 'bad');
+    const overlap = db.contracts.find(c => c.shopId === shopId && c.start <= end && c.end >= start);
+    if (overlap) return toast('该商铺在所选期间已有合同（' + overlap.start + ' ~ ' + overlap.end + '）', 'bad');
+    const dayV = $('#u_day').value;
+    const c = {
+      id: uid('c'), shopId: shopId, tenantId: tenantId, start: start, end: end,
+      deposit: num($('#u_deposit').value), rentMode: 'varies', rent: 0,
+      rentDay: dayV === '' ? '' : Math.min(31, Math.max(1, num(dayV))),
+      remark: $('#u_note').value.trim(), tplId: t.id, tplName: t.name,
+      createdAt: todayISO()
+    };
+    c.fields = fieldsForContract(t, c);
+    c.body = t.body;
+    db.contracts.push(c);
+    // 自动建一个账期，金额/结束日可在租金登记里改
+    db.leases.push({
+      id: uid('l'), contractId: c.id, label: '第一期（' + cnDate(start) + '起）',
+      start: start, end: end, rent: 0, note: '', payments: [], createdAt: todayISO()
+    });
+    saveDB(); closeModal(true); renderView();
+    toast('合同已签订，可在「合同正文」里改条款', 'ok');
+  });
+}
+
+/** 合同正文查看（只读，从合同列表进入） */
+function contractDocModal(contractId) {
+  const c = contractById(contractId);
+  if (!c) return;
+  if (!c.body) return bodyModal('', contractId);
+  openModal(`
+    <div class="m-head"><h3>合同正文 · ${esc((tenantById(c.tenantId) || {}).name || '')}</h3><button class="m-x" data-close="1">✕</button></div>
+    <div class="m-body"><div class="doc-paper" id="docPaper">${bodyToHtml(c.body, c.fields || [])}</div></div>
+    <div class="m-foot">
+      <button class="btn" data-close="1">关闭</button>
+      <button class="btn" data-act="b-edit" data-id="${contractId}">编辑正文</button>
+      <button class="btn" data-act="b-word" data-id="${contractId}" data-tpl="">导出 Word</button>
+      <button class="btn btn-primary" data-act="b-print">打印</button>
+    </div>`, { full: true });
+}
+
+/* ==========================================================
+   账期弹窗（收款单位）
+   ========================================================== */
+/** 新增账期的建议起始日：已有账期则顺延到最后一个账期结束次日，否则用合同起始日 */
+function presetStartOf(contractId) {
+  if (!contractId) return todayISO();
+  const ls = db.leases.filter(l => l.contractId === contractId)
+    .sort((a, b) => String(a.end).localeCompare(String(b.end)));
+  if (ls.length) return addDays(ls[ls.length - 1].end, 1);
+  const c = contractById(contractId);
+  return (c && c.start) || todayISO();
+}
+function leaseModal(id, presetContractId, parking) {
+  const l = id ? leaseById(id) : null;
+  let contracts = db.contracts.slice();
+  if (parking) contracts = contracts.filter(c => isParking(shopById(c.shopId)));
+  if (!contracts.length) return toast(parking ? '请先在「商铺档案」新增车位并签约' : '请先新增租赁合同', 'bad');
+  const cOpts = contracts.map(c => {
+    const s = shopById(c.shopId) || {}, t = tenantById(c.tenantId) || {};
+    return `<option value="${c.id}" ${(l ? l.contractId : presetContractId) === c.id ? 'selected' : ''}>${esc((s.code || '') + ' · ' + (t.name || '') + '（' + c.start + '~' + c.end + '）')}</option>`;
+  }).join('');
+
+  openModal(`
+    <div class="m-head"><h3>${l ? '编辑账期' : '新增账期'}</h3><button class="m-x" data-close="1">✕</button></div>
+    <div class="m-body">
+      <div class="form-grid">
+        <label class="fld span2"><span>所属合同 *</span><select id="l_contract">${cOpts}</select></label>
+        <label class="fld span2"><span>账期名称 *</span><input id="l_label" value="${esc(l ? l.label : '')}" placeholder="如 第一年（2018/11/1~2019/10/31）"></label>
+        <label class="fld"><span>起始日</span><input id="l_start" type="date" value="${l ? l.start : (parking ? todayISO() : presetStartOf(presetContractId))}"></label>
+        <label class="fld"><span>结束日</span><input id="l_end" type="date" value="${l ? l.end : addDays(presetStartOf(presetContractId), 365)}"></label>
+        <label class="fld"><span>协议租金（元）</span><input id="l_rent" type="number" step="1" min="0" value="${l ? l.rent : ''}"></label>
+        <label class="fld"><span>备注</span><input id="l_note" value="${esc(l ? (l.note || '') : '')}" placeholder="减免、押金等说明"></label>
+      </div>
+      <div class="hint">账期是收款单位：一个合同可以拆成多个账期（如第一年、第二年），各自登记实收。</div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" data-close="1">取消</button>
+      <button class="btn btn-primary" data-act="lease-save" data-id="${l ? l.id : ''}" data-enter="1">保存</button>
+    </div>`, { wide: true });
+}
+function saveLease(id) {
+  if (!$('#l_contract')) return;
+  const contractId = $('#l_contract').value;
+  const label = $('#l_label').value.trim();
+  const start = $('#l_start').value, end = $('#l_end').value;
+  const rent = num($('#l_rent').value);
+  if (!label) return toast('请填写账期名称', 'bad');
+  if (!start || !end) return toast('请填写起止日期', 'bad');
+  if (start > end) return toast('结束日不能早于起始日', 'bad');
+  if (rent < 0) return toast('协议租金不能为负', 'bad');
+  const data = { contractId: contractId, label: label, start: start, end: end, rent: rent, note: $('#l_note').value.trim() };
+  if (id) { const l = leaseById(id); if (l) Object.assign(l, data); }
+  else db.leases.push(Object.assign({ id: uid('l'), payments: [], createdAt: todayISO() }, data));
+  // 保存后自动切到该账期所在年份，避免新增 2029 年的账期后"看不见"
+  const c = contractById(contractId), park = c && isParking(shopById(c.shopId));
+  const y = String(start).slice(0, 4);
+  if (park) ui.parkYear = y; else ui.ym = y;
+  saveDB(); closeModal(true); renderView();
+  toast(id ? '账期已更新' : '账期已新增（已切换到 ' + y + ' 年）', 'ok');
+}
+
+/* ==========================================================
+   收款弹窗
+   ========================================================== */
+function payModal(leaseId) {
+  const l = leaseById(leaseId);
+  if (!l) return;
+  const o = shopOfLease(l);
+  const paid = paidOf(l), left = Math.max(0, l.rent - paid);
+  const st = leaseStatus(l);
+  const history = (l.payments || []).slice().sort((x, y) => String(y.date).localeCompare(String(x.date)));
+
+  openModal(`
+    <div class="m-head"><h3>收款登记</h3><button class="m-x" data-close="1">✕</button></div>
+    <div class="m-body">
+      <div class="info-box">
+        <div style="display:flex;align-items:center;gap:8px">
+          <b style="font-size:14px">${esc(o.tenant.name)}</b>
+          <span class="muted small">${esc(o.shop.code || '')} · ${esc(l.label)}</span>
+          <span class="badge ${st.cls}" style="margin-left:auto">${st.t}</span>
+        </div>
+        <div class="big">${money(l.rent)} <span style="font-size:12.5px;font-weight:400;color:var(--muted)">协议租金</span></div>
+        <div class="sub">账期 ${esc(l.start)} ~ ${esc(l.end)} · 已收 ${money(paid)} · 待收 <b style="color:${left > 0 ? 'var(--bad)' : 'var(--ok)'}">${money(left)}</b></div>
+      </div>
+      ${left > 0.005 ? `
+      <div class="form-grid">
+        <label class="fld"><span>本次收款金额（元）</span><input id="p_amt" type="number" step="0.01" min="0" value="${left}"></label>
+        <label class="fld"><span>收款日期</span><input id="p_date" type="date" value="${todayISO()}"></label>
+        <label class="fld"><span>收款方式</span><select id="p_method">
+          <option>微信</option><option>支付宝</option><option>银行转账</option><option>现金</option><option>其他</option>
+        </select></label>
+        <label class="fld"><span>备注</span><input id="p_note" placeholder="如 分两次付"></label>
+      </div>` : `<div style="font-size:13px;color:var(--ok);padding:4px 0 2px">该账期租金已全部收齐。</div>`}
+      ${history.length ? `<div class="pay-list"><h4>收款记录（${history.length} 笔${l.note ? ' · ' + esc(l.note) : ''}）</h4>
+        ${history.map(p => `<div class="pay-line">
+          <span class="mono">${esc(p.date)}</span>
+          <span class="muted">${esc(p.method || '')}</span>
+          <b style="margin-left:auto;font-variant-numeric:tabular-nums">${money(p.amount)}</b>
+          <span class="del" data-act="payment-del" data-id="${l.id}" data-pid="${p.id}">删除</span>
+        </div>`).join('')}
+      </div>` : ''}
+    </div>
+    <div class="m-foot">
+      <button class="btn" data-close="1">关闭</button>
+      <button class="btn" data-act="print-receipt" data-id="${l.id}">打印收据</button>
+      ${left > 0.005 ? `<button class="btn btn-primary" data-act="pay-save" data-id="${l.id}" data-enter="1">确认收款</button>` : ''}
+    </div>`, { wide: true });
+}
+
+function savePayment(leaseId) {
+  const l = leaseById(leaseId); if (!l) return;
+  const amt = num($('#p_amt').value);
+  const date = $('#p_date').value;
+  if (!(amt > 0)) return toast('请输入收款金额', 'bad');
+  if (!date) return toast('请选择收款日期', 'bad');
+  l.payments = l.payments || [];
+  l.payments.push({ id: uid('p'), date: date, amount: amt, method: $('#p_method').value, note: $('#p_note').value.trim() });
+  saveDB(); payModal(leaseId); renderView();
+  toast('已登记收款 ' + money(amt) + '，可点「打印收据」', 'ok');
+}
+
+/* ==========================================================
+   收据打印
+   ========================================================== */
+function rmbUpper(n) {
+  const D = '零壹贰叁肆伍陆柒捌玖';
+  const U = ['', '拾', '佰', '仟'];
+  const B = ['', '万', '亿'];
+  let v = Math.round(num(n) * 100) / 100;
+  if (!isFinite(v) || v < 0) return '';
+  let int = Math.floor(v);
+  const dec = Math.round((v - int) * 100);
+  let intStr = '';
+  if (int === 0) intStr = '零';
+  else {
+    let gi = 0;
+    while (int > 0) {
+      let part = int % 10000, ps = '', zero = false, first = true;
+      let p = part, idx = 0;
+      while (p > 0) {
+        const d = p % 10;
+        if (d === 0) { zero = true; }
+        else {
+          ps = D[d] + U[idx] + (zero && !first ? '零' : '') + ps;
+          zero = false;
+        }
+        first = false;
+        p = Math.floor(p / 10); idx++;
+      }
+      if (ps) intStr = ps + B[gi] + (intStr && part < 1000 ? '零' : '') + intStr;
+      int = Math.floor(int / 10000); gi++;
+    }
+  }
+  let decStr = '';
+  if (dec > 0) {
+    const jiao = Math.floor(dec / 10), fen = dec % 10;
+    decStr = (jiao ? D[jiao] + '角' : (int > 0 ? '零' : '')) + (fen ? D[fen] + '分' : (jiao ? '整' : ''));
+    if (fen === 0 && jiao) decStr = D[jiao] + '角整';
+  } else {
+    decStr = '整';
+  }
+  return '人民币' + intStr + '元' + decStr;
+}
+
+function printReceipt(leaseId) {
+  const l = leaseById(leaseId); if (!l) return;
+  const o = shopOfLease(l);
+  const paid = paidOf(l);
+  const last = (l.payments || []).slice().sort((x, y) => String(y.date).localeCompare(String(x.date)))[0] || {};
+  const no = 'R' + String(l.start).replace(/-/g, '').slice(0, 6) + '-' + String(l.id).slice(-4).toUpperCase();
+  $('#printArea').innerHTML = `
+    <div class="receipt">
+      <h1>收 据</h1>
+      <div class="rc-no">编号：${esc(no)}</div>
+      <table>
+        <tr><td class="k">收款日期</td><td>${esc(last.date || todayISO())}</td></tr>
+        <tr><td class="k">租户</td><td>${esc(o.tenant.name)}</td></tr>
+        <tr><td class="k">商铺</td><td>${esc(o.shop.name)} ${esc(o.shop.code || '')}</td></tr>
+        <tr><td class="k">交款内容</td><td>${esc(l.label)} 租金</td></tr>
+        <tr><td class="k">账期</td><td>${esc(l.start)} ~ ${esc(l.end)}</td></tr>
+        <tr><td class="k">协议租金</td><td>${money(l.rent)}（已收 ${money(paid)}）</td></tr>
+        <tr><td class="k">本次收款</td><td class="rc-amount">${money(last.amount != null ? last.amount : paid)}</td></tr>
+        <tr><td class="k">金额大写</td><td>${rmbUpper(last.amount != null ? last.amount : paid)}</td></tr>
+        <tr><td class="k">收款方式</td><td>${esc(last.method || '—')}</td></tr>
+        <tr><td class="k">备注</td><td>${esc(last.note || l.note || '—')}</td></tr>
+      </table>
+      <div class="rc-sign"><span>收款人（签字）：alonzhang</span><span>日期：${esc(last.date || todayISO())}</span></div>
+      <div class="rc-foot">本收据由商铺收租登记系统生成 · 一式两联，请妥善保管</div>
+    </div>`;
+  setTimeout(() => window.print(), 60);
+}
+
+/* ==========================================================
+   导出 / 导入
+   ========================================================== */
+function download(name, content, mime) {
+  const blob = new Blob([content], { type: mime + ';charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 600);
+}
+function csvCell(v) {
+  const s = String(v == null ? '' : v);
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function toCSV(head, rows, name) {
+  const csv = '\ufeff' + [head].concat(rows).map(r => r.map(csvCell).join(',')).join('\r\n');
+  download(name, csv, 'text/csv');
+}
+function exportRentCSV() {
+  const y = String(ui.ym), all = y === 'all';
+  let list = db.leases.filter(l => all || String(l.start).slice(0, 4) === y)
+    .filter(l => { const c = contractById(l.contractId); return c && !isParking(shopById(c.shopId)); })
+    .sort((a, b) => String(a.start).localeCompare(String(b.start)));
+  if (ui.scope !== 'all') list = list.filter(l => l.contractId === ui.scope);
+  if (!list.length) return toast(all ? '没有账期可导出' : '该年度没有账期可导出', 'bad');
+  const rows = list.map(l => {
+    const o = shopOfLease(l);
+    return [o.shop.code || '', o.shop.name || '', o.tenant.name || '', l.label, l.start, l.end, l.rent, paidOf(l), (l.rent - paidOf(l)).toFixed(2), lastPayDate(l), leaseStatus(l).t];
+  });
+  toCSV(['商铺编号', '商铺', '租户', '账期', '起始日', '结束日', '协议租金', '实收', '未收', '最近收款', '状态'], rows, '租金登记_' + (all ? '全部' : y) + '.csv');
+  toast('已导出 ' + list.length + ' 个账期', 'ok');
+}
+function exportLedgerCSV() {
+  const rows = [];
+  db.leases.forEach(l => (l.payments || []).forEach(p => {
+    if (ui.ledgerYear !== 'all' && String(p.date).slice(0, 4) !== String(ui.ledgerYear)) return;
+    const o = shopOfLease(l);
+    rows.push([p.date, o.shop.code || '', o.shop.name || '', o.tenant.name || '', l.label, p.amount, p.method || '', p.note || '']);
+  }));
+  if (!rows.length) return toast('没有可导出的收款记录', 'bad');
+  rows.sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+  toCSV(['收款日期', '商铺编号', '商铺', '租户', '账期', '金额', '收款方式', '备注'], rows, '收款台账_' + (ui.ledgerYear === 'all' ? '全部' : ui.ledgerYear) + '.csv');
+  toast('已导出 ' + rows.length + ' 笔收款', 'ok');
+}
+function exportYearCSV() {
+  /* 判定是否商铺账期（排除住宅车位） */
+  const isShopLease = l => {
+    const c = contractById(l.contractId);
+    return !!c && !isParking(shopById(c.shopId));
+  };
+  const isParkLease = l => {
+    const c = contractById(l.contractId);
+    return !!c && isParking(shopById(c.shopId));
+  };
+  const rateOf = (due, paid) => due ? Math.round(paid / due * 100) + '%' : '-';
+
+  if (String(ui.reportYear) === 'all') {
+    /* 全部年份：逐年汇总 */
+    const ys = {};
+    db.leases.forEach(l => {
+      const y = String(l.start).slice(0, 4);
+      if (!ys[y]) ys[y] = { n: 0, due: 0, paid: 0, park: 0 };
+      if (isShopLease(l)) { ys[y].n++; ys[y].due += num(l.rent); ys[y].paid += paidOf(l); }
+      else if (isParkLease(l)) { ys[y].park += paidOf(l); }
+    });
+    const years = Object.keys(ys).filter(y => ys[y].n || ys[y].park).sort((a, b) => a.localeCompare(b));
+    if (!years.length) return toast('没有可导出的账期', 'bad');
+    const head = ['年份', '账期数', '协议租金', '实收', '未收', '收缴率', '车位实收'];
+    const rows = years.map(y => {
+      const o = ys[y];
+      return [y, o.n, o.due.toFixed(2), o.paid.toFixed(2), (o.due - o.paid).toFixed(2), rateOf(o.due, o.paid), o.park.toFixed(2)];
+    });
+    const tN = sum(years, y => ys[y].n), tDue = sum(years, y => ys[y].due);
+    const tPaid = sum(years, y => ys[y].paid), tPark = sum(years, y => ys[y].park);
+    rows.push(['合计', tN, tDue.toFixed(2), tPaid.toFixed(2), (tDue - tPaid).toFixed(2), rateOf(tDue, tPaid), tPark.toFixed(2)]);
+    toCSV(head, rows, '收租年度报表_全部年份.csv');
+    return toast('已导出 ' + years.length + ' 个年度汇总', 'ok');
+  }
+
+  const y = String(ui.reportYear);
+  const head = ['月份', '账期数', '协议租金', '实收', '未收', '收缴率'];
+  const rows = [];
+  for (let m = 1; m <= 12; m++) {
+    const pre = y + '-' + pad2(m);
+    const ls = db.leases.filter(l => String(l.start).slice(0, 7) === pre && isShopLease(l));
+    const due = sum(ls, l => l.rent), paid = sum(ls, l => paidOf(l));
+    rows.push([m + '月', ls.length, due, paid, (due - paid).toFixed(2), rateOf(due, paid)]);
+  }
+  toCSV(head, rows, '收租年度报表_' + y + '.csv');
+  toast('已导出 ' + y + ' 年报表', 'ok');
+}
+function exportJSON() {
+  const data = {
+    shops: db.shops, tenants: db.tenants, contracts: db.contracts, leases: db.leases,
+    tpls: db.tpls || [], meta: db.meta
+  };
+  download('商铺收租备份_' + todayISO() + '.json', JSON.stringify({ app: 'shop-rent', version: 3, exportedAt: new Date().toISOString(), data: data }, null, 2), 'application/json');
+  toast('备份已导出（含合同范本 ' + (db.tpls || []).length + ' 份）', 'ok');
+}
+function importJSON() {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = '.json,application/json';
+  inp.onchange = () => {
+    const f = inp.files && inp.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const j = JSON.parse(r.result);
+        const d = j.data || j;
+        if (!d || !Array.isArray(d.shops) || !Array.isArray(d.contracts)) throw new Error('文件格式不正确');
+        confirmDialog('导入备份', `将覆盖当前全部数据：<br>商铺 ${d.shops.length} 个、租户 ${(d.tenants || []).length} 位、合同 ${d.contracts.length} 份、账期 ${(d.leases || []).length} 个、合同范本 ${(d.tpls || []).length} 份。<br><br>确定继续？`, () => {
+          db.shops = d.shops || []; db.tenants = d.tenants || [];
+          db.contracts = d.contracts || []; db.leases = d.leases || []; db.meta = d.meta || {};
+          if (Array.isArray(d.tpls)) db.tpls = d.tpls;
+          loadDBNormalize(); saveDB();
+          ui.ym = 'all'; ui.parkYear = 'all'; ui.ledgerYear = 'all'; ui.reportYear = 'all'; ui.scope = 'all';
+          renderView();
+          toast('备份导入成功', 'ok');
+        }, '确认导入');
+      } catch (e) { toast('导入失败：' + e.message, 'bad'); }
+    };
+    r.readAsText(f, 'utf-8');
+  };
+  inp.click();
+}
+
+/* ==========================================================
+   原始数据载入（来自 商铺租金记录表.xlsx）
+   ========================================================== */
+function loadSeed(force) {
+  const S = window.SEED;
+  if (!S) return false;
+  if (!force && db.meta && db.meta.seedVer === window.SEED_VER) return false;
+  const shopId = {}, tenantId = {}, contractId = {};
+  db.shops = S.shops.map(s => {
+    const id = uid('s'); shopId[s.code] = id;
+    return Object.assign({ id: id, createdAt: todayISO() }, s);
+  });
+  db.tenants = S.tenants.map(t => {
+    const id = uid('t'); tenantId[t.name] = id;
+    return Object.assign({ id: id, createdAt: todayISO() }, t);
+  });
+  db.contracts = S.contracts.map(c => {
+    const id = uid('c'); contractId[c.key] = id;
+    return {
+      id: id, shopId: shopId[c.shop], tenantId: tenantId[c.tenant], start: c.start, end: c.end,
+      rent: c.rent, deposit: c.deposit, rentDay: c.rentDay, rentMode: c.rent ? 'fixed' : 'varies',
+      remark: c.remark || '', createdAt: todayISO()
+    };
+  });
+  db.leases = S.leases.map(l => ({
+    id: uid('l'), contractId: contractId[l.contract], label: l.label, start: l.start, end: l.end,
+    rent: l.rent, note: '',
+    payments: (l.payments || []).map(p => ({ id: uid('p'), date: p[0], amount: p[1], method: p[2], note: '' })),
+    createdAt: todayISO()
+  }));
+  db.meta = { seedVer: window.SEED_VER, seededAt: new Date().toISOString() };
+  saveDB();
+  return true;
+}
+function loadDBNormalize() {
+  db.shops.forEach(s => {
+    s.code = s.code || ''; s.name = s.name || '未命名';
+    s.area = num(s.area); s.rent = num(s.rent);
+    s.kind = s.kind === 'parking' ? 'parking' : 'shop';
+    s.elecNo = s.elecNo || ''; s.waterNo = s.waterNo || '';
+  });
+  db.leases.forEach(l => {
+    l.rent = num(l.rent); if (!Array.isArray(l.payments)) l.payments = [];
+    l.payments.forEach(p => { p.amount = num(p.amount); });
+  });
+}
+
+/* ==========================================================
+   事件绑定
+   ========================================================== */
+function onNavClick(e) {
+  const b = e.target.closest('[data-view]');
+  if (b && b.classList.contains('nav-item')) switchView(b.dataset.view);
+}
+
+function onViewClick(e) {
+  const b = e.target.closest('[data-act]');
+  if (!b) return;
+  const act = b.dataset.act, id = b.dataset.id;
+  switch (act) {
+    case 'go': switchView(b.dataset.view); break;
+    case 'go-rent': {
+      /* 跳到该合同自己的账期：直接按合同起始年定位，避免"全部年份"下翻找不到 */
+      const c = contractById(id);
+      ui.scope = id;
+      if (c && c.start) ui.ym = String(c.start).slice(0, 4);
+      switchView('rent'); break;
+    }
+    case 'go-rent-all': {
+      ui.scope = 'all'; ui.ym = 'all'; switchView('rent'); break;
+    }
+    case 'rent-all': {
+      ui.scope = 'all'; ui.ym = 'all'; switchView('rent'); break;
+    }
+    case 'shop-add': shopModal(); break;
+    case 'shop-edit': shopModal(id); break;
+    case 'shop-del': {
+      const s = shopById(id); if (!s) return;
+      const cids = db.contracts.filter(c => c.shopId === id).map(c => c.id);
+      confirmDialog('删除' + (isParking(s) ? '车位' : '商铺'), `确定删除「${esc(s.name)}」？<br>其合同与全部账期、收款记录也会一并删除，且不可恢复。`, () => {
+        db.leases = db.leases.filter(l => cids.indexOf(l.contractId) < 0);
+        db.contracts = db.contracts.filter(c => c.shopId !== id);
+        db.shops = db.shops.filter(x => x.id !== id);
+        saveDB(); renderView(); toast('已删除', 'ok');
+      });
+      break;
+    }
+    case 'tenant-add': tenantModal(); break;
+    case 'tenant-edit': tenantModal(id); break;
+    case 'tenant-del': {
+      const t = tenantById(id); if (!t) return;
+      if (db.contracts.some(c => c.tenantId === id)) return toast('该租户还有合同，请先删除合同', 'bad');
+      confirmDialog('删除租户', `确定删除「${esc(t.name)}」？`, () => {
+        db.tenants = db.tenants.filter(x => x.id !== id);
+        saveDB(); renderView(); toast('已删除', 'ok');
+      });
+      break;
+    }
+    case 'contract-add': contractModal(null, b.dataset.shop); break;
+    case 'contract-edit': contractModal(id); break;
+    case 'contract-doc': contractDocModal(id); break;
+    case 'tpl-add': tplAddModal(); break;
+    case 'tpl-edit': bodyModal(id, ''); break;
+    case 'tpl-use': tplUseModal(id); break;
+    case 'tpl-del': {
+      const t = tplById(id); if (!t) return;
+      confirmDialog('删除范本', `确定删除范本「${esc(t.name)}」？<br>已签合同里的正文不受影响。`, () => {
+        db.tpls = db.tpls.filter(x => x.id !== id);
+        saveDB(); renderView(); toast('范本已删除', 'ok');
+      });
+      break;
+    }
+    case 'tpl-reset': {
+      confirmDialog('恢复 Word 原版', '将用两份 Word 合同覆盖现有范本正文，已做过的修改会丢失（已签合同的正文不受影响）。', () => {
+        loadTpls(true); renderView(); toast('已恢复为 Word 原版', 'ok');
+      });
+      break;
+    }
+    case 'contract-del': {
+      const c = contractById(id); if (!c) return;
+      const n = db.leases.filter(l => l.contractId === id).length;
+      confirmDialog('删除合同', `确定删除该合同？<br>将同时删除其 ${n} 个账期及全部收款记录。`, () => {
+        db.leases = db.leases.filter(l => l.contractId !== id);
+        db.contracts = db.contracts.filter(x => x.id !== id);
+        saveDB(); renderView(); toast('合同已删除', 'ok');
+      });
+      break;
+    }
+    case 'lease-add': leaseModal(null, b.dataset.contract, !!b.dataset.park); break;
+    case 'lease-edit': leaseModal(id); break;
+    case 'lease-del': {
+      const l = leaseById(id); if (!l) return;
+      confirmDialog('删除账期', `确定删除账期「${esc(l.label)}」？<br>该账期下的 ${(l.payments || []).length} 笔收款记录也会删除。`, () => {
+        db.leases = db.leases.filter(x => x.id !== id);
+        saveDB(); renderView(); toast('已删除', 'ok');
+      });
+      break;
+    }
+    case 'lease-pay': payModal(id); break;
+    case 'rent-scope': ui.scope = b.dataset.f; renderView(); break;
+    case 'search-clear': {
+      const f = b.dataset.for;
+      if (f === 'shopSearch') ui.shopKw = '';
+      else if (f === 'ledgerKw') ui.ledgerKw = '';
+      const inp = $('#' + f);
+      if (inp) { inp.value = ''; inp.focus(); }
+      if (!refreshSearchList()) renderView();
+      break;
+    }
+    case 'export-rent': exportRentCSV(); break;
+    case 'export-ledger': exportLedgerCSV(); break;
+    case 'export-year': exportYearCSV(); break;
+    case 'export-json': exportJSON(); break;
+    case 'import-json': importJSON(); break;
+    case 'pwd-modal': passwordModal(); break;
+    case 'vault-pwd': if (window.RentVault) window.RentVault.changePassword(); break;
+    case 'logout': logout(); break;
+    case 'reseed': {
+      confirmDialog('重新载入原始数据', '将<b>覆盖</b>当前全部数据，恢复为《商铺租金记录表.xlsx》里的原始记录。<br><br>建议先导出备份。确定继续？', () => {
+        loadSeed(true); ui.ym = 'all'; ui.scope = 'all'; renderView();
+        toast('已恢复原始数据', 'ok');
+      }, '载入');
+      break;
+    }
+    case 'clear-all': {
+      confirmDialog('清空全部数据', '<b style="color:#c33">此操作不可恢复。</b><br>商铺、租户、合同、账期与收款记录都会被删除，确定继续？', () => {
+        db.shops = []; db.tenants = []; db.contracts = []; db.leases = [];
+        db.meta = { seedVer: window.SEED_VER, cleared: true };
+        saveDB(); ui.scope = 'all'; renderView(); toast('数据已清空', 'ok');
+      }, '确认清空');
+      break;
+    }
+  }
+}
+
+function onModalClick(e) {
+  /* 关闭类按钮（✕ / 取消 / 关闭）：属于「取消」语义，先走还原回调再关闭 */
+  const cl = e.target.closest('[data-close]');
+  if (cl) { cancelModal(); return; }
+  const del = e.target.closest('[data-act="payment-del"]');
+  if (del) {
+    const l = leaseById(del.dataset.id);
+    if (!l) return;
+    const pid = del.dataset.pid;
+    l.payments = (l.payments || []).filter(p => p.id !== pid);
+    saveDB(); payModal(l.id); renderView(); toast('已删除收款记录');
+    return;
+  }
+  const b = e.target.closest('[data-act]');
+  if (!b) return;
+  const act = b.dataset.act, id = b.dataset.id;
+  if (act === 'shop-save') saveShop(id);
+  else if (act === 'tenant-save') saveTenant(id);
+  else if (act === 'contract-save') saveContract(id);
+  else if (act === 'lease-save') saveLease(id);
+  else if (act === 'pay-save') savePayment(id);
+  else if (act === 'print-receipt') printReceipt(id);
+  else if (act === 'tenant-add') { closeModal(true); tenantModal(); }
+  /* ---- 合同正文 / 范本 ---- */
+  else if (act === 'b-save') saveBody(b.dataset.id || '', b.dataset.tpl || '');
+  else if (act === 'b-preview') previewBody(b.dataset.id || '', b.dataset.tpl || '');
+  else if (act === 'b-print') printContract();
+  else if (act === 'b-word') exportContractWord(b.dataset.id || '', b.dataset.tpl || '');
+  else if (act === 'b-edit') { closeModal(true); bodyModal('', id); }
+  else if (act === 'b-insert') {
+    const ta = document.querySelector('#b_body');
+    if (ta) {
+      const ph = '{{' + b.dataset.k + '}}';
+      const s = ta.selectionStart, e2 = ta.selectionEnd;
+      ta.value = ta.value.slice(0, s) + ph + ta.value.slice(e2);
+      ta.focus(); ta.setSelectionRange(s + ph.length, s + ph.length);
+    }
+  }
+  else if (act === 'b-refill') {
+    const c = contractById(id);
+    const sel = document.querySelector('#b_tpl');
+    if (!c || !sel || !sel.value) return toast('请先选择一个范本', 'bad');
+    const t = tplById(sel.value); if (!t) return;
+    fieldsForContract(t, c).forEach(f => {
+      const inp = document.querySelector('#b_fields input[data-fk="' + f.k + '"]');
+      if (inp) inp.value = f.v;
+    });
+    c.tplId = t.id; c.tplName = t.name;
+    toast('已按范本填充字段（记得点保存）', 'ok');
+  }
+}
+
+/* 中文输入法：组字期间绝不能重建 DOM，否则拼音/候选被清空，表现为「打不出中文」 */
+let imeComposing = false;
+
+function onViewInput(e) {
+  const el = e.target;
+  if (el.dataset && el.dataset.search) {
+    if (el.id === 'shopSearch') ui.shopKw = el.value;
+    else if (el.id === 'ledgerKw') ui.ledgerKw = el.value;
+    // 组字中只记值、不重绘；组字结束（compositionend）后由 onCompositionEnd 补一次
+    if (!imeComposing && !e.isComposing) refreshSearchList();
+  }
+}
+function onViewCompositionStart() { imeComposing = true; }
+function onViewCompositionEnd(e) {
+  imeComposing = false;
+  const el = e.target;
+  if (el.dataset && el.dataset.search) {
+    if (el.id === 'shopSearch') ui.shopKw = el.value;
+    else if (el.id === 'ledgerKw') ui.ledgerKw = el.value;
+    refreshSearchList();
+  }
+}
+function onViewChange(e) {
+  const el = e.target;
+  if (el.id === 'rentYear' && el.value) { ui.ym = el.value; renderView(); }
+  if (el.id === 'ledgerYear') { ui.ledgerYear = el.value; renderView(); }
+  if (el.id === 'reportYear') { ui.reportYear = el.value; renderView(); }
+  if (el.id === 'parkYear') { ui.parkYear = el.value; renderView(); }
+}
+
+/* ==========================================================
+   修改密码
+   ========================================================== */
+function passwordModal() {
+  openModal(`
+    <div class="m-head"><h3>修改登录密码</h3><button class="m-x" data-close="1">✕</button></div>
+    <div class="m-body">
+      <div class="form-grid">
+        <label class="fld span2"><span>当前密码</span><input id="pw_old" type="password" autocomplete="current-password"></label>
+        <label class="fld"><span>新密码（至少 6 位）</span><input id="pw_new" type="password" autocomplete="new-password"></label>
+        <label class="fld"><span>确认新密码</span><input id="pw_new2" type="password" autocomplete="new-password"></label>
+      </div>
+      <div class="hint">密码只保存在本机（SHA-256 摘要），忘记后无法找回，只能用备份或清除浏览器数据重置。</div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" data-close="1">取消</button>
+      <button class="btn btn-primary" id="pwOk" data-enter="1">确认修改</button>
+    </div>`);
+  $('#pwOk').addEventListener('click', () => {
+    const oldV = $('#pw_old').value, n1 = $('#pw_new').value, n2 = $('#pw_new2').value;
+    if (sha256(SALT + oldV) !== pwdHash()) return toast('当前密码不正确', 'bad');
+    if (n1.length < 6) return toast('新密码至少 6 位', 'bad');
+    if (n1 !== n2) return toast('两次输入的新密码不一致', 'bad');
+    localStorage.setItem(K.pwd, sha256(SALT + n1));
+    closeModal(); toast('密码已修改', 'ok');
+  });
+}
+
+/* ==========================================================
+   启动（由文末加密保险库模块在口令解锁后调用 startApp）
+   ========================================================== */
+var _appStarted = false;
+function startApp() {
+  if (_appStarted) return;
+  _appStarted = true;
+  loadDB();
+  // 首次使用（或数据版本升级）载入 Excel 原始台账数据
+  loadSeed(false);
+  loadDBNormalize();
+  loadTpls(false);
+  initLogin();
+  $('#nav').addEventListener('click', onNavClick);
+  $('#viewRoot').addEventListener('click', onViewClick);
+  $('#viewRoot').addEventListener('input', onViewInput);
+  $('#viewRoot').addEventListener('compositionstart', onViewCompositionStart);
+  $('#viewRoot').addEventListener('compositionend', onViewCompositionEnd);
+  $('#viewRoot').addEventListener('change', onViewChange);
+  $('#modalRoot').addEventListener('click', onModalClick);
+  $('#logoutBtn').addEventListener('click', () => {
+    confirmDialog('退出登录', '确定退出当前账号？', logout, '退出', false);
+  });
+
+  const sess = readSession();
+  if (sess) { enterApp(false); }
+  else { $('#loginPage').hidden = false; $('#appShell').hidden = true; }
+}
+</script>
+
+<!-- =====================================================================
+     端侧加密保险库（rent_vault_v1）+ 数据口令门
+     加密方案：PBKDF2(SHA-256, 200000 次) 派生 → AES-GCM 256（与工资管理系统一致）
+     云端只存密文；口令仅存本会话 sessionStorage，绝不上云。
+     解锁后才调用 startApp() 进入系统；此后任何数据改动自动加密上传。
+     ===================================================================== -->
+<script>
+(function () {
+  'use strict';
+
+  if (!window.crypto || !window.crypto.subtle) {
+    alert('当前环境不支持加密能力（Web Crypto），请使用现代浏览器通过 https 访问。');
+    return;
+  }
+
+  var subtle = window.crypto.subtle;
+  var VAULT_KEY = 'rent_vault_v1';      // 云端同步的唯一键（密文）
+  var PWD_STORE = '__rent_vault_pwd__'; // sessionStorage 会话口令
+  var PBKDF2_ITER = 200000;
+
+  // 明文数据键（JSON 存储）：永不上云（由 CLOUDBASE_EXCLUDE_KEYS 保证），打入加密包
+  var DATA_KEYS = ['rent_shops_v1', 'rent_tenants_v1', 'rent_contracts_v1', 'rent_leases_v1', 'rent_meta_v1', 'rent_tpls_v1'];
+  var PWD_KEY = 'rent_pwd_hash';        // 登录密码哈希（原始字符串存储），随包同步
+
+  var currentKey = null;     // AES-GCM CryptoKey
+  var currentSaltB64 = '';
+  var unlocked = false;
+  var applyingRemote = false;
+  var lastVaultJson = '';
+  var lastBundleSig = '';
+  var rebuildTimer = null;
+  var wrappersInstalled = false;
+
+  // ---------- 编码工具 ----------
+  function b64ToBytes(b64) {
+    var bin = atob(b64);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+  function bytesToB64(bytes) {
+    var bin = '';
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+  function safeParse(raw, fallback) {
+    if (raw === null || raw === undefined || raw === '') return fallback;
+    try { return JSON.parse(raw); } catch (e) { return fallback; }
+  }
+  function isWatchedKey(key) {
+    return DATA_KEYS.indexOf(key) >= 0 || key === PWD_KEY;
+  }
+
+  // ---------- 明文快照收集 / 落地 ----------
+  function collectBundle() {
+    var bundle = {};
+    DATA_KEYS.forEach(function (k) { bundle[k] = safeParse(localStorage.getItem(k), null); });
+    bundle[PWD_KEY] = localStorage.getItem(PWD_KEY) || null; // 原始字符串，非 JSON
+    return bundle;
+  }
+  function applyBundle(bundle) {
+    applyingRemote = true;
+    try {
+      DATA_KEYS.forEach(function (k) {
+        if (Object.prototype.hasOwnProperty.call(bundle, k)) {
+          if (bundle[k] === null || bundle[k] === undefined) localStorage.removeItem(k);
+          else localStorage.setItem(k, JSON.stringify(bundle[k]));
+        }
+      });
+      if (bundle[PWD_KEY]) localStorage.setItem(PWD_KEY, bundle[PWD_KEY]);
+    } finally {
+      setTimeout(function () { applyingRemote = false; }, 50);
+    }
+  }
+
+  // ---------- PBKDF2 / AES-GCM ----------
+  function deriveKey(pwd, saltBytes) {
+    return subtle.importKey(
+      'raw', new TextEncoder().encode(pwd), 'PBKDF2', false, ['deriveKey']
+    ).then(function (baseKey) {
+      return subtle.deriveKey(
+        { name: 'PBKDF2', salt: saltBytes, iterations: PBKDF2_ITER, hash: 'SHA-256' },
+        baseKey,
+        { name: 'AES-GCM', length: 256 },
+        false, ['encrypt', 'decrypt']
+      );
+    });
+  }
+  function encryptVault(key, saltBytes, bundle) {
+    var iv = window.crypto.getRandomValues(new Uint8Array(12));
+    return subtle.encrypt(
+      { name: 'AES-GCM', iv: iv }, key,
+      new TextEncoder().encode(JSON.stringify(bundle))
+    ).then(function (ct) {
+      return {
+        v: 1, alg: 'PBKDF2-AESGCM', iter: PBKDF2_ITER,
+        salt: bytesToB64(saltBytes), iv: bytesToB64(iv),
+        ct: bytesToB64(new Uint8Array(ct))
+      };
+    });
+  }
+  // 返回 {bundle, key}；口令错误时 GCM 解密抛异常
+  function decryptVault(vault, pwd) {
+    var salt = b64ToBytes(vault.salt);
+    return deriveKey(pwd, salt).then(function (key) {
+      return subtle.decrypt(
+        { name: 'AES-GCM', iv: b64ToBytes(vault.iv) },
+        key, b64ToBytes(vault.ct)
+      ).then(function (plain) {
+        return { key: key, bundle: JSON.parse(new TextDecoder().decode(plain)) };
+      });
+    });
+  }
+
+  // ---------- 云端推送（防抖；只推白名单键 rent_vault_v1） ----------
+  var _cloudPushTimer = null;
+  var _cloudPushing = false;
+  function scheduleCloudPush(delay) {
+    if (!window.CloudbaseSync || typeof window.CloudbaseSync.pushAll !== 'function') return;
+    if (_cloudPushTimer) clearTimeout(_cloudPushTimer);
+    _cloudPushTimer = setTimeout(doCloudPush, typeof delay === 'number' ? delay : 1200);
+  }
+  function doCloudPush() {
+    _cloudPushTimer = null;
+    if (_cloudPushing) return;
+    if (!window.CloudbaseSync || typeof window.CloudbaseSync.pushAll !== 'function') return;
+    _cloudPushing = true;
+    Promise.resolve(window.CloudbaseSync.pushAll(false)).then(function (r) {
+      if (r && r.ok === false) console.warn('[RentVault] 云端推送未完成：', r.msg || '');
+      if (r && r.failed) console.warn('[RentVault] 云端推送部分失败：', r.failed);
+    }).catch(function (e) {
+      console.warn('[RentVault] 云端推送失败：', e && e.message ? e.message : e);
+    }).then(function () { _cloudPushing = false; });
+  }
+
+  // ---------- 保险库重建（防抖 600ms；明文未变则空操作） ----------
+  function scheduleRebuild() {
+    if (!unlocked || applyingRemote) return;
+    if (rebuildTimer) clearTimeout(rebuildTimer);
+    rebuildTimer = setTimeout(rebuildNow, 600);
+  }
+  function rebuildNow() {
+    if (!unlocked || applyingRemote) return Promise.resolve();
+    var bundle = collectBundle();
+    var sig;
+    try { sig = JSON.stringify(bundle); } catch (e) { return Promise.resolve(); }
+    if (sig === lastBundleSig) return Promise.resolve();
+    var saltBytes = b64ToBytes(currentSaltB64);
+    return encryptVault(currentKey, saltBytes, bundle).then(function (vault) {
+      lastBundleSig = sig;
+      lastVaultJson = JSON.stringify(vault);
+      localStorage.setItem(VAULT_KEY, lastVaultJson);
+      scheduleCloudPush(1200);
+    }).catch(function (e) {
+      console.warn('[RentVault] 加密失败：', e);
+    });
+  }
+
+  // ---------- 远端保险库更新（其他电脑写入 → 本机解密落地） ----------
+  function refreshAppUI() {
+    if (typeof _appStarted === 'undefined' || !_appStarted) return;
+    loadDB();
+    renderView();
+    updateTopbar();
+  }
+  function handleRemoteVault() {
+    var raw = localStorage.getItem(VAULT_KEY);
+    if (!raw || raw === lastVaultJson) return;
+    var vault = safeParse(raw, null);
+    if (!vault || !vault.ct) return;
+    var pwd = sessionStorage.getItem(PWD_STORE);
+    if (!pwd) return;
+    decryptVault(vault, pwd).then(function (res) {
+      var same;
+      try { same = JSON.stringify(res.bundle) === JSON.stringify(collectBundle()); }
+      catch (e) { same = false; }
+      lastVaultJson = raw;
+      if (same) {
+        try { lastBundleSig = JSON.stringify(collectBundle()); } catch (e) {}
+        return;
+      }
+      applyBundle(res.bundle);
+      currentKey = res.key;
+      currentSaltB64 = vault.salt;
+      try { lastBundleSig = JSON.stringify(collectBundle()); } catch (e) {}
+      refreshAppUI();
+      if (typeof toast === 'function') toast('已接收云端最新数据', 'ok');
+    }).catch(function () {
+      console.warn('[RentVault] 云端保险库解密失败（口令可能已在其他设备修改）');
+      if (typeof toast === 'function') toast('云端数据口令不匹配，未加载远程更新', 'bad');
+    });
+  }
+  window.addEventListener('cloud-data-updated', function (e) {
+    var keys = (e.detail && e.detail.keys) || [];
+    if (keys.indexOf(VAULT_KEY) >= 0) handleRemoteVault();
+  });
+
+  // ---------- 本地写入观察（明文键一改 → 重新加密入云） ----------
+  function installWrappers() {
+    if (wrappersInstalled) return;
+    wrappersInstalled = true;
+    var origSet = localStorage.setItem.bind(localStorage);
+    var origRemove = localStorage.removeItem.bind(localStorage);
+    localStorage.setItem = function (key, value) {
+      origSet(key, value);
+      if (isWatchedKey(key)) scheduleRebuild();
+    };
+    localStorage.removeItem = function (key) {
+      origRemove(key);
+      if (isWatchedKey(key)) scheduleRebuild();
+    };
+    window.addEventListener('storage', function (e) {
+      if (e.key && isWatchedKey(e.key)) scheduleRebuild();
+    });
+  }
+
+  // ---------- 解锁 / 新建 ----------
+  function applyUnlocked(vault, res) {
+    applyBundle(res.bundle);
+    currentKey = res.key;
+    currentSaltB64 = vault.salt;
+    unlocked = true;
+    lastVaultJson = JSON.stringify(vault);
+    try { lastBundleSig = JSON.stringify(collectBundle()); } catch (e) {}
+    installWrappers();
+    rebuildNow();
+    scheduleCloudPush(1500); // 保证本机保险库一定上云（首次创建/迁移场景）
+  }
+  function unlockExisting(pwd) {
+    var raw = localStorage.getItem(VAULT_KEY);
+    var vault = safeParse(raw, null);
+    if (!vault || !vault.ct) return Promise.reject(new Error('未找到加密保险库'));
+    return decryptVault(vault, pwd).then(function (res) {
+      sessionStorage.setItem(PWD_STORE, pwd);
+      applyUnlocked(vault, res);
+    });
+  }
+  function createNewVault(pwd) {
+    var saltBytes = window.crypto.getRandomValues(new Uint8Array(16));
+    return deriveKey(pwd, saltBytes).then(function (key) {
+      var bundle = collectBundle(); // 本机已有数据一并加密（历史数据迁移上云）
+      return encryptVault(key, saltBytes, bundle).then(function (vault) {
+        sessionStorage.setItem(PWD_STORE, pwd);
+        applyUnlocked(vault, { key: key, bundle: bundle });
+        scheduleCloudPush(800);
+      });
+    });
+  }
+
+  // ---------- 修改数据口令（设置页入口） ----------
+  function changePassword() {
+    if (!unlocked) { if (typeof toast === 'function') toast('请先解锁数据口令', 'bad'); return; }
+    var oldPwd = prompt('请输入当前数据口令：');
+    if (oldPwd === null) return;
+    var vault = safeParse(localStorage.getItem(VAULT_KEY), null);
+    if (!vault || !vault.ct) { if (typeof toast === 'function') toast('未找到加密保险库', 'bad'); return; }
+    decryptVault(vault, oldPwd).then(function () {
+      var p1 = prompt('请输入新数据口令（建议 8 位以上，丢令将无法恢复数据）：');
+      if (p1 === null) return;
+      if (!p1 || p1.length < 6) { if (typeof toast === 'function') toast('口令至少 6 位', 'bad'); return; }
+      var p2 = prompt('请再次输入新口令：');
+      if (p2 === null) return;
+      if (p1 !== p2) { if (typeof toast === 'function') toast('两次输入不一致', 'bad'); return; }
+      var saltBytes = window.crypto.getRandomValues(new Uint8Array(16));
+      deriveKey(p1, saltBytes).then(function (key) {
+        return encryptVault(key, saltBytes, collectBundle()).then(function (nv) {
+          localStorage.setItem(VAULT_KEY, JSON.stringify(nv));
+          currentKey = key;
+          currentSaltB64 = nv.salt;
+          lastVaultJson = JSON.stringify(nv);
+          try { lastBundleSig = JSON.stringify(collectBundle()); } catch (e) {}
+          sessionStorage.setItem(PWD_STORE, p1);
+          scheduleCloudPush(800);
+          if (typeof toast === 'function') toast('数据口令已修改，密文已重新上传', 'ok');
+        });
+      });
+    }).catch(function () {
+      if (typeof toast === 'function') toast('当前口令错误', 'bad');
+    });
+  }
+
+  // ---------- 口令门 UI ----------
+  var GATE_CSS =
+    '#rentGate{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;' +
+    'background:radial-gradient(1100px 560px at 12% 8%,#e6eeff 0%,transparent 62%),' +
+    'radial-gradient(900px 520px at 88% 96%,#e4f8f4 0%,transparent 58%),#f4f6fb;' +
+    'font-family:"Microsoft YaHei","PingFang SC",-apple-system,"Segoe UI",Roboto,sans-serif;}' +
+    '#rentGate .rg-box{background:#fff;border:1px solid #e8ecf5;border-radius:16px;padding:30px 32px;' +
+    'width:350px;max-width:92vw;box-shadow:0 28px 70px -32px rgba(18,38,90,.35);}' +
+    '#rentGate .rg-logo{font-size:28px;text-align:center;margin-bottom:4px;}' +
+    '#rentGate .rg-title{text-align:center;font-size:17px;font-weight:700;color:#1e2633;margin-bottom:4px;}' +
+    '#rentGate .rg-sub{text-align:center;font-size:12px;color:#7b879c;margin-bottom:18px;line-height:1.7;}' +
+    '#rentGate .rg-field{margin-bottom:13px;}' +
+    '#rentGate .rg-field label{display:block;font-size:12px;color:#465269;margin-bottom:5px;font-weight:600;}' +
+    '#rentGate .rg-field input{width:100%;box-sizing:border-box;padding:9px 11px;font-size:13.5px;' +
+    'border:1px solid #dfe4ee;border-radius:8px;outline:none;background:#fbfcfe;color:#1e2633;}' +
+    '#rentGate .rg-field input:focus{border-color:#9dbcf8;background:#fff;box-shadow:0 0 0 3px rgba(47,111,237,.12);}' +
+    '#rentGate .rg-btn{width:100%;height:42px;background:linear-gradient(180deg,#3b7bf6,#2f6fed);color:#fff;border:none;' +
+    'border-radius:9px;font-size:14px;font-weight:600;cursor:pointer;margin-top:4px;letter-spacing:.08em;}' +
+    '#rentGate .rg-btn:hover{filter:brightness(1.04);}' +
+    '#rentGate .rg-err{color:#e04b4b;font-size:12px;min-height:16px;margin-top:8px;text-align:center;}' +
+    '#rentGate .rg-link{text-align:center;margin-top:12px;font-size:12px;color:#2f6fed;cursor:pointer;}' +
+    '#rentGate .rg-hide{display:none !important;}';
+
+  var styleEl = document.createElement('style');
+  styleEl.textContent = GATE_CSS;
+  document.head.appendChild(styleEl);
+
+  var gate = document.createElement('div');
+  gate.id = 'rentGate';
+  gate.innerHTML =
+    '<div class="rg-box">' +
+      '<div class="rg-logo">🏪</div>' +
+      '<div class="rg-title" id="rgTitle">商铺收租登记</div>' +
+      '<div class="rg-sub" id="rgSub">数据端侧加密保护</div>' +
+      '<div id="rgUnlockForm" class="rg-hide">' +
+        '<div class="rg-field"><label>数据口令</label><input id="rgVaultPwd" type="password" autocomplete="off"></div>' +
+        '<button class="rg-btn" id="rgUnlockBtn">解锁数据</button>' +
+        '<div class="rg-err" id="rgVaultErr"></div>' +
+        '<div class="rg-link" id="rgToCreate">首次使用？点此创建数据口令</div>' +
+      '</div>' +
+      '<div id="rgCreateForm" class="rg-hide">' +
+        '<div class="rg-field"><label>设置数据口令（至少 6 位）</label><input id="rgNewPwd1" type="password" autocomplete="off"></div>' +
+        '<div class="rg-field"><label>确认数据口令</label><input id="rgNewPwd2" type="password" autocomplete="off"></div>' +
+        '<button class="rg-btn" id="rgCreateBtn">创建并进入</button>' +
+        '<div class="rg-err" id="rgCreateErr"></div>' +
+        '<div class="rg-link" id="rgToUnlock">已有口令？点此解锁</div>' +
+        '<div class="rg-sub" style="margin:14px 0 0;font-size:11px;">若你之前已在其他电脑创建过口令，请确认网络畅通后刷新页面，再点「已有口令」解锁。</div>' +
+      '</div>' +
+    '</div>';
+  document.documentElement.appendChild(gate);
+
+  function showPane(id) {
+    ['rgUnlockForm', 'rgCreateForm'].forEach(function (p) {
+      document.getElementById(p).classList.toggle('rg-hide', p !== id);
+    });
+  }
+  function hideGate() { gate.classList.add('rg-hide'); }
+  function showUnlockPane() {
+    document.getElementById('rgTitle').textContent = '数据口令解锁';
+    document.getElementById('rgSub').textContent = '云端数据已端侧加密，请输入口令解密';
+    showPane('rgUnlockForm');
+    setTimeout(function () { document.getElementById('rgVaultPwd').focus(); }, 60);
+  }
+  function showCreatePane() {
+    document.getElementById('rgTitle').textContent = '创建数据口令';
+    document.getElementById('rgSub').textContent = '口令用于加密全部数据并同步云端，丢失将无法恢复，请妥善保管';
+    showPane('rgCreateForm');
+    setTimeout(function () { document.getElementById('rgNewPwd1').focus(); }, 60);
+  }
+
+  function waitForVault(timeoutMs) {
+    return new Promise(function (resolve) {
+      var start = Date.now();
+      (function tick() {
+        var raw = localStorage.getItem(VAULT_KEY);
+        if (raw) return resolve(raw);
+        if (Date.now() - start >= timeoutMs) return resolve(null);
+        setTimeout(tick, 300);
+      })();
+    });
+  }
+
+  function enterSystem() {
+    hideGate();
+    if (typeof startApp === 'function') startApp();
+  }
+
+  function bootVault() {
+    var pwd = sessionStorage.getItem(PWD_STORE);
+    if (pwd) {
+      waitForVault(9000).then(function (raw) {
+        if (!raw) { showUnlockPane(); return; }
+        unlockExisting(pwd).then(enterSystem).catch(function () {
+          sessionStorage.removeItem(PWD_STORE);
+          showUnlockPane();
+          document.getElementById('rgVaultErr').textContent = '会话口令已失效，请重新输入';
+        });
+      });
+    } else {
+      waitForVault(6000).then(function (raw) {
+        if (raw) showUnlockPane(); else showCreatePane();
+      });
+    }
+  }
+
+  // ---------- 门事件 ----------
+  document.getElementById('rgUnlockBtn').addEventListener('click', function () {
+    var pwd = document.getElementById('rgVaultPwd').value;
+    var err = document.getElementById('rgVaultErr');
+    err.textContent = '解密中…';
+    unlockExisting(pwd).then(function () {
+      err.textContent = '';
+      enterSystem();
+    }).catch(function (e) {
+      err.textContent = /未找到/.test(e.message) ? '未找到加密保险库，请创建口令' : '口令错误，无法解密';
+    });
+  });
+  document.getElementById('rgVaultPwd').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') document.getElementById('rgUnlockBtn').click();
+  });
+  document.getElementById('rgCreateBtn').addEventListener('click', function () {
+    var p1 = document.getElementById('rgNewPwd1').value;
+    var p2 = document.getElementById('rgNewPwd2').value;
+    var err = document.getElementById('rgCreateErr');
+    if (!p1 || p1.length < 6) { err.textContent = '口令至少 6 位'; return; }
+    if (p1 !== p2) { err.textContent = '两次输入不一致'; return; }
+    err.textContent = '正在加密…';
+    createNewVault(p1).then(function () {
+      err.textContent = '';
+      enterSystem();
+    }).catch(function (e) {
+      err.textContent = '创建失败：' + (e.message || e);
+    });
+  });
+  document.getElementById('rgNewPwd2').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') document.getElementById('rgCreateBtn').click();
+  });
+  document.getElementById('rgToCreate').addEventListener('click', showCreatePane);
+  document.getElementById('rgToUnlock').addEventListener('click', showUnlockPane);
+
+  // ---------- 对外接口 & 启动 ----------
+  window.RentVault = { changePassword: changePassword };
+  installWrappers();
+  bootVault();
+})();
+</script>
+</body>
+</html>
