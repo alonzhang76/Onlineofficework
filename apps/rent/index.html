@@ -3126,17 +3126,147 @@ function startApp() {
     }
   }
 
+  // ---------- PBKDF2（纯 JS 优化版） ----------
+  /* ==== PBKDF2-JS-BEGIN ==== */
+  // Safari 的 Web Crypto PBKDF2 实现极慢（200000 次需数十秒），
+  // 改用与小程序端一致的 HMAC 预计算优化实现（输出与 Web Crypto 逐字节一致）。
+  var PBK = new Uint32Array([
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+  ]);
+  var PBH0 = new Uint32Array([
+    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
+  ]);
+  function pbRotr(x, n) { return (x >>> n) | (x << (32 - n)); }
+  function pbFillW(buf, off, w) {
+    for (var i = 0; i < 16; i++) {
+      w[i] = (buf[off + i * 4] << 24) | (buf[off + i * 4 + 1] << 16) |
+             (buf[off + i * 4 + 2] << 8) | buf[off + i * 4 + 3];
+    }
+  }
+  function pbBlock(w, h) {
+    var i, s0, s1, S1, S0, ch, mj, t1, t2;
+    for (i = 16; i < 64; i++) {
+      s0 = pbRotr(w[i - 15], 7) ^ pbRotr(w[i - 15], 18) ^ (w[i - 15] >>> 3);
+      s1 = pbRotr(w[i - 2], 17) ^ pbRotr(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) | 0;
+    }
+    var a = h[0], b = h[1], c = h[2], d = h[3], e = h[4], f = h[5], g = h[6], hh = h[7];
+    for (i = 0; i < 64; i++) {
+      S1 = pbRotr(e, 6) ^ pbRotr(e, 11) ^ pbRotr(e, 25);
+      ch = (e & f) ^ (~e & g);
+      t1 = (hh + S1 + ch + PBK[i] + w[i]) | 0;
+      S0 = pbRotr(a, 2) ^ pbRotr(a, 13) ^ pbRotr(a, 22);
+      mj = (a & b) ^ (a & c) ^ (b & c);
+      t2 = (S0 + mj) | 0;
+      hh = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    h[0] = (h[0] + a) | 0; h[1] = (h[1] + b) | 0; h[2] = (h[2] + c) | 0; h[3] = (h[3] + d) | 0;
+    h[4] = (h[4] + e) | 0; h[5] = (h[5] + f) | 0; h[6] = (h[6] + g) | 0; h[7] = (h[7] + hh) | 0;
+  }
+  function pbHmacStates(keyBytes) {
+    var key = keyBytes;
+    if (key.length > 64) key = pbSha256(key);
+    var k = new Uint8Array(64);
+    k.set(key);
+    var ip = new Uint8Array(64), op = new Uint8Array(64);
+    for (var i = 0; i < 64; i++) { ip[i] = k[i] ^ 0x36; op[i] = k[i] ^ 0x5c; }
+    var inner = new Uint32Array(PBH0), outer = new Uint32Array(PBH0);
+    var w = new Uint32Array(64);
+    pbFillW(ip, 0, w); pbBlock(w, inner);
+    pbFillW(op, 0, w); pbBlock(w, outer);
+    return { inner: inner, outer: outer };
+  }
+  function pbSha256(data) {
+    var h = new Uint32Array(PBH0);
+    var len = data.length, bitLen = len * 8;
+    var padLen = ((len + 9 + 63) >> 6) << 6; if (padLen === 0) padLen = 64;
+    var buf = new Uint8Array(padLen);
+    buf.set(data); buf[len] = 0x80;
+    buf[padLen - 4] = (bitLen >>> 24) & 0xff; buf[padLen - 3] = (bitLen >>> 16) & 0xff;
+    buf[padLen - 2] = (bitLen >>> 8) & 0xff; buf[padLen - 1] = bitLen & 0xff;
+    var w = new Uint32Array(64);
+    for (var off = 0; off < padLen; off += 64) { pbFillW(buf, off, w); pbBlock(w, h); }
+    var out = new Uint8Array(32);
+    for (var j = 0; j < 8; j++) {
+      out[j * 4] = (h[j] >>> 24) & 0xff; out[j * 4 + 1] = (h[j] >>> 16) & 0xff;
+      out[j * 4 + 2] = (h[j] >>> 8) & 0xff; out[j * 4 + 3] = h[j] & 0xff;
+    }
+    return out;
+  }
+  // msg ≤ 55 字节（PBKDF2 的 U 值恒为 32 字节，满足）
+  function pbHmac(states, msg) {
+    var msgLen = msg.length;
+    var totalBitLen = (64 + msgLen) * 8;
+    var block = new Uint8Array(64);
+    block.set(msg);
+    block[msgLen] = 0x80;
+    block[60] = (totalBitLen >>> 24) & 0xff; block[61] = (totalBitLen >>> 16) & 0xff;
+    block[62] = (totalBitLen >>> 8) & 0xff; block[63] = totalBitLen & 0xff;
+    var h = new Uint32Array(states.inner);
+    var w = new Uint32Array(64);
+    pbFillW(block, 0, w); pbBlock(w, h);
+    var ih = new Uint8Array(32);
+    for (var j = 0; j < 8; j++) {
+      ih[j * 4] = (h[j] >>> 24) & 0xff; ih[j * 4 + 1] = (h[j] >>> 16) & 0xff;
+      ih[j * 4 + 2] = (h[j] >>> 8) & 0xff; ih[j * 4 + 3] = h[j] & 0xff;
+    }
+    totalBitLen = (64 + 32) * 8;
+    var ob = new Uint8Array(64);
+    ob.set(ih); ob[32] = 0x80;
+    ob[60] = (totalBitLen >>> 24) & 0xff; ob[61] = (totalBitLen >>> 16) & 0xff;
+    ob[62] = (totalBitLen >>> 8) & 0xff; ob[63] = totalBitLen & 0xff;
+    var h2 = new Uint32Array(states.outer);
+    pbFillW(ob, 0, w); pbBlock(w, h2);
+    var out = new Uint8Array(32);
+    for (var j2 = 0; j2 < 8; j2++) {
+      out[j2 * 4] = (h2[j2] >>> 24) & 0xff; out[j2 * 4 + 1] = (h2[j2] >>> 16) & 0xff;
+      out[j2 * 4 + 2] = (h2[j2] >>> 8) & 0xff; out[j2 * 4 + 3] = h2[j2] & 0xff;
+    }
+    return out;
+  }
+  function pbkdf2Fast(password, saltBytes, iterations, keyLen) {
+    var pwBytes = new TextEncoder().encode(password);
+    var states = pbHmacStates(pwBytes);
+    var out = new Uint8Array(keyLen), blockLen = 32;
+    var blocks = Math.ceil(keyLen / blockLen);
+    for (var block = 1; block <= blocks; block++) {
+      var saltBlock = new Uint8Array(saltBytes.length + 4);
+      saltBlock.set(saltBytes);
+      saltBlock[saltBytes.length] = (block >>> 24) & 0xff;
+      saltBlock[saltBytes.length + 1] = (block >>> 16) & 0xff;
+      saltBlock[saltBytes.length + 2] = (block >>> 8) & 0xff;
+      saltBlock[saltBytes.length + 3] = block & 0xff;
+      var u = pbHmac(states, saltBlock);
+      var t = new Uint8Array(u);
+      for (var i = 1; i < iterations; i++) {
+        u = pbHmac(states, u);
+        for (var j = 0; j < blockLen; j++) t[j] ^= u[j];
+      }
+      var off = (block - 1) * blockLen;
+      out.set(t.subarray(0, Math.min(blockLen, keyLen - off)), off);
+    }
+    return out;
+  }
+  /* ==== PBKDF2-JS-END ==== */
+
   // ---------- PBKDF2 / AES-GCM ----------
+  // 派生改走纯 JS 优化实现（同步计算约 0.2~0.5s），密钥仍以 AES-GCM CryptoKey 使用；
+  // setTimeout 让「正在加密…/解密中…」文字先渲染，避免界面看似无响应。
   function deriveKey(pwd, saltBytes) {
-    return subtle.importKey(
-      'raw', new TextEncoder().encode(pwd), 'PBKDF2', false, ['deriveKey']
-    ).then(function (baseKey) {
-      return subtle.deriveKey(
-        { name: 'PBKDF2', salt: saltBytes, iterations: PBKDF2_ITER, hash: 'SHA-256' },
-        baseKey,
-        { name: 'AES-GCM', length: 256 },
-        false, ['encrypt', 'decrypt']
-      );
+    return new Promise(function (resolve, reject) {
+      setTimeout(function () {
+        try {
+          var keyBytes = pbkdf2Fast(pwd, saltBytes, PBKDF2_ITER, 32);
+          resolve(subtle.importKey('raw', keyBytes, 'AES-GCM', false, ['encrypt', 'decrypt']));
+        } catch (e) { reject(e); }
+      }, 30);
     });
   }
   function encryptVault(key, saltBytes, bundle) {
