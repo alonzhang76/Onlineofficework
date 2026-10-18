@@ -3028,12 +3028,18 @@ var _appStarted = false;
 function startApp() {
   if (_appStarted) return;
   _appStarted = true;
-  loadDB();
-  // 首次使用（或数据版本升级）载入 Excel 原始台账数据
-  loadSeed(false);
-  loadDBNormalize();
-  loadTpls(false);
-  initLogin();
+  try {
+    loadDB();
+    // 首次使用（或数据版本升级）载入 Excel 原始台账数据
+    loadSeed(false);
+    loadDBNormalize();
+    loadTpls(false);
+    initLogin();
+  } catch (e) {
+    console.error('[rent] startApp 初始化失败：', e && e.stack || e);
+    _appStarted = false;
+    throw e;
+  }
   $('#nav').addEventListener('click', onNavClick);
   $('#viewRoot').addEventListener('click', onViewClick);
   $('#viewRoot').addEventListener('input', onViewInput);
@@ -3067,7 +3073,7 @@ function startApp() {
   }
 
   var subtle = window.crypto.subtle;
-  console.log('[rent] 保险库模块 v20261018b · PBKDF2=纯JS优化版');
+  console.log('[rent] 保险库模块 v20261018d · PBKDF2=纯JS优化版');
   var VAULT_KEY = 'rent_vault_v1';      // 云端同步的唯一键（密文）
   var PWD_STORE = '__rent_vault_pwd__'; // sessionStorage 会话口令
   var PBKDF2_ITER = 200000;
@@ -3549,7 +3555,16 @@ function startApp() {
 
   function enterSystem() {
     hideGate();
-    if (typeof startApp === 'function') startApp();
+    try {
+      if (typeof startApp === 'function') startApp();
+    } catch (e) {
+      // 门已隐藏后主界面初始化失败时，重新拉起门禁并显示真实原因（避免静默白屏）
+      gate.classList.remove('rg-hide');
+      var errEl = document.getElementById('rgVaultErr');
+      if (errEl) errEl.textContent = '进入系统失败：' + ((e && e.message) || e);
+      console.error('[rent] enterSystem 失败：', e && e.stack || e);
+      throw e;
+    }
   }
 
   function bootVault() {
@@ -3579,7 +3594,10 @@ function startApp() {
       err.textContent = '';
       enterSystem();
     }).catch(function (e) {
-      err.textContent = /未找到/.test(e.message) ? '未找到加密保险库，请创建口令' : '口令错误，无法解密';
+      console.error('[rent] 解锁/进入失败：', e && e.stack || e);
+      err.textContent = /未找到/.test(e.message) ? '未找到加密保险库，请创建口令'
+        : (e && e.name === 'OperationError') ? '口令错误，无法解密'
+        : '解锁失败：' + ((e && e.message) || e);
     });
   });
   document.getElementById('rgVaultPwd').addEventListener('keydown', function (e) {
