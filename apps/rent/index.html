@@ -3073,7 +3073,7 @@ function startApp() {
   }
 
   var subtle = window.crypto.subtle;
-  console.log('[rent] 保险库模块 v20261018d · PBKDF2=纯JS优化版');
+  console.log('[rent] 保险库模块 v20261018e · PBKDF2=纯JS优化版');
   var VAULT_KEY = 'rent_vault_v1';      // 云端同步的唯一键（密文）
   var PWD_STORE = '__rent_vault_pwd__'; // sessionStorage 会话口令
   var PBKDF2_ITER = 200000;
@@ -3492,7 +3492,7 @@ function startApp() {
     '#rentGate .rg-btn:hover{filter:brightness(1.04);}' +
     '#rentGate .rg-err{color:#e04b4b;font-size:12px;min-height:16px;margin-top:8px;text-align:center;}' +
     '#rentGate .rg-link{text-align:center;margin-top:12px;font-size:12px;color:#2f6fed;cursor:pointer;}' +
-    '#rentGate .rg-hide{display:none !important;}';
+    '#rentGate.rg-hide,#rentGate .rg-hide{display:none !important;}';
 
   var styleEl = document.createElement('style');
   styleEl.textContent = GATE_CSS;
@@ -3504,7 +3504,7 @@ function startApp() {
     '<div class="rg-box">' +
       '<div class="rg-logo">🏪</div>' +
       '<div class="rg-title" id="rgTitle">商铺收租登记</div>' +
-      '<div class="rg-sub" id="rgSub">数据端侧加密保护 · v20261018d</div>' +
+      '<div class="rg-sub" id="rgSub">数据端侧加密保护 · v20261018e</div>' +
       '<div id="rgUnlockForm" class="rg-hide">' +
         '<div class="rg-field"><label>数据口令</label><input id="rgVaultPwd" type="password" autocomplete="off"></div>' +
         '<button class="rg-btn" id="rgUnlockBtn">解锁数据</button>' +
