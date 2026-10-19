@@ -4078,7 +4078,9 @@ function generateExportReport(id) {
     }
 
     // 出口记录的订单号可能是多个，以英文逗号 "," 分隔
-    const orderNos = (record.orderNo || '')
+    // 注意：Excel 导入的订单号可能是数字类型，必须先转字符串再 trim/split
+    const toStr = (v) => String(v == null ? '' : v);
+    const orderNos = toStr(record.orderNo)
         .split(',')
         .map(no => no.trim())
         .filter(Boolean);
@@ -4087,13 +4089,13 @@ function generateExportReport(id) {
     const allOrders = storage.getOrderRecords();
     const groupedOrders = orderNos.map(no => ({
         orderNo: no,
-        items: allOrders.filter(o => (o.orderNo || '').trim() === no)
+        items: allOrders.filter(o => toStr(o.orderNo).trim() === no)
     }));
 
     // 判断开票状态
     const invoiceOrderNos = new Set();
     storage.getInvoiceRecords().forEach(invoice => {
-        (invoice.orderNo || '').split(',').map(n => n.trim()).filter(Boolean).forEach(n => invoiceOrderNos.add(n));
+        toStr(invoice.orderNo).split(',').map(n => n.trim()).filter(Boolean).forEach(n => invoiceOrderNos.add(n));
     });
     const isInvoiced = orderNos.some(no => invoiceOrderNos.has(no));
     const exportStatusText = isInvoiced ? '已开票' : '未开票';
