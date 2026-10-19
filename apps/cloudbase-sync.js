@@ -1933,6 +1933,34 @@
     reload: retryAuthAndReload,
     pullAll: pullAll,
     pushAll: pushAll,
+    // 立即把某个本地键上传云端（键名用原始 localStorage 键，如 'pis_receipts'）。
+    // 用途：桌面端处于"Excel 保存模式"（本地编辑不自动上传），「确认到货」这类关键写操作
+    // 可调用本方法做到"保存即上传"，避免其他端随后整包推送时按 LWW 覆盖掉本机刚写入的记录。
+    uploadKey: function (origKey) {
+      try {
+        if (!origKey || shouldSkip(origKey)) return false;
+        var raw = nativeGet(toLocalKey(origKey));
+        if (raw === null || raw === undefined || raw === '') return false; // 空值不上传
+        var val;
+        try { val = JSON.parse(raw); } catch (e) { val = raw; }
+        if (isEmptyValue(val)) return false; // 空库保护：避免清空云端
+        localVersions[origKey] = Date.now(); // 本机版本号保持最新，防止上传后立刻被云端回灌
+        saveLocalVersions();
+        syncToCloud(origKey, val);
+        return true;
+      } catch (e) {
+        console.warn('[CloudbaseSync] uploadKey 失败:', origKey, e && e.message ? e.message : e);
+        return false;
+      }
+    },
+    // 批量上传：传入原始本地键数组
+    uploadKeys: function (keys) {
+      var n = 0;
+      try {
+        (keys || []).forEach(function (k) { if (window.CloudbaseSync.uploadKey(k)) n++; });
+      } catch (e) {}
+      return n;
+    },
     ensureClient: ensureClient,
     prepareForCloudClear: prepareForCloudClear,
     // 导入保护期：导入/恢复 JSON 后调用，防止 reload 后云端旧数据覆盖本地

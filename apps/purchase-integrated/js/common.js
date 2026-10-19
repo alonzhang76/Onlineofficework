@@ -154,6 +154,18 @@ const DB = {
   }
 };
 
+/* 保存即上传：桌面端处于"Excel 保存模式"（本地编辑不自动上传云端，见 cloudbase-sync.js），
+   关键写操作（如确认到货）写完后调用本函数，立即把指定集合推到云端。
+   否则其他端（手机端每次保存自动上传整包 / 另一台电脑点"上传云端"）一旦推送同名集合，
+   云端时间戳变新，本机刚写入的记录会被云端整包覆盖丢失。上传失败不影响本地保存。 */
+function cloudPushNow(...colls) {
+  try {
+    const cs = window.CloudbaseSync;
+    if (!cs || typeof cs.uploadKeys !== 'function') return;
+    cs.uploadKeys(colls.map(c => DB.prefix + c));
+  } catch (e) { /* 上传失败不阻断业务 */ }
+}
+
 /* ---------- 集合与状态 ---------- */
 const COLLS = { orders: '采购合同', shipments: '发货记录', receipts: '收货记录', returns: '退货记录', invoices: '发票', payments: '付款记录', suppliers: '供应商' };
 const State = { company: '普利美', page: 'dashboard', receiveTab: 'pending', adminTab: 'user', reconTab: 'ledger' };

@@ -362,6 +362,7 @@ function receiptForm(rec) {
     Data.update('receipts', rec.id, data);
     // 挂在发货单下：同步刷新发货状态与需方反馈（供应商消息随之更新）
     if (data.shipNumber) syncShipStatus(data.company, rec.contractNumber, data.product, data.shipNumber, data.remark);
+    cloudPushNow('receipts', 'shipments'); // 保存即上传，防止被其他端整包覆盖
     closeModal(); toast('收货记录已更新，供应商端消息已同步', 'ok'); renderPage();
     // 补传/替换收货拍照（记录已保存，失败不影响更新）
     if (photoFile) {
@@ -370,6 +371,7 @@ function receiptForm(rec) {
         const oldPath = (rec.rnote && rec.rnote.path && rec.rnote.path !== path) ? rec.rnote.path : null;
         Data.update('receipts', rec.id, { rnote: { path: path, name: photoFile.name, size: photoFile.size, uploadedAt: new Date().toISOString() } });
         if (oldPath) removeRecvPhotoFile(oldPath);
+        cloudPushNow('receipts'); // 拍照信息同步上传云端
         toast('收货拍照已上传云端', 'ok'); renderPage();
       } catch (err) {
         toast('收货拍照上传失败：' + (err.message || err) + '（记录已保存，可稍后重试）', 'err');
@@ -451,6 +453,7 @@ function confirmShipReceive(rec) {
           : p);
         const total = prods.reduce((s, p) => s + (+p.amount || 0), 0);
         Data.update('orders', o2.id, { products: prods, totalAmount: total });
+        cloudPushNow('orders');
         toast('合同数量已按实收调整为 ' + fmtNum(already2 + newDone) + '，金额已重算', 'ok');
       } else toast('已确认到货，结果已回馈供应商', 'ok');
     } else toast('已确认到货，结果已回馈供应商', 'ok');
@@ -464,6 +467,9 @@ function confirmShipReceive(rec) {
         toast('收货拍照上传失败：' + (err.message || err) + '（收货记录已保存，可稍后补传）', 'err');
       }
     }
+    // 保存即上传：确认到货只写本地（Excel 保存模式），立即推送云端，
+    // 否则其他端随后推送同名集合会按 LWW 覆盖本地，收货记录丢失 → 该发货单又回到"待确认到货"
+    cloudPushNow('receipts', 'shipments');
     renderPage();
   });
 }

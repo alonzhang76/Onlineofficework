@@ -1089,6 +1089,9 @@ class PageController {
                     <td>${record.currency ? record.currency + ' ' : ''}${record.declarationAmount ? parseFloat(record.declarationAmount).toFixed(2) : ''}</td>
                     <td>${record.remark || ''}</td>
                     <td>
+                        <button class="btn btn-success btn-sm table-action-btn" onclick="generateExportReport('${record.id}')" title="生成报告">
+                            <i class="fa fa-file-pdf-o"></i>
+                        </button>
                         <button class="btn btn-primary btn-sm table-action-btn" onclick="editExport('${record.id}')" title="编辑">
                             <i class="fa fa-pencil"></i>
                         </button>
@@ -4062,6 +4065,295 @@ function deleteExport(id) {
         // 显示成功通知
         pageController.showNotification('出口记录删除成功', 'success');
     }
+}
+
+// 生成出口记录报告PDF
+// 内容：该出口记录行的字段信息 + 该记录「订单号」项下（可能多个，以英文逗号分隔）的所有订单明细
+function generateExportReport(id) {
+    const exportRecords = storage.getExportRecords();
+    const record = exportRecords.find(item => item.id === id);
+    if (!record) {
+        pageController.showNotification('未找到该出口记录', 'error');
+        return;
+    }
+
+    // 出口记录的订单号可能是多个，以英文逗号 "," 分隔
+    const orderNos = (record.orderNo || '')
+        .split(',')
+        .map(no => no.trim())
+        .filter(Boolean);
+
+    // 汇总所有相关订单记录，按订单号归组
+    const allOrders = storage.getOrderRecords();
+    const groupedOrders = orderNos.map(no => ({
+        orderNo: no,
+        items: allOrders.filter(o => (o.orderNo || '').trim() === no)
+    }));
+
+    // 判断开票状态
+    const invoiceOrderNos = new Set();
+    storage.getInvoiceRecords().forEach(invoice => {
+        (invoice.orderNo || '').split(',').map(n => n.trim()).filter(Boolean).forEach(n => invoiceOrderNos.add(n));
+    });
+    const isInvoiced = orderNos.some(no => invoiceOrderNos.has(no));
+    const exportStatusText = isInvoiced ? '已开票' : '未开票';
+    const exportStatusColor = isInvoiced ? '#15803d' : '#dc2626';
+
+    // 日期格式化（兼容 Excel 数值型日期）
+    const formatDate = (v) => {
+        if (!v) return '-';
+        const s = String(v);
+        const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+        if (m) return m[1];
+        const num = parseFloat(s);
+        if (!isNaN(num) && s.trim() !== '' && /^\d+(\.\d+)?$/.test(s.trim())) {
+            const d = new Date((num - 25568) * 86400000);
+            d.setDate(d.getDate() - 1);
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+        return s;
+    };
+
+    const esc = (v) => String(v == null ? '' : v)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const show = (v) => (v === '' || v == null) ? '-' : esc(v);
+    const money = (v) => {
+        const n = parseFloat(v);
+        return (v === '' || v == null || isNaN(n)) ? '-' : n.toFixed(2);
+    };
+    const qty = (v) => {
+        const n = parseFloat(v);
+        return (v === '' || v == null || isNaN(n)) ? '-' : (Number.isInteger(n) ? String(n) : n.toFixed(2));
+    };
+
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    const nowStr = `${todayStr} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+    // 样式常量
+    const LABEL_STYLE = 'padding:8px 12px;background:#f3f6fa;border:1px solid #e5e7eb;font-size:12px;color:#4b5563;white-space:nowrap;width:88px;';
+    const VALUE_STYLE = 'padding:8px 12px;border:1px solid #e5e7eb;font-size:12.5px;color:#111827;word-break:break-all;';
+    const TH_STYLE = 'padding:8px 8px;background:#0f4c81;color:#fff;border:1px solid #0f4c81;font-size:11.5px;font-weight:600;text-align:left;white-space:nowrap;';
+    const TD_STYLE = 'padding:7px 8px;border:1px solid #e5e7eb;font-size:11.5px;color:#374151;word-break:break-all;';
+
+    // 出口记录信息（两列 label/value）
+    const exportInfoRows = [
+        ['出货日期', show(record.exportDate), '到港日期', show(record.arrivalDate)],
+        ['客户', show(record.customer), '运编号', show(record.shippingNo)],
+        ['数量', qty(record.quantity), '船名航次', show(record.shipName)],
+        ['集装箱号封号', show(record.containerNo), '提单号', show(record.billNo)],
+        ['报关金额', `${record.currency ? esc(record.currency) + ' ' : ''}${money(record.declarationAmount) === '-' ? '-' : money(record.declarationAmount)}`, '订单号', show(record.orderNo)]
+    ];
+    const exportInfoHtml = exportInfoRows.map(cells => {
+        let tr = '<tr>';
+        for (let i = 0; i < cells.length; i += 2) {
+            tr += `<td style="${LABEL_STYLE}">${esc(cells[i])}</td><td style="${VALUE_STYLE}">${cells[i + 1]}</td>`;
+        }
+        return tr + '</tr>';
+    }).join('') +
+    `<tr>
+        <td style="${LABEL_STYLE}">状态</td>
+        <td style="${VALUE_STYLE}" colspan="3"><span style="display:inline-block;padding:2px 10px;border-radius:10px;background:${exportStatusColor};color:#fff;font-size:11.5px;">${exportStatusText}</span></td>
+    </tr>
+    <tr>
+        <td style="${LABEL_STYLE}">备注</td>
+        <td style="${VALUE_STYLE}" colspan="3">${show(record.remark)}</td>
+    </tr>`;
+
+    // 订单明细
+    let ordersHtml = '';
+    if (groupedOrders.length === 0) {
+        ordersHtml = '<div style="padding:14px;border:1px dashed #d1d5db;border-radius:8px;color:#9ca3af;font-size:12.5px;text-align:center;">该出口记录未填写订单号，无关联订单明细。</div>';
+    } else {
+        ordersHtml = groupedOrders.map(group => {
+            const items = group.items;
+            const head = items[0] || {};
+            let orderInfo = '';
+            if (items.length > 0) {
+                orderInfo = `
+                    <table style="width:100%;border-collapse:collapse;margin-bottom:10px;">
+                        <tr>
+                            <td style="${LABEL_STYLE}">订单状态</td><td style="${VALUE_STYLE}">${show(head.status || '待生产')}</td>
+                            <td style="${LABEL_STYLE}">订单日期</td><td style="${VALUE_STYLE}">${formatDate(head.orderDate)}</td>
+                        </tr>
+                        <tr>
+                            <td style="${LABEL_STYLE}">客户</td><td style="${VALUE_STYLE}">${show(head.customer)}</td>
+                            <td style="${LABEL_STYLE}">交货日期</td><td style="${VALUE_STYLE}">${formatDate(head.deliveryDate)}</td>
+                        </tr>
+                        <tr>
+                            <td style="${LABEL_STYLE}">交易条款</td><td style="${VALUE_STYLE}">${show(head.tradeTerms)}</td>
+                            <td style="${LABEL_STYLE}">付款方式</td><td style="${VALUE_STYLE}">${show(head.paymentMethod)}</td>
+                        </tr>
+                        <tr>
+                            <td style="${LABEL_STYLE}">运输方式</td><td style="${VALUE_STYLE}" colspan="3">${show(head.transportMethod)}</td>
+                        </tr>
+                    </table>`;
+            }
+
+            let itemsTable = '';
+            if (items.length > 0) {
+                const rows = items.map(it => `
+                    <tr>
+                        <td style="${TD_STYLE}">${show(it.productName)}</td>
+                        <td style="${TD_STYLE}">${show(it.spec)}</td>
+                        <td style="${TD_STYLE}">${show(it.drawingNo)}</td>
+                        <td style="${TD_STYLE}">${show(it.plating)}</td>
+                        <td style="${TD_STYLE}">${it.logo ? renderLogoCell(it.logo) : '-'}</td>
+                        <td style="${TD_STYLE}">${show(it.unit)}</td>
+                        <td style="${TD_STYLE}text-align:right;">${money(it.unitPrice)}</td>
+                        <td style="${TD_STYLE}text-align:right;">${money(it.packPrice)}</td>
+                        <td style="${TD_STYLE}text-align:right;">${qty(it.quantity)}</td>
+                        <td style="${TD_STYLE}text-align:right;">${money(it.amount)}</td>
+                        <td style="${TD_STYLE}">${show(it.currency)}</td>
+                        <td style="${TD_STYLE}">${show(it.packing)}</td>
+                        <td style="${TD_STYLE}">${show(it.remark)}</td>
+                    </tr>`).join('');
+                const totalQty = items.reduce((s, it) => s + (parseFloat(it.quantity) || 0), 0);
+                const totalAmt = items.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0);
+                itemsTable = `
+                    <table style="width:100%;border-collapse:collapse;">
+                        <thead>
+                            <tr>
+                                <th style="${TH_STYLE}">产品名称</th>
+                                <th style="${TH_STYLE}">规格</th>
+                                <th style="${TH_STYLE}">图号</th>
+                                <th style="${TH_STYLE}">电镀</th>
+                                <th style="${TH_STYLE}">LOGO</th>
+                                <th style="${TH_STYLE}">单位</th>
+                                <th style="${TH_STYLE}text-align:right;">单价</th>
+                                <th style="${TH_STYLE}text-align:right;">包装单价</th>
+                                <th style="${TH_STYLE}text-align:right;">数量</th>
+                                <th style="${TH_STYLE}text-align:right;">金额</th>
+                                <th style="${TH_STYLE}">货币</th>
+                                <th style="${TH_STYLE}">包装</th>
+                                <th style="${TH_STYLE}">备注</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                        <tfoot>
+                            <tr>
+                                <td style="${TD_STYLE}font-weight:700;background:#f3f6fa;" colspan="8">合计</td>
+                                <td style="${TD_STYLE}font-weight:700;background:#f3f6fa;text-align:right;">${totalQty ? totalQty.toFixed(2) : '0.00'}</td>
+                                <td style="${TD_STYLE}font-weight:700;background:#f3f6fa;text-align:right;">${totalAmt ? totalAmt.toFixed(2) : '0.00'}</td>
+                                <td style="${TD_STYLE}background:#f3f6fa;" colspan="3"></td>
+                            </tr>
+                        </tfoot>
+                    </table>`;
+            } else {
+                itemsTable = '<div style="padding:12px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;color:#b91c1c;font-size:12px;">未找到订单号为「' + esc(group.orderNo) + '」的订单记录。</div>';
+            }
+
+            return `
+                <div style="border:1px solid #e5e7eb;border-radius:8px;margin-bottom:14px;overflow:hidden;page-break-inside:avoid;">
+                    <div style="background:#eef4fb;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e5e7eb;">
+                        <div style="font-weight:700;color:#0f4c81;font-size:13.5px;">订单号：${esc(group.orderNo)}</div>
+                        <div style="font-size:11.5px;color:#6b7280;">共 ${items.length} 项产品</div>
+                    </div>
+                    <div style="padding:12px 14px;">
+                        ${orderInfo}
+                        ${itemsTable}
+                    </div>
+                </div>`;
+        }).join('');
+    }
+
+    // 报告容器
+    const container = document.createElement('div');
+    container.style.position = 'absolute';
+    container.style.top = '0';
+    container.style.left = '-9999px';
+    container.style.width = '794px';
+    container.style.background = '#ffffff';
+    container.style.fontFamily = '"Microsoft YaHei", "PingFang SC", Arial, sans-serif';
+    container.style.color = '#1f2937';
+    container.style.padding = '0';
+    container.innerHTML = `
+        <div style="border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;">
+            <div style="background:linear-gradient(135deg,#0f4c81,#1e6fba);color:#ffffff;padding:26px 30px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <div>
+                        <div style="font-size:24px;font-weight:700;letter-spacing:3px;">出口管理报告</div>
+                        <div style="font-size:12px;opacity:.85;margin-top:6px;letter-spacing:1px;">EXPORT MANAGEMENT REPORT</div>
+                    </div>
+                    <div style="text-align:right;font-size:11px;opacity:.9;line-height:1.7;">
+                        <div>生成日期</div>
+                        <div style="font-size:14px;font-weight:600;">${nowStr}</div>
+                    </div>
+                </div>
+            </div>
+            <div style="padding:22px 30px 26px;">
+                <div style="font-size:11.5px;color:#6b7280;margin-bottom:14px;">
+                    客户：<span style="color:#0f4c81;font-weight:600;">${show(record.customer)}</span>
+                    &nbsp;&nbsp;|&nbsp;&nbsp;
+                    订单号：<span style="color:#0f4c81;font-weight:600;">${show(record.orderNo)}</span>
+                </div>
+
+                <div style="display:flex;align-items:center;margin:0 0 12px 0;">
+                    <div style="width:5px;height:18px;background:#1e6fba;border-radius:3px;margin-right:10px;"></div>
+                    <div style="font-size:15px;font-weight:700;color:#0f4c81;">一、出口记录信息</div>
+                </div>
+                <table style="width:100%;border-collapse:collapse;">${exportInfoHtml}</table>
+
+                <div style="display:flex;align-items:center;margin:24px 0 12px 0;">
+                    <div style="width:5px;height:18px;background:#1e6fba;border-radius:3px;margin-right:10px;"></div>
+                    <div style="font-size:15px;font-weight:700;color:#0f4c81;">二、订单明细（共 ${groupedOrders.length} 个订单号 / ${groupedOrders.reduce((s, g) => s + g.items.length, 0)} 项产品）</div>
+                </div>
+                ${ordersHtml}
+
+                <div style="margin-top:18px;padding-top:12px;border-top:1px dashed #d1d5db;font-size:10.5px;color:#9ca3af;text-align:center;">
+                    本报告由「外贸出口管理系统」自动生成 · ${nowStr}
+                </div>
+            </div>
+        </div>`;
+    document.body.appendChild(container);
+
+    const fileNameBase = (record.orderNo || record.id || 'export')
+        .toString().replace(/[\\/:*?"<>|\s]+/g, '_').replace(/,+/g, '_');
+
+    const cleanup = () => { if (container.parentNode) document.body.removeChild(container); };
+
+    html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        width: container.offsetWidth,
+        height: container.offsetHeight
+    }).then(canvas => {
+        const imgData = canvas.toDataURL('image/png');
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+        const imgWidth = canvas.width;
+        const imgHeight = canvas.height;
+        const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+
+        const imgX = (pdfWidth - imgWidth * ratio) / 2;
+        let imgY = 0;
+        const imgWidthInPdf = imgWidth * ratio;
+        const imgHeightInPdf = imgHeight * ratio;
+
+        let heightLeft = imgHeightInPdf;
+        while (heightLeft > 0) {
+            pdf.addImage(imgData, 'PNG', imgX, imgY, imgWidthInPdf, Math.min(imgHeightInPdf, pdfHeight));
+            heightLeft -= pdfHeight;
+            if (heightLeft > 0) {
+                pdf.addPage();
+                imgY = -heightLeft;
+            }
+        }
+
+        pdf.save(`出口报告_${fileNameBase}_${todayStr}.pdf`);
+        pageController.showNotification('出口报告PDF已生成', 'success');
+        cleanup();
+    }).catch(err => {
+        console.error('生成出口报告失败:', err);
+        pageController.showNotification('生成出口报告失败：' + err.message, 'error');
+        cleanup();
+    });
 }
 
 // 计算收汇比例
