@@ -434,6 +434,8 @@ class PageController {
             this.renderPaymentTable();
             // 重新初始化账务管理表格全选功能
             initPaymentTableSelectAll();
+            // 用账务管理表格数据动态填充客户/收款单位筛选下拉框
+            updatePaymentSearchOptions();
         } else if (tabName === 'customer') {
             // 确保先从localStorage获取最新数据
             const latestRecords = storage.getCustomerRecords();
@@ -3201,6 +3203,8 @@ class PageController {
         }
         
         storage.addPaymentRecord(record);
+        // 保存即上传：立即推送到云端并 bump 本机版本号，防止后续云端回灌按 LWW 覆盖刚写入的记录
+        try { if (window.CloudbaseSync && typeof window.CloudbaseSync.uploadKey === 'function') { window.CloudbaseSync.uploadKey('indexPaymentRecords'); } } catch (e) {}
         this.renderPaymentTable();
         this.updateReports();
         this.showNotification('付款记录保存成功', 'success');
@@ -5544,6 +5548,14 @@ function openModal(modalId) {
             // 初始化订单号选择方式
             initOrderNoSelection();
             
+            // 同步收款单位输入框可见状态（上次若选过"其他"，输入框可能残留显示）
+            const recSel = document.getElementById('paymentRecipientSelect');
+            const recInput = document.getElementById('paymentRecipientInput');
+            if (recSel && recInput) {
+                if (recSel.value === 'other') recInput.classList.remove('hidden');
+                else recInput.classList.add('hidden');
+            }
+            
             // 添加订单号搜索事件监听器
             const paymentOrderNoSearch = document.getElementById('paymentOrderNoSearch');
             const paymentOrderNoSuggestions = document.getElementById('paymentOrderNoSuggestions');
@@ -5560,14 +5572,6 @@ function openModal(modalId) {
                     const closed = parts.map(s => s.trim()).filter(Boolean);
                     return { closed, pending };
                 }
-                // 校验订单号并返回有效/无效统计
-                function validateEnteredOrderNos(val) {
-                    const { closed } = parseEnteredOrderNos(val);
-                    const knownNos = new Set(storage.getOrderRecords().map(r => r.orderNo));
-                    const valid = []; const invalid = [];
-                    closed.forEach(no => (knownNos.has(no) ? valid : invalid).push(no));
-                    return { valid, invalid, total: closed.length };
-                }
                 // 更新搜索框下方提示行（有效/无效订单号）
                 let valHint = document.getElementById('paymentOrderNoHint');
                 if (!valHint) {
@@ -5577,20 +5581,23 @@ function openModal(modalId) {
                     paymentOrderNoSearch.parentElement.appendChild(valHint);
                 }
                 function refreshHint() {
-                    const info = validateEnteredOrderNos(paymentOrderNoSearch.value);
-                    if (info.total === 0) { valHint.innerHTML = '<span style="color:#94a3b8">输入订单号，用英文逗号","分隔；也可在下面搜索点击添加</span>'; return; }
-                    const ok = `<span style="color:#16a34a">✓ ${info.valid.length} 个有效</span>`;
-                    const bad = info.invalid.length
-                      ? `　<span style="color:#dc2626">✗ ${info.invalid.length} 个不存在：${info.invalid.slice(0,3).join(', ')}${info.invalid.length>3?' …':''}</span>`
-                      : '';
-                    valHint.innerHTML = ok + bad;
+                    const knownNos = new Set(storage.getOrderRecords().map(r => r.orderNo));
+                    // 所有已输入订单号（含 pending）
+                    const { closed, pending } = parseEnteredOrderNos(paymentOrderNoSearch.value);
+                    const allEntered = pending ? [...closed, pending] : closed;
+                    if (allEntered.length === 0) { valHint.innerHTML = '<span style="color:#94a3b8">输入订单号，用英文逗号","分隔；也可在下面搜索点击添加</span>'; return; }
+                    const validList = allEntered.filter(no => knownNos.has(no));
+                    const invalidList = allEntered.filter(no => !knownNos.has(no));
+                    const okColor = invalidList.length === 0 ? '#16a34a' : '#0f766e';
+                    const ok = `<span style="color:${okColor}">已输入 ${allEntered.length} 个：${allEntered.map((no,i)=>`<b style="color:${knownNos.has(no)?'#16a34a':'#dc2626'}">${no}</b>${i<allEntered.length-1?'·':''}`).join('')}</span>`;
+                    valHint.innerHTML = ok + (invalidList.length ? `<span style="color:#dc2626">　⚠ 其中 ${invalidList.length} 个在订单管理中不存在</span>` : '');
                     // 客户 / 收款单位自动填充：取第一个有效订单
-                    if (info.valid.length > 0) {
+                    if (validList.length > 0) {
                         const orderRecords = storage.getOrderRecords();
-                        const firstValid = orderRecords.find(r => r.orderNo === info.valid[0]);
+                        const firstValid = orderRecords.find(r => r.orderNo === validList[0]);
                         const customerInput = document.getElementById('paymentCustomer');
                         if (customerInput && firstValid && firstValid.customer) customerInput.value = firstValid.customer;
-                        autoFillRecipientForFinalPayment(info.valid[0]);
+                        autoFillRecipientForFinalPayment(validList[0]);
                     }
                 }
                 refreshHint();
@@ -5600,12 +5607,16 @@ function openModal(modalId) {
                     try {
                         const { pending } = parseEnteredOrderNos(this.value);
                         const orderRecords = storage.getOrderRecords();
+                        const knownNos = new Set(orderRecords.map(r => r.orderNo));
+                        // 待搜索 token 为空，或已经是完整订单号 → 隐藏建议下拉
+                        if (!pending) { paymentOrderNoSuggestions.classList.add('hidden'); return; }
+                        if (knownNos.has(pending)) { paymentOrderNoSuggestions.classList.add('hidden'); return; }
                         const uniqueOrders = {};
                         orderRecords.forEach(record => { uniqueOrders[record.orderNo] = record; });
                         const filteredOrders = Object.values(uniqueOrders).filter(order =>
-                            pending && (order.orderNo || '').toLowerCase().includes(pending.toLowerCase()));
+                            (order.orderNo || '').toLowerCase().includes(pending.toLowerCase()));
                         paymentOrderNoSuggestions.innerHTML = '';
-                        if (pending && filteredOrders.length > 0) {
+                        if (filteredOrders.length > 0) {
                             filteredOrders.slice(0, 20).forEach(order => {
                                 const div = document.createElement('div');
                                 div.className = 'px-3 py-2 hover:bg-gray-100 cursor-pointer flex justify-between items-center';
@@ -5615,7 +5626,6 @@ function openModal(modalId) {
                                   (order.customer ? '<span style="color:#94a3b8;font-size:11px">' + (order.customer.length>20?order.customer.slice(0,20)+'…':order.customer) + '</span>' : '');
                                 paymentOrderNoSuggestions.appendChild(div);
                             });
-                            paymentOrderNoSuggestions.style.display = 'block';
                             paymentOrderNoSuggestions.classList.remove('hidden');
                         } else {
                             paymentOrderNoSuggestions.classList.add('hidden');
@@ -8229,6 +8239,58 @@ function updatePaymentAmountHint() {
     }
 }
 
+// 用账务管理表格数据动态填充"客户/收款单位"筛选下拉框（付款管理页签顶部）
+function updatePaymentSearchOptions() {
+    const paymentRecords = storage.getPaymentRecords();
+    const customers = new Set();
+    const recipients = new Set();
+    paymentRecords.forEach(r => {
+        if (r.customer) customers.add(r.customer);
+        if (r.recipient) recipients.add(r.recipient);
+    });
+    ['paymentCustomerSearch', 'paymentRecipientSearch'].forEach((id, i) => {
+        const select = document.getElementById(id);
+        if (!select) return;
+        const values = Array.from(i === 0 ? customers : recipients).sort();
+        const current = select.value;
+        const first = select.querySelector('option[value=""]');
+        select.innerHTML = '';
+        if (first) select.appendChild(first);
+        values.forEach(v => {
+            const opt = document.createElement('option');
+            opt.value = v;
+            opt.textContent = v;
+            select.appendChild(opt);
+        });
+        select.value = current;
+    });
+}
+
+// 收款单位 下拉/输入框 联动：选"其他"显示输入框，否则回填到隐藏字段
+// prefix: ''（新增付款）或 'edit'（编辑付款）
+function initRecipientControls(prefix) {
+    const select = document.getElementById(prefix + 'PaymentRecipientSelect');
+    const input = document.getElementById(prefix + 'PaymentRecipientInput');
+    const hidden = document.getElementById(prefix + 'PaymentRecipient');
+    if (!select || !input || !hidden) return;
+    // 幂等：重复初始化直接跳过
+    if (select.dataset.recipientBound === '1') return;
+    select.dataset.recipientBound = '1';
+    select.addEventListener('change', function() {
+        if (this.value === 'other') {
+            input.classList.remove('hidden');
+            input.focus();
+            hidden.value = '';
+        } else {
+            input.classList.add('hidden');
+            hidden.value = this.value;
+        }
+    });
+    const sync = () => { hidden.value = input.value; };
+    input.addEventListener('input', sync);
+    input.addEventListener('blur', sync);
+}
+
 // 当付款类型为尾款时，根据订单号自动查找对应的预付款收款单位并回填到收款单位字段
 function autoFillRecipientForFinalPayment(orderNo) {
     const paymentType = document.getElementById('paymentType');
@@ -9021,6 +9083,8 @@ function saveEditPaymentRecord(event) {
     if (index !== -1) {
         paymentRecords[index] = record;
         storage.paymentRecords = paymentRecords;
+        // 保存即上传，防止云端回灌覆盖
+        try { if (window.CloudbaseSync && typeof window.CloudbaseSync.uploadKey === 'function') { window.CloudbaseSync.uploadKey('indexPaymentRecords'); } } catch (e) {}
         
         // 重新渲染表格
         pageController.renderPaymentTable();
@@ -9047,6 +9111,8 @@ function deletePayment(id) {
         
         // 保存更新后的记录
         storage.paymentRecords = updatedRecords;
+        // 保存即上传，防止云端回灌覆盖
+        try { if (window.CloudbaseSync && typeof window.CloudbaseSync.uploadKey === 'function') { window.CloudbaseSync.uploadKey('indexPaymentRecords'); } } catch (e) {}
         
         // 更新分页数据并重新渲染
         paginations.payment.setData(updatedRecords);
@@ -10363,6 +10429,13 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 绑定优先级五角星点击事件
     bindPriorityStarEvents();
+    
+    // 收款单位 下拉/输入框 联动（新增 + 编辑付款弹窗）
+    initRecipientControls('');
+    initRecipientControls('edit');
+    
+    // 初始化账务管理页签顶部的客户/收款单位筛选下拉框
+    updatePaymentSearchOptions();
 });
 
 // 绑定优先级五角星点击事件
