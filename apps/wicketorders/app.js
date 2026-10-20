@@ -3197,6 +3197,12 @@ class PageController {
             }
         }
         
+        // 手动校验：订单号必填（隐藏的 select 无法靠 HTML5 required 拦截，需在这里兜底）
+        if (!record.orderNo || !record.orderNo.trim()) {
+            this.showNotification('请填写订单号', 'error');
+            return;
+        }
+        
         // 确保金额保留2位小数
         if (record.amount) {
             record.amount = parseFloat(record.amount).toFixed(2);
@@ -5532,16 +5538,24 @@ function openModal(modalId) {
                     return;
                 }
                 
+                const orderSelect = document.getElementById('paymentOrderNo');
+                const searchInput = document.getElementById('paymentOrderNoSearch');
+
                 if (paymentType === '预付款') {
                     // 预付款：使用左侧订单号列表（支持 Ctrl 键多选）
                     orderNoInputWrapper.classList.remove('hidden');
                     orderNoSearchWrapper.classList.add('hidden');
                     orderNoSelectTip.textContent = '(按Ctrl键可多选)';
+                    if (orderSelect) orderSelect.setAttribute('required', 'required');
+                    if (searchInput) searchInput.removeAttribute('required');
                 } else {
                     // 尾款 / 全款 / 其他：使用搜索输入框逐条添加（支持逗号分隔批量粘贴）
                     orderNoInputWrapper.classList.add('hidden');
                     orderNoSearchWrapper.classList.remove('hidden');
                     orderNoSelectTip.textContent = '(搜索订单号，点击选择；也可粘贴逗号分隔的多个订单号)';
+                    // 被隐藏的 select 如果仍带 required，浏览器会报 "invalid form control not focusable"
+                    if (orderSelect) orderSelect.removeAttribute('required');
+                    if (searchInput) searchInput.setAttribute('required', 'required');
                 }
             }
             
