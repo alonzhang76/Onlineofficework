@@ -2942,7 +2942,7 @@ class PageController {
             });
         }
         
-        // 为收汇总额输入框添加悬停提示，显示该订单在订单管理中的汇总金额
+        // 为收汇总额输入框添加悬停提示，显示所选订单号在订单管理中的合计金额（字段本身可手工输入）
         const receiptTotalInput = document.getElementById('invoiceReceiptTotal');
         if (receiptTotalInput) {
             receiptTotalInput.addEventListener('mouseenter', function() {
@@ -2965,7 +2965,7 @@ class PageController {
                     }, 0);
                     
                     // 设置悬停提示
-                    this.title = `该订单在订单管理中的汇总金额: ¥${totalOrderAmount.toFixed(2)}`;
+                    this.title = `所选 ${orderNos.length} 个订单号在订单管理中的合计金额: ¥${totalOrderAmount.toFixed(2)}`;
                 } else {
                     this.title = '';
                 }
@@ -2982,7 +2982,6 @@ class PageController {
         
         const exportRecords = storage.getExportRecords();
         const paymentRecords = storage.getPaymentRecords();
-        const receiptRecords = storage.getReceiptRecords();
         const orderRecords = storage.getOrderRecords();
         
         // 查找订单对应的出口记录，支持多个订单号
@@ -3068,29 +3067,6 @@ class PageController {
                 }
             }
         }
-        
-        // 计算对应订单号的收汇总额
-        const filteredReceipts = receiptRecords.filter(record => orderNos.includes(record.orderNo));
-        
-        // 直接汇总收汇金额，不转换为人民币
-        const receiptTotal = filteredReceipts
-            .reduce((total, record) => total + parseFloat(record.amountReceived || 0), 0);
-        
-        // 获取第一个收汇记录的货币类型
-        let currency = 'USD';
-        if (filteredReceipts.length > 0) {
-            currency = filteredReceipts[0].currency || 'USD';
-        }
-        
-        // 在收汇总额前面加上对应的货币符号
-        const currencySymbolMap = {
-            'USD': 'US$',
-            'EUR': 'EU$',
-            'CNY': '￥'
-        };
-        const currencySymbol = currencySymbolMap[currency] || currency;
-        
-        document.getElementById('invoiceReceiptTotal').value = `${currencySymbol}${receiptTotal.toFixed(2)}`;
         
         // 计算对应订单号的开票数量总和
         const quantityTotal = orderRecords
@@ -3203,8 +3179,8 @@ class PageController {
         
         // 处理订单号，根据付款类型使用不同的方式
         const paymentType = document.getElementById('paymentType').value;
-        if (paymentType === '预付款') {
-            // 预付款：使用原来的multiple select方式
+        if (paymentType === '预付款' || paymentType === '尾款') {
+            // 预付款 / 尾款：使用左侧列表的多选方式
             const orderSelect = document.getElementById('paymentOrderNo');
             if (orderSelect) {
                 const selectedOptions = Array.from(orderSelect.selectedOptions);
@@ -5553,11 +5529,13 @@ function openModal(modalId) {
                     return;
                 }
                 
-                if (paymentType === '预付款') {
+                if (paymentType === '预付款' || paymentType === '尾款') {
+                    // 预付款 / 尾款：使用左侧订单号列表（支持 Ctrl 键多选）
                     orderNoInputWrapper.classList.remove('hidden');
                     orderNoSearchWrapper.classList.add('hidden');
                     orderNoSelectTip.textContent = '(按Ctrl键可多选)';
                 } else {
+                    // 其他付款类型：使用搜索输入框逐条添加
                     orderNoInputWrapper.classList.add('hidden');
                     orderNoSearchWrapper.classList.remove('hidden');
                     orderNoSelectTip.textContent = '(搜索订单号，点击选择)';
@@ -5712,6 +5690,20 @@ function openModal(modalId) {
                 });
                 
                 paymentOrderNoSuggestions.addEventListener('click', handleSuggestionClick);
+                
+                // 尾款模式下从左侧列表选择订单号时，同步自动填充收款单位
+                const paymentOrderSelectEl = document.getElementById('paymentOrderNo');
+                if (paymentOrderSelectEl) {
+                    paymentOrderSelectEl.addEventListener('change', function() {
+                        const paymentType = document.getElementById('paymentType').value;
+                        if (paymentType === '尾款') {
+                            const selectedOptions = Array.from(this.selectedOptions);
+                            if (selectedOptions.length > 0) {
+                                autoFillRecipientForFinalPayment(selectedOptions[0].value);
+                            }
+                        }
+                    });
+                }
             }
             
             // 2. 为付款类型选择框添加change事件监听器
@@ -5767,7 +5759,7 @@ function openModal(modalId) {
             const paymentAmountInput = document.getElementById('paymentAmount');
             if (paymentAmountInput) {
                 paymentAmountInput.addEventListener('mouseenter', function() {
-                    // 显示预付款汇总金额提示
+                    // 悬停显示所选订单在订单管理中的金额合计提示
                     showPaymentAmountHint(this);
                 });
             }
@@ -8271,30 +8263,51 @@ function updatePaymentAmountHint() {
     }
 }
 
-// 显示付款金额提示
+// 获取付款弹窗中当前选中的订单号（左侧多选列表 或 搜索输入框）
+function getPaymentSelectedOrderNos() {
+    const names = new Set();
+    const select = document.getElementById('paymentOrderNo');
+    const wrapper = document.getElementById('orderNoInputWrapper');
+    const useSelect = select && wrapper && !wrapper.classList.contains('hidden');
+    if (useSelect) {
+        Array.from(select.selectedOptions).forEach(o => { if (o.value) names.add(o.value); });
+    } else {
+        const search = document.getElementById('paymentOrderNoSearch');
+        if (search) {
+            search.value.split(',').map(s => s.trim()).filter(Boolean).forEach(v => names.add(v));
+        }
+    }
+    return [...names];
+}
+
+// 显示付款金额提示：汇总所选全部订单号在订单管理中的金额合计
 function showPaymentAmountHint(element) {
-    // 获取付款类型
-    const paymentTypeSelect = document.getElementById('paymentType');
-    if (!paymentTypeSelect || paymentTypeSelect.value !== '余款') {
+    // 获取当前选中的订单号
+    const orderNumbers = getPaymentSelectedOrderNos();
+    if (orderNumbers.length === 0) {
+        element.title = '';
         return;
     }
     
-    // 获取订单号输入框的值
-    const orderNoInput = document.getElementById('paymentOrderNo');
-    if (!orderNoInput) return;
+    // 汇总这些订单在订单管理中的金额
+    const orderRecords = storage.getOrderRecords();
+    let totalAmount = 0;
+    orderRecords.forEach(record => {
+        if (orderNumbers.includes(record.orderNo) && record.amount) {
+            totalAmount += parseFloat(record.amount) || 0;
+        }
+    });
     
-    const orderNoValue = orderNoInput.value;
-    if (!orderNoValue) return;
+    let title = `所选 ${orderNumbers.length} 个订单在订单管理中的金额合计：¥${totalAmount.toFixed(2)}`;
     
-    // 将订单号字符串分割成数组
-    const orderNumbers = orderNoValue.split(',').map(no => no.trim()).filter(Boolean);
-    if (orderNumbers.length === 0) return;
+    // 余款额外提示已付预付款总额
+    const paymentTypeSelect = document.getElementById('paymentType');
+    if (paymentTypeSelect && paymentTypeSelect.value === '余款') {
+        const totalAdvance = calculateTotalAdvancePayments(orderNumbers);
+        title += `；已付预付款总额：¥${totalAdvance.toFixed(2)}`;
+    }
     
-    // 汇总预付款金额
-    const totalAdvance = calculateTotalAdvancePayments(orderNumbers);
-    
-    // 显示提示
-    element.title = `该订单已付预付款总额：${totalAdvance.toFixed(2)}`;
+    element.title = title;
 }
 
 // 导入付款记录Excel
