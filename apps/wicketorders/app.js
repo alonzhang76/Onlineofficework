@@ -8285,9 +8285,11 @@ function updatePaymentSearchOptions() {
 // 收款单位 下拉/输入框 联动：选"其他"显示输入框，否则回填到隐藏字段
 // prefix: ''（新增付款）或 'edit'（编辑付款）
 function initRecipientControls(prefix) {
-    const select = document.getElementById(prefix + 'PaymentRecipientSelect');
-    const input = document.getElementById(prefix + 'PaymentRecipientInput');
-    const hidden = document.getElementById(prefix + 'PaymentRecipient');
+    // 新增模态框 ID 为小写 p（paymentRecipientSelect），编辑模态框为 editPaymentRecipientSelect
+    const base = prefix ? prefix + 'PaymentRecipient' : 'paymentRecipient';
+    const select = document.getElementById(base + 'Select');
+    const input = document.getElementById(base + 'Input');
+    const hidden = document.getElementById(base);
     if (!select || !input || !hidden) return;
     // 幂等：重复初始化直接跳过
     if (select.dataset.recipientBound === '1') return;
