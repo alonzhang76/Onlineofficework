@@ -195,6 +195,8 @@ function pendingShipRows() {
   return rows;
 }
 /* ---------- 数量差异：合同数量 vs 实收合计（无退货影响，直面付款口径） ---------- */
+/* 展开状态：key = 合同号|产品名，跨重绘保持（搜索/切页签后仍保留展开项） */
+let rcvDiffOpen = {};
 function diffRows() {
   const rows = [];
   Data.list('orders').forEach(o => (o.products || []).forEach(p => {
@@ -207,6 +209,30 @@ function diffRows() {
   }));
   rows.sort((a, b) => a.cno.localeCompare(b.cno) || a.name.localeCompare(b.name));
   return rows;
+}
+/* ---------- 数量差异 · 展开明细：该合同项下每一次收货 / 退货流水 ---------- */
+function diffExpandRow(r, cols) {
+  const recList = Data.list('receipts').filter(x => x.contractNumber === r.cno && x.product === r.name)
+    .sort((a, b) => (a.receiptDate || '').localeCompare(b.receiptDate || '') || (a.receiptNumber || '').localeCompare(b.receiptNumber || ''));
+  const retList = Data.list('returns').filter(x => x.contractNumber === r.cno && x.product === r.name)
+    .sort((a, b) => (a.returnDate || '').localeCompare(b.returnDate || '') || (a.returnNumber || '').localeCompare(b.returnNumber || ''));
+  const srcBadge = x => x.source === 'ship-confirm' ? '<span class="badge b-blue">确认到货</span>'
+    : x.source === 'manual-import' ? '<span class="badge b-purple">导入登记</span>' : '<span class="badge b-gray">手工登记</span>';
+  const recs = recList.map(x => '<tr><td class="mono">' + esc(x.receiptNumber) + '</td><td class="num">' + fmtNum(x.quantity) + '</td>' +
+    '<td>' + esc(x.receiptDate || '') + '</td><td>' + esc(x.person || '') + '</td><td>' + srcBadge(x) + '</td>' +
+    '<td class="mono">' + esc(x.shipNumber || '') + '</td><td class="subtle">' + esc(x.remark || '') + '</td></tr>').join('');
+  const rets = retList.map(x => '<tr><td class="mono">' + esc(x.returnNumber) + '</td><td class="num">' + fmtNum(x.quantity) + '</td>' +
+    '<td>' + esc(x.returnDate || '') + '</td><td>' + esc(x.reason || '') + '</td></tr>').join('');
+  const recSum = recList.reduce((s, x) => s + (+x.quantity || 0), 0);
+  const retSum = retList.reduce((s, x) => s + (+x.quantity || 0), 0);
+  const inner = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">' +
+    '<div><b style="font-size:12.5px">收货记录（' + recList.length + ' 次 · 合计 ' + fmtNum(recSum) + '）</b>' +
+    '<table style="font-size:12.5px"><thead><tr><th>收货单号</th><th class="num">实收数量</th><th>收货日期</th><th>收货人</th><th>来源</th><th>发货单号</th><th>备注</th></tr></thead><tbody>' +
+    (recs || '<tr><td colspan="7" class="empty">暂无收货记录</td></tr>') + '</tbody></table></div>' +
+    '<div><b style="font-size:12.5px">退货记录（' + retList.length + ' 次 · 合计 ' + fmtNum(retSum) + '）</b>' +
+    '<table style="font-size:12.5px"><thead><tr><th>退货单号</th><th class="num">数量</th><th>退货日期</th><th>退货原因</th></tr></thead><tbody>' +
+    (rets || '<tr><td colspan="4" class="empty">暂无退货记录</td></tr>') + '</tbody></table></div></div>';
+  return '<tr><td colspan="' + cols + '" style="padding:0"><div style="max-height:300px;overflow:auto;border-top:1px dashed var(--border);background:#f8fafc;padding:8px">' + inner + '</div></td></tr>';
 }
 function drawReceive() {
   const box = $('#rcvBox'); const canW = Session.canWrite('receive');
@@ -247,16 +273,29 @@ function drawReceive() {
     }));
   } else if (State.receiveTab === 'diff') {
     const rows = diffRows().filter(r => match(r.cno, r.sup, r.name));
-    box.innerHTML = rows.length ? '<div class="hint" style="margin-bottom:10px">按 <b>实收合计</b> 与 <b>合同数量</b> 比对（不含退货）。差异行可直接「按实收调整合同数量」，使合同数量 = 实收合计，避免多付或少付。</div>' +
-      '<div class="tbl-wrap" style="max-height:60vh"><table><thead><tr><th>合同号</th><th>供应商</th><th>产品</th><th class="num">合同数量</th><th class="num">实收合计</th><th class="num">差异</th><th>差异类型</th>' + (canW ? '<th style="width:180px">操作</th>' : '') + '</tr></thead><tbody>' +
-      rows.map((r, i) => '<tr><td class="mono">' + esc(r.cno) + '</td><td>' + esc(r.sup) + '</td><td>' + esc(r.name) + '</td>' +
-        '<td class="num">' + fmtNum(r.ordered) + '</td><td class="num"><b>' + fmtNum(r.recv) + '</b></td>' +
-        '<td class="num" style="color:' + (r.diff > 0 ? 'var(--red)' : 'var(--amber)') + ';font-weight:700">' + (r.diff > 0 ? '+' : '') + fmtNum(r.diff) + '</td>' +
-        '<td>' + (r.diff > 0 ? '<span class="badge b-red">实收超出</span>' : '<span class="badge b-amber">实收不足</span>') + '</td>' +
-        (canW ? '<td style="white-space:nowrap"><button class="link-op" data-i="' + i + '" data-a="fix">按实收调整合同数量</button></td>' : '') + '</tr>').join('') +
+    const cols = canW ? 9 : 8;
+    box.innerHTML = rows.length ? '<div class="hint" style="margin-bottom:10px">按 <b>实收合计</b> 与 <b>合同数量</b> 比对（不含退货）。差异行可直接「按实收调整合同数量」，使合同数量 = 实收合计，避免多付或少付。点行尾 <b>明细</b> 可展开 / 折叠该合同项下每一次收货与退货记录。</div>' +
+      '<div class="tbl-wrap" style="max-height:60vh"><table><thead><tr><th>合同号</th><th>供应商</th><th>产品</th><th class="num">合同数量</th><th class="num">实收合计</th><th class="num">差异</th><th>差异类型</th>' + (canW ? '<th style="width:180px">操作</th>' : '') + '<th style="width:84px">明细</th></tr></thead><tbody>' +
+      rows.map((r, i) => {
+        const key = r.cno + '|' + r.name;
+        const open = !!rcvDiffOpen[key];
+        const parent = '<tr' + (open ? ' style="background:rgba(0,0,0,0.03)"' : '') + '><td class="mono">' + esc(r.cno) + '</td><td>' + esc(r.sup) + '</td><td>' + esc(r.name) + '</td>' +
+          '<td class="num">' + fmtNum(r.ordered) + '</td><td class="num"><b>' + fmtNum(r.recv) + '</b></td>' +
+          '<td class="num" style="color:' + (r.diff > 0 ? 'var(--red)' : 'var(--amber)') + ';font-weight:700">' + (r.diff > 0 ? '+' : '') + fmtNum(r.diff) + '</td>' +
+          '<td>' + (r.diff > 0 ? '<span class="badge b-red">实收超出</span>' : '<span class="badge b-amber">实收不足</span>') + '</td>' +
+          (canW ? '<td style="white-space:nowrap"><button class="link-op" data-i="' + i + '" data-a="fix">按实收调整合同数量</button></td>' : '') +
+          '<td><button class="link-op" data-i="' + i + '" data-a="x">' + (open ? '收起▲' : '明细▼') + '</button></td></tr>';
+        return open ? [parent, diffExpandRow(r, cols)] : [parent];
+      }).flat().join('') +
       '</tbody></table></div>'
       : '<div class="empty">暂无数量差异<br><span class="subtle">合同数量与实收合计一致时不会列示</span></div>';
     if (canW) box.querySelectorAll('button[data-a="fix"]').forEach(b => b.addEventListener('click', () => adjustContractQty(rows[+b.dataset.i])));
+    box.querySelectorAll('button[data-a="x"]').forEach(b => b.addEventListener('click', () => {
+      const r = rows[+b.dataset.i]; if (!r) return;
+      const key = r.cno + '|' + r.name;
+      rcvDiffOpen[key] = !rcvDiffOpen[key];
+      drawReceive();
+    }));
   } else if (State.receiveTab === 'return') {
     const list = Data.list('returns').filter(r => match(r.returnNumber, r.contractNumber, r.supplier, r.product));
     list.sort((a, b) => (b.returnDate || '').localeCompare(a.returnDate || '') || (b.returnNumber || '').localeCompare(a.returnNumber || ''));
