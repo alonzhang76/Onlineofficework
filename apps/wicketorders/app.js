@@ -3179,8 +3179,8 @@ class PageController {
         
         // 处理订单号，根据付款类型使用不同的方式
         const paymentType = document.getElementById('paymentType').value;
-        if (paymentType === '预付款' || paymentType === '尾款') {
-            // 预付款 / 尾款：使用左侧列表的多选方式
+        if (paymentType === '预付款') {
+            // 预付款：使用左侧列表的多选方式
             const orderSelect = document.getElementById('paymentOrderNo');
             if (orderSelect) {
                 const selectedOptions = Array.from(orderSelect.selectedOptions);
@@ -3188,11 +3188,10 @@ class PageController {
                 record.orderNo = orderNos;
             }
         } else {
-            // 其他付款类型：使用搜索输入框的值
+            // 尾款 / 全款 / 其他：使用搜索输入框（支持逗号分隔）
             const orderNoSearch = document.getElementById('paymentOrderNoSearch');
             if (orderNoSearch) {
-                // 移除可能的尾部逗号，并修剪空格
-                record.orderNo = orderNoSearch.value.replace(/,\s*$/, '').trim();
+                record.orderNo = orderNoSearch.value.replace(/[，,]\s*$/, '').trim();
             }
         }
         
@@ -5529,16 +5528,16 @@ function openModal(modalId) {
                     return;
                 }
                 
-                if (paymentType === '预付款' || paymentType === '尾款') {
-                    // 预付款 / 尾款：使用左侧订单号列表（支持 Ctrl 键多选）
+                if (paymentType === '预付款') {
+                    // 预付款：使用左侧订单号列表（支持 Ctrl 键多选）
                     orderNoInputWrapper.classList.remove('hidden');
                     orderNoSearchWrapper.classList.add('hidden');
                     orderNoSelectTip.textContent = '(按Ctrl键可多选)';
                 } else {
-                    // 其他付款类型：使用搜索输入框逐条添加
+                    // 尾款 / 全款 / 其他：使用搜索输入框逐条添加（支持逗号分隔批量粘贴）
                     orderNoInputWrapper.classList.add('hidden');
                     orderNoSearchWrapper.classList.remove('hidden');
-                    orderNoSelectTip.textContent = '(搜索订单号，点击选择)';
+                    orderNoSelectTip.textContent = '(搜索订单号，点击选择；也可粘贴逗号分隔的多个订单号)';
                 }
             }
             
@@ -5553,157 +5552,124 @@ function openModal(modalId) {
                 // 移除之前可能存在的事件监听器
                 paymentOrderNoSearch.removeEventListener('input', handleOrderNoSearch);
                 
-                // 定义搜索处理函数
-                function handleOrderNoSearch() {
-                    const searchTerm = this.value.split(',').pop().trim();
-                    
-                    try {
+                // 计算搜索框当前已输入的订单号（支持逗号分隔，仅统计已"闭合"的订单号段）
+                function parseEnteredOrderNos(val) {
+                    if (!val) return { closed: [], pending: '' };
+                    const parts = val.split(',');
+                    const pending = parts.pop().trim();
+                    const closed = parts.map(s => s.trim()).filter(Boolean);
+                    return { closed, pending };
+                }
+                // 校验订单号并返回有效/无效统计
+                function validateEnteredOrderNos(val) {
+                    const { closed } = parseEnteredOrderNos(val);
+                    const knownNos = new Set(storage.getOrderRecords().map(r => r.orderNo));
+                    const valid = []; const invalid = [];
+                    closed.forEach(no => (knownNos.has(no) ? valid : invalid).push(no));
+                    return { valid, invalid, total: closed.length };
+                }
+                // 更新搜索框下方提示行（有效/无效订单号）
+                let valHint = document.getElementById('paymentOrderNoHint');
+                if (!valHint) {
+                    valHint = document.createElement('div');
+                    valHint.id = 'paymentOrderNoHint';
+                    valHint.style.cssText = 'font-size:12px;color:var(--muted,#64748b);margin-top:4px;line-height:1.6';
+                    paymentOrderNoSearch.parentElement.appendChild(valHint);
+                }
+                function refreshHint() {
+                    const info = validateEnteredOrderNos(paymentOrderNoSearch.value);
+                    if (info.total === 0) { valHint.innerHTML = '<span style="color:#94a3b8">输入订单号，用英文逗号","分隔；也可在下面搜索点击添加</span>'; return; }
+                    const ok = `<span style="color:#16a34a">✓ ${info.valid.length} 个有效</span>`;
+                    const bad = info.invalid.length
+                      ? `　<span style="color:#dc2626">✗ ${info.invalid.length} 个不存在：${info.invalid.slice(0,3).join(', ')}${info.invalid.length>3?' …':''}</span>`
+                      : '';
+                    valHint.innerHTML = ok + bad;
+                    // 客户 / 收款单位自动填充：取第一个有效订单
+                    if (info.valid.length > 0) {
                         const orderRecords = storage.getOrderRecords();
-                        
-                        // 获取所有订单记录，去重
+                        const firstValid = orderRecords.find(r => r.orderNo === info.valid[0]);
+                        const customerInput = document.getElementById('paymentCustomer');
+                        if (customerInput && firstValid && firstValid.customer) customerInput.value = firstValid.customer;
+                        autoFillRecipientForFinalPayment(info.valid[0]);
+                    }
+                }
+                refreshHint();
+
+                // 定义搜索处理函数：按逗号拆分后对最后一个未闭合 token 做模糊搜索
+                function handleOrderNoSearch() {
+                    try {
+                        const { pending } = parseEnteredOrderNos(this.value);
+                        const orderRecords = storage.getOrderRecords();
                         const uniqueOrders = {};
-                        orderRecords.forEach(record => {
-                            uniqueOrders[record.orderNo] = record;
-                        });
-                        
-                        // 筛选匹配的订单
-                        const filteredOrders = Object.values(uniqueOrders).filter(order => 
-                            order.orderNo.toLowerCase().includes(searchTerm.toLowerCase())
-                        );
-                        
-                        // 清空现有建议
+                        orderRecords.forEach(record => { uniqueOrders[record.orderNo] = record; });
+                        const filteredOrders = Object.values(uniqueOrders).filter(order =>
+                            pending && (order.orderNo || '').toLowerCase().includes(pending.toLowerCase()));
                         paymentOrderNoSuggestions.innerHTML = '';
-                        
-                        if (filteredOrders.length > 0) {
-                            // 添加建议项
-                            filteredOrders.forEach(order => {
+                        if (pending && filteredOrders.length > 0) {
+                            filteredOrders.slice(0, 20).forEach(order => {
                                 const div = document.createElement('div');
-                                div.className = 'p-2 hover:bg-gray-100 cursor-pointer';
+                                div.className = 'px-3 py-2 hover:bg-gray-100 cursor-pointer flex justify-between items-center';
                                 div.dataset.orderNo = order.orderNo;
                                 div.dataset.customer = order.customer;
-                                div.textContent = order.orderNo;
+                                div.innerHTML = '<span>' + order.orderNo + '</span>' +
+                                  (order.customer ? '<span style="color:#94a3b8;font-size:11px">' + (order.customer.length>20?order.customer.slice(0,20)+'…':order.customer) + '</span>' : '');
                                 paymentOrderNoSuggestions.appendChild(div);
                             });
-                            // 确保建议列表可见
                             paymentOrderNoSuggestions.style.display = 'block';
                             paymentOrderNoSuggestions.classList.remove('hidden');
                         } else {
                             paymentOrderNoSuggestions.classList.add('hidden');
                         }
-                    } catch (error) {
-                        // 忽略错误，避免影响页面正常运行
-                    }
+                    } catch (e) { /* ignore */ }
                 }
                 
-                // 添加输入事件监听器
-                paymentOrderNoSearch.addEventListener('input', handleOrderNoSearch);
+                paymentOrderNoSearch.addEventListener('input', function() { handleOrderNoSearch.call(this); refreshHint(); });
                 
-                // 添加一个简单的测试，确保事件监听器被正确添加
-                console.log('Order number search event listener added');
-                
-                // 添加焦点事件，确保输入时建议列表可见
+                // 焦点事件 + 失焦自动逗号收尾（让最后一个订单号也被校验）
                 paymentOrderNoSearch.addEventListener('focus', function() {
-                    console.log('Search input focused');
-                    const searchTerm = this.value.split(',').pop().trim();
-                    if (searchTerm) {
-                        // 手动触发输入事件，显示建议列表
-                        handleOrderNoSearch.call(this);
-                    }
+                    if (this.value.trim()) handleOrderNoSearch.call(this);
+                });
+                paymentOrderNoSearch.addEventListener('blur', function() {
+                    setTimeout(() => paymentOrderNoSuggestions.classList.add('hidden'), 150);
+                    // 失焦时如果以逗号结尾则去掉；否则自动追加一个逗号让最后一段也进入 closed 校验
+                    const v = this.value || '';
+                    const trimmed = v.replace(/\s+/g,' ').trim();
+                    if (trimmed.endsWith(',')) this.value = trimmed.replace(/[,，]+$/,'').trim();
+                    else if (trimmed && !trimmed.endsWith(',')) this.value = trimmed;
+                    refreshHint();
+                });
+                // Enter 也做校验刷新
+                paymentOrderNoSearch.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') { refreshHint(); }
                 });
                 
-                // 添加建议项点击事件监听器
-                paymentOrderNoSuggestions.removeEventListener('click', handleSuggestionClick);
-                
-                function handleSuggestionClick(e) {
-                    if (e.target.tagName === 'DIV') {
-                        const orderNo = e.target.dataset.orderNo;
-                        const customer = e.target.dataset.customer;
-                        
-                        if (orderNo) {
-                            const searchInput = document.getElementById('paymentOrderNoSearch');
-                            const currentValue = searchInput.value;
-                            
-                            // 检查当前值是否以逗号结尾
-                            const newValue = currentValue ? `${currentValue},${orderNo}` : orderNo;
-                            searchInput.value = newValue;
-                            
-                            // 清空建议列表
-                            paymentOrderNoSuggestions.classList.add('hidden');
-                            
-                            // 更新客户信息
-                            const paymentCustomer = document.getElementById('paymentCustomer');
-                            if (paymentCustomer && customer) {
-                                paymentCustomer.value = customer;
-                            }
-                            
-                            // 当付款类型为尾款时，自动填充收款单位
-                            autoFillRecipientForFinalPayment(orderNo);
-                        }
-                    }
-                }
-                
-                // 当付款类型为尾款时，根据订单号自动填充收款单位
-                function autoFillRecipientForFinalPayment(orderNo) {
-                    const paymentType = document.getElementById('paymentType').value;
-                    if (paymentType === '尾款') {
-                        // 从账务管理表格中查找该订单号的预付款记录
-                        const paymentRecords = storage.getPaymentRecords();
-                        const prepaymentRecord = paymentRecords.find(record => 
-                            record.orderNo && record.orderNo.includes(orderNo) && 
-                            record.paymentMethod === '预付款'
-                        );
-                        
-                        if (prepaymentRecord && prepaymentRecord.recipient) {
-                            // 更新收款单位
-                            const recipient = prepaymentRecord.recipient;
-                            const recipientSelect = document.getElementById('paymentRecipientSelect');
-                            const recipientInput = document.getElementById('paymentRecipientInput');
-                            const recipientHidden = document.getElementById('paymentRecipient');
-                            
-                            // 检查收款单位是否在选项中
-                            const optionExists = Array.from(recipientSelect.options).some(option => 
-                                option.value === recipient
-                            );
-                            
-                            if (optionExists) {
-                                recipientSelect.value = recipient;
-                                recipientInput.classList.add('hidden');
-                                recipientHidden.value = recipient;
-                            } else {
-                                recipientSelect.value = 'other';
-                                recipientInput.classList.remove('hidden');
-                                recipientInput.value = recipient;
-                                recipientHidden.value = recipient;
-                            }
-                        }
-                    }
-                }
-                
-                // 为订单号搜索输入框添加input事件监听器，处理手动输入订单号的情况
+                // 全角逗号自动替换为半角
                 paymentOrderNoSearch.addEventListener('input', function() {
-                    const orderNos = this.value.split(',').map(no => no.trim()).filter(no => no !== '');
-                    if (orderNos.length > 0) {
-                        // 处理最后一个订单号
-                        const lastOrderNo = orderNos[orderNos.length - 1];
-                        autoFillRecipientForFinalPayment(lastOrderNo);
-                    }
+                    const nv = this.value.replace(/，/g, ',');
+                    if (nv !== this.value) { this.value = nv; refreshHint(); }
                 });
                 
-                paymentOrderNoSuggestions.addEventListener('click', handleSuggestionClick);
-                
-                // 尾款模式下从左侧列表选择订单号时，同步自动填充收款单位
-                const paymentOrderSelectEl = document.getElementById('paymentOrderNo');
-                if (paymentOrderSelectEl) {
-                    paymentOrderSelectEl.addEventListener('change', function() {
-                        const paymentType = document.getElementById('paymentType').value;
-                        if (paymentType === '尾款') {
-                            const selectedOptions = Array.from(this.selectedOptions);
-                            if (selectedOptions.length > 0) {
-                                autoFillRecipientForFinalPayment(selectedOptions[0].value);
-                            }
-                        }
-                    });
+                // 建议项点击
+                paymentOrderNoSuggestions.removeEventListener('click', handleSuggestionClick);
+                function handleSuggestionClick(e) {
+                    const t = e.target.closest('div[data-order-no]');
+                    if (!t) return;
+                    const orderNo = t.dataset.orderNo;
+                    const customer = t.dataset.customer;
+                    const searchInput = document.getElementById('paymentOrderNoSearch');
+                    const currentValue = searchInput.value || '';
+                    // 替换最后一个未闭合 token（即最后一段），保留之前已闭合的订单号列表
+                    const closedPart = currentValue.includes(',') ? currentValue.replace(/[^,]+$/, '').trimEnd() : '';
+                    searchInput.value = closedPart ? closedPart + ' ' + orderNo + ',' : orderNo + ',';
+                    paymentOrderNoSuggestions.classList.add('hidden');
+                    const paymentCustomer = document.getElementById('paymentCustomer');
+                    if (paymentCustomer && customer) paymentCustomer.value = customer;
+                    autoFillRecipientForFinalPayment(orderNo);
+                    refreshHint();
+                    // 重新聚焦到输入框末尾，便于继续输入
+                    setTimeout(() => { searchInput.focus(); searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length); }, 0);
                 }
+                paymentOrderNoSuggestions.addEventListener('click', handleSuggestionClick);
             }
             
             // 2. 为付款类型选择框添加change事件监听器
@@ -8263,14 +8229,41 @@ function updatePaymentAmountHint() {
     }
 }
 
-// 获取付款弹窗中当前选中的订单号（左侧多选列表 或 搜索输入框）
+// 当付款类型为尾款时，根据订单号自动查找对应的预付款收款单位并回填到收款单位字段
+function autoFillRecipientForFinalPayment(orderNo) {
+    const paymentType = document.getElementById('paymentType');
+    if (!paymentType || paymentType.value !== '尾款') return;
+    if (!orderNo) return;
+    const paymentRecords = storage.getPaymentRecords();
+    const prepaymentRecord = paymentRecords.find(r =>
+        r.orderNo && r.orderNo.includes(orderNo) && r.paymentMethod === '预付款');
+    if (!prepaymentRecord || !prepaymentRecord.recipient) return;
+    const recipient = prepaymentRecord.recipient;
+    const recipientSelect = document.getElementById('paymentRecipientSelect');
+    const recipientInput = document.getElementById('paymentRecipientInput');
+    const recipientHidden = document.getElementById('paymentRecipient');
+    if (!recipientSelect || !recipientInput || !recipientHidden) return;
+    const optionExists = Array.from(recipientSelect.options).some(o => o.value === recipient);
+    if (optionExists) {
+        recipientSelect.value = recipient;
+        recipientInput.classList.add('hidden');
+        recipientHidden.value = recipient;
+    } else {
+        recipientSelect.value = 'other';
+        recipientInput.classList.remove('hidden');
+        recipientInput.value = recipient;
+        recipientHidden.value = recipient;
+    }
+}
+
+// 获取付款弹窗中当前选中的订单号（预付款走左侧多选列表；其余走搜索输入框，按英文逗号拆分）
 function getPaymentSelectedOrderNos() {
     const names = new Set();
     const select = document.getElementById('paymentOrderNo');
     const wrapper = document.getElementById('orderNoInputWrapper');
     const useSelect = select && wrapper && !wrapper.classList.contains('hidden');
     if (useSelect) {
-        Array.from(select.selectedOptions).forEach(o => { if (o.value) names.add(o.value); });
+        Array.from(select.selectedOptions).forEach(o => { if (o.value) names.add(o.value.trim()); });
     } else {
         const search = document.getElementById('paymentOrderNoSearch');
         if (search) {
@@ -8280,34 +8273,43 @@ function getPaymentSelectedOrderNos() {
     return [...names];
 }
 
-// 显示付款金额提示：汇总所选全部订单号在订单管理中的金额合计
+// 判断某条记录的 orderNo 字段是否命中所选订单号（记录的 orderNo 本身也可能是逗号分隔的多值）
+function recordMatchesOrderNos(record, selectedNos) {
+    if (!record || !record.orderNo || !selectedNos || !selectedNos.length) return false;
+    const recordNos = String(record.orderNo).split(',').map(s => s.trim()).filter(Boolean);
+    return recordNos.some(no => selectedNos.includes(no));
+}
+
+// 显示付款金额提示：开票合计 / 已付合计 / 欠款(开票-已付)
 function showPaymentAmountHint(element) {
-    // 获取当前选中的订单号
     const orderNumbers = getPaymentSelectedOrderNos();
-    if (orderNumbers.length === 0) {
-        element.title = '';
-        return;
-    }
-    
-    // 汇总这些订单在订单管理中的金额
-    const orderRecords = storage.getOrderRecords();
-    let totalAmount = 0;
-    orderRecords.forEach(record => {
-        if (orderNumbers.includes(record.orderNo) && record.amount) {
-            totalAmount += parseFloat(record.amount) || 0;
+    if (orderNumbers.length === 0) { element.title = ''; return; }
+
+    // 开票合计
+    const invoiceRecords = storage.getInvoiceRecords();
+    let totalInvoice = 0;
+    invoiceRecords.forEach(r => {
+        if (recordMatchesOrderNos(r, orderNumbers) && r.amount) {
+            totalInvoice += parseFloat(r.amount) || 0;
         }
     });
-    
-    let title = `所选 ${orderNumbers.length} 个订单在订单管理中的金额合计：¥${totalAmount.toFixed(2)}`;
-    
-    // 余款额外提示已付预付款总额
-    const paymentTypeSelect = document.getElementById('paymentType');
-    if (paymentTypeSelect && paymentTypeSelect.value === '余款') {
-        const totalAdvance = calculateTotalAdvancePayments(orderNumbers);
-        title += `；已付预付款总额：¥${totalAdvance.toFixed(2)}`;
-    }
-    
-    element.title = title;
+
+    // 已付合计（来自账务管理表格）
+    const paymentRecords = storage.getPaymentRecords();
+    let totalPaid = 0;
+    paymentRecords.forEach(r => {
+        if (recordMatchesOrderNos(r, orderNumbers) && r.amount) {
+            totalPaid += parseFloat(r.amount) || 0;
+        }
+    });
+
+    const debt = totalInvoice - totalPaid;
+    element.title =
+        `所选 ${orderNumbers.length} 个订单：\n` +
+        `  · 开票合计：¥${totalInvoice.toFixed(2)}\n` +
+        `  · 已付合计：¥${totalPaid.toFixed(2)}\n` +
+        `  · 欠款金额：¥${debt.toFixed(2)}` +
+        (debt < 0 ? '（已超出开票）' : '');
 }
 
 // 导入付款记录Excel
