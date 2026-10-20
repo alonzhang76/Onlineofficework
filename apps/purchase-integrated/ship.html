@@ -200,7 +200,10 @@ function openSupplierMsgCenter() {
 function shipForm(rec) {
   const isEdit = !!rec;
   const orders = Data.list('orders').slice().sort((a, b) => ((b.orderDate || b.createdAt || '').localeCompare((a.orderDate || a.createdAt || ''))) || (b.contractNumber || '').localeCompare(a.contractNumber || ''));
-  const opts = orders.map(o => '<option value="' + esc(o.contractNumber) + '"' + (rec && rec.contractNumber === o.contractNumber ? ' selected' : '') + '>' + esc(o.contractNumber) + '（' + esc(o.supplier) + '）</option>').join('');
+  const opts = orders.map(o => {
+    const prodInfo = (o.products || []).map(p => esc(p.name) + (p.spec ? '(' + esc(p.spec) + ')' : '') + ' ' + fmtNum(p.quantity) + esc(p.unit || '')).join(' / ');
+    return '<option value="' + esc(o.contractNumber) + '"' + (rec && rec.contractNumber === o.contractNumber ? ' selected' : '') + '>' + esc(o.contractNumber) + '（' + esc(o.supplier) + '）' + (prodInfo ? ' · ' + prodInfo : '') + '</option>';
+  }).join('');
   openModal('<h3>' + (isEdit ? '编辑发货记录' : '登记发货') + '</h3><form id="shipF">' +
     '<div class="form-grid">' +
     '<div><label class="req">发货单号</label><input id="shNo" required value="' + esc(rec ? rec.shipNumber : nextNo('SHP-')) + '"></div>' +

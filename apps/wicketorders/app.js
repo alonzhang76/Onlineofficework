@@ -3211,6 +3211,8 @@ class PageController {
         storage.addPaymentRecord(record);
         // 保存即上传：立即推送到云端并 bump 本机版本号，防止后续云端回灌按 LWW 覆盖刚写入的记录
         try { if (window.CloudbaseSync && typeof window.CloudbaseSync.uploadKey === 'function') { window.CloudbaseSync.uploadKey('indexPaymentRecords'); } } catch (e) {}
+        // 同步分页数据源，否则 renderPaymentTable 会用旧缓存导致新记录不显示
+        paginations.payment.setData(storage.getPaymentRecords());
         this.renderPaymentTable();
         this.updateReports();
         this.showNotification('付款记录保存成功', 'success');
