@@ -635,33 +635,9 @@
             <!-- 卖方签字 -->
               <div class="text-center relative">
                   <div class="mb-1 text-sm font-semibold">卖方（Seller）：</div>
-                  <!-- 印章容器 -->
+                  <!-- 动态选择的卖方印章图片 -->
                   <div class="seal-container absolute inset-0 flex justify-center items-start" style="transform: translateY(5px);">
-                      <div class="seal">
-                          <svg width="42mm" height="42mm" viewBox="0 0 200 200">
-                                 <!-- 圆形背景 - 加粗边框 -->
-                                 <circle cx="100" cy="100" r="90" fill="none" stroke="#ff0000" stroke-width="4" />
-                                 
-                                 <!-- 公司名称环形路径 - 减小半径防止溢出 -->
-                                 <path id="companyNamePath" d="M 100 35 A 65 65 0 1 1 99.999 35" fill="none" />
-                                 
-                                 <!-- 公司名称文字 - 调整字体大小防止溢出 -->
-                                 <text fill="#ff0000" font-size="20" font-weight="bold" font-family="SimHei, Arial, sans-serif" transform="rotate(-115 100 100)">
-                                     <textPath id="sealCompanyName" href="#companyNamePath" startOffset="0%" text-anchor="start" side="top" letter-spacing="0.5">
-                                         <!-- 公司名称将通过JavaScript动态填充 -->
-                                     </textPath>
-                                 </text>
-                                 
-                                 <!-- 中心红色五角星 - 增大尺寸 -->
-                                 <polygon points="100,60 108,80 130,80 115,95 122,115 100,103 78,115 85,95 70,80 92,80" fill="#ff0000" />
-                                 
-                                 <!-- 合同专用章文字 - 添加在五角星下方 -->
-                                 <text fill="#ff0000" font-size="16" font-weight="bold" font-family="SimHei, Arial, sans-serif" x="100" y="135" text-anchor="middle">
-                                     合同专用章
-                                 </text>
-
-                             </svg>
-                      </div>
+                      <img id="sellerStampImage" src="" alt="卖方签章" style="width: 42mm; height: 42mm; object-fit: contain; z-index: 10; display: none;" />
                   </div>
                   
                   <div class="h-16 border-t border-gray-300 mt-6"></div>
@@ -685,13 +661,18 @@
             return num.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         }
 
-        // 更新印章中的公司名称
-        function updateSealCompanyName(companyName) {
-            // 获取文本路径元素
-            const textPathElement = document.getElementById('sealCompanyName');
-            if (textPathElement) {
-                // 设置公司名称
-                textPathElement.textContent = companyName;
+        // 根据公司名称设置卖方印章图片（与 purchase-integrated 应用一致的图片印章）
+        function setSellerStamp(companyName) {
+            const img = document.getElementById('sellerStampImage');
+            if (!img) return;
+            if (companyName && companyName.includes('龙力')) {
+                img.src = 'llchop.png';
+                img.style.display = 'block';
+            } else if (companyName && companyName.includes('普利美')) {
+                img.src = 'plmchop.png';
+                img.style.display = 'block';
+            } else {
+                img.style.display = 'none';
             }
         }
 
@@ -845,12 +826,12 @@
                 } else {
                     companyNameElement.innerHTML = `${nameParts[0]}<br><span class="text-lg font-normal">${nameParts[1]}</span>`;
                 }
-                // 填充印章中的公司名称（只显示中文部分）
-                updateSealCompanyName(nameParts[0]);
+                // 根据公司名称设置图片印章
+                setSellerStamp(nameParts[0]);
             } else {
                 companyNameElement.textContent = companyName;
-                // 填充印章中的公司名称（只有中文或英文）
-                updateSealCompanyName(companyName);
+                // 根据公司名称设置图片印章
+                setSellerStamp(companyName);
             }
             
             // 填充合同信息

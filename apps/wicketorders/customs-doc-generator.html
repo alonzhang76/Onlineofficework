@@ -620,6 +620,7 @@ tr:hover { background: rgba(37,99,235,0.04); }
                   <th><span class="sortable" onclick="sortShipments('nw')" data-i18n="shipment.nw">净重</span></th>
                   <th><span class="sortable" onclick="sortShipments('gw')" data-i18n="shipment.gw">毛重</span></th>
                   <th><span class="sortable" onclick="sortShipments('volume')" data-i18n="shipment.volume">体积</span></th>
+                  <th>包装方式</th>
                   <th data-i18n="shipment.remarks">备注</th>
                 </tr>
               </thead>
@@ -2670,7 +2671,8 @@ function migrateShipmentData() {
           nw: nw > 0 ? nw.toFixed(2) : '',
           gw: gw > 0 ? gw.toFixed(2) : '',
           volume: volume > 0 ? volume.toFixed(2) : '',
-          productName: s.productName || ''
+          productName: s.productName || '',
+          packing: s.packing || ''
         }]
       };
     } else {
@@ -2736,33 +2738,7 @@ function sortShipments(field) {
     sortField = field;
     sortOrder = 'asc';
   }
-  
-  if (shipmentFiltered.length === 0) {
-    shipmentFiltered = [...shipments];
-  }
-  
-  shipmentFiltered.sort((a, b) => {
-    let valA = a[field];
-    let valB = b[field];
-    
-    if (valA === undefined || valA === null || valA === '') return sortOrder === 'asc' ? -1 : 1;
-    if (valB === undefined || valB === null || valB === '') return sortOrder === 'asc' ? 1 : -1;
-    
-    const numA = parseFloat(valA);
-    const numB = parseFloat(valB);
-    
-    if (!isNaN(numA) && !isNaN(numB)) {
-      return sortOrder === 'asc' ? numA - numB : numB - numA;
-    }
-    
-    const strA = String(valA).toLowerCase();
-    const strB = String(valB).toLowerCase();
-    
-    if (strA < strB) return sortOrder === 'asc' ? -1 : 1;
-    if (strA > strB) return sortOrder === 'asc' ? 1 : -1;
-    return 0;
-  });
-  
+  // 排序逻辑统一在 renderShipments 中处理，这里只负责切换状态
   renderShipments(1);
 }
 
@@ -2792,6 +2768,41 @@ function renderShipments(page) {
     });
   }
   
+  // 始终按 sortField/sortOrder 状态排序
+  // 日期类字段（date/planDate）用 Date 解析，其余字段沿用原 sortShipments 的通用比较器
+  shipmentFiltered.sort((a, b) => {
+    let valA = a[sortField];
+    let valB = b[sortField];
+
+    // 空值处理
+    const emptyA = valA === undefined || valA === null || valA === '';
+    const emptyB = valB === undefined || valB === null || valB === '';
+    if (emptyA && emptyB) return 0;
+    if (emptyA) return sortOrder === 'asc' ? -1 : 1;
+    if (emptyB) return sortOrder === 'asc' ? 1 : -1;
+
+    // 日期字段：用 Date 解析
+    if (sortField === 'date' || sortField === 'planDate') {
+      const da = new Date(valA).getTime() || 0;
+      const db = new Date(valB).getTime() || 0;
+      return sortOrder === 'asc' ? da - db : db - da;
+    }
+
+    // 数字字段
+    const numA = parseFloat(valA);
+    const numB = parseFloat(valB);
+    if (!isNaN(numA) && !isNaN(numB)) {
+      return sortOrder === 'asc' ? numA - numB : numB - numA;
+    }
+
+    // 字符串字段
+    const strA = String(valA).toLowerCase();
+    const strB = String(valB).toLowerCase();
+    if (strA < strB) return sortOrder === 'asc' ? -1 : 1;
+    if (strA > strB) return sortOrder === 'asc' ? 1 : -1;
+    return 0;
+  });
+
   const p = paginate(shipmentFiltered, shipmentPage, shipmentPageSize);
   const tbody = document.querySelector('#shipmentTable tbody');
   tbody.innerHTML = '';
@@ -2827,6 +2838,7 @@ function renderShipments(page) {
         <td>${product.nw||''}</td>
         <td>${product.gw||''}</td>
         <td>${product.volume||''}</td>
+        <td>${product.packing||''}</td>
         ${isFirstRow ? `<td rowspan="${rowSpan}" class="remarks-cell" title="${s.remarks||''}">${truncateText(s.remarks, 20)||''}</td>` : ''}
       </tr>`;
     });
@@ -2877,6 +2889,7 @@ function addProductRow() {
     <td style="padding:4px;"><input type="number" step="0.01" class="product-input" data-field="nw" placeholder="净重" oninput="markWeightManual(this.closest('tr'),'nw')" style="width:100%;padding:4px;border:1px solid #ddd;border-radius:4px;font-size:12px;"></td>
     <td style="padding:4px;"><input type="number" step="0.01" class="product-input" data-field="gw" placeholder="毛重" oninput="markWeightManual(this.closest('tr'),'gw')" style="width:100%;padding:4px;border:1px solid #ddd;border-radius:4px;font-size:12px;"></td>
     <td style="padding:4px;"><input type="number" step="0.01" class="product-input" data-field="volume" placeholder="体积" readonly style="width:100%;padding:4px;border:1px solid #ddd;border-radius:4px;font-size:12px;background:#f5f5f5;"></td>
+    <td style="padding:4px;"><input type="text" class="product-input" data-field="packing" placeholder="包装方式" style="width:100%;padding:4px;border:1px solid #ddd;border-radius:4px;font-size:12px;"></td>
   `;
   tbody.appendChild(row);
 }
@@ -3149,6 +3162,7 @@ function showShipmentModal(shipment = null) {
           <td style="padding:4px;"><input type="number" step="0.01" class="product-input" data-field="nw" placeholder="净重" oninput="markWeightManual(this.closest('tr'),'nw')" style="width:100%;padding:4px;border:1px solid #ddd;border-radius:4px;font-size:12px;"></td>
           <td style="padding:4px;"><input type="number" step="0.01" class="product-input" data-field="gw" placeholder="毛重" oninput="markWeightManual(this.closest('tr'),'gw')" style="width:100%;padding:4px;border:1px solid #ddd;border-radius:4px;font-size:12px;"></td>
           <td style="padding:4px;"><input type="number" step="0.01" class="product-input" data-field="volume" placeholder="体积" readonly style="width:100%;padding:4px;border:1px solid #ddd;border-radius:4px;font-size:12px;background:#f5f5f5;"></td>
+          <td style="padding:4px;"><input type="text" class="product-input" data-field="packing" placeholder="包装方式" value="${product.packing||''}" style="width:100%;padding:4px;border:1px solid #ddd;border-radius:4px;font-size:12px;"></td>
         </tr>`;
     }
     
@@ -3214,6 +3228,7 @@ function showShipmentModal(shipment = null) {
                     <th style="width:80px;border:1px solid #ddd;padding:6px;text-align:right;font-size:12px;">净重</th>
                     <th style="width:80px;border:1px solid #ddd;padding:6px;text-align:right;font-size:12px;">毛重</th>
                     <th style="width:80px;border:1px solid #ddd;padding:6px;text-align:right;font-size:12px;">体积</th>
+                    <th style="border:1px solid #ddd;padding:6px;font-size:12px;">包装方式</th>
                   </tr>
                 </thead>
                 <tbody id="shipmentProductTable">
@@ -3256,6 +3271,7 @@ function showShipmentModal(shipment = null) {
                 <th>数量</th>
                 <th>金额</th>
                 <th>货币</th>
+                <th>包装</th>
                 <th>备注</th>
               </tr>
             </thead>
@@ -3389,7 +3405,7 @@ function renderOrderList(orders) {
   const tbody = document.getElementById('orderListTableBody');
   
   if (orders.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="11" class="text-center text-gray-500 py-4">暂无订单数据</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="12" class="text-center text-gray-500 py-4">暂无订单数据</td></tr>';
     return;
   }
   
@@ -3406,6 +3422,7 @@ function renderOrderList(orders) {
       <td>${order.quantity || ''}</td>
       <td>${order.amount || ''}</td>
       <td>${order.currency || ''}</td>
+      <td>${order.packing || ''}</td>
       <td>${order.remark || ''}</td>
     </tr>`;
   }).join('');
@@ -3518,7 +3535,8 @@ function saveShipmentFromOrders() {
       qtyPerCrate: '',
       nw: '',
       gw: '',
-      volume: ''
+      volume: '',
+      packing: order.packing || ''
     }));
     
     const shipment = {
