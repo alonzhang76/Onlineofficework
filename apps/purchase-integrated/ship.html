@@ -215,7 +215,17 @@ function shipForm(rec) {
     '<div><label>物流单号</label><input id="shTrack" value="' + esc(rec ? (rec.trackingNo || '') : '') + '"></div>' +
     '<div><label>备注</label><input id="shRemark" value="' + esc(rec ? (rec.remark || '') : '') + '"></div>' +
     (isEdit && rec.dnote ? '<div style="grid-column:1/-1"><label>当前发货单</label><div class="hint" style="margin:0">📄 ' + esc(rec.dnote.name) + '（重新选择文件即可替换）<label style="display:inline-flex;align-items:center;gap:4px;margin-left:12px;font-weight:normal"><input type="checkbox" id="shNoteDel"> 删除现有发货单</label></div></div>' : '') +
-    '<div><label>发货单（PDF / 图片，≤' + NOTE_MAX_MB + 'MB）</label><input id="shNoteFile" type="file" accept="' + NOTE_ACCEPT + '"></div></div>' +
+    '<div style="grid-column:1/-1"><label>发货单（PDF / 图片，≤' + NOTE_MAX_MB + 'MB）</label>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">' +
+        '<button type="button" class="btn btn-outline btn-sm" id="shNoteCamera">📷 拍照</button>' +
+        '<button type="button" class="btn btn-outline btn-sm" id="shNoteAlbum">🖼 相册</button>' +
+        '<button type="button" class="btn btn-outline btn-sm" id="shNoteFileBtn">📎 文件（含微信聊天文件）</button>' +
+        '<span id="shNoteName" class="subtle" style="align-self:center;font-size:12.5px"></span>' +
+      '</div>' +
+      '<input id="shNoteCameraInput" type="file" accept="image/*" capture="environment" style="display:none">' +
+      '<input id="shNoteAlbumInput" type="file" accept="image/*" style="display:none">' +
+      '<input id="shNoteFileInput" type="file" accept="' + NOTE_ACCEPT + '" style="display:none">' +
+    '</div></div>' +
     '<div class="amt-hint" id="shHint"></div>' +
     '<div class="modal-foot"><button type="button" class="btn btn-outline" onclick="closeModal()">取消</button><button class="btn btn-primary">保存</button></div></form>');
   const fillProducts = () => {
@@ -236,11 +246,26 @@ function shipForm(rec) {
   $('#shProduct').addEventListener('change', updHint);
   $('#shQty').addEventListener('input', updHint);
   if (isEdit) { fillProducts(); $('#shProduct').value = rec.product; updHint(); } else fillProducts();
+
+  // 发货单上传：拍照 / 相册 / 文件（含微信聊天文件）三种入口
+  let noteFile = null;
+  const showNoteName = f => { $('#shNoteName').textContent = f ? '已选：' + f.name + '（' + (f.size / 1024).toFixed(1) + ' KB）' : ''; };
+  const bindNoteInput = (inputId, btnId) => {
+    const btn = $('#' + btnId), input = $('#' + inputId);
+    if (btn) btn.addEventListener('click', () => input && input.click());
+    if (input) input.addEventListener('change', () => {
+      const f = input.files[0];
+      if (f) { const ne = _noteErr(f); if (ne) { toast(ne, 'err'); input.value = ''; return; } noteFile = f; showNoteName(f); }
+    });
+  };
+  bindNoteInput('shNoteCameraInput', 'shNoteCamera');
+  bindNoteInput('shNoteAlbumInput', 'shNoteAlbum');
+  bindNoteInput('shNoteFileInput', 'shNoteFileBtn');
+
   $('#shipF').addEventListener('submit', async e => {
     e.preventDefault();
     const cno = $('#shContract').value; const o = contractByNo(cno);
     if (!o) { toast('请选择合同', 'err'); return; }
-    const noteFile = $('#shNoteFile') ? $('#shNoteFile').files[0] : null;
     if (noteFile) { const ne = _noteErr(noteFile); if (ne) { toast(ne, 'err'); return; } }
     const noteDel = !!(isEdit && rec.dnote && $('#shNoteDel') && $('#shNoteDel').checked);
     const data = {
