@@ -464,7 +464,7 @@ class PageController {
     }
     
     // 渲染订单表格
-    renderOrderTable(filteredData = null) {
+    renderOrderTable(filteredData = null, preservePage = false) {
         let dataToUse;
         let shouldResetPage = false;
         let isFiltered = false;
@@ -473,7 +473,8 @@ class PageController {
         if (filteredData) {
             isFiltered = true;
             dataToUse = filteredData;
-            shouldResetPage = true;
+            // preservePage 为 true 时（如编辑记录后刷新）保持当前页码，不跳回第一页
+            shouldResetPage = !preservePage;
         } else {
             // 检查是否处于过滤状态（当filteredData和data长度不同时，说明经过了筛选）
             isFiltered = paginations.order.filteredData.length !== paginations.order.data.length;
@@ -1052,7 +1053,7 @@ class PageController {
             // 渲染数据行
             // 获取所有发票记录，用于检查订单是否已开票
             const allInvoiceRecords = storage.getInvoiceRecords();
-            // 获取所有订单记录，用于判断业务模式（自营订单无需开票）
+            // 获取所有订单记录，用于判断业务模式（自营订单无需开票，按收汇比例判断完成状态）
             const allOrderRecords = storage.getOrderRecords();
             const selfOrderNos = new Set();
             allOrderRecords.forEach(o => {
@@ -1070,6 +1071,16 @@ class PageController {
                     invoiceOrders.forEach(orderNo => invoiceOrderNos.add(orderNo));
                 }
             });
+            // 按订单号汇总收汇比例（自营订单用收汇比例判断完成状态）
+            const receiptRateByOrderNo = {};
+            storage.getReceiptRecords().forEach(r => {
+                if (!r.orderNo) return;
+                const nos = r.orderNo.split(',').map(no => no.trim()).filter(Boolean);
+                const rate = parseFloat(r.rate) || 0;
+                nos.forEach(no => {
+                    receiptRateByOrderNo[no] = (receiptRateByOrderNo[no] || 0) + rate;
+                });
+            });
 
             currentPageData.forEach(record => {
                 const row = document.createElement('tr');
@@ -1077,15 +1088,21 @@ class PageController {
                     <td><input type="checkbox" class="export-checkbox" data-id="${record.id}"></td>
                     <td><span class="status-badge ${(() => {
                         const orderNos = (record.orderNo || '').split(',').map(no => no.trim()).filter(Boolean);
-                        // 若所有订单均为自营，则开票状态不适用
+                        // 若所有订单均为自营，则按收汇比例判断完成状态
                         const allSelf = orderNos.length > 0 && orderNos.every(no => selfOrderNos.has(no));
-                        if (allSelf) return 'bg-gray-400 text-white';
+                        if (allSelf) {
+                            const totalRate = orderNos.reduce((s, no) => s + (receiptRateByOrderNo[no] || 0), 0);
+                            return totalRate >= 100 ? 'bg-green-800 text-white' : 'bg-red-600 text-white';
+                        }
                         const isInvoiced = orderNos.some(orderNo => invoiceOrderNos.has(orderNo));
                         return isInvoiced ? 'bg-green-800 text-white' : 'bg-red-600 text-white';
                     })()}">${(() => {
                         const orderNos = (record.orderNo || '').split(',').map(no => no.trim()).filter(Boolean);
                         const allSelf = orderNos.length > 0 && orderNos.every(no => selfOrderNos.has(no));
-                        if (allSelf) return '不适用';
+                        if (allSelf) {
+                            const totalRate = orderNos.reduce((s, no) => s + (receiptRateByOrderNo[no] || 0), 0);
+                            return totalRate >= 100 ? '已完成' : '未完成';
+                        }
                         const isInvoiced = orderNos.some(orderNo => invoiceOrderNos.has(orderNo));
                         return isInvoiced ? '已开票' : '未开票';
                     })()}</span></td>
@@ -1291,6 +1308,12 @@ class PageController {
                     orderNos.forEach(no => paymentOrderNos.add(no));
                 }
             });
+
+            // 订单号→业务模式映射（国内贸易用"收款"，其余用"收汇"）
+            const orderBusinessModeMap = {};
+            storage.getOrderRecords().forEach(o => {
+                if (o.orderNo) orderBusinessModeMap[o.orderNo] = o.businessMode || 'agency';
+            });
             
             // 渲染数据行
             currentPageData.forEach(record => {
@@ -1309,12 +1332,16 @@ class PageController {
                 let statusClass = '';
                 const orderNo = record.orderNo;
                 const totalRate = orderTotalRates[orderNo] || 0;
-                
+                // 国内贸易订单用"收款"措辞，其余用"收汇"
+                const isDomestic = (orderBusinessModeMap[orderNo] || 'agency') === 'domestic';
+                const partialText = isDomestic ? '部分收款' : '部分收汇';
+                const doneText = isDomestic ? '收款完毕' : '收汇完毕';
+
                 if (totalRate > 0 && totalRate < 100) {
-                    chineseStatus = '部分收汇';
+                    chineseStatus = partialText;
                     statusClass = 'status-partial';
                 } else if (totalRate >= 100) {
-                    chineseStatus = '收汇完毕';
+                    chineseStatus = doneText;
                     statusClass = 'status-completed';
                 } else {
                     // 默认状态映射
@@ -2358,7 +2385,7 @@ class PageController {
                 currency: basicRecord.currency,
                 packing: basicRecord.packing,
                 remark: basicRecord.remark,
-                businessMode: basicRecord.businessMode || 'agency', // 业务模式：外贸代理/自营
+                businessMode: basicRecord.businessMode || 'agency', // 业务模式：外贸代理/自营/国内贸易
                 status: '待生产',
                 
                 // 产品信息
@@ -2454,7 +2481,7 @@ class PageController {
                 currency: basicRecord.currency,
                 packing: basicRecord.packing,
                 remark: basicRecord.remark,
-                businessMode: basicRecord.businessMode || 'agency', // 业务模式：外贸代理/自营
+                businessMode: basicRecord.businessMode || 'agency', // 业务模式：外贸代理/自营/国内贸易
                 status: index === 0 ? currentRecords[originalIndex].status : '待生产', // 保留原始状态，新记录默认为待生产
                 
                 // 产品信息
@@ -2493,13 +2520,14 @@ class PageController {
         // 检查是否处于筛选状态
         const isFiltered = paginations.order.filteredData.length !== paginations.order.data.length;
         
+        // 编辑后保持当前页码，不跳回第一页
         if (isFiltered) {
-            // 如果处于筛选状态，重新应用筛选条件
-            searchOrderRecords();
+            // 如果处于筛选状态，重新应用筛选条件（保持页码）
+            searchOrderRecords(true);
         } else {
-            // 否则，更新分页数据并重新渲染
-            paginations.order.setData(latestRecords);
-            this.renderOrderTable();
+            // 否则，更新分页数据并重新渲染（updateData 不会重置页码）
+            paginations.order.updateData(latestRecords);
+            this.renderOrderTable(null, true);
         }
         
         // 重新初始化订单表格全选功能，确保事件监听器正确添加
@@ -2664,7 +2692,13 @@ class PageController {
         
         // 获取最新的收汇记录数据并更新分页对象
         const latestRecords = storage.getReceiptRecords();
-        paginations.receipt.setData(latestRecords);
+        if (id) {
+            // 编辑模式：保持当前页码，不跳回第一页
+            paginations.receipt.updateData(latestRecords);
+        } else {
+            // 新增模式：回到第一页查看新记录
+            paginations.receipt.setData(latestRecords);
+        }
         
         this.renderReceiptTable();
         this.updateReports();
@@ -2782,15 +2816,15 @@ class PageController {
                 const exportRecords = storage.getExportRecords();
                 const orderRecords = storage.getOrderRecords();
 
-                // 构建外贸代理订单号集合（自营订单不需要开票给代理公司）
+                // 构建需开票订单号集合（外贸代理 + 国内贸易，自营订单无需开票）
                 const agencyOrderNos = new Set();
                 orderRecords.forEach(o => {
-                    if ((o.businessMode || 'agency') === 'agency' && o.orderNo) {
+                    if ((o.businessMode || 'agency') !== 'self' && o.orderNo) {
                         agencyOrderNos.add(o.orderNo);
                     }
                 });
 
-                // 筛选匹配的订单号（仅外贸代理订单）
+                // 筛选匹配的订单号（外贸代理 + 国内贸易订单）
                 const matchedOrders = exportRecords.filter(record =>
                     record.orderNo && record.orderNo.toLowerCase().includes(inputValue) && agencyOrderNos.has(record.orderNo)
                 ).map(record => record.orderNo);
@@ -3353,17 +3387,24 @@ class PageController {
                         return sum + rate;
                     }, 0);
                 };
+
+                // 订单号→业务模式映射（国内贸易用"收款"，其余用"收汇"）
+                const orderBusinessModeMap = {};
+                storage.getOrderRecords().forEach(o => {
+                    if (o.orderNo) orderBusinessModeMap[o.orderNo] = o.businessMode || 'agency';
+                });
                 
                 // 获取记录的显示状态
                 const getDisplayStatus = (record) => {
                     const orderNo = record.orderNo;
                     const totalRate = calculateTotalRate(orderNo);
                     let chineseStatus;
+                    const isDomestic = (orderBusinessModeMap[orderNo] || 'agency') === 'domestic';
                     
                     if (totalRate > 0 && totalRate < 100) {
-                        chineseStatus = '部分收汇';
+                        chineseStatus = isDomestic ? '部分收款' : '部分收汇';
                     } else if (totalRate >= 100) {
-                        chineseStatus = '收汇完毕';
+                        chineseStatus = isDomestic ? '收款完毕' : '收汇完毕';
                     } else {
                         // 默认状态映射
                         const statusMap = {
@@ -3382,7 +3423,9 @@ class PageController {
                 const statusPriority = {
                     '待处理': 1,
                     '部分收汇': 2,
+                    '部分收款': 2,
                     '收汇完毕': 3,
+                    '收款完毕': 3,
                     '已完成': 4,
                     '失败': 5,
                     '未知': 6
@@ -3403,6 +3446,50 @@ class PageController {
                 }
                 
                 return direction === 'asc' ? comparison : -comparison;
+                } else if ('exportDate' in a || 'declarationAmount' in a) {
+                    // 出口管理表格的状态列排序
+                    const allOrders = storage.getOrderRecords();
+                    const selfOrderNos = new Set();
+                    allOrders.forEach(o => {
+                        if ((o.businessMode || 'agency') === 'self' && o.orderNo) selfOrderNos.add(o.orderNo);
+                    });
+                    const invoiceOrderNos = new Set();
+                    storage.getInvoiceRecords().forEach(inv => {
+                        if (inv.orderNo) {
+                            inv.orderNo.split(',').map(n => n.trim()).filter(Boolean).forEach(n => invoiceOrderNos.add(n));
+                        }
+                    });
+                    const receiptRateByOrderNo = {};
+                    storage.getReceiptRecords().forEach(r => {
+                        if (!r.orderNo) return;
+                        const nos = r.orderNo.split(',').map(n => n.trim()).filter(Boolean);
+                        const rate = parseFloat(r.rate) || 0;
+                        nos.forEach(n => { receiptRateByOrderNo[n] = (receiptRateByOrderNo[n] || 0) + rate; });
+                    });
+                    const getExportStatus = (record) => {
+                        const orderNos = (record.orderNo || '').split(',').map(no => no.trim()).filter(Boolean);
+                        const allSelf = orderNos.length > 0 && orderNos.every(no => selfOrderNos.has(no));
+                        if (allSelf) {
+                            const totalRate = orderNos.reduce((s, no) => s + (receiptRateByOrderNo[no] || 0), 0);
+                            return totalRate >= 100 ? '已完成' : '未完成';
+                        }
+                        const isInvoiced = orderNos.some(no => invoiceOrderNos.has(no));
+                        return isInvoiced ? '已开票' : '未开票';
+                    };
+                    const exportStatusPriority = {
+                        '未完成': 1,
+                        '未开票': 1,
+                        '已开票': 2,
+                        '已完成': 3
+                    };
+                    const aExportStatus = getExportStatus(a);
+                    const bExportStatus = getExportStatus(b);
+                    aVal = exportStatusPriority[aExportStatus] || 999;
+                    bVal = exportStatusPriority[bExportStatus] || 999;
+                    let comparison = 0;
+                    if (aVal < bVal) comparison = -1;
+                    else if (aVal > bVal) comparison = 1;
+                    return direction === 'asc' ? comparison : -comparison;
                 } else {
                     // 发票管理表格的状态列排序
                     // 获取所有付款记录，用于计算付款情况
@@ -3721,7 +3808,10 @@ class PageController {
                     recordDisplayStatus = statusMap[record.status] || '未知';
                 }
                 
-                return recordDisplayStatus === statusFilter;
+                // 收汇/收款等价匹配（国内贸易显示为"收款"，筛选时统一比较）
+                const normalizedStatus = recordDisplayStatus.replace('收款', '收汇');
+                const normalizedFilter = statusFilter.replace('收款', '收汇');
+                return normalizedStatus === normalizedFilter;
             });
         }
         
@@ -4100,14 +4190,39 @@ function generateExportReport(id) {
         items: allOrders.filter(o => toStr(o.orderNo).trim() === no)
     }));
 
-    // 判断开票状态
-    const invoiceOrderNos = new Set();
-    storage.getInvoiceRecords().forEach(invoice => {
-        toStr(invoice.orderNo).split(',').map(n => n.trim()).filter(Boolean).forEach(n => invoiceOrderNos.add(n));
+    // 判断业务模式与状态
+    const selfOrderNos = new Set();
+    allOrders.forEach(o => {
+        if ((o.businessMode || 'agency') === 'self' && o.orderNo) {
+            selfOrderNos.add(o.orderNo);
+        }
     });
-    const isInvoiced = orderNos.some(no => invoiceOrderNos.has(no));
-    const exportStatusText = isInvoiced ? '已开票' : '未开票';
-    const exportStatusColor = isInvoiced ? '#15803d' : '#dc2626';
+    const allSelf = orderNos.length > 0 && orderNos.every(no => selfOrderNos.has(no));
+
+    let exportStatusText, exportStatusColor;
+    if (allSelf) {
+        // 自营订单：按收汇比例判断完成状态
+        const receiptRateByOrderNo = {};
+        storage.getReceiptRecords().forEach(r => {
+            if (!r.orderNo) return;
+            const nos = toStr(r.orderNo).split(',').map(n => n.trim()).filter(Boolean);
+            const rate = parseFloat(r.rate) || 0;
+            nos.forEach(n => { receiptRateByOrderNo[n] = (receiptRateByOrderNo[n] || 0) + rate; });
+        });
+        const totalRate = orderNos.reduce((s, no) => s + (receiptRateByOrderNo[no] || 0), 0);
+        const isCompleted = totalRate >= 100;
+        exportStatusText = isCompleted ? '已完成' : '未完成';
+        exportStatusColor = isCompleted ? '#15803d' : '#dc2626';
+    } else {
+        // 外贸代理/国内贸易：按开票状态判断
+        const invoiceOrderNos = new Set();
+        storage.getInvoiceRecords().forEach(invoice => {
+            toStr(invoice.orderNo).split(',').map(n => n.trim()).filter(Boolean).forEach(n => invoiceOrderNos.add(n));
+        });
+        const isInvoiced = orderNos.some(no => invoiceOrderNos.has(no));
+        exportStatusText = isInvoiced ? '已开票' : '未开票';
+        exportStatusColor = isInvoiced ? '#15803d' : '#dc2626';
+    }
 
     // 日期格式化（兼容 Excel 数值型日期）
     const formatDate = (v) => {
@@ -4908,7 +5023,8 @@ function searchOrdersInTable(searchTerm) {
     // 过滤订单记录，检查所有字段
     const filteredOrders = allOrders.filter(order => {
         // 业务模式显示文本
-        const modeText = (order.businessMode || 'agency') === 'self' ? '自营' : '外贸代理';
+        const bm = order.businessMode || 'agency';
+        const modeText = bm === 'self' ? '自营' : bm === 'domestic' ? '国内贸易' : '外贸代理';
         // 检查是否包含任意一个搜索词
         return searchTerms.some(term => {
             // 检查所有字段是否包含搜索词
@@ -5044,12 +5160,23 @@ function searchExportRecords() {
     const invoiceRecords = storage.getInvoiceRecords();
     const orderRecords = storage.getOrderRecords();
 
-    // 构建自营订单号集合（自营订单的开票状态不适用，筛选开票状态时排除）
+    // 构建自营订单号集合（自营订单按收汇比例判断完成状态，不参与开票状态筛选）
     const selfOrderNos = new Set();
     orderRecords.forEach(o => {
         if ((o.businessMode || 'agency') === 'self' && o.orderNo) {
             selfOrderNos.add(o.orderNo);
         }
+    });
+
+    // 按订单号汇总收汇比例（自营订单筛选用）
+    const receiptRateByOrderNo = {};
+    storage.getReceiptRecords().forEach(r => {
+        if (!r.orderNo) return;
+        const nos = r.orderNo.split(',').map(no => no.trim()).filter(Boolean);
+        const rate = parseFloat(r.rate) || 0;
+        nos.forEach(no => {
+            receiptRateByOrderNo[no] = (receiptRateByOrderNo[no] || 0) + rate;
+        });
     });
 
     // 从发票记录中提取所有订单号
@@ -5081,18 +5208,31 @@ function searchExportRecords() {
             }
         }
         
-        // 状态筛选（自营订单的开票状态不适用，筛选时排除）
+        // 状态筛选（自营订单按收汇比例判断完成，其余按开票状态）
         if (statusFilter && match) {
             const recordOrderNos = (record.orderNo || '').split(',').map(no => no.trim()).filter(Boolean);
-            // 若包含自营订单号，则不参与开票状态筛选
-            const hasSelfOrder = recordOrderNos.some(no => selfOrderNos.has(no));
-            if (hasSelfOrder) {
-                match = false;
+            const allSelf = recordOrderNos.length > 0 && recordOrderNos.every(no => selfOrderNos.has(no));
+            if (allSelf) {
+                // 自营订单：按收汇比例判断完成状态
+                const totalRate = recordOrderNos.reduce((s, no) => s + (receiptRateByOrderNo[no] || 0), 0);
+                const isCompleted = totalRate >= 100;
+                if (statusFilter === 'completed' && !isCompleted) {
+                    match = false;
+                } else if (statusFilter === 'uncompleted' && isCompleted) {
+                    match = false;
+                } else if (statusFilter === 'invoiced' || statusFilter === 'uninvoiced') {
+                    // 开票状态筛选不适用于自营订单
+                    match = false;
+                }
             } else {
+                // 非自营订单（外贸代理/国内贸易）：按开票状态判断
                 const isInvoiced = recordOrderNos.some(orderNo => invoicedOrderNos.has(orderNo));
                 if (statusFilter === 'invoiced' && !isInvoiced) {
                     match = false;
                 } else if (statusFilter === 'uninvoiced' && isInvoiced) {
+                    match = false;
+                } else if (statusFilter === 'completed' || statusFilter === 'uncompleted') {
+                    // 完成状态筛选不适用于非自营订单
                     match = false;
                 }
             }
@@ -5184,6 +5324,28 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 初始化发票管理查询条件中的客户和收款单位选项
     pageController.updateInvoiceFilterOptions();
+
+    // 业务模式切换联动：国内贸易默认货币 CNY、交易条款「自提」
+    function bindBusinessModeChange(formId, currencyId, tradeTermsId) {
+        const form = document.getElementById(formId);
+        if (!form) return;
+        const radios = form.querySelectorAll('input[name="businessMode"]');
+        const currencySel = document.getElementById(currencyId);
+        const tradeSel = document.getElementById(tradeTermsId);
+        radios.forEach(radio => {
+            radio.addEventListener('change', function() {
+                if (this.value === 'domestic') {
+                    if (currencySel) currencySel.value = 'CNY';
+                    if (tradeSel) tradeSel.value = '自提';
+                } else {
+                    // 切回外贸模式时恢复交易条款默认值 EXW
+                    if (tradeSel) tradeSel.value = 'EXW';
+                }
+            });
+        });
+    }
+    bindBusinessModeChange('orderForm', 'orderCurrency', 'orderTradeTerms');
+    bindBusinessModeChange('editOrderForm', 'editOrderCurrency', 'editOrderTradeTerms');
 });
 
 // 处理Excel导入
@@ -5502,12 +5664,12 @@ function openModal(modalId) {
                 // 清空现有选项
                 orderSelect.innerHTML = '';
                 
-                // 获取所有订单记录，去重（仅外贸代理订单，自营订单无需代理付款）
+                // 获取所有订单记录，去重（外贸代理 + 国内贸易订单，自营订单无需付款登记）
                 const orderRecords = storage.getOrderRecords();
                 const uniqueOrders = {};
 
                 orderRecords.forEach(record => {
-                    if ((record.businessMode || 'agency') === 'agency' && record.orderNo) {
+                    if ((record.businessMode || 'agency') !== 'self' && record.orderNo) {
                         uniqueOrders[record.orderNo] = record;
                     }
                 });
@@ -6252,10 +6414,10 @@ function renderUninvoicedExportTable() {
     const invoiceRecords = storage.getInvoiceRecords();
     const orderRecords = storage.getOrderRecords();
 
-    // 构建外贸代理订单号集合（自营订单无需开票）
+    // 构建需开票订单号集合（外贸代理 + 国内贸易，自营订单无需开票）
     const agencyOrderNos = new Set();
     orderRecords.forEach(o => {
-        if ((o.businessMode || 'agency') === 'agency' && o.orderNo) {
+        if ((o.businessMode || 'agency') !== 'self' && o.orderNo) {
             agencyOrderNos.add(o.orderNo);
         }
     });
@@ -6269,11 +6431,11 @@ function renderUninvoicedExportTable() {
         }
     });
 
-    // 筛选未开票的出口记录（仅外贸代理订单）
+    // 筛选未开票的出口记录（外贸代理 + 国内贸易订单）
     const uninvoicedRecords = exportRecords.filter(record => {
         const orderNos = (record.orderNo || '').split(',').map(no => no.trim()).filter(Boolean);
         if (orderNos.length === 0) return false;
-        // 仅保留至少包含一个外贸代理订单号的出口记录
+        // 仅保留至少包含一个外贸代理/国内贸易订单号的出口记录
         const hasAgencyOrder = orderNos.some(no => agencyOrderNos.has(no));
         if (!hasAgencyOrder) return false;
         return !orderNos.some(orderNo => invoiceOrderNos.has(orderNo));
@@ -6681,7 +6843,10 @@ function searchReceiptRecords() {
                 recordDisplayStatus = statusMap[record.status] || '未知';
             }
             
-            if (recordDisplayStatus !== status) {
+            // 收汇/收款等价匹配（国内贸易显示为"收款"，筛选时统一比较）
+            const normalizedStatus = recordDisplayStatus.replace('收款', '收汇');
+            const normalizedFilter = status.replace('收款', '收汇');
+            if (normalizedStatus !== normalizedFilter) {
                 return false;
             }
         }
@@ -7305,9 +7470,15 @@ function importOrderExcel() {
                         return;
                     }
 
-                    // 业务模式：导入值为"自营"/"self"时为自营，其余（含空）默认外贸代理
+                    // 业务模式：导入值为"自营"/"self"时为自营，"国内贸易"/"domestic"时为国内贸易，其余（含空）默认外贸代理
                     const rawMode = String(getVal(row, '业务模式')).trim();
-                    const businessMode = (rawMode === '自营' || rawMode.toLowerCase() === 'self') ? 'self' : 'agency';
+                    const rawModeLower = rawMode.toLowerCase();
+                    let businessMode = 'agency';
+                    if (rawMode === '自营' || rawModeLower === 'self') {
+                        businessMode = 'self';
+                    } else if (rawMode === '国内贸易' || rawModeLower === 'domestic') {
+                        businessMode = 'domestic';
+                    }
 
                     const record = {
                         id: Date.now().toString() + index,
@@ -7384,7 +7555,7 @@ function exportOrderExcel() {
     const exportData = records.map(record => {
         return {
             '状态': record.status || '',
-            '业务模式': (record.businessMode || 'agency') === 'self' ? '自营' : '外贸代理',
+            '业务模式': (() => { const bm = record.businessMode || 'agency'; return bm === 'self' ? '自营' : bm === 'domestic' ? '国内贸易' : '外贸代理'; })(),
             '订单日期': record.orderDate || '',
             '订单号': record.orderNo || '',
             '客户': record.customer || '',
@@ -7679,7 +7850,7 @@ function recalculateTotalCNY() {
 
 // 订单搜索和筛选功能
 // 搜索订单记录
-function searchOrderRecords() {
+function searchOrderRecords(preservePage = false) {
     // 筛选条件变化时清空跨页选中状态，避免选中不在当前结果中的订单
     clearSelectedOrderIds();
     const customer = document.getElementById('orderCustomerSearch').value;
@@ -7794,8 +7965,8 @@ function searchOrderRecords() {
         return match;
     });
     
-    // 更新表格
-    pageController.renderOrderTable(filteredOrders);
+    // 更新表格（preservePage 为 true 时保持当前页码）
+    pageController.renderOrderTable(filteredOrders, preservePage);
 }
 
 // 重置订单筛选条件
@@ -9408,6 +9579,9 @@ function renderLogoCell(name) {
 function renderBusinessModeBadge(mode) {
     if (mode === 'self') {
         return '<span class="inline-block px-2 py-0.5 rounded text-xs font-medium" style="background:#d4edda;color:#155724;border:1px solid #c3e6cb;">自营</span>';
+    }
+    if (mode === 'domestic') {
+        return '<span class="inline-block px-2 py-0.5 rounded text-xs font-medium" style="background:#ffe7cc;color:#9a4a00;border:1px solid #ffc78a;">国内贸易</span>';
     }
     // 默认外贸代理（含 mode 为空/缺失的历史数据）
     return '<span class="inline-block px-2 py-0.5 rounded text-xs font-medium" style="background:#cce5ff;color:#004085;border:1px solid #b8daff;">外贸代理</span>';
