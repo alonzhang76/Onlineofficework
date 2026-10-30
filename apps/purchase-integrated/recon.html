@@ -37,7 +37,7 @@ window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
 </script>
 <script src="../cloudbase-sync.js?v=20260924f"></script>
 <script src="../cloudbase-admin.js?v=20260930a"></script>
-<script src="js/common.js?v=20261030a"></script>
+<script src="js/common.js?v=20261030c"></script>
 <script src="js/auth-guard.js"></script>
 <script>
 'use strict';
@@ -53,13 +53,21 @@ window.CLOUDBASE_APP_KEY_PREFIXES=['pis_seq_'];
    Tab2 供应商对账单：按供应商 + 期间生成开票/付款流水对账单，支持 A4 打印。
    ========================================================== */
 
-/* 合同已收货金额：Σ(净收货数量 × 合同单价)，按产品逐项计算（退货冲减） */
+/* 合同已收货金额：Σ(净收货数量 × 合同单价)，按产品逐项计算（退货冲减）。
+   产品未录单价（合同额为手填总额）时按 合同总额 × 收货比例 估算，
+   否则票/款为 0 也会被「≥ 已收货金额 0」判成票清款清，出现假「已执行完·三流一致」 */
 function recvAmtOfContract(o) {
-  let sum = 0;
+  let sum = 0, pricedAmt = 0;
   orderProducts(o).forEach(p => {
     const q = receivedQty(o.contractNumber, p.name) - returnedQty(o.contractNumber, p.name);
     sum += Math.max(0, q) * (+p.price || 0);
+    pricedAmt += (+p.quantity || 0) * (+p.price || 0);
   });
+  const total = +o.totalAmount || 0;
+  if (sum <= 0.005 && pricedAmt <= 0.005 && total > 0) {
+    const ordered = orderOrderedQty(o), recv = Math.max(0, orderReceivedTotal(o) - orderReturnTotal(o));
+    if (ordered > 0 && recv > 0) sum = total * Math.min(1, recv / ordered);
+  }
   return sum;
 }
 /* 合同对账数据：执行状态 + 三流进度 + 差异 */

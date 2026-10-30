@@ -588,9 +588,10 @@ const ReimPay = {
     if (cno) this.invoices().forEach(r => {
       if (!seen.has(r.invoice_no) && splitMulti(r.project).includes(cno)) push(r, null);
     });
-    // 无票付款（预付款/进度款/尾款/其他）：按 project（合同号）命中
-    if (cno) this.payments().forEach(p => {
-      if (!splitMulti(p.project || '').includes(cno)) return;
+    // 无票付款（预付款/进度款/尾款/其他）：传 cno 时按 project（合同号）命中；
+    // 不传 cno（供应商对账单）时全部列出，否则预付款在对账单中缺失
+    this.payments().forEach(p => {
+      if (cno && !splitMulti(p.project || '').includes(cno)) return;
       out.push({
         supplier: p.seller_name || '',
         contractNumber: p.project || '',
@@ -985,7 +986,8 @@ const ReimPay = {
      - 发票号已存在（任何来源）：不重复建档；仅对「报销同步」来源回写白名单字段，
        人工录入 / PDF 识别 / Excel 导入的记录绝不覆盖
      - 匹配不到供应商的票不入库（避免脏数据），供应商档案补全后下次拉取自动同步
-     - 用户事后关联的合同号、备注等本地编辑内容保留，不回写
+     - 备注等本地编辑内容保留，不回写；合同归属取 project 中所有命中的合同，
+       人工改挂到 project 之外合同的不动
      返回新增条数。 */
   syncInvoices(j) {
     const invs = Array.isArray(j && j.invoices) ? j.invoices : [];
@@ -1015,17 +1017,25 @@ const ReimPay = {
         set('buyerName', r.buyer_name || '');
         set('reimStatus', r.status || '');
         if (r.id != null) set('reimId', r.id);
+        /* 合同归属自愈：旧版同步只挂第一个合同，现改为挂上 project 中所有命中的合同
+           （合并开票由对账分摊算法拆到各合同）；仅当现值为空或取自 project 时回写，
+           人工改挂到其它合同的不动 */
+        const hitC = splitMulti(r.project).filter(cno =>
+          orders.some(o => o.contractNumber === cno && o.supplier === exist.supplier));
+        const curCnos = splitMulti(exist.contractNumber);
+        if (!curCnos.length || curCnos.every(c => splitMulti(r.project).includes(c))) {
+          set('contractNumber', hitC.join('，'));
+        }
         if (Object.keys(patch).length) { Object.assign(exist, patch); changed = true; }
         return;
       }
       const sup = matchReimSupplier(r.seller_name, sups);
       if (!sup) return; // 销售方匹配不到供应商：暂不入库
-      /* 关联合同：仅当报销侧 project 中的合同号确属该供应商合同时挂上，避免污染合同开票额。
-         恰好 1 个 → 挂上；0 个或多个（合并开票无法确定单一归属）→ 不挂合同，
-         防止整张票金额被错误计入某一个合同（供应商级对账仍按销售方汇总） */
+      /* 关联合同：挂上报销侧 project 中确属该供应商的所有合同号；
+         合并开票的多合同由对账分摊算法拆到各合同，不重复计全额 */
       const hitCnos = splitMulti(r.project).filter(cno =>
         orders.some(o => o.contractNumber === cno && o.supplier === sup.supplierName));
-      const contractNumber = hitCnos.length === 1 ? hitCnos[0] : '';
+      const contractNumber = hitCnos.join('，');
       const rec = {
         id: uid(),
         company: companyOfReimBuyer(r.buyer_name),
@@ -1107,9 +1117,44 @@ function deriveShipStatus(rec) {
   if (done <= 0) return SHIP_PENDING;
   return done + 0.0001 >= (+rec.quantity || 0) ? SHIP_CONFIRMED : SHIP_PARTIAL;
 }
-function invoicedOfContract(cno) { return Data.list('invoices').filter(v => splitMulti(v.contractNumber).includes(cno)).reduce((s, v) => s + (+v.amount || 0), 0); }
-// 付款数据源为报销系统（见上方 ReimPay 桥），本地 pis_payments 已停用、无写入点
-function paidOfContract(cno) { return ReimPay.paidOfContract(cno); }
+/* ===== 发票 / 付款按合同分摊 =====
+   一张发票可挂多个合同（供应商合并开票）。分摊规则：
+   ① 发票按开票日期升序处理，每张票按其 contractNumber 中合同的挂接顺序，
+      依次冲抵各合同「未开票余额」（合同额 − 已分摊开票额），最多到合同额；
+   ② 付款按发票已付金额、用同一顺序分摊到各合同，且不超过该合同已分摊的开票额，
+      保证每个合同的「已付 ≤ 已开」。
+   这样对账到合同级时金额精确，不会把一张合并票的全额重复计入每个合同。 */
+function _contractAllocations() {
+  const invs = Data.list('invoices').slice().sort((a, b) =>
+    (a.invoiceDate || '').localeCompare(b.invoiceDate || '') || String(a.id || '').localeCompare(String(b.id || '')));
+  const ordMap = new Map(Data.list('orders').map(o => [o.contractNumber, +o.totalAmount || 0]));
+  const invAlloc = {}, paidAlloc = {};
+  invs.forEach(v => {
+    const cnos = splitMulti(v.contractNumber);
+    if (!cnos.length) return;
+    let remainInv = +v.amount || 0;
+    let remainPaid = Math.min(+v.amount || 0, paidOfInvoice(v.invoiceNumber));
+    cnos.forEach(c => {
+      const invCap = Math.max(0, (ordMap.get(c) || 0) - (invAlloc[c] || 0));
+      const invTake = Math.min(remainInv, invCap);
+      invAlloc[c] = (invAlloc[c] || 0) + invTake;
+      remainInv -= invTake;
+      const paidCap = Math.max(0, (invAlloc[c] || 0) - (paidAlloc[c] || 0));
+      const paidTake = Math.min(remainPaid, paidCap);
+      paidAlloc[c] = (paidAlloc[c] || 0) + paidTake;
+      remainPaid -= paidTake;
+    });
+  });
+  return { invAlloc, paidAlloc };
+}
+function invoicedOfContract(cno) { return _contractAllocations().invAlloc[cno] || 0; }
+// 合同已付 = 发票已付按合同分摊 + 无票付款（预付款/进度款等，直接按 project 命中）
+function paidOfContract(cno) {
+  let paid = _contractAllocations().paidAlloc[cno] || 0;
+  paid += ReimPay.payments().reduce((s, p) =>
+    splitMulti(p.project || '').includes(cno) ? s + (+(p.amount) || 0) : s, 0);
+  return paid;
+}
 function paidOfInvoice(invNo) { return ReimPay.paidOfInvoice(invNo); }
 function invoiceStatus(inv) {
   const paid = paidOfInvoice(inv.invoiceNumber);
