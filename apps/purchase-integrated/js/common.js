@@ -1306,11 +1306,18 @@ function clearCollConfirm(coll, label) {
 /* 智能重渲染：记录每次 renderFrame 期间实际读取的 DB 键与值快照，
    云端/报销侧更新到来时只比对这组键，数据未变则跳过重渲染，避免无谓闪烁。 */
 let __renderDeps = null;
+/* 报销侧付款数据签名：付款数据不走本地 DB，depsChanged 必须单独感知它的变化，
+   否则付款到账但本地发票未变时对账页不会重渲染，状态长期停留在旧值 */
+function reimSig() {
+  const d = ReimPay.data;
+  return String(ReimPay.lastOkAt || 0) + '|' + (d ? ((d.invoices || []).length + '|' + (d.payments || []).length) : '0|0');
+}
 function depsChanged(deps) {
   if (!deps) return true;
   for (const k in deps) {
     let cur;
-    try { cur = JSON.stringify(DB.get(k)); } catch (e) { return true; }
+    if (k === '__reim_sig__') { cur = reimSig(); }
+    else { try { cur = JSON.stringify(DB.get(k)); } catch (e) { return true; } }
     if (cur !== deps[k]) return true;
   }
   return false;
@@ -1341,6 +1348,7 @@ function renderFrame() {
     }
     renderNav(); renderPage();
   } finally { DB.get = origGet; }
+  deps['__reim_sig__'] = reimSig(); // 付款数据纳入依赖，付款到账能触发重渲染
   __renderDeps = deps;
   /* 「主页」图标：有权限才显示，停留在工作台页时高亮 */
   const hb = $('#navHomeBtn');
