@@ -1020,12 +1020,12 @@ const ReimPay = {
       }
       const sup = matchReimSupplier(r.seller_name, sups);
       if (!sup) return; // 销售方匹配不到供应商：暂不入库
-      /* 关联合同：仅当报销侧 project 中的合同号确属该供应商合同时挂上，避免污染合同开票额 */
-      let contractNumber = '';
-      splitMulti(r.project).some(cno => {
-        if (orders.some(o => o.contractNumber === cno && o.supplier === sup.supplierName)) { contractNumber = cno; return true; }
-        return false;
-      });
+      /* 关联合同：仅当报销侧 project 中的合同号确属该供应商合同时挂上，避免污染合同开票额。
+         恰好 1 个 → 挂上；0 个或多个（合并开票无法确定单一归属）→ 不挂合同，
+         防止整张票金额被错误计入某一个合同（供应商级对账仍按销售方汇总） */
+      const hitCnos = splitMulti(r.project).filter(cno =>
+        orders.some(o => o.contractNumber === cno && o.supplier === sup.supplierName));
+      const contractNumber = hitCnos.length === 1 ? hitCnos[0] : '';
       const rec = {
         id: uid(),
         company: companyOfReimBuyer(r.buyer_name),
