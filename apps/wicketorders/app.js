@@ -1048,7 +1048,7 @@ class PageController {
         }
         
         if (currentPageData.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="15" class="text-center text-gray-500 py-4">暂无数据</td></tr>';
+            tableBody.innerHTML = '<tr><td colspan="16" class="text-center text-gray-500 py-4">暂无数据</td></tr>';
         } else {
             // 渲染数据行
             // 获取所有发票记录，用于检查订单是否已开票
@@ -1114,7 +1114,8 @@ class PageController {
                     <td>${record.orderNo || ''}</td>
                     <td>${record.shippingNo || ''}</td>
                     <td>${record.shipName || ''}</td>
-                    <td>${(record.containerNo || record.containerSeal || '') + (record.sealNo ? ' / ' + record.sealNo : '')}</td>
+                    <td>${record.containerNo || record.containerSeal || ''}</td>
+                    <td>${record.sealNo || ''}</td>
                     <td>${record.billNo || ''}</td>
                     <td>${record.currency ? record.currency + ' ' : ''}${record.declarationAmount ? parseFloat(record.declarationAmount).toFixed(2) : ''}</td>
                     <td>${record.remark || ''}</td>
