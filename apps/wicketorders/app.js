@@ -1048,7 +1048,7 @@ class PageController {
         }
         
         if (currentPageData.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="13" class="text-center text-gray-500 py-4">暂无数据</td></tr>';
+            tableBody.innerHTML = '<tr><td colspan="15" class="text-center text-gray-500 py-4">暂无数据</td></tr>';
         } else {
             // 渲染数据行
             // 获取所有发票记录，用于检查订单是否已开票
@@ -1107,13 +1107,14 @@ class PageController {
                         return isInvoiced ? '已开票' : '未开票';
                     })()}</span></td>
                     <td>${record.exportDate || ''}</td>
+                    <td>${record.shipDate || ''}</td>
                     <td>${record.arrivalDate || ''}</td>
                     <td>${record.customer || ''}</td>
                     <td>${record.quantity ? parseFloat(record.quantity).toFixed(2) : ''}</td>
                     <td>${record.orderNo || ''}</td>
                     <td>${record.shippingNo || ''}</td>
                     <td>${record.shipName || ''}</td>
-                    <td>${record.containerNo || ''}</td>
+                    <td>${(record.containerNo || record.containerSeal || '') + (record.sealNo ? ' / ' + record.sealNo : '')}</td>
                     <td>${record.billNo || ''}</td>
                     <td>${record.currency ? record.currency + ' ' : ''}${record.declarationAmount ? parseFloat(record.declarationAmount).toFixed(2) : ''}</td>
                     <td>${record.remark || ''}</td>
@@ -2567,9 +2568,6 @@ class PageController {
                         break;
                     case 'vesselVoyage':
                         record.shipName = value;
-                        break;
-                    case 'containerSeal':
-                        record.containerNo = value;
                         break;
                     case 'declarationAmount':
                         // 报关金额保留两位小数
@@ -4079,9 +4077,11 @@ function editExport(id) {
     document.getElementById('editExportCustomer').value = record.customer || '';
     document.getElementById('editExportQuantity').value = record.quantity || '';
     document.getElementById('editExportDeclarationAmount').value = record.declarationAmount || '';
+    document.getElementById('editExportShipDate').value = record.shipDate || '';
     document.getElementById('editExportArrivalDate').value = record.arrivalDate || '';
     document.getElementById('editExportVessel').value = record.shipName || '';
-    document.getElementById('editExportContainer').value = record.containerNo || '';
+    document.getElementById('editExportContainerNo').value = record.containerNo || record.containerSeal || '';
+    document.getElementById('editExportSealNo').value = record.sealNo || '';
     document.getElementById('editExportBillNo').value = record.billNo || '';
     document.getElementById('editExportRemark').value = record.remark || '';
     
@@ -4105,9 +4105,6 @@ function saveEditExportRecord(e) {
         } else if (key === 'vesselVoyage') {
             // 船名航次映射到shipName
             record.shipName = value;
-        } else if (key === 'containerSeal') {
-            // 集装箱号封号映射到containerNo
-            record.containerNo = value;
         } else if (key === 'declarationAmount') {
             // 报关金额保留两位小数
             record[key] = parseFloat(value) ? parseFloat(value).toFixed(2) : '';
@@ -4264,10 +4261,11 @@ function generateExportReport(id) {
 
     // 出口记录信息（两列 label/value）
     const exportInfoRows = [
-        ['出货日期', show(record.exportDate), '到港日期', show(record.arrivalDate)],
-        ['客户', show(record.customer), '运编号', show(record.shippingNo)],
-        ['数量', qty(record.quantity), '船名航次', show(record.shipName)],
-        ['集装箱号封号', show(record.containerNo), '提单号', show(record.billNo)],
+        ['出货日期', show(record.exportDate), '开船日期', show(record.shipDate)],
+        ['到港日期', show(record.arrivalDate), '客户', show(record.customer)],
+        ['运编号', show(record.shippingNo), '数量', qty(record.quantity)],
+        ['船名航次', show(record.shipName), '提单号', show(record.billNo)],
+        ['集装箱号', show(record.containerNo || record.containerSeal), '封号', show(record.sealNo)],
         ['报关金额', `${record.currency ? esc(record.currency) + ' ' : ''}${money(record.declarationAmount) === '-' ? '-' : money(record.declarationAmount)}`, '订单号', show(record.orderNo)]
     ];
     const exportInfoHtml = exportInfoRows.map(cells => {
@@ -5080,12 +5078,14 @@ function searchExportTable(searchTerm) {
             return (
                 (record.status || '').toString().toLowerCase().includes(term) ||
                 (record.exportDate || '').toString().toLowerCase().includes(term) ||
+                (record.shipDate || '').toString().toLowerCase().includes(term) ||
                 (record.arrivalDate || '').toString().toLowerCase().includes(term) ||
                 (record.customer || '').toString().toLowerCase().includes(term) ||
             (record.orderNo || '').toString().toLowerCase().includes(term) ||
             (record.shippingNo || '').toString().toLowerCase().includes(term) ||
             (record.shipName || '').toString().toLowerCase().includes(term) ||
-            (record.containerNo || '').toString().toLowerCase().includes(term) ||
+            (record.containerNo || record.containerSeal || '').toString().toLowerCase().includes(term) ||
+            (record.sealNo || '').toString().toLowerCase().includes(term) ||
             (record.billNo || '').toString().toLowerCase().includes(term) ||
             (record.currency || '').toString().toLowerCase().includes(term) ||
             (record.declarationAmount || '').toString().toLowerCase().includes(term) ||
@@ -11040,20 +11040,22 @@ function importExportExcel() {
                         return;
                     }
                     
-                    // 按照出口管理表格表头顺序：状态,出货日期,到港日期,客户,订单号,运编号,船名航次,集装箱号封号,提单号,报关金额,备注
+                    // 按照出口管理表格表头顺序：状态,出货日期,开船日期,到港日期,客户,订单号,运编号,船名航次,集装箱号,封号,提单号,报关金额,备注
                     const record = {
                         id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
                         status: row[0] || '',
                         exportDate: row[1] || '',
-                        arrivalDate: row[2] || '',
-                        customer: row[3] || '',
-                        orderNo: row[4] || '',
-                        shipmentNo: row[5] || '',
-                        vesselVoyage: row[6] || '',
-                        containerSeal: row[7] || '',
-                        billNo: row[8] || '',
-                        declarationAmount: row[9] ? parseFloat(row[9]).toFixed(2) : '',
-                        remark: row[10] || ''
+                        shipDate: row[2] || '',
+                        arrivalDate: row[3] || '',
+                        customer: row[4] || '',
+                        orderNo: row[5] || '',
+                        shippingNo: row[6] || '',
+                        shipName: row[7] || '',
+                        containerNo: row[8] || '',
+                        sealNo: row[9] || '',
+                        billNo: row[10] || '',
+                        declarationAmount: row[11] ? parseFloat(row[11]).toFixed(2) : '',
+                        remark: row[12] || ''
                     };
                     
                     importedRecords.push(record);
@@ -11113,45 +11115,51 @@ function exportExportExcel() {
         return {
             '状态': record.status || '',
             '出货日期': record.exportDate || '',
+            '开船日期': record.shipDate || '',
             '到港日期': record.arrivalDate || '',
             '客户': record.customer || '',
             '订单号': record.orderNo || '',
             '运编号': record.shippingNo || record.shipmentNo || '',
             '船名航次': record.shipName || record.vesselVoyage || '',
-            '集装箱号封号': record.containerNo || record.containerSeal || '',
+            '集装箱号': record.containerNo || record.containerSeal || '',
+            '封号': record.sealNo || '',
             '提单号': record.billNo || '',
             '报关金额': record.declarationAmount || '',
             '备注': record.remark || ''
         };
     });
-    
+
     // 汇总各列数据
     const summary = {
         '状态': '合计',
         '出货日期': '共 ' + sortedRecords.length + ' 条',
+        '开船日期': '',
         '到港日期': '',
         '客户': '',
         '订单号': '',
         '运编号': '',
         '船名航次': '',
-        '集装箱号封号': '',
+        '集装箱号': '',
+        '封号': '',
         '提单号': '',
         '报关金额': sortedRecords.reduce((sum, r) => sum + (parseFloat(r.declarationAmount) || 0), 0).toFixed(2),
         '备注': ''
     };
     exportData.push(summary);
-    
+
     // 创建工作表，使用header选项指定列顺序，与页面表格保持一致
-    const worksheet = XLSX.utils.json_to_sheet(exportData, { 
+    const worksheet = XLSX.utils.json_to_sheet(exportData, {
         header: [
             '状态',
             '出货日期',
+            '开船日期',
             '到港日期',
             '客户',
             '订单号',
             '运编号',
             '船名航次',
-            '集装箱号封号',
+            '集装箱号',
+            '封号',
             '提单号',
             '报关金额',
             '备注'

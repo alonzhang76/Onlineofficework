@@ -1473,6 +1473,9 @@
                                     <th class="sortable" data-column="exportDate" onclick="pageController.handleExportTableSort('exportDate')">
                                         出货日期 <span class="sort-indicator"></span>
                                     </th>
+                                    <th class="sortable" data-column="shipDate" onclick="pageController.handleExportTableSort('shipDate')">
+                                        开船日期 <span class="sort-indicator"></span>
+                                    </th>
                                     <th class="sortable" data-column="arrivalDate" onclick="pageController.handleExportTableSort('arrivalDate')">
                                         到港日期 <span class="sort-indicator"></span>
                                     </th>
@@ -3627,7 +3630,7 @@
                         <div class="side-form-right">
                             <!-- 出口信息 -->
                             <div class="mb-2 text-sm font-semibold text-gray-600 border-b border-gray-200 pb-1">出口信息</div>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                                 <div class="form-group">
                                     <label class="form-label">出货日期</label>
                                     <input type="date" id="exportDate" name="exportDate" class="form-input">
@@ -3635,6 +3638,10 @@
                                 <div class="form-group">
                                     <label class="form-label">运编号</label>
                                     <input type="text" id="exportShipment" name="shipmentNo" class="form-input">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">开船日期</label>
+                                    <input type="date" id="exportShipDate" name="shipDate" class="form-input">
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">到港日期</label>
@@ -3659,14 +3666,18 @@
                             </div>
                             <!-- 运输信息 -->
                             <div class="mb-2 mt-4 text-sm font-semibold text-gray-600 border-b border-gray-200 pb-1">运输信息</div>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                                 <div class="form-group">
                                     <label class="form-label">船名航次</label>
                                     <input type="text" id="exportVessel" name="vesselVoyage" class="form-input">
                                 </div>
                                 <div class="form-group">
-                                    <label class="form-label">集装箱号封号</label>
-                                    <input type="text" id="exportContainer" name="containerSeal" class="form-input">
+                                    <label class="form-label">集装箱号</label>
+                                    <input type="text" id="exportContainerNo" name="containerNo" class="form-input">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">封号</label>
+                                    <input type="text" id="exportSealNo" name="sealNo" class="form-input">
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">提单号</label>
@@ -3733,27 +3744,36 @@
                             <input type="number" id="editExportDeclarationAmount" name="declarationAmount" class="form-input" min="0" step="0.01">
                         </div>
                         
-                        <!-- 第四行：到港日期 -->
+                        <!-- 第四行：开船日期、到港日期 -->
+                        <div class="form-group">
+                            <label class="form-label">开船日期</label>
+                            <input type="date" id="editExportShipDate" name="shipDate" class="form-input">
+                        </div>
                         <div class="form-group">
                             <label class="form-label">到港日期</label>
                             <input type="date" id="editExportArrivalDate" name="arrivalDate" class="form-input">
                         </div>
                         <div class="form-group hidden"></div>
-                        <div class="form-group hidden"></div>
-                        
+
                         <!-- 其他必要字段 -->
                         <div class="form-group">
                             <label class="form-label">船名航次</label>
                             <input type="text" id="editExportVessel" name="vesselVoyage" class="form-input">
                         </div>
                         <div class="form-group">
-                            <label class="form-label">集装箱号封号</label>
-                            <input type="text" id="editExportContainer" name="containerSeal" class="form-input">
+                            <label class="form-label">集装箱号</label>
+                            <input type="text" id="editExportContainerNo" name="containerNo" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">封号</label>
+                            <input type="text" id="editExportSealNo" name="sealNo" class="form-input">
                         </div>
                         <div class="form-group">
                             <label class="form-label">提单号</label>
                             <input type="text" id="editExportBillNo" name="billNo" class="form-input">
                         </div>
+                        <div class="form-group hidden"></div>
+                        <div class="form-group hidden"></div>
                     </div>
                     <div class="form-group mt-4">
                         <label class="form-label">备注</label>
