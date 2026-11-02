@@ -53,17 +53,17 @@
             theme: {
                 extend: {
                     colors: {
-                        primary: '#1a56db',
-                        secondary: '#e5edff',
-                        success: '#10b981',
+                        primary: '#2563eb',
+                        secondary: '#dbeafe',
+                        success: '#16a34a',
                         warning: '#f59e0b',
-                        danger: '#ef4444',
+                        danger: '#dc2626',
                         info: '#3b82f6',
-                        light: '#f3f4f6',
-                        dark: '#374151'
+                        light: '#f1f5f9',
+                        dark: '#1e293b'
                     },
                     fontFamily: {
-                        sans: ['Inter', 'system-ui', 'sans-serif']
+                        sans: ['Microsoft YaHei', '微软雅黑', 'system-ui', 'sans-serif']
                     }
                 }
             }
@@ -153,15 +153,101 @@
             }
         }
     </style>
+    <!-- 与 wage 主应用保持一致的视觉规范 -->
+    <style>
+        body {
+            background: #f1f5f9 !important;
+            color: #1e293b;
+            font-family: 'Microsoft YaHei', '微软雅黑', sans-serif;
+            font-size: 14px;
+        }
+        .bg-primary { background-color: #2563eb !important; }
+        .text-primary { color: #2563eb !important; }
+        .border-primary { border-color: #2563eb !important; }
+        .bg-primary\/10 { background-color: #dbeafe !important; }
+        .hover\:bg-primary\/90:hover { background-color: #1e40af !important; }
+        .hover\:bg-primary-dark:hover { background-color: #1e40af !important; }
+        .btn-primary, .btn-secondary, .btn-success, .btn-warning, .btn-danger {
+            display: inline-flex; align-items: center; justify-content: center;
+            padding: 6px 16px; border: none; border-radius: 6px; cursor: pointer;
+            font-size: 13px; font-weight: 500; line-height: 1.4; transition: all .2s;
+        }
+        .btn-primary { background: #2563eb !important; color: #fff !important; }
+        .btn-primary:hover { background: #1e40af !important; }
+        .btn-secondary { background: #dbeafe !important; color: #1e40af !important; }
+        .btn-secondary:hover { background: #bfdbfe !important; }
+        .btn-success { background: #16a34a !important; color: #fff !important; }
+        .btn-success:hover { background: #15803d !important; }
+        .btn-warning { background: #fef3c7 !important; color: #b45309 !important; }
+        .btn-warning:hover { background: #fde68a !important; }
+        .btn-danger { background: #dc2626 !important; color: #fff !important; }
+        .btn-danger:hover { background: #b91c1c !important; }
+        .bg-white.rounded-lg.shadow, .bg-white.rounded-xl.shadow,
+        .bg-white.rounded-lg.shadow-md, .bg-white.rounded-xl.shadow-md {
+            border-radius: 8px !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,.06) !important;
+        }
+        .text-lg.font-semibold { font-size: 15px; }
+        .form-input, input[type="text"], input[type="number"], input[type="date"],
+        select, textarea {
+            background-color: #fff;
+        }
+        .form-input:focus, input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #2563eb !important;
+            box-shadow: 0 0 0 2px #dbeafe;
+        }
+        .table-header {
+            background: #f8fafc !important;
+            color: #1e293b !important;
+            font-size: 13px !important;
+            font-weight: 600 !important;
+            text-transform: none !important;
+            letter-spacing: 0 !important;
+            padding: 8px 10px !important;
+            border-bottom: 2px solid #cbd5e1 !important;
+            text-align: left;
+            white-space: nowrap;
+        }
+        .table-cell {
+            padding: 6px 10px !important;
+            font-size: 13px !important;
+            color: #1e293b !important;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .table-row:hover, #deliveriesTableBody tr:hover, #invoicesTableBody tr:hover,
+        #paymentsTableBody tr:hover { background: #f8fafc !important; }
+        .plating-tabs {
+            background: #fff !important;
+            border-bottom: 1px solid #cbd5e1;
+            padding: 4px 12px 0;
+        }
+        .plating-tabs .sidebar-link {
+            color: #64748b !important;
+            border-radius: 6px 6px 0 0;
+            border-bottom: 2px solid transparent;
+            padding: 10px 16px !important;
+            background: transparent !important;
+        }
+        .plating-tabs .sidebar-link:hover { background: #f1f5f9 !important; color: #2563eb !important; }
+        .plating-tabs .sidebar-link.sidebar-active {
+            background: #dbeafe !important;
+            color: #2563eb !important;
+            border-bottom-color: #2563eb !important;
+        }
+        .plating-tabs .sidebar-link.sidebar-active i { color: #2563eb !important; }
+        .page-content { padding: 20px !important; }
+        .page-content h2 { font-size: 20px !important; }
+    </style>
 </head>
 <body class="bg-gray-100 font-sans">
     <div class="flex flex-col h-screen overflow-hidden">
-        <!-- 顶部导航栏（原侧边栏改为水平菜单） -->
-        <div class="bg-primary flex-shrink-0">
+        <!-- 顶部标签栏 -->
+        <div class="plating-tabs flex-shrink-0">
             <nav class="px-4 py-2 flex overflow-x-auto">
 
                 <a href="#deliveries" class="sidebar-link sidebar-active flex items-center px-4 py-3 text-sm font-medium rounded-md mr-1 whitespace-nowrap" data-target="deliveries">
-                    <span class="mr-2">收发货记录</span>
+                    <span class="mr-2">收发货</span>
                     <i class="fa fa-truck w-5 h-5"></i>
                 </a>
                 <a href="#orderSummary" class="sidebar-link flex items-center px-4 py-3 text-sm font-medium text-white rounded-md mr-1 hover:bg-white/10 whitespace-nowrap" data-target="orderSummary">
@@ -169,7 +255,7 @@
                     <i class="fa fa-list-alt w-5 h-5"></i>
                 </a>
                 <a href="#invoices" class="sidebar-link flex items-center px-4 py-3 text-sm font-medium text-white rounded-md mr-1 hover:bg-white/10 whitespace-nowrap" data-target="invoices">
-                    <span class="mr-2">开票付款管理</span>
+                    <span class="mr-2">开票付款</span>
                     <i class="fa fa-file-text w-5 h-5"></i>
                 </a>
 
@@ -178,8 +264,8 @@
 
         <!-- 主内容区 -->
         <div class="flex-1 flex flex-col overflow-hidden">
-            <!-- 顶部导航栏 -->
-            <header class="bg-white shadow-sm z-10">
+            <!-- 顶部导航栏（移动端菜单按钮） -->
+            <header class="bg-white shadow-sm z-10 md:hidden">
                 <div class="flex items-center justify-between h-16 px-6">
                     <div class="flex items-center">
                         <button class="md:hidden text-gray-500 focus:outline-none" id="mobile-menu-button">
@@ -201,7 +287,7 @@
                     <nav class="mt-5 px-2">
 
                         <a href="#deliveries" class="sidebar-link sidebar-active flex items-center px-4 py-3 text-sm font-medium rounded-md mb-1" data-target="deliveries">
-                            <span class="mr-2">收发货记录</span>
+                            <span class="mr-2">收发货</span>
                             <i class="fa fa-truck w-5 h-5"></i>
                         </a>
                         <a href="#orderSummary" class="sidebar-link flex items-center px-4 py-3 text-sm font-medium text-white rounded-md mb-1 hover:bg-white/10" data-target="orderSummary">
@@ -209,7 +295,7 @@
                             <i class="fa fa-list-alt w-5 h-5"></i>
                         </a>
                         <a href="#invoices" class="sidebar-link flex items-center px-4 py-3 text-sm font-medium text-white rounded-md mb-1 hover:bg-white/10" data-target="invoices">
-                            <span class="mr-2">开票付款管理</span>
+                            <span class="mr-2">开票付款</span>
                             <i class="fa fa-file-text w-5 h-5"></i>
                         </a>
 
@@ -227,10 +313,10 @@
                             <h3 class="text-lg font-semibold text-gray-900">订单管理</h3>
                             <div class="flex space-x-3">
                                 <button class="btn-primary flex items-center" id="add-order-btn">
-                                    <i class="fa fa-plus mr-2"></i> 新建订单
+                                    <i class="fa fa-plus mr-2"></i> 新增订单
                                 </button>
                                 <button id="ordersDeleteAll" class="btn-danger flex items-center">
-                                    <i class="fa fa-trash mr-2"></i> 删除所有记录
+                                    <i class="fa fa-trash mr-2"></i> 清空
                                 </button>
                             </div>
                         </div>
@@ -266,7 +352,7 @@
                                 </div>
                                 <div class="w-full md:w-auto mr-3">
                                     <button id="orders-search-btn" class="btn-primary">
-                                        <i class="fa fa-search mr-2"></i> 搜索
+                                        <i class="fa fa-search mr-2"></i> 查询
                                     </button>
                                 </div>
                                 <div class="w-full md:w-auto">
@@ -460,17 +546,17 @@
                     </div>
                 </div>
 
-                <!-- 收发货记录 -->
+                <!-- 收发货 -->
                 <div id="deliveries" class="page-content">
                     <div class="bg-white rounded-lg shadow mb-6">
                         <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                            <h3 class="text-lg font-semibold text-gray-900">收发货记录</h3>
+                            <h3 class="text-lg font-semibold text-gray-900">收发货</h3>
                             <div class="flex items-center gap-3">
                                 <button id="add-delivery-btn" class="btn-primary flex items-center">
-                                    <i class="fa fa-plus mr-2"></i> 新建收发货单
+                                    <i class="fa fa-plus mr-2"></i> 新增
                                 </button>
                                 <button id="shipmentsDeleteAll" class="btn-danger flex items-center">
-                                    <i class="fa fa-trash mr-2"></i> 删除所有记录
+                                    <i class="fa fa-trash mr-2"></i> 清空
                                 </button>
                             </div>
                         </div>
@@ -498,7 +584,7 @@
                                 </div>
                                 <div class="w-full md:w-auto mr-3">
                                     <button id="deliveries-search-btn" class="btn-primary">
-                                        <i class="fa fa-search mr-2"></i> 搜索
+                                        <i class="fa fa-search mr-2"></i> 查询
                                     </button>
                                 </div>
                                 <div class="w-full md:w-auto">
@@ -508,12 +594,12 @@
                                 </div>
                                 <div class="w-full md:w-auto">
                                     <button id="deliveries-export-btn" class="btn-success flex items-center">
-                                        <i class="fa fa-file-excel-o mr-2"></i> 导出EXCEL
+                                        <i class="fa fa-file-excel-o mr-2"></i> 导出
                                     </button>
                                 </div>
                                 <div class="w-full md:w-auto">
                                     <button id="deliveries-batch-edit-btn" class="btn-warning flex items-center">
-                                        <i class="fa fa-edit mr-2"></i> 批量修改
+                                        <i class="fa fa-edit mr-2"></i> 批量编辑
                                     </button>
                                 </div>
 
@@ -560,7 +646,7 @@
                             <h3 class="text-lg font-semibold text-gray-900">订单汇总</h3>
                             <div class="flex items-center space-x-3">
                                 <button id="generateOrderStatementBtn" class="btn-primary flex items-center">
-                                    <i class="fa fa-file-text-o mr-2"></i> 生成对账单
+                                    <i class="fa fa-file-text-o mr-2"></i> 对账单
                                 </button>
                                 <span class="text-sm text-gray-500">勾选订单号后可生成对账单</span>
                             </div>
@@ -608,10 +694,10 @@
                             <h3 class="text-lg font-semibold text-gray-900">送货安排</h3>
                             <div class="flex space-x-3">
                                 <button id="createShipmentBtn" class="btn-primary flex items-center">
-                                    <i class="fa fa-plus mr-2"></i> 新建送货安排
+                                    <i class="fa fa-plus mr-2"></i> 新增送货安排
                                 </button>
                                 <button id="deleteAllShipmentsBtn" class="btn-danger flex items-center">
-                                    <i class="fa fa-trash mr-2"></i> 删除所有记录
+                                    <i class="fa fa-trash mr-2"></i> 清空
                                 </button>
                             </div>
                         </div>
@@ -634,7 +720,7 @@
                                 </div>
                                 <div class="w-full md:w-auto mr-3">
                                     <button id="shipments-search-btn" class="btn-primary">
-                                        <i class="fa fa-search mr-2"></i> 搜索
+                                        <i class="fa fa-search mr-2"></i> 查询
                                     </button>
                                 </div>
                                 <div class="w-full md:w-auto">
@@ -669,11 +755,20 @@
                     </div>
                 </div>
 
-                <!-- 开票付款管理 -->
+                <!-- 开票付款 -->
                 <div id="invoices" class="page-content hidden">
                     <div class="mb-6">
-                        <h2 class="text-2xl font-bold text-gray-900">开票付款管理</h2>
+                        <h2 class="text-2xl font-bold text-gray-900">开票付款</h2>
                         <p class="text-sm text-gray-500 mt-1">收到的发票与我方向电镀厂支付的款项</p>
+                    </div>
+
+                    <!-- 报销系统云端同步 -->
+                    <div class="bg-white rounded-lg shadow p-3 mb-6 flex flex-wrap items-center gap-3">
+                        <span class="text-sm text-gray-600">数据来源：<strong>报销系统云端</strong></span>
+                        <span id="reim-sync-status" class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-500">未连接</span>
+                        <div class="flex-1"></div>
+                        <button type="button" id="reim-refresh-btn" class="btn-secondary"><i class="fa fa-refresh mr-2"></i>刷新</button>
+                        <button type="button" id="reim-sync-all-btn" class="btn-primary"><i class="fa fa-cloud-upload mr-2"></i>同步未同步</button>
                     </div>
 
                     <!-- 顶部统计卡片 -->
@@ -719,10 +814,10 @@
                             <h3 class="text-lg font-semibold text-gray-900">开票记录</h3>
                             <div class="flex gap-3">
                                 <button id="createInvoiceBtn" class="btn-primary flex items-center">
-                                    <i class="fa fa-plus mr-2"></i> 新建发票
+                                    <i class="fa fa-plus mr-2"></i> 新增发票
                                 </button>
                                 <button id="invoicesDeleteAll" class="btn-danger flex items-center">
-                                    <i class="fa fa-trash mr-2"></i> 删除所有记录
+                                    <i class="fa fa-trash mr-2"></i> 清空
                                 </button>
                             </div>
                         </div>
@@ -733,11 +828,7 @@
                                 </div>
                                 <div class="w-full md:w-auto">
                                     <select id="invoices-customer-filter" class="form-input">
-                                        <option value="">所有客户</option>
-                                        <option value="customer1">深圳科技有限公司</option>
-                                        <option value="customer2">广州电子有限公司</option>
-                                        <option value="customer3">东莞精密制造有限公司</option>
-                                        <option value="customer4">佛山金属制品有限公司</option>
+                                        <option value="">所有电镀厂</option>
                                     </select>
                                 </div>
                                 <div class="w-full md:w-auto">
@@ -749,7 +840,7 @@
                                 </div>
                                 <div class="w-full md:w-auto mr-3">
                                     <button id="invoices-search-btn" class="btn-primary">
-                                        <i class="fa fa-search mr-2"></i> 搜索
+                                        <i class="fa fa-search mr-2"></i> 查询
                                     </button>
                                 </div>
                                 <div class="w-full md:w-auto mr-3">
@@ -764,7 +855,7 @@
                                     <thead class="bg-gray-50">
                                         <tr>
                                             <th scope="col" class="table-header">订单号</th>
-                                            <th scope="col" class="table-header">客户</th>
+                                            <th scope="col" class="table-header">电镀厂</th>
                                             <th scope="col" class="table-header">开票日期</th>
                                             <th scope="col" class="table-header">发票号</th>
                                             <th scope="col" class="table-header">开票金额</th>
@@ -785,10 +876,10 @@
                             <h3 class="text-lg font-semibold text-gray-900">付款记录</h3>
                             <div class="flex gap-3">
                                 <button id="createPaymentBtn" class="btn-primary flex items-center">
-                                    <i class="fa fa-plus mr-2"></i> 新建付款
+                                    <i class="fa fa-plus mr-2"></i> 新增付款
                                 </button>
                                 <button id="paymentsDeleteAll" class="btn-danger flex items-center">
-                                    <i class="fa fa-trash mr-2"></i> 删除所有记录
+                                    <i class="fa fa-trash mr-2"></i> 清空
                                 </button>
                             </div>
                         </div>
@@ -815,7 +906,7 @@
                                 </div>
                                 <div class="w-full md:w-auto mr-3">
                                     <button id="payments-search-btn" class="btn-primary">
-                                        <i class="fa fa-search mr-2"></i> 搜索
+                                        <i class="fa fa-search mr-2"></i> 查询
                                     </button>
                                 </div>
                                 <div class="w-full md:w-auto mr-3">
@@ -832,7 +923,7 @@
                                             <th scope="col" class="table-header">付款日期</th>
                                             <th scope="col" class="table-header">付款金额</th>
                                             <th scope="col" class="table-header">付款方式</th>
-                                            <th scope="col" class="table-header">备注</th>
+                                            <th scope="col" class="table-header">电镀厂 / 备注</th>
                                             <th scope="col" class="table-header">操作</th>
                                         </tr>
                                     </thead>
@@ -852,10 +943,10 @@
                             <h3 class="text-lg font-semibold text-gray-900">客户管理</h3>
                             <div class="flex space-x-3">
                                 <button class="btn-primary flex items-center">
-                                    <i class="fa fa-plus mr-2"></i> 新建客户
+                                    <i class="fa fa-plus mr-2"></i> 新增客户
                                 </button>
                                 <button class="btn-danger flex items-center" id="delete-all-customers">
-                                    <i class="fa fa-trash mr-2"></i> 删除所有记录
+                                    <i class="fa fa-trash mr-2"></i> 清空
                                 </button>
                             </div>
                         </div>
@@ -1038,11 +1129,11 @@
         </div>
     </div>
 
-    <!-- 新建订单模态框 -->
+    <!-- 新增订单模态框 -->
     <div class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden" id="add-order-modal">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                <h3 class="text-lg font-semibold text-gray-900">新建订单</h3>
+                <h3 class="text-lg font-semibold text-gray-900">新增订单</h3>
                 <button class="text-gray-400 hover:text-gray-500 focus:outline-none" id="close-order-modal">
                     <i class="fa fa-times text-xl"></i>
                 </button>
@@ -1247,7 +1338,7 @@
                 }
             });
             
-            // 新建订单模态框
+            // 新增订单模态框
             const addOrderBtn = document.getElementById('add-order-btn');
             const addOrderModal = document.getElementById('add-order-modal');
             const closeOrderModal = document.getElementById('close-order-modal');
@@ -2062,7 +2153,7 @@
             }
         }
 
-        // 新建客户模态框功能
+        // 新增客户模态框功能
         document.addEventListener('DOMContentLoaded', function() {
             // 获取模态框元素
             const customerModal = document.getElementById('add-customer-modal');
@@ -2627,7 +2718,7 @@
         // 删除所有客户记录功能
         const deleteAllButton = document.getElementById('delete-all-customers');
         deleteAllButton.addEventListener('click', function() {
-            // 确认删除所有记录
+            // 确认清空
             if (confirm('确定要永久性删除所有客户记录吗？此操作不可恢复！')) {
                 // 清空数据
                 customers = [];
@@ -2650,12 +2741,12 @@
         document.addEventListener('DOMContentLoaded', initializeCustomerManagement);
     </script>
 
-    <!-- 新建客户模态框 -->
+    <!-- 新增客户模态框 -->
     <div id="add-customer-modal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
         <div class="absolute inset-0 bg-gray-600 bg-opacity-50"></div>
         <div class="relative bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto z-10">
                 <div class="flex justify-between items-center p-6 border-b">
-                    <h3 class="text-xl font-bold text-gray-800">新建客户</h3>
+                    <h3 class="text-xl font-bold text-gray-800">新增客户</h3>
                     <button id="close-customer-modal" class="text-gray-400 hover:text-gray-600 focus:outline-none">
                         <i class="fa fa-times text-xl"></i>
                     </button>
@@ -2715,12 +2806,12 @@
         </div>
     </div>
 
-    <!-- 新建送货安排模态框 -->
+    <!-- 新增送货安排模态框 -->
     <div id="add-shipment-modal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
         <div class="absolute inset-0 bg-gray-600 bg-opacity-50"></div>
         <div class="relative bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto z-10">
             <div class="flex justify-between items-center p-6 border-b">
-                <h3 class="text-xl font-bold text-gray-800">新建送货安排</h3>
+                <h3 class="text-xl font-bold text-gray-800">新增送货安排</h3>
                 <button id="close-shipment-modal" class="text-gray-400 hover:text-gray-600 focus:outline-none">
                     <i class="fa fa-times text-xl"></i>
                 </button>
@@ -2776,12 +2867,12 @@
         </div>
     </div>
 
-    <!-- 新建发票模态框 -->
+    <!-- 新增发票模态框 -->
     <div id="add-invoice-modal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
         <div class="absolute inset-0 bg-gray-600 bg-opacity-50"></div>
         <div class="relative bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto z-10">
             <div class="flex justify-between items-center p-6 border-b">
-                <h3 class="text-xl font-bold text-gray-800">新建发票</h3>
+                <h3 class="text-xl font-bold text-gray-800">新增发票</h3>
                 <button id="close-invoice-modal" class="text-gray-400 hover:text-gray-600 focus:outline-none">
                     <i class="fa fa-times text-xl"></i>
                 </button>
@@ -2810,6 +2901,24 @@
                         <label for="invoice-amount" class="block text-sm font-medium text-gray-700 mb-1">开票金额</label>
                         <input type="number" id="invoice-amount" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" step="0.01" min="0" required>
                     </div>
+                    <div>
+                        <label for="invoice-vendor" class="block text-sm font-medium text-gray-700 mb-1">电镀厂（销售方）</label>
+                        <input type="text" id="invoice-vendor" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" placeholder="选择订单后自动带出，可修改" required>
+                    </div>
+                    <div>
+                        <label for="invoice-buyer" class="block text-sm font-medium text-gray-700 mb-1">购方（我方公司）</label>
+                        <input type="text" id="invoice-buyer" list="invoice-buyer-list" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" placeholder="从发票系统公司档案选择">
+                        <datalist id="invoice-buyer-list"></datalist>
+                    </div>
+                    <div>
+                        <label for="invoice-type" class="block text-sm font-medium text-gray-700 mb-1">发票类型</label>
+                        <select id="invoice-type" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary">
+                            <option value="增值税专用发票">增值税专用发票</option>
+                            <option value="增值税普通发票">增值税普通发票</option>
+                            <option value="电子发票">电子发票</option>
+                            <option value="其他">其他</option>
+                        </select>
+                    </div>
 
                 </div>
                 <div>
@@ -2824,12 +2933,12 @@
         </div>
     </div>
 
-    <!-- 新建付款模态框 -->
+    <!-- 新增付款模态框 -->
     <div id="add-payment-modal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
         <div class="absolute inset-0 bg-gray-600 bg-opacity-50"></div>
         <div class="relative bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto z-10">
             <div class="flex justify-between items-center p-6 border-b">
-                <h3 class="text-xl font-bold text-gray-800">新建付款</h3>
+                <h3 class="text-xl font-bold text-gray-800">新增付款</h3>
                 <button id="close-payment-modal" class="text-gray-400 hover:text-gray-600 focus:outline-none">
                     <i class="fa fa-times text-xl"></i>
                 </button>
@@ -2858,6 +2967,14 @@
                             <option value="现金">现金</option>
                             <option value="其他">其他</option>
                         </select>
+                    </div>
+                    <div>
+                        <label for="payment-vendor" class="block text-sm font-medium text-gray-700 mb-1">电镀厂（收款方）</label>
+                        <input type="text" id="payment-vendor" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" placeholder="选择订单后自动带出，可修改" required>
+                    </div>
+                    <div>
+                        <label for="payment-invoice-no" class="block text-sm font-medium text-gray-700 mb-1">关联发票号（可选）</label>
+                        <input type="text" id="payment-invoice-no" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" placeholder="填写后同步更新发票已付金额">
                     </div>
                 </div>
                 <div>
@@ -3022,11 +3139,17 @@
                 date: item.date || legacyCells[4] || '',
                 number: item.number || legacyCells[5] || '',
                 amount: parseQuantity(rawAmount),
-                remarks: item.remarks || legacyCells[7] || ''
+                remarks: item.remarks || legacyCells[7] || '',
+                vendor: item.vendor || '',
+                buyer: item.buyer || '',
+                invoiceType: item.invoiceType || '',
+                cloudId: item.cloudId,
+                cloudStatus: item.cloudStatus || '',
+                syncedAt: item.syncedAt || ''
             };
         }
 
-        // 付款记录统一为 { orderId, date, amount, method, remarks }
+        // 付款记录统一为 { orderId, date, amount, method, remarks, vendor, invoiceNo }
         function normalizePaymentRecord(item) {
             if (!item || typeof item !== 'object') return null;
             const legacyCells = Array.isArray(item.cells) ? item.cells : [];
@@ -3038,7 +3161,12 @@
                 date: item.date || legacyCells[1] || '',
                 amount: parseQuantity(rawAmount),
                 method: item.method || legacyCells[3] || '',
-                remarks: item.remarks || legacyCells[4] || ''
+                remarks: item.remarks || legacyCells[4] || '',
+                vendor: item.vendor || '',
+                invoiceNo: item.invoiceNo || '',
+                cloudId: item.cloudId,
+                cloudStatus: item.cloudStatus || '',
+                syncedAt: item.syncedAt || ''
             };
         }
 
@@ -3068,7 +3196,7 @@
             return normalized;
         }
 
-        // 根据订单号获取客户名称（订单表优先，其次最近一条收发货记录）
+        // 根据订单号获取客户名称（订单表优先，其次最近一条收发货）
         function getOrderCustomerName(orderId) {
             if (!orderId) return '';
             const orders = (tableConfigs.orders && tableConfigs.orders.originalData) || [];
@@ -3089,7 +3217,7 @@
             const row = {
                 cells: [
                     record.orderId || '',
-                    getOrderCustomerName(record.orderId),
+                    record.vendor || getOrderCustomerName(record.orderId),
                     record.date || '',
                     record.number || '',
                     formatNumber(record.amount, 2),
@@ -3108,7 +3236,9 @@
                     record.date || '',
                     formatNumber(record.amount, 2),
                     record.method || '',
-                    record.remarks || '',
+                    record.vendor
+                        ? record.vendor + (record.remarks ? ' · ' + record.remarks : '')
+                        : (record.remarks || ''),
                     ''
                 ]
             };
@@ -3250,7 +3380,7 @@
             }
         }
 
-        // 订单汇总：取该订单号最近一条收发货记录中的客户、产品名称、图纸号、蝴蝶结
+        // 订单汇总：取该订单号最近一条收发货中的客户、产品名称、图纸号、蝴蝶结
         function getLatestDeliveryInfo(orderNumber) {
             const info = { customer: '', productName: '', drawingNumber: '', bow: '' };
             const deliveries = (tableConfigs.deliveries && tableConfigs.deliveries.originalData) || [];
@@ -3290,7 +3420,7 @@
             if (amountCell) amountCell.textContent = formatNumber(amount, 2);
         }
 
-        // 订单汇总：根据收发货记录渲染汇总表
+        // 订单汇总：根据收发货渲染汇总表
         function renderOrderSummary() {
             const tableBody = document.getElementById('orderSummaryTableBody');
             if (!tableBody) return;
@@ -3585,7 +3715,7 @@
             printWindow.focus();
         }
 
-        // 根据收发货记录计算并更新订单的滞留数量
+        // 根据收发货计算并更新订单的滞留数量
         function updateOrderRetainQuantity() {
             // 获取收发货数据和订单数据
             const deliveriesData = tableConfigs.deliveries.originalData;
@@ -3608,7 +3738,7 @@
                 return orderQuantityMap.get(orderNumber);
             }
             
-            // 遍历收发货记录，按订单号汇总各项数量
+            // 遍历收发货，按订单号汇总各项数量
             deliveriesData.forEach(delivery => {
                 const orderNumber = delivery.cells[2];
                 const deliveryType = (delivery.cells[0] || '').trim(); // 收发类型
@@ -3689,7 +3819,7 @@
                     // 状态在订单数据的cells[0]位置
                     order.cells[0] = status;
                 } else {
-                    // 如果没有对应的收发货记录，将滞留数量、良品数量都设置为0
+                    // 如果没有对应的收发货，将滞留数量、良品数量都设置为0
                     order.cells[1] = '0';
                     order.cells[2] = '0';
                     // 计算差额：直接使用当前表格行中的数量减去良品数量（此时良品数量为0）
@@ -3742,7 +3872,7 @@
             // 从localStorage加载数据或从DOM提取
             loadTableData(tableName);
             
-            // 添加删除所有记录事件
+            // 添加清空事件
             addDeleteAllEvent(tableName);
             
             // 添加搜索事件监听器
@@ -3914,7 +4044,7 @@
             // 初始化当前数据为原始数据
             config.data = [...config.originalData];
             
-            // 如果是订单、收发货记录或开票付款管理表格，动态更新客户下拉框选项
+            // 如果是订单、收发货或开票付款表格，动态更新客户下拉框选项
             if (tableName === 'orders') {
                 updateCustomerFilterOptions('orders');
             } else if (tableName === 'deliveries') {
@@ -3952,8 +4082,8 @@
             // 提取所有唯一的客户名称
             const customers = [...new Set(config.originalData.map(item => item.cells[customerIndex]))];
             
-            // 清空现有选项（保留第一个"所有客户"选项）
-            customerFilter.innerHTML = '<option value="">所有客户</option>';
+            // 清空现有选项（保留全部选项）
+            customerFilter.innerHTML = '<option value="">' + (tableName === 'invoices' ? '所有电镀厂' : '所有客户') + '</option>';
             
             // 添加新的客户选项
             customers.forEach(customer => {
@@ -4204,7 +4334,7 @@
                         }
                     }
                     
-                    // 只在非收发货记录表格中添加操作列，收发货表格的操作列在后面单独处理
+                    // 只在非收发货表格中添加操作列，收发货表格的操作列在后面单独处理
                     if (tableName !== 'deliveries') {
                         const editButton = '<button class="text-gray-500 hover:text-gray-700 mr-3 edit-button"><i class="fa fa-edit"></i></button>';
                         const deleteButton = '<button class="text-danger hover:text-danger/80 delete-button"><i class="fa fa-trash"></i></button>';
@@ -4226,7 +4356,7 @@
                     }
                 }
                 
-                // 对于收发货记录表格，确保只保留16个数据列，并移除null值
+                // 对于收发货表格，确保只保留16个数据列，并移除null值
                 if (tableName === 'deliveries') {
                     cells = cells.slice(0, 16).map(cell => cell || ''); // 替换null为空白字符串，只保留16个数据列
                 }
@@ -4239,7 +4369,7 @@
                     rowHTML += '<td class="table-cell"><input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"></td>';
                 }
                 
-                // 对于收发货记录表格，先添加复选框列
+                // 对于收发货表格，先添加复选框列
                 if (tableName === 'deliveries') {
                     rowHTML += '<td class="table-cell"><input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary deliveries-select-row"></td>';
                 }
@@ -4252,7 +4382,7 @@
                     
                     // 根据表格类型和列索引确定需要格式化的列
                     if (tableName === 'deliveries') {
-                        // 收发货记录表格：订单数量、毛坯、良品、差额、成品、返镀、返修、报废
+                        // 收发货表格：订单数量、毛坯、良品、差额、成品、返镀、返修、报废
                         if ([4, 8, 9, 10, 11, 12, 13, 14].includes(index)) {
                             formattedCell = formatNumber(cell, 0);
                         }
@@ -4279,7 +4409,7 @@
                     }
                     
                     if (tableName === 'deliveries') {
-                        // 收发货记录表格的特殊处理
+                        // 收发货表格的特殊处理
                         if (index === 0) {
                             // 第一列是类型列，添加颜色样式
                             let typeClass = '';
@@ -4322,7 +4452,7 @@
                     }
                 });
                 
-                // 对于收发货记录表格，在所有数据列之后添加操作列
+                // 对于收发货表格，在所有数据列之后添加操作列
                 if (tableName === 'deliveries') {
                     // 使用已经计算好的originalIndex
                     const editButton = '<button class="text-gray-500 hover:text-gray-700 mr-3 edit-button" data-row-index="' + originalIndex + '"><i class="fa fa-edit"></i></button>';
@@ -4365,6 +4495,9 @@
                 document.getElementById('invoice-number').value = invoice.number;
                 document.getElementById('invoice-amount').value = invoice.amount;
                 document.getElementById('invoice-remarks').value = invoice.remarks;
+                document.getElementById('invoice-vendor').value = invoice.vendor || (getWageOrderByNo(invoice.orderId) || {}).plating || '';
+                document.getElementById('invoice-buyer').value = invoice.buyer || defaultReimBuyer();
+                document.getElementById('invoice-type').value = invoice.invoiceType || '增值税专用发票';
                 
                 // 修改模态框标题
                 document.getElementById('add-invoice-modal').querySelector('h3').textContent = '编辑发票';
@@ -4389,12 +4522,14 @@
                 }
                 
                 if (confirm('确定要删除这张发票吗？')) {
+                    const cloudId = invoice.cloudId;
                     records.splice(index, 1);
                     saveInvoiceRecords(records);
                     syncInvoiceTableData();
                     renderTable('invoices');
                     renderInvoicePaymentStats();
                     renderOrderSummary();
+                    if (cloudId) reimDeleteCloudRecord(REIM_KEYS.invoices, cloudId).catch(e => console.warn('云端删除失败', e));
                     showToast('发票已成功删除！', 'success');
                 }
             }
@@ -4414,6 +4549,8 @@
                 document.getElementById('payment-amount').value = payment.amount;
                 document.getElementById('payment-method').value = payment.method || '银行转账';
                 document.getElementById('payment-remarks').value = payment.remarks;
+                document.getElementById('payment-vendor').value = payment.vendor || (getWageOrderByNo(payment.orderId) || {}).plating || '';
+                document.getElementById('payment-invoice-no').value = payment.invoiceNo || '';
 
                 document.getElementById('add-payment-modal').querySelector('h3').textContent = '编辑付款';
                 document.getElementById('add-payment-modal').classList.remove('hidden');
@@ -4431,12 +4568,14 @@
                 }
 
                 if (confirm('确定要删除这条付款记录吗？')) {
+                    const cloudId = payment.cloudId;
                     records.splice(index, 1);
                     savePaymentRecords(records);
                     syncPaymentTableData();
                     renderTable('payments');
                     renderInvoicePaymentStats();
                     renderOrderSummary();
+                    if (cloudId) reimDeleteCloudRecord(REIM_KEYS.payments, cloudId).catch(e => console.warn('云端删除失败', e));
                     showToast('付款记录已成功删除！', 'success');
                 }
             }
@@ -4493,7 +4632,7 @@
                             const tableBody = document.querySelector(tableBodyId);
                             
                             if (tableName === 'deliveries') {
-                                // 收发货记录表格：强制使用data-row-index属性获取原始索引
+                                // 收发货表格：强制使用data-row-index属性获取原始索引
                                 rowIndex = parseInt(this.getAttribute('data-row-index'));
                             } else {
                                 // 其他表格：通过计算获取索引
@@ -4505,7 +4644,7 @@
                                 // 更新数据
                                 let updatedCells = [];
                                 if (tableName === 'deliveries') {
-                                    // 收发货记录表格：以原始13列数据为基础（末尾为图纸号、蝴蝶结），按显示列映射回存贮列
+                                    // 收发货表格：以原始13列数据为基础（末尾为图纸号、蝴蝶结），按显示列映射回存贮列
                                     const originalCells = (config.originalData[rowIndex].cells || []).slice();
                                     updatedCells = [
                                         originalCells[0] || '', originalCells[1] || '',
@@ -4735,7 +4874,7 @@
                         if (confirm(`确定要删除这条${message}记录吗？`)) {
                             let rowIndex;
                             if (tableName === 'deliveries') {
-                                // 收发货记录表格：强制使用data-row-index属性获取原始索引
+                                // 收发货表格：强制使用data-row-index属性获取原始索引
                                 rowIndex = parseInt(this.getAttribute('data-row-index'));
                             } else {
                                 // 其他表格：通过计算获取索引
@@ -4868,7 +5007,7 @@
             // 更新分页控件
             updatePaginationControls(tableName);
             
-            // 为订单、收发货记录、送货安排、开票记录和付款记录表格添加合计功能
+            // 为订单、收发货、送货安排、开票记录和付款记录表格添加合计功能
             if (tableName === 'orders' || tableName === 'deliveries' || tableName === 'shipments' || tableName === 'invoices' || tableName === 'payments') {
                 renderTotalRow(tableName);
                 
@@ -4927,7 +5066,7 @@
             let totalCells;
             
             if (tableName === 'deliveries') {
-                // 收发货记录表格的合计行
+                // 收发货表格的合计行
                 totalCells = [
                     '<td class="table-cell"></td>', // 复选框列
                     '<td class="table-cell font-semibold">合计：</td>', // 类型列
@@ -5030,7 +5169,7 @@
             let quantity = 0;
             let amount = 0;
             
-            // 初始化收发货记录表格的合计变量（5个数量列）
+            // 初始化收发货表格的合计变量（5个数量列）
             let roughQuantity = 0;
             let electroplateQuantity = 0;
             let replateQuantity = 0;
@@ -5143,7 +5282,7 @@
             if (tableName === 'deliveries') {
                 // 良品合计 = 成品累计 - 返镀累计 - 报废累计（返镀件重镀后成品会被重复累计，需扣除返镀）
                 goodQuantity = electroplateQuantity - replateQuantity - scrapQuantity;
-                // 返回收发货记录表格的合计值
+                // 返回收发货表格的合计值
                 return {
                     roughQuantity: formatNumber(roughQuantity, 0),
                     goodQuantity: formatNumber(goodQuantity, 0),
@@ -5446,7 +5585,7 @@
             paginationContainer.appendChild(rightSection);
         }
 
-        // 添加删除所有记录事件
+        // 添加清空事件
         function addDeleteAllEvent(tableName) {
             const config = tableConfigs[tableName];
             const deleteAllBtn = document.getElementById(config.deleteAllButtonId);
@@ -5454,8 +5593,8 @@
             if (!deleteAllBtn) return;
             
             deleteAllBtn.addEventListener('click', () => {
-                // 确认删除所有记录
-                if (confirm(`确定要永久性删除所有记录吗？此操作不可恢复！`)) {
+                // 确认清空
+                if (confirm(`确定要永久性清空吗？此操作不可恢复！`)) {
                     // 清空数据
                     config.data = [];
                     // 保存到localStorage（使用与loadTableData相同的存储键名逻辑）
@@ -5648,7 +5787,7 @@
                     }
                 });
                 
-                // 为订单管理、收发货记录和送货安排表格添加实时搜索功能
+                // 为订单管理、收发货和送货安排表格添加实时搜索功能
                 if (tableName === 'orders' || tableName === 'deliveries' || tableName === 'shipments') {
                     searchInput.addEventListener('input', () => {
                         performSearch(tableName, {
@@ -5765,7 +5904,7 @@
                 const end = filters.endDate ? parseDateValue(filters.endDate) : Infinity;
                 
                 if (tableName === 'deliveries') {
-                    // 收发货记录表格：收发日期在第2列（索引1）
+                    // 收发货表格：收发日期在第2列（索引1）
                     const deliveryDate = parseDateValue(cells[1]);
                     match = Number.isFinite(deliveryDate) ? (deliveryDate >= start && deliveryDate <= end) : true;
                 } else if (tableName === 'shipments') {
@@ -5948,7 +6087,7 @@
             // 从localStorage加载数据或从DOM提取
             loadTableData(tableName);
             
-            // 添加删除所有记录事件
+            // 添加清空事件
             addDeleteAllEvent(tableName);
             
             // 添加搜索事件监听器
@@ -5992,7 +6131,7 @@
         // 页面加载完成后初始化所有表格
         document.addEventListener('DOMContentLoaded', function() {
             // 调试：检查localStorage中的收发货数据
-            console.log('=== 收发货记录表格调试信息 ===');
+            console.log('=== 收发货表格调试信息 ===');
             const localStorageDeliveries = localStorage.getItem('deliveriesData');
             if (localStorageDeliveries) {
                 try {
@@ -6095,6 +6234,361 @@
         });
     </script>
     <script>
+        function escapeOptionText(value) {
+            return String(value == null ? '' : value)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        // 读取 wage「订单管理」数据（同源 iframe 直接取父页面数据，失败时回退本地订单表）
+        function getWageOrderList() {
+            try {
+                if (window.parent && typeof window.parent.wageGetOrders === 'function') {
+                    const list = window.parent.wageGetOrders();
+                    if (Array.isArray(list) && list.length) return list;
+                }
+            } catch (e) { /* 非同源或父页面未就绪时忽略 */ }
+            const orders = (typeof tableConfigs !== 'undefined' && tableConfigs.orders && tableConfigs.orders.originalData) || [];
+            return orders.map(item => {
+                const c = item.cells || [];
+                return {
+                    orderNo: c[4] || '', customer: c[5] || '',
+                    productName: c[9] || c[7] || '', spec: c[9] || '', type: '',
+                    drawingNo: c[11] || '', bow: c[12] || '', plating: c[10] || ''
+                };
+            }).filter(o => o.orderNo);
+        }
+
+        function getWageOrderByNo(orderNo) {
+            return getWageOrderList().find(o => o.orderNo === orderNo) || null;
+        }
+
+        function defaultReimBuyer() {
+            try { return localStorage.getItem('dyf_reim_buyer') || ''; } catch (e) { return ''; }
+        }
+
+        // ======================= 报销系统云端对接 =======================
+        const REIM_KEYS = { invoices: 'reim_invoices', payments: 'reim_payments', companies: 'reim_companies', review: 'reim_review_log' };
+
+        function getParentCloud() {
+            const p = window.parent;
+            if (!p || p === window) return null;
+            if (typeof p.CloudbaseGetAccessToken !== 'function' || !p.CLOUDBASE_ENV) return null;
+            return p;
+        }
+
+        async function reimCloudGet(key) {
+            const p = getParentCloud();
+            if (!p) throw new Error('请从 wage 主应用内打开电镀管理');
+            const token = await p.CloudbaseGetAccessToken();
+            if (!token) throw new Error('登录态未就绪');
+            const url = 'https://' + p.CLOUDBASE_ENV + '.api.tcloudbasegateway.com/v1/rdb/rest/app_data_store'
+                + '?select=id,data&data->>store_key=eq.' + encodeURIComponent(key)
+                + '&order=updated_at.desc&limit=1';
+            const resp = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+            if (!resp.ok) throw new Error('云端读取失败 HTTP ' + resp.status);
+            const rows = await resp.json();
+            const payload = rows[0] && rows[0].data ? rows[0].data.payload : null;
+            if (Array.isArray(payload)) return payload;
+            if (typeof payload === 'string') {
+                try { const parsed = JSON.parse(payload); return Array.isArray(parsed) ? parsed : []; } catch (e) { return []; }
+            }
+            return [];
+        }
+
+        async function reimCloudSet(key, payload) {
+            const p = getParentCloud();
+            if (!p) throw new Error('云端写入不可用');
+            if (typeof p.CloudbaseWhenReady === 'function') await p.CloudbaseWhenReady();
+            if (!p.supabase) throw new Error('云端写入不可用');
+            const { error } = await p.supabase.from('app_data_store').upsert(
+                { store_key: key, payload, updated_at: new Date().toISOString() },
+                { onConflict: 'store_key' }
+            );
+            if (error) throw new Error(error.message || '云端写入失败');
+        }
+
+        function reimMatchCompany(companies, buyerName, sellerName) {
+            const list = Array.isArray(companies) ? companies.filter(c => c && c.active !== false) : [];
+            const hit = (comp, name) => {
+                const n = String(name || '').trim();
+                if (!n) return false;
+                return [comp.name, comp.short_name].filter(Boolean).some(v => n === v || n.indexOf(v) >= 0 || v.indexOf(n) >= 0);
+            };
+            const sellerComp = list.find(c => hit(c, sellerName));
+            if (sellerComp) return { company_id: sellerComp.id, company_short: sellerComp.short_name || sellerComp.name, direction: '销项' };
+            const buyerComp = list.find(c => hit(c, buyerName));
+            if (buyerComp) return { company_id: buyerComp.id, company_short: buyerComp.short_name || buyerComp.name, direction: '进项' };
+            // 电镀费用均为我方向电镀厂收票的进项发票；公司档案未匹配时仍按进项归类
+            return { company_id: null, company_short: '', direction: '进项' };
+        }
+
+        function isPlatingCloudInvoice(rec) {
+            return rec && (rec.department === '电镀' || rec.claimant === '电镀管理');
+        }
+
+        function isPlatingCloudPayment(rec) {
+            return rec && rec.stage === '电镀加工费';
+        }
+
+        // 将电镀侧发票写入报销系统云端；返回 {cloudId,status}，重复时抛出异常
+        async function reimSyncInvoiceRecord(record) {
+            const [invoices, companies, logs] = await Promise.all([
+                reimCloudGet(REIM_KEYS.invoices), reimCloudGet(REIM_KEYS.companies), reimCloudGet(REIM_KEYS.review)
+            ]);
+            const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+            const buyer = (record.buyer || '').trim();
+            const vendor = (record.vendor || '').trim();
+            const match = reimMatchCompany(companies, buyer, vendor);
+            let idx = -1;
+            if (record.cloudId) idx = invoices.findIndex(r => String(r.id) === String(record.cloudId));
+            if (idx < 0) idx = invoices.findIndex(r => r.invoice_no === record.number);
+            const existing = idx >= 0 ? invoices[idx] : null;
+            if (existing && !isPlatingCloudInvoice(existing) && String(existing.id) !== String(record.cloudId)) {
+                throw new Error('发票号 ' + record.number + ' 已存在于报销系统，请核对后再录入');
+            }
+            if (existing && existing.status !== '已驳回' && String(existing.id) !== String(record.cloudId)) {
+                throw new Error('发票号 ' + record.number + ' 已提交报销系统，请勿重复录入');
+            }
+            const cloudId = existing ? existing.id : Date.now();
+            const item = {
+                id: cloudId,
+                invoice_no: record.number,
+                invoice_code: null,
+                invoice_type: record.invoiceType || null,
+                invoice_date: record.date || null,
+                buyer_name: buyer || null,
+                seller_name: vendor || null,
+                item_name: '电镀加工费',
+                amount: Number(record.amount) || 0,
+                tax_rate: null,
+                tax_amount: null,
+                total_amount: Number(record.amount) || 0,
+                subject_code: null,
+                subject_name: '电镀加工费',
+                claimant: '电镀管理',
+                department: '电镀',
+                project: record.orderId || null,
+                remark: record.remarks || null,
+                check_code: null,
+                status: '待审核',
+                user_id: null,
+                company_id: match.company_id,
+                direction: match.direction,
+                company_short: match.company_short,
+                settle: '正常付款',
+                payee: '销售方',
+                paid_amount: existing ? Number(existing.paid_amount || 0) : 0,
+                cloud_path: existing ? existing.cloud_path || null : null,
+                file_path: existing ? existing.file_path || null : null,
+                created_at: existing ? existing.created_at || now : now,
+                updated_at: now
+            };
+            if (existing) invoices[idx] = item; else invoices.push(item);
+            if (match.direction) {
+                try { localStorage.setItem('dyf_reim_buyer', buyer); } catch (e) {}
+            }
+            await reimCloudSet(REIM_KEYS.invoices, invoices);
+            try {
+                logs.push({
+                    id: now.slice(0, 10).replace(/-/g, '') + cloudId + Math.random().toString(36).slice(2, 6),
+                    invoice_id: cloudId,
+                    reviewer_id: 0,
+                    reviewer_name: '电镀管理',
+                    action: existing && existing.status === '已驳回' ? '电镀管理重新提交' : '电镀管理提交',
+                    comment: null,
+                    created_at: now
+                });
+                await reimCloudSet(REIM_KEYS.review, logs);
+            } catch (e) { console.warn('报销流转日志写入失败（不影响待审核）', e); }
+            return { cloudId, status: '待审核' };
+        }
+
+        // 将电镀侧付款写入报销系统云端（无票付款台账）
+        async function reimSyncPaymentRecord(record) {
+            const gets = [reimCloudGet(REIM_KEYS.payments)];
+            if (record.invoiceNo) gets.push(reimCloudGet(REIM_KEYS.invoices));
+            const results = await Promise.all(gets);
+            const pays = results[0];
+            const invoices = results[1] || null;
+            const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+            let idx = record.cloudId ? pays.findIndex(p => String(p.id) === String(record.cloudId)) : -1;
+            if (idx < 0) {
+                idx = pays.findIndex(p => isPlatingCloudPayment(p)
+                    && String(p.project || '') === String(record.orderId || '')
+                    && String(p.invoice_no || '') === String(record.invoiceNo || '')
+                    && String(p.payment_date || '') === String(record.date || '')
+                    && Math.abs(Number(p.amount || 0) - Number(record.amount || 0)) < 0.01);
+            }
+            const existing = idx >= 0 ? pays[idx] : null;
+            const cloudId = existing ? existing.id : Date.now();
+            const oldAmount = existing ? Number(existing.amount || 0) : 0;
+            const item = {
+                id: cloudId,
+                stage: '电镀加工费',
+                amount: Number(record.amount) || 0,
+                payment_date: record.date || '',
+                payment_method: record.method || '',
+                seller_name: record.vendor || '',
+                project: record.orderId || '',
+                invoice_no: record.invoiceNo || '',
+                payee: '销售方',
+                settle: '正常付款',
+                direction: '进项',
+                company_id: record.companyId || null,
+                company_short: record.companyShort || '',
+                remark: record.remarks || '',
+                created_at: existing ? existing.created_at || now : now,
+                updated_at: now
+            };
+            if (existing) pays[idx] = item; else pays.push(item);
+
+            // 关联发票时同步回写已付金额
+            if (invoices && record.invoiceNo) {
+                const invIdx = invoices.findIndex(r => r.invoice_no === record.invoiceNo
+                    && (isPlatingCloudInvoice(r) || (!!record.vendor && r.seller_name === record.vendor)));
+                if (invIdx >= 0) {
+                    const inv = invoices[invIdx];
+                    const paid = Number(inv.paid_amount || 0) - oldAmount + (Number(record.amount) || 0);
+                    inv.paid_amount = Math.max(0, Math.round(paid * 100) / 100);
+                    inv.payment_date = record.date || inv.payment_date || null;
+                    inv.payment_method = record.method || inv.payment_method || null;
+                    inv.updated_at = now;
+                    if (!item.company_id && inv.company_id) { item.company_id = inv.company_id; item.company_short = inv.company_short || ''; }
+                }
+                pays[idx >= 0 ? idx : pays.length - 1] = item;
+                await reimCloudSet(REIM_KEYS.invoices, invoices);
+            }
+            await reimCloudSet(REIM_KEYS.payments, pays);
+            return { cloudId };
+        }
+
+        async function reimDeleteCloudRecord(key, cloudId) {
+            if (!cloudId) return;
+            const list = await reimCloudGet(key);
+            const next = list.filter(r => String(r.id) !== String(cloudId));
+            if (next.length !== list.length) await reimCloudSet(key, next);
+        }
+
+        function setReimStatus(text, ok) {
+            const el = document.getElementById('reim-sync-status');
+            if (!el) return;
+            el.textContent = text;
+            el.className = 'text-xs px-2 py-1 rounded ' + (ok ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500');
+        }
+
+        function refreshInvoicePaymentViews() {
+            syncInvoiceTableData();
+            syncPaymentTableData();
+            renderTable('invoices');
+            renderTable('payments');
+            if (typeof renderInvoicePaymentStats === 'function') renderInvoicePaymentStats();
+            renderOrderSummary();
+        }
+
+        function reimFillBuyers(companies) {
+            const list = document.getElementById('invoice-buyer-list');
+            if (!list) return;
+            list.innerHTML = (companies || []).filter(c => c && c.active !== false)
+                .map(c => `<option value="${escapeOptionText(c.name)}"></option>`).join('');
+        }
+
+        // 拉取报销云端电镀台账，合并进本页记录
+        async function reimRefreshRecords(silent) {
+            setReimStatus('同步中…', false);
+            try {
+                const [invoices, payments, companies] = await Promise.all([
+                    reimCloudGet(REIM_KEYS.invoices), reimCloudGet(REIM_KEYS.payments), reimCloudGet(REIM_KEYS.companies)
+                ]);
+                reimFillBuyers(companies);
+                const platingVendors = Array.from(new Set(getWageOrderList().map(o => (o.plating || '').trim()).filter(Boolean)));
+                const isPlatingVendor = name => {
+                    const n = String(name || '').trim();
+                    return n && platingVendors.some(v => n === v || n.indexOf(v) >= 0 || v.indexOf(n) >= 0);
+                };
+                const cloudInvoices = invoices.filter(r => isPlatingCloudInvoice(r) || isPlatingVendor(r.seller_name));
+                const cloudPayments = payments.filter(r => isPlatingCloudPayment(r)
+                    || (r.direction === '进项' && isPlatingVendor(r.seller_name)));
+                const localInvoices = getInvoiceRecords();
+                const localPayments = getPaymentRecords();
+
+                cloudInvoices.forEach(c => {
+                    const mapped = {
+                        orderId: c.project || '', date: c.invoice_date || '', number: c.invoice_no || '',
+                        amount: Number(c.total_amount || c.amount || 0), remarks: c.remark || '',
+                        vendor: c.seller_name || '', buyer: c.buyer_name || '',
+                        invoiceType: c.invoice_type || '', cloudId: c.id, cloudStatus: c.status || '',
+                        syncedAt: 'cloud'
+                    };
+                    const idx = localInvoices.findIndex(r => (r.cloudId && String(r.cloudId) === String(c.id))
+                        || (r.number && r.number === mapped.number));
+                    if (idx >= 0) localInvoices[idx] = Object.assign({}, localInvoices[idx], mapped);
+                    else localInvoices.push(mapped);
+                });
+                cloudPayments.forEach(p => {
+                    const mapped = {
+                        orderId: p.project || '', date: p.payment_date || '', amount: Number(p.amount || 0),
+                        method: p.payment_method || '', remarks: p.remark || '',
+                        vendor: p.seller_name || '', invoiceNo: p.invoice_no || '',
+                        cloudId: p.id, cloudStatus: '已入账', syncedAt: 'cloud'
+                    };
+                    const idx = localPayments.findIndex(r => (r.cloudId && String(r.cloudId) === String(p.id))
+                        || (r.orderId === mapped.orderId && r.date === mapped.date
+                            && Math.abs(Number(r.amount || 0) - mapped.amount) < 0.01
+                            && String(r.invoiceNo || '') === mapped.invoiceNo));
+                    if (idx >= 0) localPayments[idx] = Object.assign({}, localPayments[idx], mapped);
+                    else localPayments.push(mapped);
+                });
+
+                saveInvoiceRecords(localInvoices);
+                savePaymentRecords(localPayments);
+                syncInvoiceTableData();
+                syncPaymentTableData();
+                renderTable('invoices');
+                renderTable('payments');
+                if (typeof renderInvoicePaymentStats === 'function') renderInvoicePaymentStats();
+                const pending = localInvoices.filter(r => r.syncedAt !== 'cloud').length
+                    + localPayments.filter(r => r.syncedAt !== 'cloud').length;
+                setReimStatus('已连接 · 发票 ' + cloudInvoices.length + ' / 付款 ' + cloudPayments.length + ' · 待同步 ' + pending, true);
+                if (!silent) showToast('已从报销系统刷新电镀发票与付款记录', 'success');
+            } catch (e) {
+                setReimStatus('本地模式（' + (e.message || '云端不可用') + '）', false);
+                if (!silent) showToast('云端暂不可用，已使用本地台账：' + e.message, 'warning');
+            }
+        }
+
+        async function reimSyncAll() {
+            const invoices = getInvoiceRecords();
+            const payments = getPaymentRecords();
+            let ok = 0, fail = 0;
+            for (const rec of invoices) {
+                if (rec.syncedAt === 'cloud') continue;
+                if (!rec.vendor) { fail++; continue; }
+                try {
+                    const res = await reimSyncInvoiceRecord(rec);
+                    rec.cloudId = res.cloudId; rec.cloudStatus = res.status; rec.syncedAt = 'cloud'; ok++;
+                } catch (e) { fail++; console.warn('发票同步失败', rec.number, e.message); }
+            }
+            for (const rec of payments) {
+                if (rec.syncedAt === 'cloud') continue;
+                if (!rec.vendor) { fail++; continue; }
+                try {
+                    const res = await reimSyncPaymentRecord(rec);
+                    rec.cloudId = res.cloudId; rec.cloudStatus = '已入账'; rec.syncedAt = 'cloud'; ok++;
+                } catch (e) { fail++; console.warn('付款同步失败', rec.orderId, e.message); }
+            }
+            saveInvoiceRecords(invoices);
+            savePaymentRecords(payments);
+            syncInvoiceTableData();
+            syncPaymentTableData();
+            renderTable('invoices');
+            renderTable('payments');
+            if (typeof renderInvoicePaymentStats === 'function') renderInvoicePaymentStats();
+            showToast('同步完成：成功 ' + ok + ' 条，失败 ' + fail + ' 条', fail ? 'warning' : 'success');
+            if (!fail) setReimStatus('已同步至报销系统', true);
+            setTimeout(function() { reimRefreshRecords(true); }, 100);
+        }
+
         // 新建收发货单模态框处理
         document.addEventListener('DOMContentLoaded', function() {
             // 获取模态框元素
@@ -6108,6 +6602,7 @@
             const deliveryDrawingNo = document.getElementById('delivery-drawing-no');
             const deliveryBow = document.getElementById('delivery-bow');
             const deliveryCustomer = document.getElementById('delivery-customer');
+            const deliveryPlatingVendor = document.getElementById('delivery-plating-vendor');
             const deliveryType = document.getElementById('delivery-type');
             const deliveryRaw = document.getElementById('delivery-raw');
             const deliveryElectroplate = document.getElementById('delivery-electroplate');
@@ -6120,7 +6615,7 @@
             const deliveryReplateGroup = document.getElementById('delivery-replate-group');
             const deliveryRepairGroup = document.getElementById('delivery-repair-group');
             
-            // 批量修改订单号模态框元素
+            // 批量编辑订单号模态框元素
             const batchEditDeliveryModal = document.getElementById('batch-edit-delivery-modal');
             const batchEditDeliveryBtn = document.getElementById('deliveries-batch-edit-btn');
             const cancelBatchEditDeliveryBtn = document.getElementById('cancel-batch-edit-delivery');
@@ -6155,7 +6650,7 @@
                 });
             }
             
-            // 打开批量修改模态框
+            // 打开批量编辑模态框
             if (batchEditDeliveryBtn) {
                 batchEditDeliveryBtn.addEventListener('click', function() {
                     // 填充原订单号下拉框
@@ -6190,7 +6685,7 @@
                 newOrderNumberInput.addEventListener('input', updatePreview);
             }
             
-            // 关闭批量修改模态框
+            // 关闭批量编辑模态框
             function hideBatchEditDeliveryModal() {
                 batchEditDeliveryModal.classList.add('hidden');
             }
@@ -6211,7 +6706,7 @@
                 });
             }
             
-            // 批量修改订单号提交处理
+            // 批量编辑订单号提交处理
             if (batchEditDeliveryForm) {
                 batchEditDeliveryForm.addEventListener('submit', function(e) {
                     e.preventDefault();
@@ -6264,7 +6759,7 @@
                     // 关闭模态框
                     hideBatchEditDeliveryModal();
                     
-                    alert('批量修改成功！共更新了 ' + updatedCount + ' 条记录');
+                    alert('批量编辑成功！共更新了 ' + updatedCount + ' 条记录');
                 });
             }
             
@@ -6273,145 +6768,55 @@
             const formattedDate = today.toISOString().split('T')[0];
             deliveryDate.value = formattedDate;
             
-            // 从订单管理表格或收发货表格获取订单号、产品名称和客户信息
-            function populateOrderNumbers() {
-                const type = deliveryType.value;
-                
-                // 清空下拉框
-                deliveryOrderId.innerHTML = '<option value="">请选择订单号</option>';
-                
-                if (type === '发货') {
-                    // 发货时：从收发货记录表格中提取所有"收货"项下的订单号
-                    // 并过滤掉在订单管理表格中状态为"已完成"的订单号
-                    
-                    // 1. 先从tableConfigs中获取所有状态为"已完成"的订单号
-                    const completedOrders = new Set();
-                    const ordersData = tableConfigs.orders.originalData;
-                    
-                    ordersData.forEach(order => {
-                        // 订单数据结构：{cells: [status, retainQuantity, goodQuantity, difference, orderNumber, customer, orderDate, productName, ...]}
-                        const cells = order.cells || [];
-                        const status = cells[0] || ''; // 状态在第1列（索引0）
-                        const orderNumber = cells[4] || ''; // 订单号在第5列（索引4）
-                        
-                        // 收集所有状态为"已完成"的订单号
-                        if (status === '已完成') {
-                            completedOrders.add(orderNumber);
-                        }
-                    });
-                    
-                    // 2. 从tableConfigs中获取所有"收货"行的订单号
-                    const deliveriesData = tableConfigs.deliveries.originalData;
-                    const orderNumbers = new Set();
-                    
-                    deliveriesData.forEach(delivery => {
-                        // 收发货数据结构：{cells: [type, date, orderNumber, customer, productName, ...]}
-                        const cells = delivery.cells || [];
-                        const deliveryType = cells[0] || ''; // 类型在第1列（索引0）
-                        const orderNumber = cells[2] || ''; // 订单号在第3列（索引2）
-                        
-                        // 只获取类型为"收货"的记录，并且过滤掉已完成的订单
-                        if (deliveryType === '收货' && !completedOrders.has(orderNumber)) {
-                            orderNumbers.add(orderNumber);
-                        }
-                    });
-                    
-                    // 3. 添加唯一的订单号选项
-                    orderNumbers.forEach(orderNumber => {
-                        if (orderNumber) {
-                            // 从订单管理表格中获取该订单号对应的客户和产品名称
-                            const order = ordersData.find(o => o.cells && o.cells[4] === orderNumber);
-                            const productName = order ? (order.cells[7] || '') : '';
-                            const customer = order ? (order.cells[5] || '') : '';
-                            
-                            const option = document.createElement('option');
-                            option.value = orderNumber;
-                            option.textContent = orderNumber;
-                            option.dataset.productName = productName;
-                            option.dataset.customer = customer;
-                            deliveryOrderId.appendChild(option);
-                        }
-                    });
-                } else if (type === '收货') {
-                    // 收货时：从tableConfigs的订单数据中获取订单号
-                    const ordersData = tableConfigs.orders.originalData;
-                    
-                    ordersData.forEach(order => {
-                        // 订单数据结构：{cells: [status, retainQuantity, goodQuantity, difference, orderNumber, customer, orderDate, productName, ...]}
-                        const cells = order.cells || [];
-                        const status = cells[0] || ''; // 状态在第1列（索引0）
-                        const orderNumber = cells[4] || ''; // 订单号在第5列（索引4）
-                        const customer = cells[5] || ''; // 客户在第6列（索引5）
-                        const productName = cells[7] || ''; // 产品名称在第8列（索引7）
-                        
-                        // 过滤掉状态为"已完成"的订单
-                        if (status !== '已完成' && orderNumber) {
-                            const option = document.createElement('option');
-                            option.value = orderNumber;
-                            option.textContent = orderNumber;
-                            option.dataset.productName = productName;
-                            option.dataset.customer = customer;
-                            deliveryOrderId.appendChild(option);
-                        }
-                    });
+            // 订单联想数据来自 wage「订单管理」；优先取已填写电镀厂的订单
+            function wageOrdersForDelivery() {
+                const all = getWageOrderList();
+                const withPlating = all.filter(o => (o.plating || '').trim());
+                return withPlating.length ? withPlating : all;
+            }
+
+            // 每次打开弹窗/切换类型时刷新订单号与客户联想
+            function refreshDeliveryOrderOptions() {
+                const orders = wageOrdersForDelivery();
+                const orderList = document.getElementById('delivery-order-list');
+                const customerList = document.getElementById('delivery-customer-list');
+                if (orderList) {
+                    orderList.innerHTML = orders
+                        .filter(o => o.orderNo)
+                        .map(o => `<option value="${escapeOptionText(o.orderNo)}">${escapeOptionText(o.customer)}</option>`)
+                        .join('');
+                }
+                if (customerList) {
+                    const customers = Array.from(new Set(orders.map(o => (o.customer || '').trim()).filter(Boolean)));
+                    customerList.innerHTML = customers
+                        .map(c => `<option value="${escapeOptionText(c)}"></option>`)
+                        .join('');
                 }
             }
-            
-            // 从订单管理表格获取客户信息
-            function populateCustomers() {
-                const orderTable = document.getElementById('ordersTable');
-                if (!orderTable) return;
-                
-                const rows = orderTable.querySelectorAll('tbody tr');
-                const customers = new Set();
-                
-                // 收集所有唯一客户
-                rows.forEach(row => {
-                    const cells = row.querySelectorAll('td');
-                    if (cells.length >= 7) {
-                        // 根据新的表头顺序，客户在第7列（索引6）
-                        const customer = cells[6].textContent.trim();
-                        if (customer) {
-                            customers.add(customer);
-                        }
-                    }
-                });
-                
-                // 清空下拉框
-                deliveryCustomer.innerHTML = '<option value="">请选择客户</option>';
-                
-                // 添加客户选项
-                customers.forEach(customer => {
-                    const option = document.createElement('option');
-                    option.value = customer;
-                    option.textContent = customer;
-                    deliveryCustomer.appendChild(option);
-                });
+
+            let lastDeliveryOrderNo = '';
+            // 订单号命中 wage 订单后，自动带出客户、产品名称、图纸号、蝴蝶结、电镀厂
+            function applyWageOrderInfo() {
+                const orderNo = (deliveryOrderId.value || '').trim();
+                if (!orderNo) {
+                    lastDeliveryOrderNo = '';
+                    deliveryPlatingVendor.value = '';
+                    return;
+                }
+                if (orderNo === lastDeliveryOrderNo) return;
+                const order = wageOrdersForDelivery().find(o => o.orderNo === orderNo);
+                if (!order) return;
+                lastDeliveryOrderNo = orderNo;
+                deliveryCustomer.value = order.customer || '';
+                deliveryProduct.value = order.spec || order.type || order.productName || '';
+                deliveryDrawingNo.value = order.drawingNo || '';
+                deliveryBow.value = order.bow || '';
+                deliveryPlatingVendor.value = order.plating || '';
             }
-            
-            // 订单号选中时自动填充产品名称和客户信息
+
             if (deliveryOrderId) {
-                deliveryOrderId.addEventListener('change', function() {
-                    const selectedOption = this.options[this.selectedIndex];
-                    if (selectedOption) {
-                        // 填充产品名称
-                        if (selectedOption.dataset.productName) {
-                            deliveryProduct.value = selectedOption.dataset.productName;
-                        } else {
-                            deliveryProduct.value = '';
-                        }
-                        
-                        // 填充客户信息
-                        if (selectedOption.dataset.customer) {
-                            deliveryCustomer.value = selectedOption.dataset.customer;
-                        } else {
-                            deliveryCustomer.value = '';
-                        }
-                    } else {
-                        deliveryProduct.value = '';
-                        deliveryCustomer.value = '';
-                    }
-                });
+                deliveryOrderId.addEventListener('input', applyWageOrderInfo);
+                deliveryOrderId.addEventListener('change', applyWageOrderInfo);
             }
             
             // 根据类型显示/隐藏对应的数量字段
@@ -6448,16 +6853,18 @@
             if (deliveryType) {
                 deliveryType.addEventListener('change', function() {
                     updateInputReadOnlyState();
-                    populateOrderNumbers();
+                    refreshDeliveryOrderOptions();
                 });
             }
             
             // 显示模态框
             if (addDeliveryBtn) {
                 addDeliveryBtn.addEventListener('click', function() {
-                    // 每次打开模态框时重新获取订单号和客户信息
-                    populateOrderNumbers();
-                    populateCustomers();
+                    // 每次打开模态框时重新获取 wage 订单与客户联想
+                    refreshDeliveryOrderOptions();
+                    lastDeliveryOrderNo = '';
+                    deliveryPlatingVendor.value = '';
+                    applyWageOrderInfo();
                     // 更新输入框只读状态
                     updateInputReadOnlyState();
                     addDeliveryModal.classList.remove('hidden');
@@ -6503,7 +6910,8 @@
                     if (deliveryType === '发货') {
                         const deliveriesData = tableConfigs.deliveries.originalData;
                         const ordersData = tableConfigs.orders.originalData;
-                        let orderExists = false;
+                        // wage 订单管理中的订单优先视为有效订单
+                        let orderExists = getWageOrderList().some(o => o.orderNo === orderNumber);
                         
                         // 首先检查原始订单数据中是否存在该订单号
                         for (let i = 0; i < ordersData.length; i++) {
@@ -6563,7 +6971,7 @@
                         remark: document.getElementById('delivery-remark').value
                     };
                     
-                    // 保存数据到收发货记录表格
+                    // 保存数据到收发货表格
                     const deliveriesConfig = tableConfigs.deliveries;
                     
                     // 创建新的表格行数据
@@ -6663,19 +7071,13 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label for="delivery-order-id" class="block text-sm font-medium text-gray-700 mb-1">订单号</label>
-                        <select id="delivery-order-id" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" required>
-                            <option value="">请选择订单号</option>
-                        </select>
+                        <input type="text" id="delivery-order-id" list="delivery-order-list" placeholder="输入或选择订单号" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" required>
+                        <datalist id="delivery-order-list"></datalist>
                     </div>
                     <div>
                         <label for="delivery-customer" class="block text-sm font-medium text-gray-700 mb-1">客户</label>
-                        <select id="delivery-customer" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" required>
-                            <option value="">请选择客户</option>
-                            <option value="深圳科技有限公司">深圳科技有限公司</option>
-                            <option value="广州电子有限公司">广州电子有限公司</option>
-                            <option value="东莞精密制造有限公司">东莞精密制造有限公司</option>
-                            <option value="佛山金属制品有限公司">佛山金属制品有限公司</option>
-                        </select>
+                        <input type="text" id="delivery-customer" list="delivery-customer-list" placeholder="输入或选择客户" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" required>
+                        <datalist id="delivery-customer-list"></datalist>
                     </div>
                 </div>
                 <div>
@@ -6715,6 +7117,7 @@
                     </div>
                 </div>
                 <p class="text-sm text-gray-500">发货登记：毛坯数量，以及电镀不合格退回重镀的返镀数量；收货登记：电镀成品数，以及电镀厂未电镀直接退回的返修数量、报废数量。</p>
+                <input type="hidden" id="delivery-plating-vendor">
                 <div>
                     <label for="delivery-remark" class="block text-sm font-medium text-gray-700 mb-1">备注</label>
                     <textarea id="delivery-remark" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"></textarea>
@@ -6731,12 +7134,12 @@
         </div>
     </div>
 
-    <!-- 批量修改订单号模态框 -->
+    <!-- 批量编辑订单号模态框 -->
     <div id="batch-edit-delivery-modal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
         <div class="absolute inset-0 bg-gray-600 bg-opacity-50"></div>
         <div class="relative bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto z-10">
             <div class="flex justify-between items-center p-6 border-b">
-                <h3 class="text-xl font-bold text-gray-800">批量修改订单号</h3>
+                <h3 class="text-xl font-bold text-gray-800">批量编辑订单号</h3>
                 <button id="close-batch-edit-delivery-modal" class="text-gray-400 hover:text-gray-600 focus:outline-none">
                     <i class="fa fa-times text-xl"></i>
                 </button>
@@ -6770,7 +7173,7 @@
     </div>
 
     <script>
-        // 新建送货安排模态框功能
+        // 新增送货安排模态框功能
         // 更新司机下拉框选项
         function updateDriverDropdowns() {
             const config = tableConfigs.shipments;
@@ -6940,7 +7343,7 @@
                 shipmentModal.classList.add('hidden');
                 shipmentForm.reset();
                 // 恢复模态框标题为新建
-                document.querySelector('#add-shipment-modal h3').textContent = '新建送货安排';
+                document.querySelector('#add-shipment-modal h3').textContent = '新增送货安排';
                 // 恢复页面滚动
                 document.body.style.overflow = 'auto';
                 
@@ -7024,7 +7427,7 @@
             const formattedDate = today.toISOString().split('T')[0];
             shipmentDate.value = formattedDate;
             
-            // 新建发票模态框功能
+            // 新增发票模态框功能
             const invoiceModal = document.getElementById('add-invoice-modal');
             const openInvoiceModalBtn = document.getElementById('createInvoiceBtn');
             const closeInvoiceModalBtn = document.getElementById('close-invoice-modal');
@@ -7039,7 +7442,7 @@
             if (openShipmentModalBtn) {
                 openShipmentModalBtn.addEventListener('click', function() {
                     // 恢复模态框标题为新建
-                    document.querySelector('#add-shipment-modal h3').textContent = '新建送货安排';
+                    document.querySelector('#add-shipment-modal h3').textContent = '新增送货安排';
                     shipmentModal.classList.remove('hidden');
                     // 添加防滚动效果
                     document.body.style.overflow = 'hidden';
@@ -7051,7 +7454,7 @@
                 shipmentModal.classList.add('hidden');
                 shipmentForm.reset();
                 // 恢复模态框标题为新建
-                document.querySelector('#add-shipment-modal h3').textContent = '新建送货安排';
+                document.querySelector('#add-shipment-modal h3').textContent = '新增送货安排';
                 // 恢复页面滚动
                 document.body.style.overflow = 'auto';
             }
@@ -7162,15 +7565,17 @@
             if (openInvoiceModalBtn) {
                 openInvoiceModalBtn.addEventListener('click', function() {
                     delete invoiceForm.dataset.editIndex;
-                    document.querySelector('#add-invoice-modal h3').textContent = '新建发票';
+                    document.querySelector('#add-invoice-modal h3').textContent = '新增发票';
                     // 填充订单号下拉框
                     populateInvoiceOrderNumbers();
+                    document.getElementById('invoice-vendor').value = '';
+                    document.getElementById('invoice-buyer').value = defaultReimBuyer();
                     invoiceModal.classList.remove('hidden');
                     document.body.style.overflow = 'hidden';
                 });
             }
             
-            // 订单号选中时自动填充客户信息
+            // 订单号选中时自动填充客户信息与电镀厂
             const invoiceOrderId = document.getElementById('invoice-order-id');
             const invoiceCustomer = document.getElementById('invoice-customer');
             if (invoiceOrderId && invoiceCustomer) {
@@ -7181,6 +7586,9 @@
                     } else {
                         invoiceCustomer.value = '';
                     }
+                    const order = getWageOrderByNo(this.value);
+                    const vendorInput = document.getElementById('invoice-vendor');
+                    if (order && order.plating) vendorInput.value = order.plating;
                 });
             }
             
@@ -7190,7 +7598,7 @@
                 invoiceForm.reset();
                 // 移除编辑索引
                 delete invoiceForm.dataset.editIndex;
-                document.querySelector('#add-invoice-modal h3').textContent = '新建发票';
+                document.querySelector('#add-invoice-modal h3').textContent = '新增发票';
                 document.body.style.overflow = 'auto';
             }
             
@@ -7200,7 +7608,7 @@
                 shipmentModal.classList.add('hidden');
                 shipmentForm.reset();
                 // 恢复模态框标题为新建
-                document.querySelector('#add-shipment-modal h3').textContent = '新建送货安排';
+                document.querySelector('#add-shipment-modal h3').textContent = '新增送货安排';
                 // 恢复页面滚动
                 document.body.style.overflow = 'auto';
             }
@@ -7224,12 +7632,22 @@
             if (openPaymentModalBtn) {
                 openPaymentModalBtn.addEventListener('click', function() {
                     delete paymentForm.dataset.editIndex;
-                    document.querySelector('#add-payment-modal h3').textContent = '新建付款';
+                    document.querySelector('#add-payment-modal h3').textContent = '新增付款';
                     populatePaymentOrderNumbers();
-                    document.querySelector('#add-payment-modal h3').textContent = '新建付款';
+                    document.getElementById('payment-vendor').value = '';
+                    document.getElementById('payment-invoice-no').value = '';
                     paymentDate.value = formattedDate;
                     paymentModal.classList.remove('hidden');
                     document.body.style.overflow = 'hidden';
+                });
+            }
+
+            // 付款订单号变化时自动带出电镀厂
+            const paymentOrderId = document.getElementById('payment-order-id');
+            if (paymentOrderId) {
+                paymentOrderId.addEventListener('change', function() {
+                    const order = getWageOrderByNo(this.value);
+                    if (order && order.plating) document.getElementById('payment-vendor').value = order.plating;
                 });
             }
 
@@ -7238,7 +7656,7 @@
                 paymentModal.classList.add('hidden');
                 paymentForm.reset();
                 delete paymentForm.dataset.editIndex;
-                document.querySelector('#add-payment-modal h3').textContent = '新建付款';
+                document.querySelector('#add-payment-modal h3').textContent = '新增付款';
                 document.body.style.overflow = 'auto';
             }
 
@@ -7340,16 +7758,24 @@
                     const number = document.getElementById('invoice-number').value.trim();
                     const amount = parseQuantity(document.getElementById('invoice-amount').value);
                     const remarks = document.getElementById('invoice-remarks').value;
+                    const vendor = document.getElementById('invoice-vendor').value.trim();
+                    const buyer = document.getElementById('invoice-buyer').value.trim();
+                    const invoiceType = document.getElementById('invoice-type').value;
 
-                    if (!orderId || !date || !number || !Number.isFinite(amount) || amount < 0) {
-                        showToast('请填写完整的开票信息，且金额不能小于0', 'warning');
+                    if (!orderId || !date || !number || !Number.isFinite(amount) || amount < 0 || !vendor) {
+                        showToast('请填写订单号、开票日期、发票号、金额和电镀厂', 'warning');
                         return;
                     }
 
-                    const record = { orderId, date, number, amount, remarks };
                     const records = getInvoiceRecords();
                     const editIndex = invoiceForm.dataset.editIndex;
                     const isEditing = editIndex !== undefined && editIndex !== '';
+                    const prev = isEditing ? records[parseInt(editIndex, 10)] || {} : {};
+                    const before = records.slice();
+                    const record = {
+                        orderId, date, number, amount, remarks, vendor, buyer, invoiceType,
+                        cloudId: prev.cloudId, cloudStatus: prev.cloudStatus, syncedAt: prev.syncedAt
+                    };
 
                     if (isEditing) {
                         records[parseInt(editIndex, 10)] = record;
@@ -7365,7 +7791,32 @@
 
                     delete invoiceForm.dataset.editIndex;
                     closeInvoiceModal();
-                    showToast(isEditing ? '发票编辑成功！' : '发票创建成功！', 'success');
+                    showToast('已保存，正在同步到报销系统…', 'info');
+
+                    reimSyncInvoiceRecord(record).then(res => {
+                        record.cloudId = res.cloudId;
+                        record.cloudStatus = res.status;
+                        record.syncedAt = 'cloud';
+                        const list = getInvoiceRecords();
+                        const idx = list.findIndex(r => String(r.cloudId) === String(res.cloudId));
+                        if (idx >= 0) { list[idx] = Object.assign({}, list[idx], record); saveInvoiceRecords(list); }
+                        setReimStatus('已同步至报销系统', true);
+                        showToast('发票已同步到报销系统（待审核）', 'success');
+                        refreshInvoicePaymentViews();
+                    }).catch(err => {
+                        if (/已存在|已提交/.test(err.message || '')) {
+                            saveInvoiceRecords(before);
+                            refreshInvoicePaymentViews();
+                            showToast(err.message, 'danger');
+                            return;
+                        }
+                        record.syncedAt = 'local';
+                        const list = getInvoiceRecords();
+                        const idx = list.findIndex(r => r.number === record.number);
+                        if (idx >= 0) { list[idx] = Object.assign({}, list[idx], record); saveInvoiceRecords(list); }
+                        setReimStatus('本地模式（云端同步失败）', false);
+                        showToast('已保存本地，云端同步失败：' + err.message, 'warning');
+                    });
                 });
             }
 
@@ -7379,16 +7830,22 @@
                     const amount = parseQuantity(document.getElementById('payment-amount').value);
                     const method = document.getElementById('payment-method').value;
                     const remarks = document.getElementById('payment-remarks').value;
+                    const vendor = document.getElementById('payment-vendor').value.trim();
+                    const invoiceNo = document.getElementById('payment-invoice-no').value.trim();
 
-                    if (!orderId || !date || !Number.isFinite(amount) || amount < 0) {
-                        showToast('请填写完整的付款信息，且金额不能小于0', 'warning');
+                    if (!orderId || !date || !Number.isFinite(amount) || amount < 0 || !vendor) {
+                        showToast('请填写订单号、付款日期、金额和电镀厂', 'warning');
                         return;
                     }
 
-                    const record = { orderId, date, amount, method, remarks };
                     const records = getPaymentRecords();
                     const editIndex = paymentForm.dataset.editIndex;
                     const isEditing = editIndex !== undefined && editIndex !== '';
+                    const prev = isEditing ? records[parseInt(editIndex, 10)] || {} : {};
+                    const record = {
+                        orderId, date, amount, method, remarks, vendor, invoiceNo,
+                        cloudId: prev.cloudId
+                    };
 
                     if (isEditing) {
                         records[parseInt(editIndex, 10)] = record;
@@ -7404,7 +7861,25 @@
 
                     delete paymentForm.dataset.editIndex;
                     closePaymentModal();
-                    showToast(isEditing ? '付款记录编辑成功！' : '付款记录创建成功！', 'success');
+                    showToast('已保存，正在同步到报销系统…', 'info');
+
+                    reimSyncPaymentRecord(record).then(res => {
+                        record.cloudId = res.cloudId;
+                        record.syncedAt = 'cloud';
+                        const list = getPaymentRecords();
+                        const idx = list.findIndex(r => String(r.cloudId) === String(res.cloudId));
+                        if (idx >= 0) { list[idx] = Object.assign({}, list[idx], record); savePaymentRecords(list); }
+                        setReimStatus('已同步至报销系统', true);
+                        showToast('付款已同步到报销系统', 'success');
+                        refreshInvoicePaymentViews();
+                    }).catch(err => {
+                        record.syncedAt = 'local';
+                        const list = getPaymentRecords();
+                        const idx = list.findIndex(r => r.orderId === record.orderId && r.date === record.date && Number(r.amount) === Number(record.amount));
+                        if (idx >= 0) { list[idx] = Object.assign({}, list[idx], record); savePaymentRecords(list); }
+                        setReimStatus('本地模式（云端同步失败）', false);
+                        showToast('已保存本地，云端同步失败：' + err.message, 'warning');
+                    });
                 });
             }
             
@@ -7417,12 +7892,12 @@
             
 
             
-            // 从收发货记录表格获取订单号
+            // 从收发货表格获取订单号
             function populateShipmentOrderNumbers() {
                 const orderSelect = document.getElementById('shipment-order-id');
                 if (!orderSelect) return;
                 
-                // 获取收发货记录表格数据
+                // 获取收发货表格数据
                 const deliveriesData = tableConfigs.deliveries.originalData;
                 if (!deliveriesData || deliveriesData.length === 0) return;
                 
@@ -7583,7 +8058,7 @@
                 }, 200);
             });
             
-            // 当新建送货安排模态框打开时，重新填充订单号并设置今天日期
+            // 当新增送货安排模态框打开时，重新填充订单号并设置今天日期
             // 使用已经声明的openShipmentModalBtn变量，避免重复声明
             if (typeof openShipmentModalBtn !== 'undefined' && openShipmentModalBtn) {
                 openShipmentModalBtn.addEventListener('click', function() {
@@ -7599,7 +8074,7 @@
                 });
             }
             
-            // 删除所有记录按钮功能
+            // 清空按钮功能
             const deleteAllBtn = document.getElementById('deleteAllShipmentsBtn');
             if (deleteAllBtn) {
                 deleteAllBtn.addEventListener('click', function() {
@@ -7630,7 +8105,7 @@
                 });
             }
             
-            // 收发货记录表格全选功能
+            // 收发货表格全选功能
             const deliveriesSelectAll = document.getElementById('deliveries-select-all');
             if (deliveriesSelectAll) {
                 deliveriesSelectAll.addEventListener('change', function() {
@@ -7698,7 +8173,7 @@
             }
         }
         
-        // 导出收发货记录数据到Excel
+        // 导出收发货数据到Excel
         function exportDeliveriesToExcel() {
             const headers = [
                 '类型', '收发日期', '客户', '订单号', '订单数量', '产品名称',
@@ -7761,8 +8236,8 @@
             }
             
             const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, '收发货记录');
-            XLSX.writeFile(workbook, `收发货记录_${new Date().toISOString().slice(0, 10)}.xlsx`);
+            XLSX.utils.book_append_sheet(workbook, worksheet, '收发货');
+            XLSX.writeFile(workbook, `收发货_${new Date().toISOString().slice(0, 10)}.xlsx`);
             showToast('数据导出成功！', 'success');
         }
     </script>
@@ -7774,6 +8249,25 @@
             <span id="toast-message">操作成功</span>
         </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const refreshBtn = document.getElementById('reim-refresh-btn');
+            const syncAllBtn = document.getElementById('reim-sync-all-btn');
+            if (refreshBtn) refreshBtn.addEventListener('click', function() { reimRefreshRecords(false); });
+            if (syncAllBtn) syncAllBtn.addEventListener('click', function() {
+                syncAllBtn.disabled = true;
+                reimSyncAll().catch(e => showToast('同步失败：' + e.message, 'danger'))
+                    .finally(() => { syncAllBtn.disabled = false; });
+            });
+
+            // 首次进入静默拉取报销系统电镀台账；切换回开票付款页时再刷新
+            setTimeout(function() { reimRefreshRecords(true); }, 1200);
+            const invoicesTab = document.querySelector('.sidebar-link[data-target="invoices"]');
+            if (invoicesTab) invoicesTab.addEventListener('click', function() { setTimeout(function() { reimRefreshRecords(true); }, 100); });
+        });
+    </script>
+
 
 
         </div>

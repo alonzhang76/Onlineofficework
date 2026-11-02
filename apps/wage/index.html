@@ -1311,6 +1311,7 @@ const DB = {
     if (window.SupabaseStore && window.SupabaseStore.set) {
       window.SupabaseStore.set(storeKey, this[key]);
     }
+    if (key === 'orders') window.wageDataVersion = (window.wageDataVersion || 0) + 1;
   },
 
   uid() { return Date.now().toString(36) + Math.random().toString(36).substr(2, 5); },
@@ -1462,6 +1463,15 @@ const DB = {
     });
     return { empNames, procNames, matrix };
   }
+};
+
+// 供同源 iframe（电镀管理）读取订单数据，避免重复录入
+window.wageGetOrders = function () {
+  return (DB.orders || []).map(o => ({
+    customer: o.customer || '', orderNo: o.orderNo || '', type: o.type || '',
+    spec: o.spec || '', drawingNo: o.drawingNo || '', bow: o.bow || '',
+    qty: o.qty || 0, plating: o.plating || ''
+  }));
 };
 
 // ===================== UI LAYER =====================
