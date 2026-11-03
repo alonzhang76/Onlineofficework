@@ -1470,7 +1470,8 @@ window.wageGetOrders = function () {
   return (DB.orders || []).map(o => ({
     customer: o.customer || '', orderNo: o.orderNo || '', type: o.type || '',
     spec: o.spec || '', drawingNo: o.drawingNo || '', bow: o.bow || '',
-    qty: o.qty || 0, plating: o.plating || ''
+    qty: o.qty || 0, plating: o.plating || '',
+    orderDate: o.orderDate || '', delivery: o.delivery || ''
   }));
 };
 

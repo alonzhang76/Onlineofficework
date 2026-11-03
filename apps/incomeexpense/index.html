@@ -276,10 +276,14 @@
         </div>
         
         <!-- 添加交易按钮 -->
-        <div class="flex justify-center mb-8">
+        <div class="flex justify-center mb-8 space-x-3">
             <button id="add-transaction-btn" class="btn-primary flex items-center space-x-2">
                 <i class="fa fa-plus"></i>
                 <span>添加新交易</span>
+            </button>
+            <button id="fr-open-btn" class="btn-secondary flex items-center space-x-2">
+                <i class="fa fa-exchange"></i>
+                <span>查找替换</span>
             </button>
         </div>
         
@@ -907,6 +911,48 @@
             </div>
         </div>
     </div>
+
+    <!-- 查找替换模态框 -->
+    <div id="fr-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-xl p-6 w-full max-w-md mx-4 animate-slide-in">
+            <div class="flex justify-between items-center mb-5">
+                <h3 class="text-xl font-bold text-gray-800">查找替换</h3>
+                <button id="fr-close" class="text-gray-500 hover:text-gray-700">
+                    <i class="fa fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">查找范围</label>
+                    <select id="fr-field" class="input-field w-full">
+                        <option value="unit" selected>收/付款单位</option>
+                        <option value="description">说明</option>
+                        <option value="categoryName">分类</option>
+                        <option value="all">所有文本字段</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">查找内容</label>
+                    <input type="text" id="fr-find" class="input-field w-full" placeholder="如：天梁">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">替换为</label>
+                    <input type="text" id="fr-replace" class="input-field w-full" placeholder="如：无锡市天梁对外贸易有限公司">
+                </div>
+                <label class="flex items-center space-x-2 text-sm text-gray-700">
+                    <input type="checkbox" id="fr-exact" checked class="rounded border-gray-300 text-primary focus:ring-primary">
+                    <span>完全匹配（整个字段内容一致才替换）</span>
+                </label>
+                <p class="text-xs text-gray-400">仅作用于当前抬头账户的交易记录；单位字段提供现有单位候选</p>
+                <div id="fr-result" class="text-sm hidden"></div>
+            </div>
+            <div class="flex justify-end space-x-3 mt-6">
+                <button id="fr-count-btn" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">查找</button>
+                <button id="fr-replace-btn" class="btn-primary">全部替换</button>
+            </div>
+        </div>
+    </div>
+    <datalist id="fr-unit-list"></datalist>
 
     <!-- 分类管理模态框 -->
     <div id="category-manage-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center hidden">
@@ -5461,7 +5507,127 @@
             // 这里只保留Excel导入导出功能的事件监听
             // JSON导入导出功能已被移除
         });
-    
+
+</script>
+<script>
+// ==================== 查找替换（类似 Excel 的查找替换）====================
+(function () {
+    var TEXT_FIELDS = { unit: '收/付款单位', description: '说明', categoryName: '分类' };
+
+    function el(id) { return document.getElementById(id); }
+    function frGetTransactions() {
+        var company = getCurrentCompany();
+        return JSON.parse(localStorage.getItem('transactions_' + company)) || [];
+    }
+    function frTargets(scope) {
+        return scope === 'all' ? Object.keys(TEXT_FIELDS) : [scope];
+    }
+    function frMatch(value, find, exact) {
+        if (value == null) return false;
+        var v = String(value);
+        return exact ? v.trim() === find.trim() : v.indexOf(find) !== -1;
+    }
+    function frMatchedIds() {
+        var find = el('fr-find').value;
+        if (!find) return [];
+        var scope = el('fr-field').value;
+        var exact = el('fr-exact').checked;
+        var fields = frTargets(scope);
+        return frGetTransactions().filter(function (t) {
+            return fields.some(function (f) { return frMatch(t[f], find, exact); });
+        }).map(function (t) { return t.id; });
+    }
+    function frShowResult(msg, isError) {
+        var r = el('fr-result');
+        r.textContent = msg;
+        r.className = 'text-sm ' + (isError ? 'text-red-600' : 'text-green-600');
+    }
+    // 单位范围时，为查找/替换输入框提供现有单位候选
+    function frRefreshUnitDatalist() {
+        var isUnit = el('fr-field').value === 'unit';
+        var dl = el('fr-unit-list');
+        if (isUnit) {
+            var units = [];
+            frGetTransactions().forEach(function (t) {
+                if (t.unit && t.unit.trim() && units.indexOf(t.unit) === -1) units.push(t.unit);
+            });
+            dl.innerHTML = units.map(function (u) {
+                return '<option value="' + String(u).replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '"></option>';
+            }).join('');
+            el('fr-find').setAttribute('list', 'fr-unit-list');
+            el('fr-replace').setAttribute('list', 'fr-unit-list');
+        } else {
+            el('fr-find').removeAttribute('list');
+            el('fr-replace').removeAttribute('list');
+        }
+    }
+    function frRefreshViews() {
+        var today = new Date().toISOString().split('T')[0];
+        localStorage.setItem('lastUpdated_' + getCurrentCompany(), today);
+        var lu = el('last-updated');
+        if (lu) lu.textContent = today;
+        loadTransactions();
+        updateFinancialSummary();
+        var dp = document.querySelector('.chart-period-btn.bg-primary');
+        if (dp) updateDistributionChart(dp.dataset.period);
+        var ct = document.querySelector('.category-type-btn.bg-danger, .category-type-btn.bg-secondary');
+        if (ct) updateCategoryChart(ct.dataset.type);
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        el('fr-open-btn').addEventListener('click', function () {
+            el('fr-modal').classList.remove('hidden');
+            el('fr-result').classList.add('hidden');
+            frRefreshUnitDatalist();
+        });
+        el('fr-close').addEventListener('click', function () {
+            el('fr-modal').classList.add('hidden');
+        });
+        el('fr-modal').addEventListener('click', function (e) {
+            if (e.target === el('fr-modal')) el('fr-modal').classList.add('hidden');
+        });
+        el('fr-field').addEventListener('change', function () {
+            frRefreshUnitDatalist();
+            el('fr-result').classList.add('hidden');
+        });
+        el('fr-count-btn').addEventListener('click', function () {
+            if (!el('fr-find').value) { frShowResult('请输入查找内容', true); return; }
+            var n = frMatchedIds().length;
+            frShowResult(n > 0 ? '共匹配 ' + n + ' 条记录' : '没有匹配的记录', n === 0);
+        });
+        el('fr-replace-btn').addEventListener('click', function () {
+            var find = el('fr-find').value;
+            if (!find) { frShowResult('请输入查找内容', true); return; }
+            var replace = el('fr-replace').value;
+            var scope = el('fr-field').value;
+            var exact = el('fr-exact').checked;
+            // 防护：单位不能替换为本公司全名（与新增交易一致的规则）
+            if ((scope === 'unit' || scope === 'all') && typeof COMPANY_NAMES !== 'undefined'
+                && replace.trim() === COMPANY_NAMES[getCurrentCompany()]) {
+                frShowResult('替换后的单位不能是本公司全名', true);
+                return;
+            }
+            var ids = frMatchedIds();
+            if (ids.length === 0) { frShowResult('没有匹配的记录', true); return; }
+            if (!confirm('确定将 ' + ids.length + ' 条记录中的「' + find + '」替换为「' + replace + '」吗？')) return;
+
+            var company = getCurrentCompany();
+            var transactions = frGetTransactions();
+            var fields = frTargets(scope);
+            transactions.forEach(function (t) {
+                if (ids.indexOf(t.id) === -1) return;
+                fields.forEach(function (f) {
+                    if (!frMatch(t[f], find, exact)) return;
+                    t[f] = exact ? replace.trim() : String(t[f]).split(find).join(replace);
+                });
+            });
+            localStorage.setItem('transactions_' + company, JSON.stringify(transactions));
+            frRefreshViews();
+            frRefreshUnitDatalist();
+            frShowResult('已成功替换 ' + ids.length + ' 条记录');
+        });
+    });
+})();
 </script>
 </body>
 </html>

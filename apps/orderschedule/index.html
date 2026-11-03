@@ -2159,7 +2159,7 @@
                     </div>
                     <div class="form-group autocomplete-wrapper">
                         <label class="req">客户</label>
-                        <input type="text" id="order-customer" placeholder="如：KBA" required oninput="showAutocomplete('customer', this.value)">
+                        <input type="text" id="order-customer" placeholder="如：KBA" required onfocus="showAutocomplete('customer', this.value)" oninput="showAutocomplete('customer', this.value)">
                         <div class="autocomplete-list" id="autocomplete-customer"></div>
                     </div>
                     <div class="form-group">
@@ -2168,17 +2168,17 @@
                     </div>
                     <div class="form-group autocomplete-wrapper">
                         <label>图纸编号</label>
-                        <input type="text" id="order-drawing" placeholder="如：D02561" oninput="showAutocomplete('drawing', this.value)">
+                        <input type="text" id="order-drawing" placeholder="如：D02561" onfocus="showAutocomplete('drawing', this.value)" oninput="showAutocomplete('drawing', this.value)">
                         <div class="autocomplete-list" id="autocomplete-drawing"></div>
                     </div>
                     <div class="form-group autocomplete-wrapper">
                         <label class="req">产品名称</label>
-                        <input type="text" id="order-product" placeholder="如：扁铁炉架" required oninput="showAutocomplete('product', this.value)">
+                        <input type="text" id="order-product" placeholder="如：扁铁炉架" required onfocus="showAutocomplete('product', this.value)" oninput="showAutocomplete('product', this.value)">
                         <div class="autocomplete-list" id="autocomplete-product"></div>
                     </div>
                     <div class="form-group autocomplete-wrapper">
                         <label class="req">型号规格</label>
-                        <input type="text" id="order-spec" placeholder="如：518*700" required oninput="showAutocomplete('spec', this.value)">
+                        <input type="text" id="order-spec" placeholder="如：518*700" required onfocus="showAutocomplete('spec', this.value)" oninput="showAutocomplete('spec', this.value)">
                         <div class="autocomplete-list" id="autocomplete-spec"></div>
                     </div>
                     <div class="form-group autocomplete-wrapper">
@@ -3355,11 +3355,6 @@
             const listEl = document.getElementById(listId);
             if (!listEl) return;
 
-            if (!value || value.length < 1) {
-                listEl.classList.remove('show');
-                return;
-            }
-
             const orders = getOrders();
             const fieldMap = {
                 customer: 'customer',
@@ -3371,15 +3366,19 @@
             };
 
             const dataField = fieldMap[field];
-            const uniqueValues = [...new Set(orders.map(o => o[dataField]).filter(v => v && v !== '-' && v.toLowerCase().includes(value.toLowerCase())))];
+            // 聚焦（未输入）时列出表格中全部已有值；输入后按关键字筛选
+            const kw = (value || '').toLowerCase();
+            let uniqueValues = [...new Set(orders.map(o => o[dataField]).filter(v => v && v !== '-'))];
+            if (kw) uniqueValues = uniqueValues.filter(v => v.toLowerCase().includes(kw));
 
             if (uniqueValues.length === 0) {
                 listEl.classList.remove('show');
                 return;
             }
 
-            listEl.innerHTML = uniqueValues.slice(0, 10).map(v => `
-                <div class="autocomplete-item" onclick="selectAutocomplete('${field}', '${v}')">${v}</div>
+            const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+            listEl.innerHTML = uniqueValues.slice(0, kw ? 10 : 50).map(v => `
+                <div class="autocomplete-item" data-v="${esc(v)}" onclick="selectAutocomplete('${field}', this.dataset.v)">${esc(v)}</div>
             `).join('');
             listEl.classList.add('show');
         }
@@ -3964,7 +3963,8 @@
                 drawingNo: order.drawing || '',
                 spec: order.spec || '',
                 qty: qty,
-                bow: order.logo || ''
+                bow: order.logo || '',
+                delivery: order.deadline || ''   // 计划交期 → wage 交期
             };
 
             let action;

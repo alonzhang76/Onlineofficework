@@ -555,9 +555,6 @@
                                 <button id="add-delivery-btn" class="btn-primary flex items-center">
                                     <i class="fa fa-plus mr-2"></i> 新增
                                 </button>
-                                <button id="shipmentsDeleteAll" class="btn-danger flex items-center">
-                                    <i class="fa fa-trash mr-2"></i> 清空
-                                </button>
                             </div>
                         </div>
                         <div class="p-6">
@@ -566,6 +563,13 @@
                                     <input type="text" id="deliveries-search-input" placeholder="搜索发货单号、订单号..." class="form-input">
                                 </div>
 
+                                <div class="w-full md:w-auto">
+                                    <select id="deliveries-type-filter" class="form-input">
+                                        <option value="">所有类型</option>
+                                        <option value="发货">发货</option>
+                                        <option value="收货">收货</option>
+                                    </select>
+                                </div>
                                 <div class="w-full md:w-auto">
                                     <select id="deliveries-customer-filter" class="form-input">
                                         <option value="">所有客户</option>
@@ -595,11 +599,6 @@
                                 <div class="w-full md:w-auto">
                                     <button id="deliveries-export-btn" class="btn-success flex items-center">
                                         <i class="fa fa-file-excel-o mr-2"></i> 导出
-                                    </button>
-                                </div>
-                                <div class="w-full md:w-auto">
-                                    <button id="deliveries-batch-edit-btn" class="btn-warning flex items-center">
-                                        <i class="fa fa-edit mr-2"></i> 批量编辑
                                     </button>
                                 </div>
 
@@ -5654,6 +5653,7 @@
                 case 'deliveries':
                     searchBtn = document.getElementById('deliveries-search-btn');
                     searchInput = document.getElementById('deliveries-search-input');
+                    statusFilter = document.getElementById('deliveries-type-filter');
                     customerFilter = document.getElementById('deliveries-customer-filter');
                     startDate = document.getElementById('deliveries-start-date');
                     endDate = document.getElementById('deliveries-end-date');
@@ -5852,6 +5852,9 @@
                 if (tableName === 'recentOrders' || tableName === 'orders') {
                     // 订单表格：状态在第1列（索引0）
                     match = textCells[0] === filters.statusFilter;
+                } else if (tableName === 'deliveries') {
+                    // 收发货表格：类型在第1列（索引0），精确匹配 发货/收货
+                    match = textCells[0].trim() === filters.statusFilter;
                 } else {
                     // 其他表格：检查所有单元格
                     match = textCells.some(cell => cell.includes(filters.statusFilter));
@@ -6254,7 +6257,8 @@
                 return {
                     orderNo: c[4] || '', customer: c[5] || '',
                     productName: c[9] || c[7] || '', spec: c[9] || '', type: '',
-                    drawingNo: c[11] || '', bow: c[12] || '', plating: c[10] || ''
+                    drawingNo: c[11] || '', bow: c[12] || '', plating: c[10] || '',
+                    orderDate: c[6] || '', qty: c[9] || ''
                 };
             }).filter(o => o.orderNo);
         }
@@ -6768,11 +6772,10 @@
             const formattedDate = today.toISOString().split('T')[0];
             deliveryDate.value = formattedDate;
             
-            // 订单联想数据来自 wage「订单管理」；优先取已填写电镀厂的订单
+            // 订单联想数据来自 wage「订单管理」：列出全部订单（含 orderschedule 推送的），按下单日期倒序
             function wageOrdersForDelivery() {
-                const all = getWageOrderList();
-                const withPlating = all.filter(o => (o.plating || '').trim());
-                return withPlating.length ? withPlating : all;
+                return getWageOrderList().slice().sort((a, b) =>
+                    (b.orderDate || '').localeCompare(a.orderDate || ''));
             }
 
             // 每次打开弹窗/切换类型时刷新订单号与客户联想
@@ -6783,7 +6786,7 @@
                 if (orderList) {
                     orderList.innerHTML = orders
                         .filter(o => o.orderNo)
-                        .map(o => `<option value="${escapeOptionText(o.orderNo)}">${escapeOptionText(o.customer)}</option>`)
+                        .map(o => `<option value="${escapeOptionText(o.orderNo)}">${escapeOptionText(o.customer)}　${escapeOptionText(o.orderNo)}　数量：${escapeOptionText(String(o.qty ?? ''))}</option>`)
                         .join('');
                 }
                 if (customerList) {
