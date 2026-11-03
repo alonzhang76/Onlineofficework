@@ -834,6 +834,12 @@
                             </div>
                         </div>
                         <div class="p-6">
+                            <div class="flex flex-wrap gap-4 mb-4 items-center">
+                                <div class="w-full md:w-80">
+                                    <input type="text" id="orderSummarySearchInput" placeholder="搜索订单号、客户、产品..." class="form-input">
+                                </div>
+                                <span class="text-sm text-gray-500 order-summary-count" id="orderSummaryCount"></span>
+                            </div>
                             <div class="overflow-x-auto">
                                 <table class="min-w-full divide-y divide-gray-200" id="orderSummaryTable">
                                     <thead class="bg-gray-50">
@@ -1459,6 +1465,7 @@
 
                     // 切换到订单汇总标签时刷新汇总表
                     if (targetId === 'orderSummary') {
+                        tableConfigs.orderSummary.currentPage = 1;
                         renderOrderSummary();
                     }
                     
@@ -3250,6 +3257,12 @@
                 data: [],
                 originalData: [],
                 currentFilters: {}
+            },
+            orderSummary: {
+                itemsPerPage: 10,
+                currentPage: 1,
+                totalPages: 1,
+                keyword: ''
             }
         };
 
@@ -3655,29 +3668,66 @@
             if (amountCell) amountCell.textContent = formatNumber(amount, 2);
         }
 
-        // 订单汇总：根据收发货渲染汇总表
+        // 订单汇总：根据收发货渲染汇总表（支持搜索 + 分页）
         function renderOrderSummary() {
             const tableBody = document.getElementById('orderSummaryTableBody');
             if (!tableBody) return;
 
+            const osConfig = tableConfigs.orderSummary;
             const statsMap = getDeliveryOrderStats();
             const settlementData = getOrderSettlementSettings();
             const invoicePaymentStats = getInvoicePaymentOrderStats();
+
+            // 1. 搜索过滤
+            const keyword = (osConfig.keyword || '').trim().toLowerCase();
+            let orderNums = Array.from(statsMap.keys()).sort();
+            if (keyword) {
+                orderNums = orderNums.filter(orderNo => {
+                    const info = getLatestDeliveryInfo(orderNo);
+                    const hay = [
+                        orderNo,
+                        info.customer,
+                        info.productName,
+                        info.drawingNumber,
+                        info.bow
+                    ].join(' ').toLowerCase();
+                    return hay.includes(keyword);
+                });
+            }
+
+            // 2. 分页
+            const total = orderNums.length;
+            const totalPages = Math.max(1, Math.ceil(total / osConfig.itemsPerPage));
+            if (osConfig.currentPage > totalPages) osConfig.currentPage = totalPages;
+            if (osConfig.currentPage < 1) osConfig.currentPage = 1;
+            osConfig.totalPages = totalPages;
+            const startIdx = (osConfig.currentPage - 1) * osConfig.itemsPerPage;
+            const pageOrderNums = orderNums.slice(startIdx, startIdx + osConfig.itemsPerPage);
+
             tableBody.innerHTML = '';
 
-            if (!statsMap.size) {
+            // 计数显示
+            const countEl = document.getElementById('orderSummaryCount');
+            if (countEl) {
+                countEl.textContent = `共 ${total} 条${keyword ? '（搜索："' + osConfig.keyword + '"）' : ''} · 第 ${osConfig.currentPage} / ${totalPages} 页`;
+            }
+
+            if (!pageOrderNums.length) {
                 const emptyRow = document.createElement('tr');
                 const emptyCell = document.createElement('td');
                 emptyCell.className = 'table-cell text-center text-gray-500';
                 emptyCell.colSpan = 22;
-                emptyCell.textContent = '暂无数据';
+                emptyCell.textContent = keyword ? '没有匹配的订单' : '暂无数据';
                 emptyRow.appendChild(emptyCell);
                 tableBody.appendChild(emptyRow);
+                updateOrderSummaryPagination(total, totalPages);
                 syncOrderSummarySelectAll();
                 return;
             }
 
-            statsMap.forEach((stats, orderNumber) => {
+            pageOrderNums.forEach(orderNumber => {
+                const stats = statsMap.get(orderNumber);
+                if (!stats) return;
                 const info = getLatestDeliveryInfo(orderNumber);
                 const settlement = settlementData[orderNumber] || {};
                 const settlementPrice = parseQuantity(settlement.settlementPrice);
@@ -3803,7 +3853,71 @@
                 tableBody.appendChild(row);
             });
 
+            updateOrderSummaryPagination(total, totalPages);
             syncOrderSummarySelectAll();
+        }
+
+        // 订单汇总：生成分页控件
+        function updateOrderSummaryPagination(total, totalPages) {
+            const osConfig = tableConfigs.orderSummary;
+            const tableBody = document.getElementById('orderSummaryTableBody');
+            if (!tableBody) return;
+            const wrapper = tableBody.parentElement.parentElement;
+            let pagination = wrapper.querySelector('.order-summary-pagination');
+            if (!pagination) {
+                pagination = document.createElement('div');
+                pagination.className = 'order-summary-pagination';
+                pagination.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:0.75rem;margin-top:1rem;padding-top:1rem;border-top:1px solid #e2e8f0;flex-wrap:wrap;';
+                wrapper.appendChild(pagination);
+            }
+            pagination.innerHTML = '';
+
+            // 左侧：共 N 条 + 每页选择
+            const left = document.createElement('div');
+            left.style.cssText = 'display:flex;align-items:center;gap:0.75rem;';
+            const perPageSelect = document.createElement('select');
+            perPageSelect.className = 'form-input';
+            perPageSelect.style.cssText = 'width:auto;padding:0.35rem 2rem 0.35rem 0.6rem;';
+            perPageSelect.innerHTML = '<option value="10">10 条/页</option><option value="20">20 条/页</option><option value="50">50 条/页</option>';
+            perPageSelect.value = String(osConfig.itemsPerPage);
+            perPageSelect.addEventListener('change', () => {
+                osConfig.itemsPerPage = parseInt(perPageSelect.value, 10) || 10;
+                osConfig.currentPage = 1;
+                renderOrderSummary();
+            });
+            left.appendChild(perPageSelect);
+
+            // 右侧：上一页 / 下一页
+            const right = document.createElement('div');
+            right.style.cssText = 'display:flex;align-items:center;gap:0.5rem;';
+
+            const prev = document.createElement('button');
+            prev.className = 'btn-secondary';
+            prev.innerHTML = '<i class="fa fa-chevron-left mr-1"></i>上一页';
+            prev.disabled = osConfig.currentPage <= 1;
+            prev.style.cssText += prev.disabled ? 'opacity:.5;cursor:not-allowed;' : '';
+            prev.addEventListener('click', () => {
+                if (osConfig.currentPage > 1) { osConfig.currentPage--; renderOrderSummary(); }
+            });
+
+            const pageInfo = document.createElement('span');
+            pageInfo.className = 'text-sm text-gray-600';
+            pageInfo.textContent = `第 ${osConfig.currentPage} / ${totalPages} 页`;
+
+            const next = document.createElement('button');
+            next.className = 'btn-secondary';
+            next.innerHTML = '下一页<i class="fa fa-chevron-right ml-1"></i>';
+            next.disabled = osConfig.currentPage >= totalPages;
+            next.style.cssText += next.disabled ? 'opacity:.5;cursor:not-allowed;' : '';
+            next.addEventListener('click', () => {
+                if (osConfig.currentPage < totalPages) { osConfig.currentPage++; renderOrderSummary(); }
+            });
+
+            right.appendChild(prev);
+            right.appendChild(pageInfo);
+            right.appendChild(next);
+            pagination.appendChild(left);
+            pagination.appendChild(right);
         }
 
         // 订单汇总：同步表头全选复选框状态
@@ -6462,6 +6576,20 @@
                     if (event.target && event.target.classList.contains('order-summary-checkbox')) {
                         syncOrderSummarySelectAll();
                     }
+                });
+            }
+
+            // 订单汇总：搜索框
+            const orderSummarySearchInput = document.getElementById('orderSummarySearchInput');
+            if (orderSummarySearchInput) {
+                let searchTimer = null;
+                orderSummarySearchInput.addEventListener('input', function() {
+                    if (searchTimer) clearTimeout(searchTimer);
+                    searchTimer = setTimeout(() => {
+                        tableConfigs.orderSummary.keyword = orderSummarySearchInput.value;
+                        tableConfigs.orderSummary.currentPage = 1;
+                        renderOrderSummary();
+                    }, 250);
                 });
             }
 
