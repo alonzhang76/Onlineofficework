@@ -270,10 +270,6 @@
             <div class="info-block" style="width: 100%;">
                 <h3>发货信息</h3>
                 <div class="info-item">
-                    <strong>客户:</strong>
-                    <span id="customer">广州电子有限公司</span>
-                </div>
-                <div class="info-item">
                     <strong>司机:</strong>
                     <span id="driver"></span>
                 </div>
@@ -296,7 +292,8 @@
                     <th>订单号</th>
                     <th>客户</th>
                     <th>产品</th>
-                    <th>电镀数量</th>
+                    <th>蝴蝶结</th>
+                    <th>电镀成品数</th>
                     <th>返修数量</th>
                     <th>合计</th>
                 </tr>
@@ -306,13 +303,14 @@
                     <td>ORD-2023-0124</td>
                     <td>广州电子有限公司</td>
                     <td>电路板</td>
+                    <td></td>
                     <td>1000</td>
                     <td>50</td>
                     <td>1050</td>
                 </tr>
                 <!-- 静态数据的合计行 -->
                 <tr style="font-weight: bold; background-color: #e3f2fd;">
-                    <td colspan="3">合计</td>
+                    <td colspan="4">合计</td>
                     <td>1000</td>
                     <td>50</td>
                     <td>1050</td>
@@ -336,7 +334,7 @@
         <div class="footer">
             <div class="signature-block">
                 <p>负责人</p>
-                <div class="signature-line">李功建</div>
+                <div class="signature-line"></div>
             </div>
             <div class="signature-block">
                 <p>客户签收</p>
@@ -365,13 +363,8 @@
             // 尝试从sessionStorage获取选中的发货记录
             const selectedDeliveries = JSON.parse(sessionStorage.getItem('selectedDeliveries'));
             
-            // 从选中的发货记录中提取客户信息
+            // 从选中的发货记录中提取司机、电话和车牌信息
             if (selectedDeliveries && selectedDeliveries.length > 0) {
-                // 获取第一个发货记录的客户信息
-                const customer = selectedDeliveries[0].customer || '未知客户';
-                document.getElementById('customer').textContent = customer;
-                
-                // 从选中的发货记录中提取司机、电话和车牌信息
                 const driver = selectedDeliveries[0].driver || '';
                 const phone = selectedDeliveries[0].phone || '';
                 const licensePlate = selectedDeliveries[0].licensePlate || '';
@@ -395,13 +388,14 @@
                 // 添加选中的记录到表格
                 selectedDeliveries.forEach(delivery => {
                     const row = document.createElement('tr');
-                    // 转换为数字进行计算 - 优先使用rawQuantity和reworkQuantity字段（业务管理系统使用的字段名）
-                    const electroplatingQty = parseInt(delivery.electroplateQuantity || delivery.electroplatingQuantity || delivery.rawQuantity) || 0;
-                    const repairQty = parseInt(delivery.repairQuantity || delivery.replateQuantity || delivery.reworkQuantity) || 0;
-                    const combinedQty = electroplatingQty + repairQty;
+                    // 与「收发货」表格字段一致：电镀成品数(索引6)、返修数量(索引8)
+                    const electroplateQty = parseInt(delivery.electroplateQuantity || delivery.electroplatingQuantity) || 0;
+                    const repairQty = parseInt(delivery.repairQuantity) || 0;
+                    const combBow = delivery.bow || (delivery.cells && delivery.cells[12]) || '';
+                    const combinedQty = electroplateQty + repairQty;
                     
                     // 累加合计值
-                    totalElectroplatingQuantity += electroplatingQty;
+                    totalElectroplatingQuantity += electroplateQty;
                     totalRepairQuantity += repairQty;
                     totalCombinedQuantity += combinedQty;
                     
@@ -409,7 +403,8 @@
                         <td>${delivery.orderNumber}</td>
                         <td>${delivery.customer}</td>
                         <td>${delivery.productName || delivery.product}</td>
-                        <td>${electroplatingQty}</td>
+                        <td>${combBow}</td>
+                        <td>${electroplateQty}</td>
                         <td>${repairQty}</td>
                         <td>${combinedQty}</td>
                     `;
@@ -421,7 +416,7 @@
                 totalRow.style.fontWeight = 'bold';
                 totalRow.style.backgroundColor = '#e3f2fd';
                 totalRow.innerHTML = `
-                    <td colspan="3">合计</td>
+                    <td colspan="4">合计</td>
                     <td>${totalElectroplatingQuantity}</td>
                     <td>${totalRepairQuantity}</td>
                     <td>${totalCombinedQuantity}</td>
@@ -492,7 +487,11 @@
                     repairQuantity: 0,
                     scrapQuantity: 0,
                     retainQuantity: 0,
-                    goodQuantity: 0
+                    goodQuantity: 0,
+                    difference: 0,
+                    customer: '',
+                    productName: '',
+                    drawingNo: ''
                 });
             });
             
@@ -609,25 +608,21 @@
                         
                         // 根据用户要求的公式计算各个数量
                         if (recordType === '收货') {
-                            // 毛坯数量 = 所有“收货”记录条中“毛坯数量”相加
-                            summary.blankQuantity += parseInt(delivery.cells[5]) || 0;
-                            
-                            // 返镀数量 = 所有“收货”记录条中“返镀数量”相加
-                            summary.replatingQuantity += parseInt(delivery.cells[7]) || 0;
-                            
-                            // 报废数量 = 所有“发货”和“收货”记录条中“报废数量”相加
-                            summary.scrapQuantity += parseInt(delivery.cells[9]) || 0;
-                        } 
-                        else if (recordType === '发货') {
-                            // 电镀数量 = 所有“发货”记录条中“电镀数量”相加
+                            // 电镀成品数 / 返修数量 / 报废数量：与电镀管理「收发货」表格一致
                             summary.electroplatingQuantity += parseInt(delivery.cells[6]) || 0;
-                            
-                            // 报废数量 = 所有“发货”和“收货”记录条中“报废数量”相加
+                            summary.repairQuantity += parseInt(delivery.cells[8]) || 0;
                             summary.scrapQuantity += parseInt(delivery.cells[9]) || 0;
+                        } else if (recordType === '发货') {
+                            // 毛坯数量：发货行登记
+                            summary.blankQuantity += parseInt(delivery.cells[5]) || 0;
                         }
-                        
-                        // 返修数量 = 所有“收货”和“发货”记录条中“返修数量”相加
-                        summary.repairQuantity += parseInt(delivery.cells[8]) || 0;
+                        // 返镀数量：发货行（退回重镀）和旧数据中的收货行都累计
+                        summary.replatingQuantity += parseInt(delivery.cells[7]) || 0;
+
+                        // 客户、产品名称、图纸号取自收发货记录
+                        summary.customer = delivery.cells[3] || summary.customer || '';
+                        summary.productName = delivery.cells[4] || summary.productName || '';
+                        summary.drawingNo = delivery.cells[11] || summary.drawingNo || '';
                     }
                 }
             });
@@ -657,72 +652,58 @@
                 });
             }
             
-            // 如果sessionStorage中有选中的发货记录，使用这些记录的数据
-            if (selectedDeliveries && selectedDeliveries.length > 0) {
+            // 选中记录已经包含在 deliveriesData 中，不再重复累加；
+            // 只有本地收发货数据缺失时，才用选中记录兜底
+            if (deliveriesData.length === 0 && selectedDeliveries && selectedDeliveries.length > 0) {
                 selectedDeliveries.forEach(delivery => {
-                    // 正确处理不同数据格式（直接属性或cells数组）
-                    const orderNumber = delivery.orderNumber || (delivery.cells && delivery.cells[2]); // 订单号在第3列（索引2）
-                    const recordType = delivery.recordType || (delivery.cells && delivery.cells[0]); // 记录类型：收货/发货（索引0）
-                    
-                    if (orderSummaryMap.has(orderNumber)) {
-                        const summary = orderSummaryMap.get(orderNumber);
-                        
-                        // 根据数据格式获取正确的数量值
-                        let electroplatingQty = 0, repairQty = 0, blankQty = 0, replateQty = 0, scrapQty = 0;
-                        
-                        if (delivery.cells) {
-                            // 如果是表格数据格式（cells数组）
-                            // 确保所有列索引都是正确的
-                            blankQty = parseInt(delivery.cells[5]) || 0; // 毛坯数量在第6列（索引5）
-                            electroplatingQty = parseInt(delivery.cells[6]) || 0; // 电镀数量在第7列（索引6）
-                            replateQty = parseInt(delivery.cells[7]) || 0; // 返镀数量在第8列（索引7）
-                            repairQty = parseInt(delivery.cells[8]) || 0; // 返修数量在第9列（索引8）
-                            scrapQty = parseInt(delivery.cells[9]) || 0; // 报废数量在第10列（索引9）
-                        } else {
-                            // 如果是直接属性格式
-                            // 确保正确映射不同来源的字段名
-                            blankQty = parseInt(delivery.rawQuantity || delivery.blankQuantity || delivery.roughQuantity) || 0;
-                            electroplatingQty = parseInt(delivery.electroplateQuantity || delivery.electroplatingQuantity || delivery.rawQuantity) || 0;
-                            replateQty = parseInt(delivery.reworkQuantity || delivery.replateQuantity || delivery.replatingQuantity) || 0;
-                            repairQty = parseInt(delivery.repairQuantity || delivery.reworkQuantity) || 0;
-                            scrapQty = parseInt(delivery.scrapQuantity || delivery.wasteQuantity) || 0;
-                        }
-                        
-                        // 根据用户要求的公式计算各个数量
-                        if (recordType === '收货') {
-                            // 毛坯数量 = 所有“收货”记录条中“毛坯数量”相加
-                            summary.blankQuantity += blankQty;
-                            
-                            // 返镀数量 = 所有“收货”记录条中“返镀数量”相加
-                            summary.replatingQuantity += replateQty;
-                            
-                            // 报废数量 = 所有“发货”和“收货”记录条中“报废数量”相加
-                            summary.scrapQuantity += scrapQty;
-                        } 
-                        else if (recordType === '发货') {
-                            // 电镀数量 = 所有“发货”记录条中“电镀数量”相加
-                            summary.electroplatingQuantity += electroplatingQty;
-                            
-                            // 报废数量 = 所有“发货”和“收货”记录条中“报废数量”相加
-                            summary.scrapQuantity += scrapQty;
-                        }
-                        
-                        // 返修数量 = 所有“收货”和“发货”记录条中“返修数量”相加
-                        summary.repairQuantity += repairQty;
-                        
-                        // 重新计算订单数量和良品数量
-                        if (summary.orderQuantity === 0) {
-                            // 如果没有从订单管理表格获取到数量，使用收发货记录中的最大数量
-                            summary.orderQuantity = Math.max(electroplatingQty, blankQty, summary.orderQuantity);
-                        }
-                        
-                        if (summary.goodQuantity === 0) {
-                            // 计算良品数量：电镀数量 - 返修数量 - 报废数量
-                            summary.goodQuantity = Math.max(0, electroplatingQty - repairQty - scrapQty);
-                        }
+                    const orderNumber = delivery.orderNumber || (delivery.cells && delivery.cells[2]);
+                    if (!orderNumber) return;
+                    if (!orderSummaryMap.has(orderNumber)) {
+                        orderSummaryMap.set(orderNumber, {
+                            orderQuantity: 0,
+                            blankQuantity: 0,
+                            electroplatingQuantity: 0,
+                            replatingQuantity: 0,
+                            repairQuantity: 0,
+                            scrapQuantity: 0,
+                            retainQuantity: 0,
+                            goodQuantity: 0,
+                            difference: 0,
+                            customer: '',
+                            productName: '',
+                            drawingNo: ''
+                        });
                     }
+                    const summary = orderSummaryMap.get(orderNumber);
+                    const recordType = delivery.recordType || (delivery.cells && delivery.cells[0]);
+                    if (recordType === '收货') {
+                        summary.electroplatingQuantity += parseInt(delivery.electroplateQuantity || delivery.electroplatingQuantity) || 0;
+                        summary.repairQuantity += parseInt(delivery.repairQuantity) || 0;
+                        summary.scrapQuantity += parseInt(delivery.scrapQuantity) || 0;
+                    } else if (recordType === '发货') {
+                        summary.blankQuantity += parseInt(delivery.rawQuantity) || 0;
+                    }
+                    summary.replatingQuantity += parseInt(delivery.reworkQuantity || delivery.replatingQuantity) || 0;
+                    summary.customer = delivery.customer || summary.customer || '';
+                    summary.productName = delivery.productName || delivery.product || summary.productName || '';
+                    summary.drawingNo = delivery.drawingNo || summary.drawingNo || '';
                 });
             }
+
+            // 良品数量、差额按「收发货」订单汇总口径计算；订单数量缺失时从 wage 订单管理补足
+            let wageOrders = [];
+            try { wageOrders = JSON.parse(localStorage.getItem('wage_orders') || '[]'); } catch (e) {}
+            orderSummaryMap.forEach((summary, orderNumber) => {
+                summary.goodQuantity = summary.electroplatingQuantity - summary.replatingQuantity - summary.scrapQuantity;
+                const netBlank = summary.blankQuantity - summary.repairQuantity;
+                summary.difference = netBlank - summary.goodQuantity;
+                if (summary.orderQuantity === 0 && Array.isArray(wageOrders)) {
+                    const wageOrder = wageOrders.find(o => o && o.orderNo === orderNumber);
+                    if (wageOrder) {
+                        summary.orderQuantity = parseInt(String(wageOrder.qty).replace(/,/g, '')) || 0;
+                    }
+                }
+            });
             
             // 调试：输出修复后的数据汇总结果
             console.log('修复后的数据汇总结果:', Array.from(orderSummaryMap.entries()));
@@ -779,16 +760,19 @@
             orderNumbersArray.forEach(orderNumber => {
                 const orderSummary = orderSummaryMap.get(orderNumber);
                 
-                // 构建该订单的二维码内容
+                // 构建该订单的二维码内容（字段名称与「收发货」标签页表格一致）
                 let qrContent = `订单号: ${orderNumber}\n\n`;
+                qrContent += `客户: ${orderSummary.customer}\n`;
+                qrContent += `产品名称: ${orderSummary.productName}\n`;
+                qrContent += `图纸号: ${orderSummary.drawingNo}\n`;
                 qrContent += `订单数量: ${orderSummary.orderQuantity}\n`;
-                qrContent += `毛坯数量: ${orderSummary.blankQuantity}\n`;
-                qrContent += `电镀数量: ${orderSummary.electroplatingQuantity}\n`;
+                qrContent += `毛坯总发: ${orderSummary.blankQuantity}\n`;
+                qrContent += `电镀成品数: ${orderSummary.electroplatingQuantity}\n`;
                 qrContent += `返镀数量: ${orderSummary.replatingQuantity}\n`;
                 qrContent += `返修数量: ${orderSummary.repairQuantity}\n`;
                 qrContent += `报废数量: ${orderSummary.scrapQuantity}\n`;
-                qrContent += `滞留数量: ${orderSummary.retainQuantity}\n`;
                 qrContent += `良品数量: ${orderSummary.goodQuantity}\n`;
+                qrContent += `差额: ${orderSummary.difference}\n`;
                 
                 console.log(`订单${orderNumber}的二维码内容:`, qrContent);
                 

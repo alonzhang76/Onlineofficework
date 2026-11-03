@@ -56,6 +56,65 @@
             removeItem: localStorage.removeItem.bind(localStorage)
         };
 
+        // 代理内部重入标记：CloudbaseStore.get/set 内部也会读写 localStorage，
+        // 用闭包变量避免递归（不要挂在 localStorage 上，那会被当成存储项变成字符串）
+        var _internalWrite = false;
+
+        // 本页会写入的业务键（只同步这些，避免把其它应用的同名键带上云端）
+        var CLOUD_KEYS = [
+            'deliveriesData', 'ordersData', 'orders', 'orderSettlementData',
+            'dyf_invoices', 'dyf_payments', 'plating_customers', 'plating_products', 'customers'
+        ];
+
+        // 按 key 单独上传：只覆盖当前键，避免 pushAll 用尚未同步的旧缓存覆盖其它数据
+        function withTimeout(promise, ms, message) {
+            return Promise.race([
+                promise,
+                new Promise(function(_, reject) {
+                    setTimeout(function() { reject(new Error(message)); }, ms);
+                })
+            ]);
+        }
+
+        async function uploadKeyToCloud(key, value) {
+            if (typeof window.CloudbaseWhenReady === 'function') {
+                await withTimeout(window.CloudbaseWhenReady(), 10000, '云端登录超时');
+            }
+            var sb = window.supabase;
+            if (!sb || typeof sb.from !== 'function') throw new Error('同步层未就绪');
+            var res = await withTimeout(sb.from('app_data_store').upsert({
+                store_key: key,
+                payload: value,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'store_key' }), 15000, '云端写入超时');
+            if (res && res.error) throw new Error(res.error.message || '云端写入失败');
+            return true;
+        }
+        window.uploadKeyToCloud = uploadKeyToCloud;
+
+        // 500ms 防抖后上传单个 key（普通增删改走这里）
+        var _uploadTimers = {};
+        function scheduleKeyUpload(key, value) {
+            if (CLOUD_KEYS.indexOf(key) < 0) return;
+            if (_uploadTimers[key]) clearTimeout(_uploadTimers[key]);
+            _uploadTimers[key] = setTimeout(function() {
+                delete _uploadTimers[key];
+                uploadKeyToCloud(key, value).catch(function(e) {
+                    console.warn('[CloudBase] 上传失败:', key, (e && e.message) ? e.message : e);
+                });
+            }, 500);
+        }
+
+        // 立即上传并取消排队中的同 key 任务（表单保存后调用，避免刷新过快导致数据丢失）
+        async function flushKeyUpload(key, value) {
+            if (_uploadTimers[key]) {
+                clearTimeout(_uploadTimers[key]);
+                delete _uploadTimers[key];
+            }
+            return uploadKeyToCloud(key, value);
+        }
+        window.flushKeyUpload = flushKeyUpload;
+
         // CloudbaseStore 就绪后自动代理 localStorage
         function installProxy() {
             if (!window.CloudbaseStore || !CloudbaseStore.isReady || !CloudbaseStore.isReady()) {
@@ -66,39 +125,66 @@
 
             // 读：优先 CloudbaseStore 内存缓存 → localStorage 回退
             localStorage.getItem = function(key) {
+                if (_internalWrite) return _origLS.getItem(key);
+                _internalWrite = true;
                 try {
                     var v = CloudbaseStore.get(key);
                     if (v !== undefined && v !== null) return JSON.stringify(v);
-                } catch (e) {}
+                } catch (e) {
+                } finally {
+                    _internalWrite = false;
+                }
                 return _origLS.getItem(key);
             };
 
-            // 写：同步写 CloudbaseStore + 定时推云端
-            var _uploadTimer = null;
+            // 写：同步写 CloudbaseStore 缓存 + 按 key 排队上传
+            // _internalWrite 防止 CloudbaseStore.set 内部再次写 localStorage 造成无限递归
             localStorage.setItem = function(key, value) {
+                if (_internalWrite) {
+                    _origLS.setItem(key, value);
+                    return;
+                }
+                var parsed;
+                try { parsed = JSON.parse(value); } catch (e) { parsed = value; }
+
+                // 云端定时刷新写入 localStorage 时，缓存里已经是同一个值：
+                // 直接落本地即可，不要当成用户编辑去回传云端（否则会与云端刷新互相触发）。
+                var unchanged = false;
                 try {
-                    var parsed;
-                    try { parsed = JSON.parse(value); } catch (e) { parsed = value; }
+                    var cached = CloudbaseStore.get(key);
+                    unchanged = JSON.stringify(cached) === JSON.stringify(parsed);
+                } catch (e) {}
+
+                if (unchanged) {
+                    _origLS.setItem(key, value);
+                    return;
+                }
+
+                _internalWrite = true;
+                try {
                     CloudbaseStore.set(key, parsed);
+                    _origLS.setItem(key, value);
                 } catch (e) {
                     _origLS.setItem(key, value);
+                } finally {
+                    _internalWrite = false;
                 }
-                // 1.5 秒防抖后推云端（避免高频写入时反复上传）
-                if (_uploadTimer) clearTimeout(_uploadTimer);
-                _uploadTimer = setTimeout(function() {
-                    if (typeof CloudbaseStore.pushAll === 'function') {
-                        CloudbaseStore.pushAll().then(function(r) {
-                            if (r && !r.ok && r.msg && r.msg.indexOf('本地无数据') === -1) {
-                                console.warn('[CloudBase] pushAll:', r.msg);
-                            }
-                        }).catch(function() {});
-                    }
-                }, 1500);
+                scheduleKeyUpload(key, parsed);
             };
 
             // 删
             localStorage.removeItem = function(key) {
-                try { CloudbaseStore.remove(key); } catch (e) {}
+                if (_internalWrite) {
+                    _origLS.removeItem(key);
+                    return;
+                }
+                _internalWrite = true;
+                try {
+                    CloudbaseStore.remove(key);
+                } catch (e) {
+                } finally {
+                    _internalWrite = false;
+                }
                 _origLS.removeItem(key);
             };
 
@@ -3440,25 +3526,37 @@
             return '已付款';
         }
 
-        // 获取订单的数量与单价（兼容新旧订单数据结构）
-        function getOrderQuantityAndPrice(orderNumber) {
+        // 获取订单的数量与单价（本地订单表优先，其次读 wage「订单管理」）
+        function getOrderQuantityAndPrice(orderNumber, wageOrderMap) {
             const orders = (tableConfigs.orders && tableConfigs.orders.originalData) || [];
             const order = orders.find(item => {
                 const cells = item.cells || [];
                 return cells[4] === orderNumber || cells[0] === orderNumber;
             });
-            if (!order) return { quantity: 0, unitPrice: 0 };
-            const cells = order.cells || [];
-            const isNewFormat = cells.length >= 15;
-            return {
-                quantity: parseQuantity(isNewFormat ? cells[9] : cells[7]),
-                unitPrice: parseQuantity(isNewFormat ? cells[10] : cells[8])
-            };
+            if (order) {
+                const cells = order.cells || [];
+                const isNewFormat = cells.length >= 15;
+                return {
+                    quantity: parseQuantity(isNewFormat ? cells[9] : cells[7]),
+                    unitPrice: parseQuantity(isNewFormat ? cells[10] : cells[8])
+                };
+            }
+            // 电镀页的订单表通常为空，订单维护在 wage「订单管理」里，按订单号取订单数量
+            const wageOrder = (wageOrderMap ? wageOrderMap.get(orderNumber) : null) || getWageOrderByNo(orderNumber);
+            if (wageOrder) {
+                return {
+                    quantity: parseQuantity(wageOrder.qty),
+                    unitPrice: parseQuantity(wageOrder.unitPrice)
+                };
+            }
+            return { quantity: 0, unitPrice: 0 };
         }
 
         // 按订单号汇总收发货流水
         function getDeliveryOrderStats() {
             const statsMap = new Map();
+            // wage「订单管理」按订单号建索引，一次读取避免逐行调用父页面
+            const wageOrderMap = new Map(getWageOrderList().map(o => [o.orderNo, o]));
             const deliveriesData = (tableConfigs.deliveries && tableConfigs.deliveries.originalData) || [];
             deliveriesData.forEach(item => {
                 const cells = item.cells || [];
@@ -3487,7 +3585,7 @@
                 stats.replateTotal += parseQuantity(cells[7]);
             });
             statsMap.forEach((stats, orderNumber) => {
-                const orderInfo = getOrderQuantityAndPrice(orderNumber);
+                const orderInfo = getOrderQuantityAndPrice(orderNumber, wageOrderMap);
                 // 良品累计：成品累计已包含返镀件（重镀后再次收回），需扣除返镀与报废
                 stats.goodTotal = stats.electroplateTotal - stats.replateTotal - stats.scrapTotal;
                 // 净毛坯 = 毛坯总发 - 返修：返修件修复后是按毛坯再次发货的，会被重复累计一次
@@ -4090,12 +4188,12 @@
                         const record = normalizePaymentRecord(item);
                         return record ? buildPaymentTableRow(record, sourceIndex) : { cells: [] };
                     }
-                    // 如果是已经包含cells数组的数据项，直接返回，但对于deliveries表格要确保只保留13个数据列
+                    // 如果是已经包含cells数组的数据项，直接返回，但对于deliveries表格要确保只保留14个数据列
                     if (item.cells && Array.isArray(item.cells)) {
                         if (tableName === 'deliveries') {
-                            // 确保只保留13个数据列（末尾为图纸号、蝴蝶结），不包含复选框列和操作列；旧11列数据缺列时渲染为空
+                            // 确保保留14个数据列（末尾为图纸号、蝴蝶结、电镀厂），不包含复选框列和操作列；旧数据缺列时渲染为空
                             return {
-                                cells: item.cells.slice(0, 13).map(cell => cell || '')
+                                cells: item.cells.slice(0, 14).map(cell => cell || '')
                             };
                         }
                         return item;
@@ -4121,6 +4219,7 @@
                                 item.route || '', // 备注
                                 '', // 图纸号（原数据中没有）
                                 '', // 蝴蝶结（原数据中没有）
+                                item.plating || '', // 电镀厂
                             ]
                         };
                     }
@@ -4490,9 +4589,9 @@
                     }
                 }
                 
-                // 对于收发货表格，确保只保留16个数据列，并移除null值
+                // 对于收发货表格，保留17个数据列（与表头一致：…电镀成品数、返镀、返修、报废、备注），并移除null值
                 if (tableName === 'deliveries') {
-                    cells = cells.slice(0, 16).map(cell => cell || ''); // 替换null为空白字符串，只保留16个数据列
+                    cells = cells.slice(0, 17).map(cell => cell || '');
                 }
                 
                 // 构建表格行HTML
@@ -4517,7 +4616,7 @@
                     // 根据表格类型和列索引确定需要格式化的列
                     if (tableName === 'deliveries') {
                         // 收发货表格：订单数量、毛坯、良品、差额、成品、返镀、返修、报废
-                        if ([4, 8, 9, 10, 11, 12, 13, 14].includes(index)) {
+                        if ([4, 9, 10, 11, 12, 13, 14, 15].includes(index)) {
                             formattedCell = formatNumber(cell, 0);
                         }
                     } else if (tableName === 'orders') {
@@ -4758,6 +4857,13 @@
                 const editButtons = document.querySelectorAll(`${tableBodyId} .table-cell .edit-button`);
                 editButtons.forEach(button => {
                     button.addEventListener('click', function() {
+                        // 收发货单改为弹出编辑表单，不再行内编辑
+                        if (tableName === 'deliveries') {
+                            if (typeof window.editDelivery === 'function') {
+                                window.editDelivery(parseInt(this.getAttribute('data-row-index')));
+                            }
+                            return;
+                        }
                         const row = this.closest('.table-row');
                         const cells = row.querySelectorAll('.table-cell');
                         const isEditing = row.dataset.editing === 'true';
@@ -5089,9 +5195,12 @@
                                 product: rowData[4],
                                 productName: rowData[4], // 产品名称
                                 rawQuantity: rowData[5] || '0',  // 毛坯数量列索引应该是5，确保不为空
-                                electroplateQuantity: rowData[6] || '0',  // 电镀数量列索引应该是6，确保不为空
+                                electroplateQuantity: rowData[6] || '0',  // 电镀成品数列索引应该是6，确保不为空
                                 reworkQuantity: rowData[7] || '0',  // 返镀数量列索引应该是7，确保不为空
                                 repairQuantity: rowData[8] || '0',  // 返修数量列索引应该是8，确保不为空
+                                scrapQuantity: rowData[9] || '0',  // 报废数量列索引应该是9
+                                drawingNo: rowData[11] || '',  // 图纸号
+                                bow: rowData[12] || '',  // 蝴蝶结
                                 deliveryQuantity: '1箱', // 默认值，可根据实际情况调整
                                 driver: shipment ? shipment.cells[4] : '', // 司机
                                 phone: shipment ? shipment.cells[5] : '', // 电话
@@ -6395,11 +6504,23 @@
             const orders = (typeof tableConfigs !== 'undefined' && tableConfigs.orders && tableConfigs.orders.originalData) || [];
             return orders.map(item => {
                 const c = item.cells || [];
+                // 新结构 15 列：[状态,滞留,良品,差额,订单号,客户,订单日期,产品名称(炉架类型),规格,数量,单价,金额,交货日期,技术要求,备注]
+                if (c.length >= 15) {
+                    return {
+                        orderNo: c[4] || '', customer: c[5] || '',
+                        type: c[7] || '', productName: c[7] || '', spec: c[8] || '',
+                        qty: c[9] || '', unitPrice: c[10] || '',
+                        drawingNo: '', bow: '', plating: '',
+                        orderDate: c[6] || '', delivery: c[12] || ''
+                    };
+                }
+                // 旧结构 13 列：[订单号,客户(或ID),订单日期,交货日期,技术要求,产品名称,规格,数量,单价,金额,备注,状态,操作]
                 return {
-                    orderNo: c[4] || '', customer: c[5] || '',
-                    productName: c[9] || c[7] || '', spec: c[9] || '', type: '',
-                    drawingNo: c[11] || '', bow: c[12] || '', plating: c[10] || '',
-                    orderDate: c[6] || '', qty: c[9] || ''
+                    orderNo: c[0] || '', customer: c[1] || '',
+                    type: c[5] || '', productName: c[5] || '', spec: c[6] || '',
+                    qty: c[7] || '', unitPrice: c[8] || '',
+                    drawingNo: '', bow: '', plating: '',
+                    orderDate: c[2] || '', delivery: c[3] || ''
                 };
             }).filter(o => o.orderNo);
         }
@@ -6853,7 +6974,7 @@
             
             // 批量编辑订单号提交处理
             if (batchEditDeliveryForm) {
-                batchEditDeliveryForm.addEventListener('submit', function(e) {
+                batchEditDeliveryForm.addEventListener('submit', async function(e) {
                     e.preventDefault();
                     
                     const oldOrderNumber = oldOrderNumberSelect.value;
@@ -6890,6 +7011,17 @@
                     
                     // 保存到localStorage
                     localStorage.setItem('deliveriesData', JSON.stringify(deliveriesData));
+
+                    // 立即上传云端（不等防抖，避免确认弹窗/刷新导致数据未同步）
+                    let batchCloudError = '';
+                    try {
+                        if (typeof window.flushKeyUpload === 'function') {
+                            await window.flushKeyUpload('deliveriesData', deliveriesData);
+                        }
+                    } catch (err) {
+                        batchCloudError = (err && err.message) ? err.message : String(err);
+                        console.warn('[电镀管理] 批量编辑上传云端失败:', batchCloudError);
+                    }
                     
                     // 重新渲染表格
                     applyDefaultSort('deliveries');
@@ -6904,14 +7036,24 @@
                     // 关闭模态框
                     hideBatchEditDeliveryModal();
                     
-                    alert('批量编辑成功！共更新了 ' + updatedCount + ' 条记录');
+                    alert(batchCloudError
+                        ? '批量编辑已保存到本地，但同步到云端失败：' + batchCloudError
+                        : '批量编辑成功！共更新了 ' + updatedCount + ' 条记录');
                 });
             }
             
-            // 设置收发日期默认为今日
-            const today = new Date();
-            const formattedDate = today.toISOString().split('T')[0];
-            deliveryDate.value = formattedDate;
+            // 本地时区的今日（toISOString 是 UTC，东八区凌晨会差一天）
+            function todayLocalISO() {
+                const d = new Date();
+                return [
+                    d.getFullYear(),
+                    String(d.getMonth() + 1).padStart(2, '0'),
+                    String(d.getDate()).padStart(2, '0')
+                ].join('-');
+            }
+
+            // 设置收发日期默认为今日（关闭弹窗时 form.reset() 会清空，重新打开时再次设置）
+            deliveryDate.value = todayLocalISO();
             
             // 订单联想数据来自 wage「订单管理」：列出全部订单（含 orderschedule 推送的），按下单日期倒序
             function wageOrdersForDelivery() {
@@ -6952,7 +7094,8 @@
                 if (!order) return;
                 lastDeliveryOrderNo = orderNo;
                 deliveryCustomer.value = order.customer || '';
-                deliveryProduct.value = order.spec || order.type || order.productName || '';
+                // 产品名称取「炉架类型」(wage 订单的 type 字段)，不是规格
+                deliveryProduct.value = order.type || order.productName || '';
                 deliveryDrawingNo.value = order.drawingNo || '';
                 deliveryBow.value = order.bow || '';
                 // 订单自带电镀厂则覆盖，否则保留默认"丹阳裕丰"
@@ -7002,12 +7145,55 @@
                 });
             }
             
+            // 打开编辑表单（复用新建收发货单弹窗）
+            function editDelivery(rowIndex) {
+                const record = tableConfigs.deliveries && tableConfigs.deliveries.originalData[rowIndex];
+                if (!record || !record.cells) {
+                    alert('未找到该收发货记录，请刷新后重试');
+                    return;
+                }
+                const c = record.cells;
+
+                // 先确定类型（会切换数量输入框的显隐并清空不相关字段），再回填各字段
+                deliveryType.value = c[0] || '收货';
+                updateInputReadOnlyState();
+
+                deliveryDate.value = c[1] || todayLocalISO();
+                deliveryOrderId.value = c[2] || '';
+                deliveryCustomer.value = c[3] || '';
+                deliveryProduct.value = c[4] || '';
+                deliveryRaw.value = c[5] || '0';
+                deliveryElectroplate.value = c[6] || '0';
+                deliveryReplate.value = c[7] || '0';
+                deliveryRepair.value = c[8] || '0';
+                deliveryScrap.value = c[9] || '0';
+                document.getElementById('delivery-remark').value = c[10] || '';
+                deliveryDrawingNo.value = c[11] || '';
+                deliveryBow.value = c[12] || '';
+                deliveryPlatingVendor.value = c[13] || '丹阳裕丰';
+
+                // 标记为编辑状态，提交时更新原记录
+                addDeliveryForm.dataset.editIndex = String(rowIndex);
+                lastDeliveryOrderNo = (c[2] || '').trim();
+                const title = addDeliveryModal.querySelector('h3');
+                if (title) title.textContent = '编辑收发货单';
+                addDeliveryModal.classList.remove('hidden');
+            }
+            // 供其它脚本块的表格渲染逻辑调用
+            window.editDelivery = editDelivery;
+
             // 显示模态框
             if (addDeliveryBtn) {
                 addDeliveryBtn.addEventListener('click', function() {
+                    // 新建时清除编辑状态
+                    delete addDeliveryForm.dataset.editIndex;
+                    const title = addDeliveryModal.querySelector('h3');
+                    if (title) title.textContent = '新建收发货单';
                     // 每次打开模态框时重新获取 wage 订单与客户联想
                     refreshDeliveryOrderOptions();
                     lastDeliveryOrderNo = '';
+                    // 收发日期默认今日（上次关闭时 form.reset() 已清空）
+                    deliveryDate.value = todayLocalISO();
                     // 默认电镀厂：丹阳裕丰（订单联想命中时会自动覆盖）
                     deliveryPlatingVendor.value = '丹阳裕丰';
                     applyWageOrderInfo();
@@ -7021,6 +7207,9 @@
             function hideDeliveryModal() {
                 addDeliveryModal.classList.add('hidden');
                 addDeliveryForm.reset();
+                delete addDeliveryForm.dataset.editIndex;
+                const title = addDeliveryModal.querySelector('h3');
+                if (title) title.textContent = '新建收发货单';
             }
             
             // 点击取消按钮隐藏模态框
@@ -7045,7 +7234,7 @@
             
             // 表单提交处理
             if (addDeliveryForm) {
-                addDeliveryForm.addEventListener('submit', function(e) {
+                addDeliveryForm.addEventListener('submit', async function(e) {
                     e.preventDefault();
                     
                     // 获取表单数据
@@ -7141,12 +7330,35 @@
                         ]
                     };
                     
-                    // 添加到原始数据和当前数据
-                    deliveriesConfig.originalData.push(newRowData);
-                    deliveriesConfig.data.push(newRowData);
+                    // 添加到原始数据和当前数据（编辑时更新原记录）
+                    const editIndexRaw = addDeliveryForm.dataset.editIndex;
+                    const isEditingRecord = editIndexRaw !== undefined && editIndexRaw !== '';
+                    if (isEditingRecord) {
+                        const editIndex = parseInt(editIndexRaw, 10);
+                        if (editIndex >= 0 && editIndex < deliveriesConfig.originalData.length) {
+                            deliveriesConfig.originalData[editIndex] = newRowData;
+                        } else {
+                            alert('原记录已不存在，请刷新后重试');
+                            return;
+                        }
+                    } else {
+                        deliveriesConfig.originalData.push(newRowData);
+                        deliveriesConfig.data.push(newRowData);
+                    }
                     
-                    // 保存到localStorage
+                    // 保存到localStorage（同时更新云端缓存）
                     localStorage.setItem('deliveriesData', JSON.stringify(deliveriesConfig.originalData));
+
+                    // 立即上传云端，不再等 1.5 秒防抖，避免保存后马上刷新导致数据只在本地
+                    let cloudError = '';
+                    try {
+                        if (typeof window.flushKeyUpload === 'function') {
+                            await window.flushKeyUpload('deliveriesData', deliveriesConfig.originalData);
+                        }
+                    } catch (err) {
+                        cloudError = (err && err.message) ? err.message : String(err);
+                        console.warn('[电镀管理] 收发货上传云端失败:', cloudError);
+                    }
                     
                     // 重新渲染表格
                     applyDefaultSort('deliveries');
@@ -7158,8 +7370,10 @@
                     // 刷新订单汇总表
                     renderOrderSummary();
                     
-                    // 显示保存成功提示
-                    alert('收发货单保存成功！');
+                    // 显示保存结果提示
+                    alert(cloudError
+                        ? '已保存到本地，但同步到云端失败：' + cloudError
+                        : (isEditingRecord ? '收发货单修改成功！' : '收发货单保存成功！'));
                     
                     // 隐藏模态框
                     hideDeliveryModal();
