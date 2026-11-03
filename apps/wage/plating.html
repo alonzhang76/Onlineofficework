@@ -41,6 +41,102 @@
         }
     </script>
     <script src="js/tailwindcss.js"></script>
+    <!-- CloudBase 客户端（与 wage 主页面共用云端） -->
+    <script>
+        window.CLOUDBASE_SYNC = { email: 'sync@lori.app', password: 'LoriSync2026!' };
+    </script>
+    <script type="module" src="js/cloudbase.js"></script>
+    <script src="js/cloudbase-store.js"></script>
+    <!-- localStorage 代理层：让电镀管理页面的所有 localStorage 读写都走 CloudbaseStore 云端缓存 -->
+    <script>
+    (function() {
+        var _origLS = {
+            getItem: localStorage.getItem.bind(localStorage),
+            setItem: localStorage.setItem.bind(localStorage),
+            removeItem: localStorage.removeItem.bind(localStorage)
+        };
+
+        // CloudbaseStore 就绪后自动代理 localStorage
+        function installProxy() {
+            if (!window.CloudbaseStore || !CloudbaseStore.isReady || !CloudbaseStore.isReady()) {
+                setTimeout(installProxy, 300);
+                return;
+            }
+            if (localStorage.__cloudProxied) return;
+
+            // 读：优先 CloudbaseStore 内存缓存 → localStorage 回退
+            localStorage.getItem = function(key) {
+                try {
+                    var v = CloudbaseStore.get(key);
+                    if (v !== undefined && v !== null) return JSON.stringify(v);
+                } catch (e) {}
+                return _origLS.getItem(key);
+            };
+
+            // 写：同步写 CloudbaseStore + 定时推云端
+            var _uploadTimer = null;
+            localStorage.setItem = function(key, value) {
+                try {
+                    var parsed;
+                    try { parsed = JSON.parse(value); } catch (e) { parsed = value; }
+                    CloudbaseStore.set(key, parsed);
+                } catch (e) {
+                    _origLS.setItem(key, value);
+                }
+                // 1.5 秒防抖后推云端（避免高频写入时反复上传）
+                if (_uploadTimer) clearTimeout(_uploadTimer);
+                _uploadTimer = setTimeout(function() {
+                    if (typeof CloudbaseStore.pushAll === 'function') {
+                        CloudbaseStore.pushAll().then(function(r) {
+                            if (r && !r.ok && r.msg && r.msg.indexOf('本地无数据') === -1) {
+                                console.warn('[CloudBase] pushAll:', r.msg);
+                            }
+                        }).catch(function() {});
+                    }
+                }, 1500);
+            };
+
+            // 删
+            localStorage.removeItem = function(key) {
+                try { CloudbaseStore.remove(key); } catch (e) {}
+                _origLS.removeItem(key);
+            };
+
+            localStorage.__cloudProxied = true;
+            console.log('[电镀管理] localStorage 已接入 CloudBase 云端同步');
+        }
+
+        // 页面加载完成后初始化并代理
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                try {
+                    if (window.CloudbaseStore && typeof CloudbaseStore.init === 'function') {
+                        CloudbaseStore.init().then(function() { installProxy(); });
+                    } else { installProxy(); }
+                } catch (e) { installProxy(); }
+            });
+        } else {
+            try {
+                if (window.CloudbaseStore && typeof CloudbaseStore.init === 'function') {
+                    CloudbaseStore.init().then(function() { installProxy(); });
+                } else { installProxy(); }
+            } catch (e) { installProxy(); }
+        }
+
+        // 定时刷新云端数据（10 秒一次，与 wage 主应用一致）
+        setInterval(function() {
+            try { if (window.CloudbaseStore && typeof CloudbaseStore.refreshFromCloud === 'function') CloudbaseStore.refreshFromCloud(); } catch (e) {}
+        }, 10000);
+        window.addEventListener('online', function() {
+            try { if (window.CloudbaseStore && typeof CloudbaseStore.refreshFromCloud === 'function') CloudbaseStore.refreshFromCloud(); } catch (e) {}
+        });
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) {
+                try { if (window.CloudbaseStore && typeof CloudbaseStore.refreshFromCloud === 'function') CloudbaseStore.refreshFromCloud(); } catch (e) {}
+            }
+        });
+    })();
+    </script>
     <!-- Font Awesome -->
     <link href="css/font-awesome.min.css" rel="stylesheet">
     <!-- Chart.js -->
