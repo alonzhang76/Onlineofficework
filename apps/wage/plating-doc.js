@@ -19,6 +19,18 @@
     return m ? new Date(+m[1], +m[2] - 1, +m[3]).getTime() : 0;
   }
 
+  /** 给表格插入 colgroup 百分比列宽（table-layout: fixed 下生效） */
+  function injectColgroup(table, widths) {
+    if (!table || !widths || !widths.length) return;
+    var existing = table.querySelector('colgroup');
+    if (existing) existing.remove();
+    var total = widths.reduce(function (a, b) { return a + b; }, 0) || 100;
+    var html = '<colgroup>' + widths.map(function (w) {
+      return '<col style="width:' + (w / total * 100).toFixed(2) + '%">';
+    }).join('') + '</colgroup>';
+    table.insertAdjacentHTML('afterbegin', html);
+  }
+
   /** 收发货记录归一化（cells 数组 / 对象两种格式） */
   function normalizeDelivery(d) {
     if (d && Array.isArray(d.cells)) {
@@ -146,6 +158,9 @@
     var detailCols = isShip
       ? ['订单号', '客户', '产品', '蝴蝶结', '电镀厂', '毛坯数量', '返镀数量', '合计']
       : ['订单号', '客户', '产品', '蝴蝶结', '电镀厂', '电镀成品数', '返修数量', '报废数量', '合计'];
+    var detailColWidths = isShip
+      ? [10, 18, 18, 10, 14, 12, 10, 8]
+      : [10, 16, 16, 10, 12, 10, 10, 8, 8];
     var detailTable = document.getElementById('detail-table');
     var headHtml = '<tr>' + detailCols.map(function (c) { return '<th>' + c + '</th>'; }).join('') + '</tr>';
     var bodyHtml = '';
@@ -165,12 +180,15 @@
     bodyHtml += '<tr style="font-weight:bold;background-color:#e3f2fd;"><td colspan="' + labelSpan + '">合计</td><td>' +
       fmtQty(totalE) + '</td><td>' + fmtQty(totalR2) + '</td>' +
       (isShip ? '' : '<td>' + fmtQty(totalS) + '</td>') + '<td>' + fmtQty(totalC) + '</td></tr>';
+    injectColgroup(detailTable, detailColWidths);
     detailTable.querySelector('thead').innerHTML = headHtml;
     detailTable.querySelector('tbody').innerHTML = bodyHtml;
 
     // 订单汇总
     var sumCols = ['订单号', '客户', '产品名称', '图纸号', '订单数量', '毛坯总发', '电镀成品数', '返镀数量', '返修数量', '报废数量', '良品数量', '差额'];
+    var sumWidths = [10, 16, 14, 10, 7, 6, 6, 6, 6, 6, 7, 6];
     var sumTable = document.getElementById('summary-table');
+    injectColgroup(sumTable, sumWidths);
     sumTable.querySelector('thead').innerHTML = '<tr>' + sumCols.map(function (c) { return '<th>' + c + '</th>'; }).join('') + '</tr>';
     sumTable.querySelector('tbody').innerHTML = summaries.map(function (s) {
       return '<tr><td>' + esc(s.orderNo) + '</td><td>' + esc(s.customer || '-') + '</td><td>' + esc(s.productName || '-') +
@@ -181,7 +199,9 @@
 
     // 收发货记录
     var recCols = ['类型', '收发日期', '电镀厂', '毛坯数量', '电镀成品数', '返镀数量', '返修数量', '报废数量', '备注'];
+    var recWidths = [7, 12, 14, 10, 10, 10, 10, 10, 17];
     var recTable = document.getElementById('records-table');
+    injectColgroup(recTable, recWidths);
     recTable.querySelector('thead').innerHTML = '<tr>' + recCols.map(function (c) { return '<th>' + c + '</th>'; }).join('') + '</tr>';
     recTable.querySelector('tbody').innerHTML = records.map(function (d) {
       return '<tr><td>' + esc(d.type) + '</td><td>' + esc(d.date) + '</td><td>' + esc(d.plating) +
