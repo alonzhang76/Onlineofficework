@@ -6,21 +6,32 @@
     <title>电镀产品收货单</title>
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Microsoft YaHei', Arial, sans-serif;
             line-height: 1.4; color: #333; background-color: #f5f5f5;
             padding: 10px; display: flex; flex-direction: column; align-items: center;
+            max-width: 100vw; overflow-x: hidden; box-sizing: border-box;
         }
+        * { box-sizing: border-box; }
         .print-button {
             margin-bottom: 15px; padding: 8px 16px; background-color: #3498db;
             color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;
         }
         .print-button:hover { background-color: #2980b9; }
         .invoice-container {
-            max-width: 210mm; width: 100%; margin: 0 auto;
+            width: 210mm; max-width: 100%; margin: 0 auto;
             background-color: white; padding: 1.5cm 1.2cm;
             box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            overflow-wrap: break-word; word-break: break-word;
+        }
+        @media screen {
+            .invoice-container { width: min(210mm, calc(100vw - 20px)); }
+        }
+        @media print {
+            .invoice-container { width: 210mm; max-width: 210mm; padding: 1cm; box-shadow: none; margin: 0; }
+            body { background-color: white; display: block; margin: 0; padding: 0; overflow-x: visible; }
+            .print-button { display: none; }
+            @page { size: A4 portrait; margin: 1cm; }
         }
         .header { text-align: center; margin-bottom: 20px; }
         .header h1 { font-size: 24px; color: #2c3e50; margin-bottom: 8px; }
@@ -67,12 +78,6 @@
         .qrcode-item img { width: 120px; height: 120px; }
         .qr-section { margin: 20px 0; }
         .qr-section h3 { margin-bottom: 15px; color: #34495e; text-align: center; font-size: 14px; }
-        @media print {
-            body { background-color: white; display: block; margin: 0; padding: 0; }
-            .print-button { display: none; }
-            .invoice-container { box-shadow: none; padding: 1cm; margin: 0; }
-            @page { size: A4 portrait; margin: 1cm; }
-        }
     </style>
 </head>
 <body data-doctype="收货">
