@@ -854,6 +854,7 @@
                                             <th scope="col" class="table-header">差额</th>
                                             <th scope="col" class="table-header">结算单价</th>
                                             <th scope="col" class="table-header">报废单价</th>
+                                            <th scope="col" class="table-header">额外扣减</th>
                                             <th scope="col" class="table-header">结算金额</th>
                                             <th scope="col" class="table-header">开票金额</th>
                                             <th scope="col" class="table-header">已付金额</th>
@@ -3629,9 +3630,10 @@
             return info;
         }
 
-        // 订单汇总：结算金额 = 良品数量 × 结算单价 − 报废数量 × 报废单价
-        function calcOrderSettlementAmount(goodTotal, scrapTotal, settlementPrice, scrapPrice) {
-            return goodTotal * settlementPrice - scrapTotal * scrapPrice;
+        // 订单汇总：结算金额 = 良品数量 × 结算单价 − 报废数量 × 报废单价 − 额外扣减
+        function calcOrderSettlementAmount(goodTotal, scrapTotal, settlementPrice, scrapPrice, extraDeduction) {
+            const deduction = parseQuantity(extraDeduction);
+            return goodTotal * settlementPrice - scrapTotal * scrapPrice - deduction;
         }
 
         // 订单汇总：重新计算并更新某一行的结算金额
@@ -3641,11 +3643,13 @@
             const settlement = getOrderSettlementSettings()[orderNumber] || {};
             const settlementPrice = parseQuantity(settlement.settlementPrice);
             const scrapPrice = parseQuantity(settlement.scrapPrice);
+            const extraDeduction = parseQuantity(settlement.extraDeduction);
             const amount = calcOrderSettlementAmount(
                 parseQuantity(row.dataset.goodTotal),
                 parseQuantity(row.dataset.scrapTotal),
                 settlementPrice,
-                scrapPrice
+                scrapPrice,
+                extraDeduction
             );
             const amountCell = row.querySelector('td.order-settlement-amount');
             if (amountCell) amountCell.textContent = formatNumber(amount, 2);
@@ -3665,7 +3669,7 @@
                 const emptyRow = document.createElement('tr');
                 const emptyCell = document.createElement('td');
                 emptyCell.className = 'table-cell text-center text-gray-500';
-                emptyCell.colSpan = 21;
+                emptyCell.colSpan = 22;
                 emptyCell.textContent = '暂无数据';
                 emptyRow.appendChild(emptyCell);
                 tableBody.appendChild(emptyRow);
@@ -3678,7 +3682,8 @@
                 const settlement = settlementData[orderNumber] || {};
                 const settlementPrice = parseQuantity(settlement.settlementPrice);
                 const scrapPrice = parseQuantity(settlement.scrapPrice);
-                const amount = calcOrderSettlementAmount(stats.goodTotal, stats.scrapTotal, settlementPrice, scrapPrice);
+                const extraDeduction = parseQuantity(settlement.extraDeduction);
+                const amount = calcOrderSettlementAmount(stats.goodTotal, stats.scrapTotal, settlementPrice, scrapPrice, extraDeduction);
 
                 const row = document.createElement('tr');
                 row.className = 'table-row';
@@ -3743,6 +3748,20 @@
                     : String(settlement.scrapPrice);
                 scrapPriceCell.appendChild(scrapPriceInput);
                 row.appendChild(scrapPriceCell);
+
+                const extraDeductionCell = document.createElement('td');
+                extraDeductionCell.className = 'table-cell';
+                const extraDeductionInput = document.createElement('input');
+                extraDeductionInput.type = 'text';
+                extraDeductionInput.inputMode = 'decimal';
+                extraDeductionInput.className = 'form-input w-24';
+                extraDeductionInput.dataset.orderNumber = orderNumber;
+                extraDeductionInput.dataset.field = 'extraDeduction';
+                extraDeductionInput.value = settlement.extraDeduction === undefined || settlement.extraDeduction === null
+                    ? ''
+                    : String(settlement.extraDeduction);
+                extraDeductionCell.appendChild(extraDeductionInput);
+                row.appendChild(extraDeductionCell);
 
                 const amountCell = document.createElement('td');
                 amountCell.className = 'table-cell order-settlement-amount';
@@ -3836,11 +3855,13 @@
                 const settlement = settlementData[orderNumber] || {};
                 const settlementPrice = parseQuantity(settlement.settlementPrice);
                 const scrapPrice = parseQuantity(settlement.scrapPrice);
+                const extraDeduction = parseQuantity(settlement.extraDeduction);
                 const amount = calcOrderSettlementAmount(
                     parseQuantity(stats.goodTotal),
                     parseQuantity(stats.scrapTotal),
                     settlementPrice,
-                    scrapPrice
+                    scrapPrice,
+                    extraDeduction
                 );
                 const payment = invoicePaymentStats.get(orderNumber) || { invoiced: 0, paid: 0 };
                 const unpaid = payment.invoiced - payment.paid;
@@ -3861,6 +3882,7 @@
                     ['差额', formatStatementNumber(stats.difference, 0)],
                     ['结算单价', formatStatementNumber(settlementPrice, 2)],
                     ['报废单价', formatStatementNumber(scrapPrice, 2)],
+                    ['额外扣减', formatStatementNumber(extraDeduction, 2)],
                     ['结算金额', formatStatementNumber(amount, 2)],
                     ['开票金额', formatStatementNumber(payment.invoiced, 2)],
                     ['已付金额', formatStatementNumber(payment.paid, 2)],
@@ -6424,7 +6446,7 @@
 
                     const allSettings = getOrderSettlementSettings();
                     if (!allSettings[orderNumber]) {
-                        allSettings[orderNumber] = { settlementPrice: 0, scrapPrice: 0 };
+                        allSettings[orderNumber] = { settlementPrice: 0, scrapPrice: 0, extraDeduction: 0 };
                     }
                     allSettings[orderNumber][field] = numericValue;
                     localStorage.setItem('orderSettlementData', JSON.stringify(allSettings));
@@ -7877,13 +7899,13 @@
             if (selectedOrderNumber) select.value = selectedOrderNumber;
         }
 
-        // 订单对账应开金额（良品×结算单价 − 报废×报废单价）
+        // 订单对账应开金额（良品×结算单价 − 报废×报废单价 − 额外扣减）
         function getOrderPayableAmount(orderNo, statsMap, settlementSettings) {
             const stats = (statsMap || getDeliveryOrderStats()).get(orderNo);
             if (!stats) return 0;
             const settings = settlementSettings || getOrderSettlementSettings();
             const s = settings[orderNo] || {};
-            return calcOrderSettlementAmount(stats.goodTotal, stats.scrapTotal, parseQuantity(s.settlementPrice), parseQuantity(s.scrapPrice));
+            return calcOrderSettlementAmount(stats.goodTotal, stats.scrapTotal, parseQuantity(s.settlementPrice), parseQuantity(s.scrapPrice), parseQuantity(s.extraDeduction));
         }
 
         // 每个订单已开票金额（含抵扣分摊；excludeIndex 用于编辑时排除自身）
