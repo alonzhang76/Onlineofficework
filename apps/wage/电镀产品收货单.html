@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电镀产品收货单</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            line-height: 1.4; color: #333; background-color: #f5f5f5;
+            padding: 10px; display: flex; flex-direction: column; align-items: center;
+        }
+        .print-button {
+            margin-bottom: 15px; padding: 8px 16px; background-color: #3498db;
+            color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;
+        }
+        .print-button:hover { background-color: #2980b9; }
+        .invoice-container {
+            max-width: 210mm; width: 100%; margin: 0 auto;
+            background-color: white; padding: 1.5cm 1.2cm;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+        .header { text-align: center; margin-bottom: 20px; }
+        .header h1 { font-size: 24px; color: #2c3e50; margin-bottom: 8px; }
+        .header .company-info { font-size: 12px; color: #7f8c8d; }
+        .info-section {
+            display: flex; justify-content: space-between; margin-bottom: 20px;
+            padding-bottom: 15px; border-bottom: 1px solid #e0e0e0;
+        }
+        .info-section .info-block { width: 48%; }
+        .info-section h3 {
+            font-size: 14px; color: #34495e; margin-bottom: 10px;
+            border-bottom: 2px solid #3498db; padding-bottom: 3px; display: inline-block;
+        }
+        .info-item { margin-bottom: 8px; font-size: 12px; }
+        .info-item strong { color: #2c3e50; margin-right: 8px; }
+        .section-title { margin-bottom: 15px; color: #34495e; font-size: 14px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th, td {
+            padding: 8px; text-align: center; border: 1px solid #ddd;
+            white-space: nowrap; font-size: 12px;
+        }
+        table td:nth-child(2) { font-size: 70%; }
+        th { background-color: #3498db; color: white; font-weight: bold; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        .remark-section { margin-bottom: 20px; padding: 10px; border: 1px solid #e0e0e0; background-color: #f8f9fa; }
+        .remark-section h3 { font-size: 14px; color: #34495e; margin-bottom: 8px; }
+        .footer { display: flex; justify-content: space-between; margin-top: 30px; }
+        .signature-block {
+            width: 45%; text-align: center; display: flex;
+            flex-direction: column; align-items: center;
+        }
+        .signature-line {
+            margin-top: 15px; border-bottom: 1px solid #333;
+            padding-bottom: 3px; width: 100%; min-height: 15px;
+            display: flex; align-items: flex-end;
+        }
+        .signature-block .date-line { margin-top: 8px; font-size: 11px; color: #7f8c8d; }
+        .title-line { display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .title-line .invoice-number { font-size: 14px; color: #3498db; font-weight: bold; }
+        .title-line .date { font-size: 12px; color: #7f8c8d; }
+        #qrcodes-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; margin: 20px 0; }
+        .qrcode-item { text-align: center; margin: 5px; }
+        .qrcode-item h4 { font-size: 12px; margin-bottom: 8px; color: #2c3e50; }
+        .qrcode-item img { width: 120px; height: 120px; }
+        .qr-section { margin: 20px 0; }
+        .qr-section h3 { margin-bottom: 15px; color: #34495e; text-align: center; font-size: 14px; }
+        @media print {
+            body { background-color: white; display: block; margin: 0; padding: 0; }
+            .print-button { display: none; }
+            .invoice-container { box-shadow: none; padding: 1cm; margin: 0; }
+            @page { size: A4 portrait; margin: 1cm; }
+        }
+    </style>
+</head>
+<body data-doctype="收货">
+    <button class="print-button" onclick="window.print()">打印</button>
+    <div class="invoice-container">
+        <!-- 标题部分 -->
+        <div class="header">
+            <div class="title-line">
+                <h1 id="doc-title">电镀产品收货单</h1>
+                <div>
+                    <div class="invoice-number">收货单编号: <span id="delivery-id">生成中...</span></div>
+                    <div class="date">日期: <span id="current-date"></span></div>
+                </div>
+            </div>
+            <div class="company-info">
+                <p>江苏裕丰车辆部件有限公司</p>
+                <p>丹阳市界牌镇振宇大桥北（电镀厂）</p>
+            </div>
+        </div>
+
+        <!-- 信息部分 -->
+        <div class="info-section">
+            <div class="info-block" style="width: 100%;">
+                <h3 id="info-title">收货信息</h3>
+                <div class="info-item"><strong>司机:</strong><span id="driver"></span></div>
+                <div class="info-item"><strong>电话:</strong><span id="phone"></span></div>
+                <div class="info-item"><strong>车牌:</strong><span id="license-plate"></span></div>
+            </div>
+        </div>
+
+        <!-- 产品明细表格 -->
+        <h3 class="section-title">产品明细</h3>
+        <table id="detail-table">
+            <thead></thead>
+            <tbody></tbody>
+        </table>
+
+        <!-- 订单汇总表格 -->
+        <h3 class="section-title">订单汇总</h3>
+        <table id="summary-table">
+            <thead></thead>
+            <tbody></tbody>
+        </table>
+
+        <!-- 收发货记录表格 -->
+        <h3 class="section-title">收发货记录（按时间倒序）</h3>
+        <table id="records-table">
+            <thead></thead>
+            <tbody></tbody>
+        </table>
+
+        <!-- 二维码部分 -->
+        <div class="qr-section">
+            <h3>订单数据二维码</h3>
+            <div id="qrcodes-container"></div>
+        </div>
+
+        <!-- 备注部分 -->
+        <div class="remark-section">
+            <h3>备注</h3>
+            <textarea id="remark" style="width: 100%; min-height: 60px; padding: 8px; border: 1px solid #ddd;"></textarea>
+        </div>
+
+        <!-- 签名部分 -->
+        <div class="footer">
+            <div class="signature-block">
+                <p id="sign-left">送货人</p>
+                <div class="signature-line"></div>
+            </div>
+            <div class="signature-block">
+                <p id="sign-right">收货人</p>
+                <div class="signature-line"></div>
+                <div class="date-line">日期：_________________</div>
+            </div>
+        </div>
+    </div>
+    <script src="plating-doc.js?v=20261103a"></script>
+</body>
+</html>

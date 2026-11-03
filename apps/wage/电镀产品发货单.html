@@ -6,257 +6,85 @@
     <title>电镀产品发货单</title>
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Microsoft YaHei', Arial, sans-serif;
-            line-height: 1.4;
-            color: #333;
-            background-color: #f5f5f5;
-            padding: 10px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            line-height: 1.4; color: #333; background-color: #f5f5f5;
+            padding: 10px; display: flex; flex-direction: column; align-items: center;
         }
-        
         .print-button {
-            margin-bottom: 15px;
-            padding: 8px 16px;
-            background-color: #3498db;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 14px;
+            margin-bottom: 15px; padding: 8px 16px; background-color: #3498db;
+            color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;
         }
-        
-        .print-button:hover {
-            background-color: #2980b9;
-        }
-        
+        .print-button:hover { background-color: #2980b9; }
         .invoice-container {
-            max-width: 210mm;
-            width: 100%;
-            margin: 0 auto;
-            background-color: white;
-            padding: 1.5cm 1.2cm;
+            max-width: 210mm; width: 100%; margin: 0 auto;
+            background-color: white; padding: 1.5cm 1.2cm;
             box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
         }
-        
-        .header {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        
-        .header h1 {
-            font-size: 24px;
-            color: #2c3e50;
-            margin-bottom: 8px;
-        }
-        
-        .header .company-info {
-            font-size: 12px;
-            color: #7f8c8d;
-        }
-        
+        .header { text-align: center; margin-bottom: 20px; }
+        .header h1 { font-size: 24px; color: #2c3e50; margin-bottom: 8px; }
+        .header .company-info { font-size: 12px; color: #7f8c8d; }
         .info-section {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid #e0e0e0;
+            display: flex; justify-content: space-between; margin-bottom: 20px;
+            padding-bottom: 15px; border-bottom: 1px solid #e0e0e0;
         }
-        
-        .info-section .info-block {
-            width: 48%;
-        }
-        
+        .info-section .info-block { width: 48%; }
         .info-section h3 {
-            font-size: 14px;
-            color: #34495e;
-            margin-bottom: 10px;
-            border-bottom: 2px solid #3498db;
-            padding-bottom: 3px;
-            display: inline-block;
+            font-size: 14px; color: #34495e; margin-bottom: 10px;
+            border-bottom: 2px solid #3498db; padding-bottom: 3px; display: inline-block;
         }
-        
-        .info-item {
-            margin-bottom: 8px;
-            font-size: 12px;
-        }
-        
-        .info-item strong {
-            color: #2c3e50;
-            margin-right: 8px;
-        }
-        
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-        }
-        
+        .info-item { margin-bottom: 8px; font-size: 12px; }
+        .info-item strong { color: #2c3e50; margin-right: 8px; }
+        .section-title { margin-bottom: 15px; color: #34495e; font-size: 14px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
         th, td {
-            padding: 8px;
-            text-align: center;
-            border: 1px solid #ddd;
-            white-space: nowrap;
-            font-size: 12px;
+            padding: 8px; text-align: center; border: 1px solid #ddd;
+            white-space: nowrap; font-size: 12px;
         }
-        
-        /* 将表格中客户名称列的字号缩小30% */
-        table td:nth-child(2) {
-            font-size: 70%;
-        }
-        
-        th {
-            background-color: #3498db;
-            color: white;
-            font-weight: bold;
-        }
-        
-        tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
-        
-        .remark-section {
-            margin-bottom: 20px;
-            padding: 10px;
-            border: 1px solid #e0e0e0;
-            background-color: #f8f9fa;
-        }
-        
-        .remark-section h3 {
-            font-size: 14px;
-            color: #34495e;
-            margin-bottom: 8px;
-        }
-        
-        .footer {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 30px;
-        }
-        
+        table td:nth-child(2) { font-size: 70%; }
+        th { background-color: #3498db; color: white; font-weight: bold; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        .remark-section { margin-bottom: 20px; padding: 10px; border: 1px solid #e0e0e0; background-color: #f8f9fa; }
+        .remark-section h3 { font-size: 14px; color: #34495e; margin-bottom: 8px; }
+        .footer { display: flex; justify-content: space-between; margin-top: 30px; }
         .signature-block {
-            width: 45%;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            width: 45%; text-align: center; display: flex;
+            flex-direction: column; align-items: center;
         }
-        
         .signature-line {
-            margin-top: 15px;
-            border-bottom: 1px solid #333;
-            padding-bottom: 3px;
-            width: 100%;
-            min-height: 15px;
-            display: flex;
-            align-items: flex-end;
+            margin-top: 15px; border-bottom: 1px solid #333;
+            padding-bottom: 3px; width: 100%; min-height: 15px;
+            display: flex; align-items: flex-end;
         }
-        
-        .signature-block .date-line {
-            margin-top: 8px;
-            font-size: 11px;
-            color: #7f8c8d;
-        }
-        
-        .title-line {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-        }
-        
-        .title-line .invoice-number {
-            font-size: 14px;
-            color: #3498db;
-            font-weight: bold;
-        }
-        
-        .title-line .date {
-            font-size: 12px;
-            color: #7f8c8d;
-        }
-        
-        /* 二维码容器样式 */
-        #qrcodes-container {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 20px;
-            margin: 20px 0;
-        }
-        
-        /* 单个二维码样式 */
-        .qrcode-item {
-            text-align: center;
-            margin: 5px;
-        }
-        
-        .qrcode-item h4 {
-            font-size: 12px;
-            margin-bottom: 8px;
-            color: #2c3e50;
-        }
-        
-        /* 二维码图片样式 */
-         .qrcode-item img {
-             width: 120px;
-             height: 120px;
-         }
-         
-         /* 二维码部分样式 */
-         .qr-section {
-             margin: 20px 0;
-         }
-         
-         .qr-section h3 {
-             margin-bottom: 15px;
-             color: #34495e;
-             text-align: center;
-             font-size: 14px;
-         }
-        
+        .signature-block .date-line { margin-top: 8px; font-size: 11px; color: #7f8c8d; }
+        .title-line { display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .title-line .invoice-number { font-size: 14px; color: #3498db; font-weight: bold; }
+        .title-line .date { font-size: 12px; color: #7f8c8d; }
+        #qrcodes-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; margin: 20px 0; }
+        .qrcode-item { text-align: center; margin: 5px; }
+        .qrcode-item h4 { font-size: 12px; margin-bottom: 8px; color: #2c3e50; }
+        .qrcode-item img { width: 120px; height: 120px; }
+        .qr-section { margin: 20px 0; }
+        .qr-section h3 { margin-bottom: 15px; color: #34495e; text-align: center; font-size: 14px; }
         @media print {
-            body {
-                background-color: white;
-                display: block;
-                margin: 0;
-                padding: 0;
-            }
-            
-            .print-button {
-                display: none;
-            }
-            
-            .invoice-container {
-                box-shadow: none;
-                padding: 1cm;
-                margin: 0;
-            }
-            
-            @page {
-                size: A4 portrait;
-                margin: 1cm;
-            }
+            body { background-color: white; display: block; margin: 0; padding: 0; }
+            .print-button { display: none; }
+            .invoice-container { box-shadow: none; padding: 1cm; margin: 0; }
+            @page { size: A4 portrait; margin: 1cm; }
         }
     </style>
 </head>
-<body>
+<body data-doctype="发货">
     <button class="print-button" onclick="window.print()">打印</button>
     <div class="invoice-container">
         <!-- 标题部分 -->
         <div class="header">
             <div class="title-line">
-                <h1>电镀产品发货单</h1>
+                <h1 id="doc-title">电镀产品发货单</h1>
                 <div>
                     <div class="invoice-number">发货单编号: <span id="delivery-id">生成中...</span></div>
-                    <div class="date">日期: <span id="current-date">2023-12-15</span></div>
+                    <div class="date">日期: <span id="current-date"></span></div>
                 </div>
             </div>
             <div class="company-info">
@@ -264,579 +92,63 @@
                 <p>丹阳市界牌镇振宇大桥北（电镀厂）</p>
             </div>
         </div>
-        
+
         <!-- 信息部分 -->
         <div class="info-section">
             <div class="info-block" style="width: 100%;">
-                <h3>发货信息</h3>
-                <div class="info-item">
-                    <strong>司机:</strong>
-                    <span id="driver"></span>
-                </div>
-                <div class="info-item">
-                    <strong>电话:</strong>
-                    <span id="phone"></span>
-                </div>
-                <div class="info-item">
-                    <strong>车牌:</strong>
-                    <span id="license-plate"></span>
-                </div>
+                <h3 id="info-title">发货信息</h3>
+                <div class="info-item"><strong>司机:</strong><span id="driver"></span></div>
+                <div class="info-item"><strong>电话:</strong><span id="phone"></span></div>
+                <div class="info-item"><strong>车牌:</strong><span id="license-plate"></span></div>
             </div>
         </div>
-        
+
         <!-- 产品明细表格 -->
-        <h3 style="margin-bottom: 15px; color: #34495e;">产品明细</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th>订单号</th>
-                    <th>客户</th>
-                    <th>产品</th>
-                    <th>蝴蝶结</th>
-                    <th>电镀成品数</th>
-                    <th>返修数量</th>
-                    <th>合计</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>ORD-2023-0124</td>
-                    <td>广州电子有限公司</td>
-                    <td>电路板</td>
-                    <td></td>
-                    <td>1000</td>
-                    <td>50</td>
-                    <td>1050</td>
-                </tr>
-                <!-- 静态数据的合计行 -->
-                <tr style="font-weight: bold; background-color: #e3f2fd;">
-                    <td colspan="4">合计</td>
-                    <td>1000</td>
-                    <td>50</td>
-                    <td>1050</td>
-                </tr>
-            </tbody>
+        <h3 class="section-title">产品明细</h3>
+        <table id="detail-table">
+            <thead></thead>
+            <tbody></tbody>
         </table>
-        
+
+        <!-- 订单汇总表格 -->
+        <h3 class="section-title">订单汇总</h3>
+        <table id="summary-table">
+            <thead></thead>
+            <tbody></tbody>
+        </table>
+
+        <!-- 收发货记录表格 -->
+        <h3 class="section-title">收发货记录（按时间倒序）</h3>
+        <table id="records-table">
+            <thead></thead>
+            <tbody></tbody>
+        </table>
+
         <!-- 二维码部分 -->
         <div class="qr-section">
             <h3>订单数据二维码</h3>
             <div id="qrcodes-container"></div>
         </div>
-        
+
         <!-- 备注部分 -->
         <div class="remark-section">
             <h3>备注</h3>
             <textarea id="remark" style="width: 100%; min-height: 60px; padding: 8px; border: 1px solid #ddd;"></textarea>
         </div>
-        
+
         <!-- 签名部分 -->
         <div class="footer">
             <div class="signature-block">
-                <p>负责人</p>
+                <p id="sign-left">发货人</p>
                 <div class="signature-line"></div>
             </div>
             <div class="signature-block">
-                <p>客户签收</p>
+                <p id="sign-right">收货人</p>
                 <div class="signature-line"></div>
                 <div class="date-line">日期：_________________</div>
             </div>
         </div>
     </div>
-    
-    <script>
-        // 设置当前日期和生成发货单编号，以及填充选中的发货记录
-        document.addEventListener('DOMContentLoaded', function() {
-            const today = new Date();
-            const year = today.getFullYear();
-            const month = String(today.getMonth() + 1).padStart(2, '0');
-            const day = String(today.getDate()).padStart(2, '0');
-            const formattedDate = `${year}-${month}-${day}`;
-            document.getElementById('current-date').textContent = formattedDate;
-            
-            // 生成随机3位数
-            const randomNum = Math.floor(100 + Math.random() * 900);
-            // 生成发货单编号: 日期+随机3位数
-            const deliveryId = `${formattedDate}-${randomNum}`;
-            document.getElementById('delivery-id').textContent = deliveryId;
-            
-            // 尝试从sessionStorage获取选中的发货记录
-            const selectedDeliveries = JSON.parse(sessionStorage.getItem('selectedDeliveries'));
-            
-            // 从选中的发货记录中提取司机、电话和车牌信息
-            if (selectedDeliveries && selectedDeliveries.length > 0) {
-                const driver = selectedDeliveries[0].driver || '';
-                const phone = selectedDeliveries[0].phone || '';
-                const licensePlate = selectedDeliveries[0].licensePlate || '';
-                
-                // 填充到相应位置
-                document.getElementById('driver').textContent = driver;
-                document.getElementById('phone').textContent = phone;
-                document.getElementById('license-plate').textContent = licensePlate;
-            }
-            
-            if (selectedDeliveries && selectedDeliveries.length > 0) {
-                // 清空现有的表格内容
-                const tableBody = document.querySelector('table tbody');
-                tableBody.innerHTML = '';
-                
-                // 初始化合计变量
-                let totalElectroplatingQuantity = 0;
-                let totalRepairQuantity = 0;
-                let totalCombinedQuantity = 0;
-                
-                // 添加选中的记录到表格
-                selectedDeliveries.forEach(delivery => {
-                    const row = document.createElement('tr');
-                    // 与「收发货」表格字段一致：电镀成品数(索引6)、返修数量(索引8)
-                    const electroplateQty = parseInt(delivery.electroplateQuantity || delivery.electroplatingQuantity) || 0;
-                    const repairQty = parseInt(delivery.repairQuantity) || 0;
-                    const combBow = delivery.bow || (delivery.cells && delivery.cells[12]) || '';
-                    const combinedQty = electroplateQty + repairQty;
-                    
-                    // 累加合计值
-                    totalElectroplatingQuantity += electroplateQty;
-                    totalRepairQuantity += repairQty;
-                    totalCombinedQuantity += combinedQty;
-                    
-                    row.innerHTML = `
-                        <td>${delivery.orderNumber}</td>
-                        <td>${delivery.customer}</td>
-                        <td>${delivery.productName || delivery.product}</td>
-                        <td>${combBow}</td>
-                        <td>${electroplateQty}</td>
-                        <td>${repairQty}</td>
-                        <td>${combinedQty}</td>
-                    `;
-                    tableBody.appendChild(row);
-                });
-                
-                // 添加合计行
-                const totalRow = document.createElement('tr');
-                totalRow.style.fontWeight = 'bold';
-                totalRow.style.backgroundColor = '#e3f2fd';
-                totalRow.innerHTML = `
-                    <td colspan="4">合计</td>
-                    <td>${totalElectroplatingQuantity}</td>
-                    <td>${totalRepairQuantity}</td>
-                    <td>${totalCombinedQuantity}</td>
-                `;
-                tableBody.appendChild(totalRow);
-                
-                // 暂时不清空sessionStorage，以便generateQRCode函数可以访问原始数据
-            // sessionStorage.removeItem('selectedDeliveries'); // 将在二维码生成后清除
-            }
-            
-            // 页面加载完成后生成二维码
-            generateQRCode();
-        });
-        
-        // 收集订单数据并生成二维码
-        function generateQRCode() {
-            console.log('开始生成二维码');
-            
-            // 从sessionStorage获取原始数据（收发货管理数据）
-            const selectedDeliveries = JSON.parse(sessionStorage.getItem('selectedDeliveries'));
-            
-            // 从localStorage获取订单管理和收发货管理的完整数据
-            const ordersData = JSON.parse(localStorage.getItem('ordersData') || '[]');
-            const deliveriesData = JSON.parse(localStorage.getItem('deliveriesData') || '[]');
-            
-            // 从表格中获取订单号
-            const tableBody = document.querySelector('table tbody');
-            const rows = tableBody.querySelectorAll('tr');
-            
-            // 从表格中提取所有唯一的订单号
-            const orderNumbers = new Set();
-            for (let i = 0; i < rows.length - 1; i++) {
-                const cells = rows[i].querySelectorAll('td');
-                if (cells.length >= 1) {
-                    orderNumbers.add(cells[0].textContent);
-                }
-            }
-            
-            // 如果从表格中没有获取到订单号，检查sessionStorage中的测试数据
-            if (orderNumbers.size === 0 && selectedDeliveries && selectedDeliveries.length > 0) {
-                selectedDeliveries.forEach(delivery => {
-                    if (delivery.orderNumber) {
-                        orderNumbers.add(delivery.orderNumber);
-                    }
-                });
-            }
-            
-            // 初始化汇总数据
-            let totalOrderQuantity = 0;
-            let totalBlankQuantity = 0;
-            let totalElectroplatingQuantity = 0;
-            let totalReplatingQuantity = 0;
-            let totalRepairQuantity = 0;
-            let totalScrapQuantity = 0;
-            let totalRetainQuantity = 0;
-            let totalGoodQuantity = 0;
-            
-            // 创建订单号到汇总数据的映射
-            const orderSummaryMap = new Map();
-            
-            // 为每个订单号初始化汇总数据
-            orderNumbers.forEach(orderNumber => {
-                orderSummaryMap.set(orderNumber, {
-                    orderQuantity: 0,
-                    blankQuantity: 0,
-                    electroplatingQuantity: 0,
-                    replatingQuantity: 0,
-                    repairQuantity: 0,
-                    scrapQuantity: 0,
-                    retainQuantity: 0,
-                    goodQuantity: 0,
-                    difference: 0,
-                    customer: '',
-                    productName: '',
-                    drawingNo: ''
-                });
-            });
-            
-            // 1. 从订单管理表格获取数据
-            ordersData.forEach(order => {
-                if (order.cells) {
-                    const orderNumber = order.cells[4]; // 订单号在第5列（索引4）
-                    
-                    if (orderSummaryMap.has(orderNumber)) {
-                        const summary = orderSummaryMap.get(orderNumber);
-                        
-                        // 根据数据结构长度确定正确的索引
-                        let quantityIndex, goodQuantityIndex, retainQuantityIndex;
-                        if (order.cells.length === 15) {
-                            // 新的数据结构：[状态, 滞留数量, 良品数量, 差额, 订单号, 客户, 订单日期, 产品名称, 规格, 数量, 单价, 金额, 交货日期, 技术要求, 备注]
-                            quantityIndex = 9;       // 数量列
-                            goodQuantityIndex = 2;   // 良品数量列
-                            retainQuantityIndex = 1; // 滞留数量列
-                        } else if (order.cells.length === 13) {
-                            // 原始数据结构：[订单号, 客户, 订单日期, 交货日期, 技术要求, 产品名称, 规格, 数量, 单价, 金额, 备注, 状态, 操作]
-                            quantityIndex = 7;       // 数量列
-                            goodQuantityIndex = -1;  // 原始数据结构中没有良品数量列
-                            retainQuantityIndex = -1; // 原始数据结构中没有滞留数量列
-                        } else {
-                            // 其他数据结构，更准确地识别数量列和金额列
-                            // 辅助函数：解析数字，处理千分位逗号
-                            function parseNum(str) {
-                                if (typeof str !== 'string') return 0;
-                                // 移除千分位逗号和货币符号，然后解析
-                                const cleanStr = str.replace(/[,¥]/g, '');
-                                const num = parseFloat(cleanStr);
-                                return isNaN(num) ? 0 : num;
-                            }
-                            
-                            // 1. 先识别金额列：包含¥符号或千分位逗号的列
-                            const amountIndex = order.cells.findIndex(cell => {
-                                return typeof cell === 'string' && (cell.includes('¥') || cell.includes(','));
-                            });
-                            
-                            // 2. 识别单价列：通常在金额列之前，且包含¥符号或小数
-                            let unitPriceIndex = -1;
-                            if (amountIndex > 0) {
-                                // 从金额列往前找单价列
-                                for (let i = amountIndex - 1; i >= 0; i--) {
-                                    const cell = order.cells[i];
-                                    if (typeof cell === 'string') {
-                                        if (cell.includes('¥') || (parseNum(cell) > 0 && parseNum(cell) < 1000)) {
-                                            unitPriceIndex = i;
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                            
-                            // 3. 确定数量列：
-                            // - 如果找到单价列，数量列通常在单价列之前
-                            // - 如果没找到单价列，但找到金额列，数量列通常在金额列前两列
-                            // - 否则，寻找不包含¥符号和千分位逗号的数字列
-                            if (unitPriceIndex > 0) {
-                                quantityIndex = unitPriceIndex - 1;
-                            } else if (amountIndex > 1) {
-                                quantityIndex = amountIndex - 2;
-                            } else {
-                                // 寻找不包含¥符号和千分位逗号的数字列
-                                const numericColumns = order.cells.map((cell, index) => {
-                                    const num = parseNum(cell);
-                                    // 数量列通常是整数，且不包含货币符号和千分位逗号
-                                    const isQuantity = typeof cell === 'string' && !cell.includes('¥') && !cell.includes(',') && Number.isInteger(num) && num > 0;
-                                    return { index, value: num, isQuantity };
-                                }).filter(col => col.isQuantity);
-                                
-                                // 找到最大的整数列，假设是数量
-                                if (numericColumns.length > 0) {
-                                    numericColumns.sort((a, b) => b.value - a.value);
-                                    quantityIndex = numericColumns[0].index;
-                                } else {
-                                    // 最后尝试，假设数量列在第9位
-                                    quantityIndex = 9;
-                                }
-                            }
-                            
-                            goodQuantityIndex = -1;
-                            retainQuantityIndex = -1;
-                        }
-                        
-                        // 获取订单数量，处理千分位逗号
-                        const quantityStr = order.cells[quantityIndex];
-                        const cleanQuantityStr = typeof quantityStr === 'string' ? quantityStr.replace(/[,¥]/g, '') : quantityStr;
-                        summary.orderQuantity = parseInt(cleanQuantityStr) || 0;
-                        
-                        // 仅在有对应列时获取良品数量和滞留数量，处理千分位逗号
-                        if (goodQuantityIndex >= 0) {
-                            const goodQtyStr = order.cells[goodQuantityIndex];
-                            const cleanGoodQtyStr = typeof goodQtyStr === 'string' ? goodQtyStr.replace(/[,¥]/g, '') : goodQtyStr;
-                            summary.goodQuantity = parseInt(cleanGoodQtyStr) || 0;
-                        }
-                        if (retainQuantityIndex >= 0) {
-                            const retainQtyStr = order.cells[retainQuantityIndex];
-                            const cleanRetainQtyStr = typeof retainQtyStr === 'string' ? retainQtyStr.replace(/[,¥]/g, '') : retainQtyStr;
-                            summary.retainQuantity = parseInt(cleanRetainQtyStr) || 0;
-                        }
-                    }
-                }
-            });
-            
-            // 2. 从收发货管理表格获取数据
-            deliveriesData.forEach(delivery => {
-                if (delivery.cells) {
-                    const orderNumber = delivery.cells[2]; // 订单号在第3列（索引2）
-                    const recordType = delivery.cells[0]; // 记录类型：收货/发货（索引0）
-                    
-                    if (orderSummaryMap.has(orderNumber)) {
-                        const summary = orderSummaryMap.get(orderNumber);
-                        
-                        // 根据用户要求的公式计算各个数量
-                        if (recordType === '收货') {
-                            // 电镀成品数 / 返修数量 / 报废数量：与电镀管理「收发货」表格一致
-                            summary.electroplatingQuantity += parseInt(delivery.cells[6]) || 0;
-                            summary.repairQuantity += parseInt(delivery.cells[8]) || 0;
-                            summary.scrapQuantity += parseInt(delivery.cells[9]) || 0;
-                        } else if (recordType === '发货') {
-                            // 毛坯数量：发货行登记
-                            summary.blankQuantity += parseInt(delivery.cells[5]) || 0;
-                        }
-                        // 返镀数量：发货行（退回重镀）和旧数据中的收货行都累计
-                        summary.replatingQuantity += parseInt(delivery.cells[7]) || 0;
-
-                        // 客户、产品名称、图纸号取自收发货记录
-                        summary.customer = delivery.cells[3] || summary.customer || '';
-                        summary.productName = delivery.cells[4] || summary.productName || '';
-                        summary.drawingNo = delivery.cells[11] || summary.drawingNo || '';
-                    }
-                }
-            });
-            
-            // 调试：输出收发货管理表格数据和订单汇总结果
-            console.log('收发货管理表格数据:', deliveriesData);
-            console.log('订单汇总结果:', Array.from(orderSummaryMap.entries()));
-            console.log('选中的订单号:', Array.from(orderNumbers));
-            
-            // 确保至少包含一个订单号
-            if (orderNumbers.size === 0 && deliveriesData.length > 0) {
-                // 如果没有从表格或sessionStorage获取到订单号，尝试从收发货管理表格中提取
-                const allOrderNumbers = new Set(deliveriesData.map(d => d.cells[2]).filter(Boolean));
-                allOrderNumbers.forEach(orderNumber => {
-                    if (!orderSummaryMap.has(orderNumber)) {
-                        orderSummaryMap.set(orderNumber, {
-                            orderQuantity: 0,
-                            blankQuantity: 0,
-                            electroplatingQuantity: 0,
-                            replatingQuantity: 0,
-                            repairQuantity: 0,
-                            scrapQuantity: 0,
-                            retainQuantity: 0,
-                            goodQuantity: 0
-                        });
-                    }
-                });
-            }
-            
-            // 选中记录已经包含在 deliveriesData 中，不再重复累加；
-            // 只有本地收发货数据缺失时，才用选中记录兜底
-            if (deliveriesData.length === 0 && selectedDeliveries && selectedDeliveries.length > 0) {
-                selectedDeliveries.forEach(delivery => {
-                    const orderNumber = delivery.orderNumber || (delivery.cells && delivery.cells[2]);
-                    if (!orderNumber) return;
-                    if (!orderSummaryMap.has(orderNumber)) {
-                        orderSummaryMap.set(orderNumber, {
-                            orderQuantity: 0,
-                            blankQuantity: 0,
-                            electroplatingQuantity: 0,
-                            replatingQuantity: 0,
-                            repairQuantity: 0,
-                            scrapQuantity: 0,
-                            retainQuantity: 0,
-                            goodQuantity: 0,
-                            difference: 0,
-                            customer: '',
-                            productName: '',
-                            drawingNo: ''
-                        });
-                    }
-                    const summary = orderSummaryMap.get(orderNumber);
-                    const recordType = delivery.recordType || (delivery.cells && delivery.cells[0]);
-                    if (recordType === '收货') {
-                        summary.electroplatingQuantity += parseInt(delivery.electroplateQuantity || delivery.electroplatingQuantity) || 0;
-                        summary.repairQuantity += parseInt(delivery.repairQuantity) || 0;
-                        summary.scrapQuantity += parseInt(delivery.scrapQuantity) || 0;
-                    } else if (recordType === '发货') {
-                        summary.blankQuantity += parseInt(delivery.rawQuantity) || 0;
-                    }
-                    summary.replatingQuantity += parseInt(delivery.reworkQuantity || delivery.replatingQuantity) || 0;
-                    summary.customer = delivery.customer || summary.customer || '';
-                    summary.productName = delivery.productName || delivery.product || summary.productName || '';
-                    summary.drawingNo = delivery.drawingNo || summary.drawingNo || '';
-                });
-            }
-
-            // 良品数量、差额按「收发货」订单汇总口径计算；订单数量缺失时从 wage 订单管理补足
-            let wageOrders = [];
-            try { wageOrders = JSON.parse(localStorage.getItem('wage_orders') || '[]'); } catch (e) {}
-            orderSummaryMap.forEach((summary, orderNumber) => {
-                summary.goodQuantity = summary.electroplatingQuantity - summary.replatingQuantity - summary.scrapQuantity;
-                const netBlank = summary.blankQuantity - summary.repairQuantity;
-                summary.difference = netBlank - summary.goodQuantity;
-                if (summary.orderQuantity === 0 && Array.isArray(wageOrders)) {
-                    const wageOrder = wageOrders.find(o => o && o.orderNo === orderNumber);
-                    if (wageOrder) {
-                        summary.orderQuantity = parseInt(String(wageOrder.qty).replace(/,/g, '')) || 0;
-                    }
-                }
-            });
-            
-            // 调试：输出修复后的数据汇总结果
-            console.log('修复后的数据汇总结果:', Array.from(orderSummaryMap.entries()));
-            
-            // 检查特定订单号的数据
-            const targetOrder = '2505061';
-            if (orderSummaryMap.has(targetOrder)) {
-                const summary = orderSummaryMap.get(targetOrder);
-                console.log('订单2505061的数据:', {
-                    blankQuantity: summary.blankQuantity,
-                    replatingQuantity: summary.replatingQuantity,
-                    repairQuantity: summary.repairQuantity,
-                    scrapQuantity: summary.scrapQuantity
-                });
-            }
-            
-            // 计算所有订单的总汇总
-            orderSummaryMap.forEach(summary => {
-                totalOrderQuantity += summary.orderQuantity;
-                totalBlankQuantity += summary.blankQuantity;
-                totalElectroplatingQuantity += summary.electroplatingQuantity;
-                totalReplatingQuantity += summary.replatingQuantity;
-                totalRepairQuantity += summary.repairQuantity;
-                totalScrapQuantity += summary.scrapQuantity;
-                totalRetainQuantity += summary.retainQuantity;
-                totalGoodQuantity += summary.goodQuantity;
-            });
-            
-            // 生成多个二维码容器
-            const qrcodesContainer = document.getElementById('qrcodes-container');
-            console.log('二维码容器:', qrcodesContainer);
-            
-            // 清空容器
-            qrcodesContainer.innerHTML = '';
-            
-            // 为每个订单号生成单独的二维码
-            const orderNumbersArray = Array.from(orderNumbers);
-            let generatedCount = 0;
-            const totalToGenerate = orderNumbersArray.length;
-            
-            // 定义清除sessionStorage的函数
-            function cleanupSessionStorage() {
-                sessionStorage.removeItem('selectedDeliveries');
-                console.log('已清除sessionStorage中的选中数据');
-            }
-            
-            // 如果没有订单号，直接清除sessionStorage
-            if (totalToGenerate === 0) {
-                cleanupSessionStorage();
-                return;
-            }
-            
-            // 为每个订单号生成二维码
-            orderNumbersArray.forEach(orderNumber => {
-                const orderSummary = orderSummaryMap.get(orderNumber);
-                
-                // 构建该订单的二维码内容（字段名称与「收发货」标签页表格一致）
-                let qrContent = `订单号: ${orderNumber}\n\n`;
-                qrContent += `客户: ${orderSummary.customer}\n`;
-                qrContent += `产品名称: ${orderSummary.productName}\n`;
-                qrContent += `图纸号: ${orderSummary.drawingNo}\n`;
-                qrContent += `订单数量: ${orderSummary.orderQuantity}\n`;
-                qrContent += `毛坯总发: ${orderSummary.blankQuantity}\n`;
-                qrContent += `电镀成品数: ${orderSummary.electroplatingQuantity}\n`;
-                qrContent += `返镀数量: ${orderSummary.replatingQuantity}\n`;
-                qrContent += `返修数量: ${orderSummary.repairQuantity}\n`;
-                qrContent += `报废数量: ${orderSummary.scrapQuantity}\n`;
-                qrContent += `良品数量: ${orderSummary.goodQuantity}\n`;
-                qrContent += `差额: ${orderSummary.difference}\n`;
-                
-                console.log(`订单${orderNumber}的二维码内容:`, qrContent);
-                
-                // 创建单个二维码容器，使用CSS类
-                const singleQrContainer = document.createElement('div');
-                singleQrContainer.className = 'qrcode-item';
-                
-                // 添加订单号标题
-                const orderTitle = document.createElement('h4');
-                orderTitle.textContent = `订单号: ${orderNumber}`;
-                singleQrContainer.appendChild(orderTitle);
-                
-                // 创建二维码图片容器
-                const qrImageContainer = document.createElement('div');
-                qrImageContainer.className = 'qr-image-container';
-                singleQrContainer.appendChild(qrImageContainer);
-                
-                // 添加到主容器
-                qrcodesContainer.appendChild(singleQrContainer);
-                
-                try {
-                    // 使用toDataURL方法生成二维码，设置合适的大小
-                    QRCode.toDataURL(qrContent, {
-                        width: 120, // 与CSS中定义的尺寸一致
-                        margin: 1,
-                        color: {
-                            dark: '#000000',  // 黑色
-                            light: '#ffffff' // 白色
-                        }
-                    }, function(error, url) {
-                        if (error) {
-                            console.error(`生成订单${orderNumber}的二维码失败:`, error);
-                            qrImageContainer.innerHTML = '<p>二维码生成失败</p>';
-                        } else {
-                            console.log(`订单${orderNumber}的二维码生成成功!`);
-                            // 创建图片元素并添加到容器
-                            const img = new Image();
-                            img.src = url;
-                            qrImageContainer.appendChild(img);
-                        }
-                        
-                        // 更新生成计数
-                        generatedCount++;
-                        
-                        // 当所有二维码都生成完成后清除sessionStorage
-                        if (generatedCount === totalToGenerate) {
-                            cleanupSessionStorage();
-                        }
-                    });
-                } catch (error) {
-                    console.error(`订单${orderNumber}的二维码生成过程中发生异常:`, error);
-                    qrImageContainer.innerHTML = '<p>二维码生成异常</p>';
-                    
-                    // 更新生成计数
-                    generatedCount++;
-                    
-                    // 当所有二维码都生成完成后清除sessionStorage
-                    if (generatedCount === totalToGenerate) {
-                        cleanupSessionStorage();
-                    }
-                }
-            });
-        }
-    </script>
-
-    </body>
+    <script src="plating-doc.js?v=20261103a"></script>
+</body>
 </html>

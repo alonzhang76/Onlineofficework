@@ -3719,8 +3719,8 @@
                 const settlementPriceCell = document.createElement('td');
                 settlementPriceCell.className = 'table-cell';
                 const settlementPriceInput = document.createElement('input');
-                settlementPriceInput.type = 'number';
-                settlementPriceInput.step = '0.01';
+                settlementPriceInput.type = 'text';
+                settlementPriceInput.inputMode = 'decimal';
                 settlementPriceInput.className = 'form-input w-28';
                 settlementPriceInput.dataset.orderNumber = orderNumber;
                 settlementPriceInput.dataset.field = 'settlementPrice';
@@ -3733,8 +3733,8 @@
                 const scrapPriceCell = document.createElement('td');
                 scrapPriceCell.className = 'table-cell';
                 const scrapPriceInput = document.createElement('input');
-                scrapPriceInput.type = 'number';
-                scrapPriceInput.step = '0.01';
+                scrapPriceInput.type = 'text';
+                scrapPriceInput.inputMode = 'decimal';
                 scrapPriceInput.className = 'form-input w-28';
                 scrapPriceInput.dataset.orderNumber = orderNumber;
                 scrapPriceInput.dataset.field = 'scrapPrice';
@@ -3757,14 +3757,29 @@
                 [
                     formatNumber(invoicedAmount, 2),
                     formatNumber(paidAmount, 2),
-                    formatNumber(unpaidAmount, 2),
-                    getInvoicePaymentStatus(invoicedAmount, paidAmount)
+                    formatNumber(unpaidAmount, 2)
                 ].forEach(value => {
                     const cell = document.createElement('td');
                     cell.className = 'table-cell';
                     cell.textContent = value;
                     row.appendChild(cell);
                 });
+
+                // 开票付款状态：不同状态显示不同背景色
+                const statusCell = document.createElement('td');
+                statusCell.className = 'table-cell';
+                const statusText = getInvoicePaymentStatus(invoicedAmount, paidAmount);
+                const statusBadge = document.createElement('span');
+                const statusClassMap = {
+                    '未开票': 'bg-gray-100 text-gray-600',
+                    '已开票·未付款': 'bg-red-100 text-red-700',
+                    '部分付款': 'bg-yellow-100 text-yellow-700',
+                    '已付款': 'bg-green-100 text-green-700'
+                };
+                statusBadge.className = (statusClassMap[statusText] || 'bg-gray-100 text-gray-600') + ' px-2 py-1 rounded font-medium';
+                statusBadge.textContent = statusText;
+                statusCell.appendChild(statusBadge);
+                row.appendChild(statusCell);
 
                 tableBody.appendChild(row);
             });
@@ -4694,10 +4709,10 @@
                     if (originalIndex === -1) {
                         console.error('无法找到数据项在originalData中的索引:', cells);
                     }
-                    // 为发货记录添加生成发货单按钮
+                    // 收货/发货记录都支持生成对应单据（发货单/收货单）
                     let generateButton = '';
-                    if (cells[0] === '发货') {
-                        generateButton = '<button class="text-blue-500 hover:text-blue-700 mr-3 generate-delivery-button" data-row-index="' + originalIndex + '"><i class="fa fa-file-pdf-o"></i></button>';
+                    if (cells[0] === '发货' || cells[0] === '收货') {
+                        generateButton = '<button class="text-blue-500 hover:text-blue-700 mr-3 generate-delivery-button" data-row-index="' + originalIndex + '" title="生成' + cells[0] + '单"><i class="fa fa-file-pdf-o"></i></button>';
                     }
                     rowHTML += `<td class="table-cell">${generateButton}${editButton}${deleteButton}</td>`;
                 } 
@@ -5154,7 +5169,7 @@
                     });
                 });
                 
-                // 生成发货单按钮事件监听器
+                // 生成发货单/收货单按钮事件监听器
                 if (tableName === 'deliveries') {
                     const generateButtons = document.querySelectorAll(`${tableBodyId} .table-cell .generate-delivery-button`);
                     generateButtons.forEach(button => {
@@ -5162,88 +5177,70 @@
                             const row = this.closest('.table-row');
                             const startIndex = (config.currentPage - 1) * config.itemsPerPage;
                             const rowIndex = startIndex + Array.from(tableBody.children).indexOf(row);
-                            
-                            // 检查是否有选中的行
-                            const checkboxes = document.querySelectorAll(`${tableBodyId} input.deliveries-select-row`);
-                            const selectedCheckboxes = Array.from(checkboxes).filter(checkbox => checkbox.checked);
-                            
-                            let selectedRowsData = [];
-                            
+                            if (rowIndex === -1 || rowIndex >= config.data.length) return;
+
+                            const currentCells = config.data[rowIndex].cells;
+                            const docType = currentCells[0] === '发货' ? '发货' : '收货';
+
                             // 获取送货安排表格的数据
                             const shipmentsData = tableConfigs.shipments.originalData;
-                            
-                            if (selectedCheckboxes.length > 0) {
-                                // 如果有选中的行，获取所有选中行的数据
-                                selectedRowsData = selectedCheckboxes.map(checkbox => {
-                                    const selectedRow = checkbox.closest('.table-row');
-                                    const selectedRowIndex = startIndex + Array.from(tableBody.children).indexOf(selectedRow);
-                                    
-                                    if (selectedRowIndex !== -1 && selectedRowIndex < config.data.length) {
-                                        const rowData = config.data[selectedRowIndex].cells;
-                                        
-                                        // 从送货安排表格中查找相同订单号且日期相同的记录
-                                        const shipment = shipmentsData.find(item => {
-                                            return item.cells[0] === rowData[2] && item.cells[3] === rowData[1];
-                                        });
-                                        
-                                        // 转换为适合发货单的格式
-                            return {
-                                type: rowData[0],
-                                date: rowData[1],
-                                orderNumber: rowData[2],
-                                customer: rowData[3],
-                                product: rowData[4],
-                                productName: rowData[4], // 产品名称
-                                rawQuantity: rowData[5] || '0',  // 毛坯数量列索引应该是5，确保不为空
-                                electroplateQuantity: rowData[6] || '0',  // 电镀成品数列索引应该是6，确保不为空
-                                reworkQuantity: rowData[7] || '0',  // 返镀数量列索引应该是7，确保不为空
-                                repairQuantity: rowData[8] || '0',  // 返修数量列索引应该是8，确保不为空
-                                scrapQuantity: rowData[9] || '0',  // 报废数量列索引应该是9
-                                drawingNo: rowData[11] || '',  // 图纸号
-                                bow: rowData[12] || '',  // 蝴蝶结
-                                deliveryQuantity: '1箱', // 默认值，可根据实际情况调整
-                                driver: shipment ? shipment.cells[4] : '', // 司机
-                                phone: shipment ? shipment.cells[5] : '', // 电话
-                                licensePlate: shipment ? shipment.cells[6] : '' // 车牌
-                            };
-                                    }
-                                    return null;
-                                }).filter(data => data !== null);
-                            } else if (rowIndex !== -1 && rowIndex < config.data.length) {
-                                // 如果没有选中的行，只获取当前行的数据
-                                const rowData = config.data[rowIndex].cells;
-                                
+
+                            // 将表格行转换为单据所需格式（统一映射，避免单条/批量字段不一致）
+                            const toNoteRow = (rowData) => {
                                 // 从送货安排表格中查找相同订单号且日期相同的记录
                                 const shipment = shipmentsData.find(item => {
                                     return item.cells[0] === rowData[2] && item.cells[3] === rowData[1];
                                 });
-                                
-                                // 转换为适合发货单的格式
-                                selectedRowsData = [{
+                                return {
                                     type: rowData[0],
                                     date: rowData[1],
                                     orderNumber: rowData[2],
                                     customer: rowData[3],
                                     product: rowData[4],
                                     productName: rowData[4], // 产品名称
-                                    rawQuantity: rowData[5] || '0',  // 毛坯数量列索引应该是5，确保不为空
-                                    electroplateQuantity: rowData[6] || '0',  // 电镀数量列索引应该是6，确保不为空
-                                    reworkQuantity: rowData[7] || '0',  // 返镀数量列索引应该是7，确保不为空
-                                    repairQuantity: rowData[8] || '0',  // 返修数量列索引应该是8，确保不为空
-                                    deliveryQuantity: '1箱', // 默认值，可根据实际情况调整
+                                    rawQuantity: rowData[5] || '0',  // 毛坯数量
+                                    electroplateQuantity: rowData[6] || '0',  // 电镀成品数
+                                    reworkQuantity: rowData[7] || '0',  // 返镀数量
+                                    repairQuantity: rowData[8] || '0',  // 返修数量
+                                    scrapQuantity: rowData[9] || '0',  // 报废数量
+                                    remark: rowData[10] || '',  // 备注
+                                    drawingNo: rowData[11] || '',  // 图纸号
+                                    bow: rowData[12] || '',  // 蝴蝶结
+                                    plating: rowData[13] || '',  // 电镀厂
                                     driver: shipment ? shipment.cells[4] : '', // 司机
                                     phone: shipment ? shipment.cells[5] : '', // 电话
                                     licensePlate: shipment ? shipment.cells[6] : '' // 车牌
-                                }];
+                                };
+                            };
+
+                            // 检查是否有选中的行
+                            const checkboxes = document.querySelectorAll(`${tableBodyId} input.deliveries-select-row`);
+                            const selectedCheckboxes = Array.from(checkboxes).filter(checkbox => checkbox.checked);
+
+                            let selectedRowsData = [];
+                            if (selectedCheckboxes.length > 0) {
+                                // 如果有选中的行，获取所有选中行的数据
+                                selectedRowsData = selectedCheckboxes.map(checkbox => {
+                                    const selectedRow = checkbox.closest('.table-row');
+                                    const selectedRowIndex = startIndex + Array.from(tableBody.children).indexOf(selectedRow);
+                                    if (selectedRowIndex !== -1 && selectedRowIndex < config.data.length) {
+                                        return toNoteRow(config.data[selectedRowIndex].cells);
+                                    }
+                                    return null;
+                                }).filter(data => data !== null);
+                            } else {
+                                // 如果没有选中的行，只获取当前行的数据
+                                selectedRowsData = [toNoteRow(currentCells)];
                             }
-                            
+
                             if (selectedRowsData.length > 0) {
-                                // 使用sessionStorage将数据传递给发货单页面
+                                // 使用sessionStorage将数据传递给单据页面
                                 sessionStorage.setItem('selectedDeliveries', JSON.stringify(selectedRowsData));
-                                
-                                // 打开发货单页面，添加时间戳参数避免浏览器缓存
+
+                                // 按记录类型打开发货单或收货单页面，添加时间戳参数避免浏览器缓存
                                 const timestamp = new Date().getTime();
-                                window.open('电镀产品发货单.html?timestamp=' + timestamp, '_blank');
+                                const targetPage = docType === '发货' ? '电镀产品发货单.html' : '电镀产品收货单.html';
+                                window.open(targetPage + '?timestamp=' + timestamp, '_blank');
                             }
                         });
                     });
