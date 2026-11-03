@@ -714,6 +714,7 @@
                                             <th scope="col" class="table-header">产品名称</th>
                                             <th scope="col" class="table-header">图纸号</th>
                                             <th scope="col" class="table-header">蝴蝶结</th>
+                                            <th scope="col" class="table-header">电镀厂</th>
                                             <th scope="col" class="table-header">毛坯数量</th>
                                             <th scope="col" class="table-header">良品数量</th>
                                             <th scope="col" class="table-header">差额</th>
@@ -4331,6 +4332,7 @@
                         sourceCells[4] || '',                 // 产品名称
                         sourceCells[11] || '',                // 图纸号
                         sourceCells[12] || '',                // 蝴蝶结（产品 LOGO）
+                        sourceCells[13] || '',                // 电镀厂（新增，兼容旧数据回退空）
                         sourceCells[5] || '0',                // 毛坯数量
                         String(rowGoodQuantity || 0),         // 良品数量
                         String(stats.difference || 0),        // 差额（订单累计）
@@ -4750,7 +4752,7 @@
                 const tableBodyId = tableName === 'orders' ? '#ordersTableBody' : '#deliveriesTableBody';
                 const storageKey = tableName === 'orders' ? 'ordersData' : 'deliveriesData';
                 const message = tableName === 'orders' ? '订单' : '收发货单';
-                const totalColumns = tableName === 'orders' ? 17 : 18; // 订单17列，收发货18列（含复选框和操作列）
+                const totalColumns = tableName === 'orders' ? 17 : 19; // 订单17列，收发货19列（含复选框和操作列）
                 
                 // 编辑按钮事件监听器
                 const editButtons = document.querySelectorAll(`${tableBodyId} .table-cell .edit-button`);
@@ -4779,7 +4781,7 @@
                                 // 更新数据
                                 let updatedCells = [];
                                 if (tableName === 'deliveries') {
-                                    // 收发货表格：以原始13列数据为基础（末尾为图纸号、蝴蝶结），按显示列映射回存贮列
+                                    // 收发货表格：以原始14列数据为基础（末尾追加电镀厂），按显示列映射回存贮列
                                     const originalCells = (config.originalData[rowIndex].cells || []).slice();
                                     updatedCells = [
                                         originalCells[0] || '', originalCells[1] || '',
@@ -4788,9 +4790,10 @@
                                         originalCells[6] || '', originalCells[7] || '',
                                         originalCells[8] || '', originalCells[9] || '',
                                         originalCells[10] || '', originalCells[11] || '',
-                                        originalCells[12] || ''
+                                        originalCells[12] || '', originalCells[13] || ''
                                     ];
-                                    // DOM列索引 -> 数据列索引（跳过复选框、订单数量、良品、差额和操作列）
+                                    // DOM列索引 -> 存贮 cells 索引（跳过复选框、订单数量、良品、差额和操作列）
+                                    // 显示结构：复选框 | 类型 | 日期 | 客户 | 订单号 | 订单数量(自动) | 产品 | 图纸 | 蝴蝶结 | 电镀厂 | 毛坯 | 良品(自动) | 差额(自动) | 成品 | 返镀 | 返修 | 报废 | 备注 | 操作
                                     const deliveryColumnMap = {
                                         1: 0,   // 类型
                                         2: 1,   // 收发日期
@@ -4798,13 +4801,14 @@
                                         4: 2,   // 订单号
                                         6: 4,   // 产品名称
                                         7: 11,  // 图纸号
-                                        8: 12,  // 蝴蝶结（产品 LOGO）
-                                        9: 5,   // 毛坯数量
-                                        12: 6,  // 电镀成品数
-                                        13: 7,  // 返镀数量
-                                        14: 8,  // 返修数量
-                                        15: 9,  // 报废数量
-                                        16: 10  // 备注
+                                        8: 12,  // 蝴蝶结
+                                        9: 13,  // 电镀厂（新增）
+                                        10: 5,  // 毛坯数量
+                                        13: 6,  // 电镀成品数
+                                        14: 7,  // 返镀数量
+                                        15: 8,  // 返修数量
+                                        16: 9,  // 报废数量
+                                        17: 10  // 备注
                                     };
                                     Object.keys(deliveryColumnMap).forEach(domIndex => {
                                         const cell = cells[Number(domIndex)];
@@ -4971,13 +4975,13 @@
                                     
                                     // 根据表格类型和行类型设置只读状态
                                     if (tableName === 'deliveries') {
-                                        // 订单数量、良品数量、差额为自动计算列，不提供输入框
-                                        if ([5, 10, 11].includes(i)) {
+                                        // 订单数量(5)、良品数量(11)、差额(12) 为自动计算列，不提供输入框
+                                        if ([5, 11, 12].includes(i)) {
                                             continue;
                                         }
                                         // 发货不记电镀成品数和报废；收货不记毛坯
-                                        const isReadonly = (rowType === '发货' && [12, 15].includes(i)) ||
-                                                           (rowType === '收货' && i === 9);
+                                        const isReadonly = (rowType === '发货' && [13, 16].includes(i)) ||
+                                                           (rowType === '收货' && i === 10);
                                         
                                         if (isReadonly) {
                                             cells[i].innerHTML = `<input type="text" value="${value}" class="form-input w-full min-w-[200px]" readonly />`;
@@ -6133,13 +6137,14 @@
                         4: 2,   // 订单号
                         6: 4,   // 产品名称
                         7: 11,  // 图纸号
-                        8: 12,  // 蝴蝶结（产品 LOGO）
-                        9: 5,   // 毛坯数量
-                        12: 6,  // 电镀成品数
-                        13: 7,  // 返镀数量
-                        14: 8,  // 返修数量
-                        15: 9,  // 报废数量
-                        16: 10  // 备注
+                        8: 12,  // 蝴蝶结
+                        9: 13,  // 电镀厂（新增）
+                        10: 5,  // 毛坯数量
+                        13: 6,  // 电镀成品数
+                        14: 7,  // 返镀数量
+                        15: 8,  // 返修数量
+                        16: 9,  // 报废数量
+                        17: 10  // 备注
                     };
                     if (!(columnIndex in deliverySortMap)) return 0;
                     sortDataIndex = deliverySortMap[columnIndex];
@@ -6190,7 +6195,7 @@
                 
                 // 清除所有表头的排序图标
                 headers.forEach((header, index) => {
-                    if (tableName === 'deliveries' && index >= 1 && index <= 16) { // 只处理第2到17列
+                    if (tableName === 'deliveries' && index >= 1 && index <= 17) { // 只处理第2到18列（新增电镀厂）
                         // 先保存原始文本内容
                         const textContent = header.textContent.trim();
                         // 重置innerHTML为原始文本
@@ -6239,8 +6244,8 @@
                 const headers = table.querySelectorAll('thead th');
                 
                 if (tableName === 'deliveries') {
-                    // 订单数量、良品数量、差额为自动列，不支持排序
-                    const sortableDomColumns = [2, 3, 4, 6, 7, 8, 9, 12, 13, 14, 15, 16];
+                    // 订单数量、良品数量、差额为自动列，不支持排序；电镀厂新增可排
+                    const sortableDomColumns = [2, 3, 4, 6, 7, 8, 9, 10, 13, 14, 15, 16, 17];
                     sortableDomColumns.forEach(i => {
                         headers[i].addEventListener('click', () => {
                             // 直接传入DOM列索引，由 deliverySortMap 映射到存贮列
@@ -7002,7 +7007,8 @@
                     // 每次打开模态框时重新获取 wage 订单与客户联想
                     refreshDeliveryOrderOptions();
                     lastDeliveryOrderNo = '';
-                    deliveryPlatingVendor.value = '';
+                    // 默认电镀厂：丹阳裕丰（订单联想命中时会自动覆盖）
+                    deliveryPlatingVendor.value = '丹阳裕丰';
                     applyWageOrderInfo();
                     // 更新输入框只读状态
                     updateInputReadOnlyState();
@@ -7102,6 +7108,7 @@
                         productName: deliveryProduct.value,
                         drawingNumber: deliveryDrawingNo.value,
                         bow: deliveryBow.value,
+                        plating: deliveryPlatingVendor.value || '丹阳裕丰',
                         roughQuantity: isShipping ? (deliveryRaw.value || '0') : '0',
                         electroplateQuantity: isShipping ? '0' : electroplateValue,
                         replateQuantity: replateValue,
@@ -7113,22 +7120,23 @@
                     // 保存数据到收发货表格
                     const deliveriesConfig = tableConfigs.deliveries;
                     
-                    // 创建新的表格行数据
+                    // 创建新的表格行数据（存贮结构：14列，末尾追加电镀厂）
                     const newRowData = {
                         cells: [
-                            deliveryData.type,              // 类型
-                            deliveryData.date,              // 收发日期
-                            deliveryData.orderNumber,       // 订单号
-                            deliveryData.customer,          // 客户名称
-                            deliveryData.productName,       // 产品名称
-                            deliveryData.roughQuantity,     // 毛坯数量
-                            deliveryData.electroplateQuantity, // 电镀成品数
-                            deliveryData.replateQuantity,   // 返镀数量
-                            deliveryData.repairQuantity,    // 返修数量
-                            deliveryData.scrapQuantity,     // 报废数量
-                            deliveryData.remark,            // 备注
-                            deliveryData.drawingNumber,     // 图纸号
-                            deliveryData.bow                // 蝴蝶结（产品 LOGO）
+                            deliveryData.type,              // 类型 (0)
+                            deliveryData.date,              // 收发日期 (1)
+                            deliveryData.orderNumber,       // 订单号 (2)
+                            deliveryData.customer,          // 客户名称 (3)
+                            deliveryData.productName,       // 产品名称 (4)
+                            deliveryData.roughQuantity,     // 毛坯数量 (5)
+                            deliveryData.electroplateQuantity, // 电镀成品数 (6)
+                            deliveryData.replateQuantity,   // 返镀数量 (7)
+                            deliveryData.repairQuantity,    // 返修数量 (8)
+                            deliveryData.scrapQuantity,     // 报废数量 (9)
+                            deliveryData.remark,            // 备注 (10)
+                            deliveryData.drawingNumber,     // 图纸号 (11)
+                            deliveryData.bow,               // 蝴蝶结 (12)
+                            deliveryData.plating            // 电镀厂 (13)
                         ]
                     };
                     
@@ -7223,7 +7231,7 @@
                     <label for="delivery-product" class="block text-sm font-medium text-gray-700 mb-1">产品名称</label>
                     <input type="text" id="delivery-product" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" required>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                         <label for="delivery-drawing-no" class="block text-sm font-medium text-gray-700 mb-1">图纸号</label>
                         <input type="text" id="delivery-drawing-no" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary">
@@ -7231,6 +7239,10 @@
                     <div>
                         <label for="delivery-bow" class="block text-sm font-medium text-gray-700 mb-1">蝴蝶结</label>
                         <input type="text" id="delivery-bow" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary">
+                    </div>
+                    <div>
+                        <label for="delivery-plating-vendor" class="block text-sm font-medium text-gray-700 mb-1">电镀厂</label>
+                        <input type="text" id="delivery-plating-vendor" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" value="丹阳裕丰">
                     </div>
                 </div>
                 <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -7256,7 +7268,6 @@
                     </div>
                 </div>
                 <p class="text-sm text-gray-500">发货登记：毛坯数量，以及电镀不合格退回重镀的返镀数量；收货登记：电镀成品数，以及电镀厂未电镀直接退回的返修数量、报废数量。</p>
-                <input type="hidden" id="delivery-plating-vendor">
                 <div>
                     <label for="delivery-remark" class="block text-sm font-medium text-gray-700 mb-1">备注</label>
                     <textarea id="delivery-remark" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"></textarea>
