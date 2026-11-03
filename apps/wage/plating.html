@@ -6944,7 +6944,7 @@
                 const orderNo = (deliveryOrderId.value || '').trim();
                 if (!orderNo) {
                     lastDeliveryOrderNo = '';
-                    deliveryPlatingVendor.value = '';
+                    // 空订单号时保留默认值"丹阳裕丰"，不清空
                     return;
                 }
                 if (orderNo === lastDeliveryOrderNo) return;
@@ -6955,7 +6955,8 @@
                 deliveryProduct.value = order.spec || order.type || order.productName || '';
                 deliveryDrawingNo.value = order.drawingNo || '';
                 deliveryBow.value = order.bow || '';
-                deliveryPlatingVendor.value = order.plating || '';
+                // 订单自带电镀厂则覆盖，否则保留默认"丹阳裕丰"
+                deliveryPlatingVendor.value = order.plating || '丹阳裕丰';
             }
 
             if (deliveryOrderId) {
