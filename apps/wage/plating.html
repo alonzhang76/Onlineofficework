@@ -40,13 +40,13 @@
             return num.toFixed(decimals).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
         }
     </script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="js/tailwindcss.js"></script>
     <!-- Font Awesome -->
-    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <link href="css/font-awesome.min.css" rel="stylesheet">
     <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <script src="js/chart.umd.min.js"></script>
     <!-- SheetJS for Excel export -->
-    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="js/xlsx.full.min.js"></script>
     <!-- Tailwind 配置 -->
     <script>
         tailwind.config = {
@@ -2878,11 +2878,16 @@
             </div>
             <form id="add-invoice-form" class="p-6 space-y-4">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label for="invoice-order-id" class="block text-sm font-medium text-gray-700 mb-1">订单号</label>
-                        <select id="invoice-order-id" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" required>
-                            <option value="">请选择订单号</option>
-                        </select>
+                    <div class="md:col-span-2">
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="block text-sm font-medium text-gray-700">订单号（可多选，金额自动按所选订单剩余应开合计）</label>
+                            <label class="flex items-center space-x-1 text-sm text-gray-700 whitespace-nowrap">
+                                <input type="checkbox" id="invoice-prepaid" class="rounded border-gray-300 text-primary focus:ring-primary">
+                                <span>预开发票（未对账先开）</span>
+                            </label>
+                        </div>
+                        <div id="invoice-order-picker" class="border border-gray-300 rounded-md max-h-44 overflow-y-auto divide-y divide-gray-100 bg-white"></div>
+                        <input type="hidden" id="invoice-order-id">
                     </div>
                     <div>
                         <label for="invoice-customer" class="block text-sm font-medium text-gray-700 mb-1">客户</label>
@@ -2919,6 +2924,14 @@
                         </select>
                     </div>
 
+                </div>
+                <div id="invoice-deduction-wrap" class="hidden border border-dashed border-amber-300 bg-amber-50 rounded-md p-3">
+                    <div class="flex items-center justify-between mb-1">
+                        <label for="invoice-deduction" class="block text-sm font-medium text-gray-700">抵扣预开发票金额</label>
+                        <span id="invoice-prepaid-balance" class="text-xs text-amber-700"></span>
+                    </div>
+                    <input type="number" id="invoice-deduction" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" step="0.01" min="0" placeholder="0.00">
+                    <p class="text-xs text-gray-500 mt-1">该购方存在预开发票余额时可抵扣；开票金额 + 抵扣金额 不得超过所选订单剩余应开合计</p>
                 </div>
                 <div>
                     <label for="invoice-remarks" class="block text-sm font-medium text-gray-700 mb-1">备注</label>
@@ -3133,7 +3146,7 @@
             const rawAmount = (item.amount === undefined || item.amount === null || item.amount === '')
                 ? legacyCells[6]
                 : item.amount;
-            return {
+            const normalized = {
                 orderId: item.orderId || legacyCells[2] || '',
                 date: item.date || legacyCells[4] || '',
                 number: item.number || legacyCells[5] || '',
@@ -3142,10 +3155,23 @@
                 vendor: item.vendor || '',
                 buyer: item.buyer || '',
                 invoiceType: item.invoiceType || '',
+                orderIds: [],
+                allocations: null,
+                prepaid: !!item.prepaid,
+                deduction: parseQuantity(item.deduction) || 0,
                 cloudId: item.cloudId,
                 cloudStatus: item.cloudStatus || '',
                 syncedAt: item.syncedAt || ''
             };
+            if (Array.isArray(item.orderIds) && item.orderIds.length) {
+                normalized.orderIds = item.orderIds.filter(Boolean);
+            } else if (normalized.orderId) {
+                normalized.orderIds = [normalized.orderId];
+            }
+            if (item.allocations && typeof item.allocations === 'object') {
+                normalized.allocations = item.allocations;
+            }
+            return normalized;
         }
 
         // 付款记录统一为 { orderId, date, amount, method, remarks, vendor, invoiceNo }
@@ -3213,14 +3239,18 @@
         }
 
         function buildInvoiceTableRow(record, sourceIndex) {
+            const orderText = record.prepaid
+                ? '预开发票'
+                : (record.orderIds && record.orderIds.length ? record.orderIds.join('、') : (record.orderId || ''));
+            const remarkText = (record.remarks || '') + (record.deduction ? (record.remarks ? '；' : '') + '含预开抵扣 ¥' + formatNumber(record.deduction, 2) : '');
             const row = {
                 cells: [
-                    record.orderId || '',
+                    orderText,
                     record.vendor || getOrderCustomerName(record.orderId),
                     record.date || '',
                     record.number || '',
                     formatNumber(record.amount, 2),
-                    record.remarks || '',
+                    remarkText,
                     ''
                 ]
             };
@@ -3286,9 +3316,16 @@
                 return statsMap.get(orderId);
             }
             getInvoiceRecords().forEach(record => {
-                const orderId = (record.orderId || '').trim();
-                if (!orderId) return;
-                ensure(orderId).invoiced += record.amount || 0;
+                if (record.prepaid) return; // 预开发票不计入订单已开票
+                if (record.allocations && typeof record.allocations === 'object') {
+                    Object.keys(record.allocations).forEach(orderNo => {
+                        const key = (orderNo || '').trim();
+                        if (key) ensure(key).invoiced += parseQuantity(record.allocations[orderNo]) || 0;
+                    });
+                } else {
+                    const orderId = (record.orderId || '').trim();
+                    if (orderId) ensure(orderId).invoiced += (record.amount || 0) + (record.deduction || 0);
+                }
             });
             getPaymentRecords().forEach(record => {
                 const orderId = (record.orderId || '').trim();
@@ -4488,7 +4525,8 @@
                 populateInvoiceOrderNumbers();
                 
                 // 填充表单字段
-                document.getElementById('invoice-order-id').value = invoice.orderId;
+                document.getElementById('invoice-prepaid').checked = !!invoice.prepaid;
+                document.getElementById('invoice-deduction').value = invoice.deduction || '';
                 document.getElementById('invoice-customer').value = getOrderCustomerName(invoice.orderId);
                 document.getElementById('invoice-date').value = invoice.date;
                 document.getElementById('invoice-number').value = invoice.number;
@@ -4497,6 +4535,8 @@
                 document.getElementById('invoice-vendor').value = invoice.vendor || (getWageOrderByNo(invoice.orderId) || {}).plating || '';
                 document.getElementById('invoice-buyer').value = invoice.buyer || defaultReimBuyer();
                 document.getElementById('invoice-type').value = invoice.invoiceType || '增值税专用发票';
+                updateInvoicePrepaidUI();
+                updateDeductionVisibility();
                 
                 // 修改模态框标题
                 document.getElementById('add-invoice-modal').querySelector('h3').textContent = '编辑发票';
@@ -6372,7 +6412,7 @@
                 subject_name: '电镀加工费',
                 claimant: '电镀管理',
                 department: '电镀',
-                project: record.orderId || null,
+                project: record.orderId || (record.prepaid ? '预开发票' : null),
                 remark: record.remarks || null,
                 check_code: null,
                 status: '待审核',
@@ -7518,17 +7558,167 @@
             if (selectedOrderNumber) select.value = selectedOrderNumber;
         }
 
-        // 填充发票模态框的订单号（已开票订单不重复出现，编辑时保留当前订单）
-        function populateInvoiceOrderNumbers() {
+        // 订单对账应开金额（良品×结算单价 − 报废×报废单价）
+        function getOrderPayableAmount(orderNo, statsMap, settlementSettings) {
+            const stats = (statsMap || getDeliveryOrderStats()).get(orderNo);
+            if (!stats) return 0;
+            const settings = settlementSettings || getOrderSettlementSettings();
+            const s = settings[orderNo] || {};
+            return calcOrderSettlementAmount(stats.goodTotal, stats.scrapTotal, parseQuantity(s.settlementPrice), parseQuantity(s.scrapPrice));
+        }
+
+        // 每个订单已开票金额（含抵扣分摊；excludeIndex 用于编辑时排除自身）
+        function getOrderInvoicedMap(excludeIndex) {
+            const map = new Map();
+            getInvoiceRecords().forEach((r, idx) => {
+                if (excludeIndex !== undefined && idx === excludeIndex) return;
+                if (r.prepaid) return;
+                if (r.allocations && typeof r.allocations === 'object') {
+                    Object.keys(r.allocations).forEach(o => {
+                        map.set(o, (map.get(o) || 0) + (parseQuantity(r.allocations[o]) || 0));
+                    });
+                } else if (r.orderId) {
+                    map.set(r.orderId, (map.get(r.orderId) || 0) + (r.amount || 0) + (r.deduction || 0));
+                }
+            });
+            return map;
+        }
+
+        // 购方预开发票余额 = 预开总额 − 后续发票已抵扣总额
+        function getPrepaidBalance(buyer, excludeIndex) {
+            const b = (buyer || '').trim();
+            if (!b) return 0;
+            let prepaid = 0, used = 0;
+            getInvoiceRecords().forEach((r, idx) => {
+                if (excludeIndex !== undefined && idx === excludeIndex) return;
+                if ((r.buyer || '').trim() !== b) return;
+                if (r.prepaid) prepaid += r.amount || 0;
+                else used += r.deduction || 0;
+            });
+            return Math.max(0, prepaid - used);
+        }
+
+        function getInvoiceFormExcludeIndex() {
             const form = document.getElementById('add-invoice-form');
             const editIndex = form ? form.dataset.editIndex : undefined;
-            let selectedOrderNumber = '';
-            if (editIndex !== undefined && editIndex !== '') {
-                const current = getInvoiceRecords()[parseInt(editIndex, 10)];
-                selectedOrderNumber = current ? current.orderId : '';
+            return (editIndex !== undefined && editIndex !== '') ? parseInt(editIndex, 10) : undefined;
+        }
+
+        function getSelectedInvoiceOrders() {
+            return Array.from(document.querySelectorAll('#invoice-order-picker .invoice-order-check:checked')).map(cb => cb.value);
+        }
+
+        // 渲染发票表单的订单多选列表：显示应开/已开/剩余，已开完的订单禁选（防重复开票）
+        function populateInvoiceOrderNumbers() {
+            const box = document.getElementById('invoice-order-picker');
+            if (!box) return;
+            const excludeIndex = getInvoiceFormExcludeIndex();
+            const editing = excludeIndex !== undefined ? getInvoiceRecords()[excludeIndex] : null;
+            const selected = new Set();
+            if (editing) {
+                (editing.orderIds && editing.orderIds.length ? editing.orderIds : (editing.orderId ? [editing.orderId] : [])).forEach(no => selected.add(no));
             }
-            const excludeOrders = new Set(getInvoiceRecords().map(record => record.orderId).filter(Boolean));
-            populateOrderNumberSelect('invoice-order-id', selectedOrderNumber, excludeOrders);
+            const invoicedMap = getOrderInvoicedMap(excludeIndex);
+            const statsMap = getDeliveryOrderStats();
+            const settings = getOrderSettlementSettings();
+
+            const orderNos = new Set();
+            statsMap.forEach((_, no) => orderNos.add(no));
+            selected.forEach(no => orderNos.add(no));
+
+            const list = Array.from(orderNos).map(no => {
+                const payable = getOrderPayableAmount(no, statsMap, settings);
+                const invoiced = invoicedMap.get(no) || 0;
+                return { no, customer: getOrderCustomerName(no), payable, invoiced, remain: payable - invoiced };
+            }).sort((a, b) => (b.remain > 0.004 ? 1 : 0) - (a.remain > 0.004 ? 1 : 0));
+
+            if (!list.length) {
+                box.innerHTML = '<div class="p-3 text-sm text-gray-400">暂无可开票订单</div>';
+                return;
+            }
+            box.innerHTML = '';
+            list.forEach(item => {
+                const disabled = item.remain <= 0.004 && !selected.has(item.no);
+                const label = document.createElement('label');
+                label.className = 'flex items-center px-3 py-1.5 text-sm ' + (disabled ? 'text-gray-400 bg-gray-50' : 'hover:bg-blue-50 cursor-pointer');
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.className = 'invoice-order-check rounded border-gray-300 text-primary mr-2';
+                cb.value = item.no;
+                cb.disabled = disabled;
+                cb.checked = selected.has(item.no);
+                cb.dataset.full = disabled ? '1' : '';
+                cb.addEventListener('change', updateInvoiceAmountSuggestion);
+                label.appendChild(cb);
+                const text = document.createElement('span');
+                text.className = 'flex-1 flex items-center justify-between';
+                const left = document.createElement('span');
+                left.textContent = item.no + (item.customer ? '（' + item.customer + '）' : '');
+                const right = document.createElement('span');
+                right.className = 'text-xs ' + (disabled ? 'text-gray-400' : 'text-gray-500');
+                right.textContent = disabled
+                    ? '已开完'
+                    : '应开 ¥' + formatNumber(item.payable, 2) + '，已开 ¥' + formatNumber(item.invoiced, 2) + '，剩余 ¥' + formatNumber(Math.max(0, item.remain), 2);
+                text.appendChild(left);
+                text.appendChild(right);
+                label.appendChild(text);
+                box.appendChild(label);
+            });
+            updateInvoicePrepaidUI();
+        }
+
+        // 预开开关 UI：预开时禁用订单多选
+        function updateInvoicePrepaidUI() {
+            const prepaid = document.getElementById('invoice-prepaid');
+            const box = document.getElementById('invoice-order-picker');
+            if (!prepaid || !box) return;
+            const on = prepaid.checked;
+            box.classList.toggle('opacity-50', on);
+            box.querySelectorAll('.invoice-order-check').forEach(cb => { cb.disabled = on || cb.dataset.full === '1'; });
+            updateDeductionVisibility();
+            if (!on) updateInvoiceAmountSuggestion();
+        }
+
+        // 抵扣区显隐：非预开且购方有预开余额时显示
+        function updateDeductionVisibility() {
+            const wrap = document.getElementById('invoice-deduction-wrap');
+            if (!wrap) return;
+            const prepaidEl = document.getElementById('invoice-prepaid');
+            const prepaidOn = prepaidEl && prepaidEl.checked;
+            const buyer = document.getElementById('invoice-buyer').value;
+            const balance = getPrepaidBalance(buyer, getInvoiceFormExcludeIndex());
+            if (!prepaidOn && balance > 0) {
+                wrap.classList.remove('hidden');
+                document.getElementById('invoice-prepaid-balance').textContent = '该购方预开余额 ¥' + formatNumber(balance, 2);
+                document.getElementById('invoice-deduction').max = balance;
+            } else {
+                wrap.classList.add('hidden');
+                document.getElementById('invoice-deduction').value = '';
+            }
+        }
+
+        // 勾选订单后自动合计开票金额 = Σ剩余应开 − 抵扣，并带出客户与电镀厂
+        function updateInvoiceAmountSuggestion() {
+            const prepaid = document.getElementById('invoice-prepaid');
+            if (prepaid && prepaid.checked) return;
+            const excludeIndex = getInvoiceFormExcludeIndex();
+            const invoicedMap = getOrderInvoicedMap(excludeIndex);
+            const statsMap = getDeliveryOrderStats();
+            const settings = getOrderSettlementSettings();
+            let total = 0, firstOrder = null;
+            getSelectedInvoiceOrders().forEach(no => {
+                if (!firstOrder) firstOrder = no;
+                total += Math.max(0, getOrderPayableAmount(no, statsMap, settings) - (invoicedMap.get(no) || 0));
+            });
+            const deduction = parseQuantity(document.getElementById('invoice-deduction').value) || 0;
+            document.getElementById('invoice-amount').value = Math.max(0, total - deduction).toFixed(2);
+            const hidden = document.getElementById('invoice-order-id');
+            if (hidden) hidden.value = firstOrder || '';
+            if (firstOrder) {
+                document.getElementById('invoice-customer').value = getOrderCustomerName(firstOrder);
+                const order = getWageOrderByNo(firstOrder);
+                if (order && order.plating) document.getElementById('invoice-vendor').value = order.plating;
+            }
         }
 
         // 填充付款模态框的订单号（同一订单允许多次付款）
@@ -7578,21 +7768,21 @@
                 });
             }
             
-            // 订单号选中时自动填充客户信息与电镀厂
-            const invoiceOrderId = document.getElementById('invoice-order-id');
-            const invoiceCustomer = document.getElementById('invoice-customer');
-            if (invoiceOrderId && invoiceCustomer) {
-                invoiceOrderId.addEventListener('change', function() {
-                    const selectedOption = this.options[this.selectedIndex];
-                    if (selectedOption && selectedOption.dataset.customer) {
-                        invoiceCustomer.value = selectedOption.dataset.customer;
-                    } else {
-                        invoiceCustomer.value = '';
-                    }
-                    const order = getWageOrderByNo(this.value);
-                    const vendorInput = document.getElementById('invoice-vendor');
-                    if (order && order.plating) vendorInput.value = order.plating;
+            // 预开开关、购方、抵扣金额联动
+            const invoicePrepaid = document.getElementById('invoice-prepaid');
+            if (invoicePrepaid) {
+                invoicePrepaid.addEventListener('change', updateInvoicePrepaidUI);
+            }
+            const invoiceBuyerInput = document.getElementById('invoice-buyer');
+            if (invoiceBuyerInput) {
+                invoiceBuyerInput.addEventListener('input', function() {
+                    updateDeductionVisibility();
+                    updateInvoiceAmountSuggestion();
                 });
+            }
+            const invoiceDeductionInput = document.getElementById('invoice-deduction');
+            if (invoiceDeductionInput) {
+                invoiceDeductionInput.addEventListener('input', updateInvoiceAmountSuggestion);
             }
             
             // 关闭发票模态框
@@ -7756,7 +7946,7 @@
                 invoiceForm.addEventListener('submit', function(e) {
                     e.preventDefault();
 
-                    const orderId = document.getElementById('invoice-order-id').value;
+                    const prepaid = document.getElementById('invoice-prepaid').checked;
                     const date = invoiceDate.value;
                     const number = document.getElementById('invoice-number').value.trim();
                     const amount = parseQuantity(document.getElementById('invoice-amount').value);
@@ -7765,23 +7955,83 @@
                     const buyer = document.getElementById('invoice-buyer').value.trim();
                     const invoiceType = document.getElementById('invoice-type').value;
 
-                    if (!orderId || !date || !number || !Number.isFinite(amount) || amount < 0 || !vendor) {
-                        showToast('请填写订单号、开票日期、发票号、金额和电镀厂', 'warning');
+                    if (!date || !number || !Number.isFinite(amount) || amount < 0 || !vendor) {
+                        showToast('请填写开票日期、发票号、金额和电镀厂', 'warning');
                         return;
                     }
 
                     const records = getInvoiceRecords();
                     const editIndex = invoiceForm.dataset.editIndex;
                     const isEditing = editIndex !== undefined && editIndex !== '';
-                    const prev = isEditing ? records[parseInt(editIndex, 10)] || {} : {};
+                    const excludeIndex = isEditing ? parseInt(editIndex, 10) : undefined;
+                    const prev = isEditing ? records[excludeIndex] || {} : {};
                     const before = records.slice();
+
+                    let orderId = '';
+                    let orderIds = [];
+                    let allocations = null;
+                    let deduction = 0;
+
+                    if (prepaid) {
+                        // 预开发票：不关联订单，挂在购方名下
+                        if (!buyer) {
+                            showToast('预开发票必须填写购方客户', 'warning');
+                            return;
+                        }
+                    } else {
+                        orderIds = getSelectedInvoiceOrders();
+                        if (!orderIds.length) {
+                            showToast('请至少勾选一个订单号', 'warning');
+                            return;
+                        }
+                        deduction = parseQuantity(document.getElementById('invoice-deduction').value) || 0;
+                        const prepaidBalance = getPrepaidBalance(buyer, excludeIndex);
+                        if (deduction > 0) {
+                            if (!buyer) {
+                                showToast('使用预开抵扣时必须先填写购方客户', 'warning');
+                                return;
+                            }
+                            if (deduction > prepaidBalance + 0.004) {
+                                showToast('抵扣金额超出该购方预开余额 ¥' + formatNumber(prepaidBalance, 2), 'warning');
+                                return;
+                            }
+                        }
+                        // 严格防重复：本次开票总额（票面+抵扣）不得超过所选订单剩余应开合计
+                        const invoicedMap = getOrderInvoicedMap(excludeIndex);
+                        const statsMap = getDeliveryOrderStats();
+                        const settings = getOrderSettlementSettings();
+                        let totalRemain = 0;
+                        const remainMap = new Map();
+                        orderIds.forEach(no => {
+                            const remain = Math.max(0, getOrderPayableAmount(no, statsMap, settings) - (invoicedMap.get(no) || 0));
+                            remainMap.set(no, remain);
+                            totalRemain += remain;
+                        });
+                        const totalInvoice = amount + deduction;
+                        if (totalInvoice > totalRemain + 0.004) {
+                            showToast('开票总额 ¥' + formatNumber(totalInvoice, 2) + ' 超出所选订单剩余应开合计 ¥' + formatNumber(totalRemain, 2) + '，已阻止重复开票', 'danger');
+                            return;
+                        }
+                        // 按勾选顺序把开票总额分摊到各订单
+                        allocations = {};
+                        let left = totalInvoice;
+                        orderIds.forEach(no => {
+                            if (left <= 0) { allocations[no] = 0; return; }
+                            const share = Math.min(remainMap.get(no), left);
+                            allocations[no] = Math.round(share * 100) / 100;
+                            left -= share;
+                        });
+                        orderId = orderIds[0];
+                    }
+
                     const record = {
-                        orderId, date, number, amount, remarks, vendor, buyer, invoiceType,
+                        orderId, orderIds, allocations, prepaid, deduction,
+                        date, number, amount, remarks, vendor, buyer, invoiceType,
                         cloudId: prev.cloudId, cloudStatus: prev.cloudStatus, syncedAt: prev.syncedAt
                     };
 
                     if (isEditing) {
-                        records[parseInt(editIndex, 10)] = record;
+                        records[excludeIndex] = record;
                     } else {
                         records.push(record);
                     }
