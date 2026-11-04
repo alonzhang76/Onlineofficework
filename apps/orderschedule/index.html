@@ -883,7 +883,7 @@
         #order-modal .modal {
             width: min(1200px,96vw); max-width: none; padding: 24px;
             border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.25);
-            margin: 0 auto;
+            margin: 0 auto; position: relative;
         }
         #order-modal .modal-header { margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9; }
         #order-modal .modal-header h2 {
@@ -2144,6 +2144,8 @@
     <!-- 订单模态框 -->
     <div class="modal-overlay" id="order-modal">
         <div class="modal">
+            <!-- 产品明细 autocomplete 浮层（absolute，相对 .modal 定位）-->
+            <div id="os-item-ac-list" class="autocomplete-list" style="position:absolute;z-index:50;max-height:260px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.08);"></div>
             <div class="modal-header">
                 <h2 id="modal-title">新增订单</h2>
                 <button class="close-btn" onclick="closeOrderModal()">&times;</button>
@@ -2202,10 +2204,10 @@
                 <div class="os-sec-divider"></div>
                 <h3 class="os-sec-title">📝 产品明细 <span style="font-size:12px;font-weight:400;color:#94a3b8;margin-left:8px;">（同一订单号下可录入多条不同图纸/产品）</span></h3>
                 <div id="order-items-wrap" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:12px;">
-                    <div style="display:grid;grid-template-columns:28px 100px 120px 110px 100px 80px 70px 90px 32px;background:#f1f5f9;padding:8px 8px;font-size:12px;font-weight:600;color:#475569;gap:6px;align-items:center;">
+                    <div style="display:grid;grid-template-columns:28px 140px 200px 220px 100px 80px 70px 90px 32px;background:#f1f5f9;padding:8px 8px;font-size:12px;font-weight:600;color:#475569;gap:6px;align-items:center;">
                         <div>#</div>
-                        <div>图纸编号</div>
                         <div>产品名称</div>
+                        <div>图纸编号</div>
                         <div>型号规格</div>
                         <div>电镀</div>
                         <div style="text-align:right;">数量</div>
@@ -2631,10 +2633,11 @@
             const keyword = document.getElementById('filter-keyword').value.toLowerCase();
 
             let filtered = orders.filter(o => {
-                // 关键词搜索（支持逗号分隔多条件）
+                // 关键词搜索（支持逗号分隔多条件）——同时匹配顶层和 items[]
                 if (keyword) {
                     const keywordList = keyword.split(',').map(s => s.trim()).filter(s => s);
-                    const orderText = JSON.stringify(o).toLowerCase();
+                    const itemsText = (o.items || []).map(it => Object.values(it).join(' ')).join(' ');
+                    const orderText = (JSON.stringify(o) + ' ' + itemsText).toLowerCase();
                     if (!keywordList.some(k => orderText.includes(k))) {
                         return false;
                     }
@@ -2642,7 +2645,6 @@
                 
                 if (customer && !(o.customer || '').toLowerCase().includes(customer)) return false;
                 
-                // 订单号多条件筛选（支持英文逗号分隔）
                 if (orderNo) {
                     const orderNoList = orderNo.split(',').map(s => s.trim()).filter(s => s);
                     if (!orderNoList.some(keyword => (o.orderNo || '').toLowerCase().includes(keyword))) {
@@ -2650,10 +2652,14 @@
                     }
                 }
                 
-                // 产品名称多条件筛选（支持英文逗号分隔）
+                // 产品名称筛选：顶层 + items[] 任一匹配即命中
                 if (product) {
                     const productList = product.split(',').map(s => s.trim()).filter(s => s);
-                    if (!productList.some(keyword => (o.product || '').toLowerCase().includes(keyword))) {
+                    const itemsProducts = (o.items || []).map(it => (it.product || '').toLowerCase());
+                    const topProduct = (o.product || '').toLowerCase();
+                    if (!productList.some(keyword =>
+                        topProduct.includes(keyword) || itemsProducts.some(p => p.includes(keyword))
+                    )) {
                         return false;
                     }
                 }
@@ -2664,10 +2670,8 @@
                 return true;
             });
 
-            // 按日期倒序排序（最新的在前面）
             filtered.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
-            // 分页
             const totalPages = Math.ceil(filtered.length / ordersPageSize) || 1;
             if (ordersCurrentPage > totalPages) ordersCurrentPage = totalPages;
             const start = (ordersCurrentPage - 1) * ordersPageSize;
@@ -2677,41 +2681,53 @@
             if (pageData.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="18" style="text-align:center;padding:20px;color:#999;">暂无订单数据</td></tr>';
             } else {
-                tbody.innerHTML = pageData.map(o => {
+                // 把订单展开成多行：每条订单按 items[] 数量展开，items 为空或只有 1 条时顶层字段兜底
+                const rowsHTML = [];
+                pageData.forEach(o => {
+                    const items = (Array.isArray(o.items) && o.items.length) ? o.items : [{
+                        drawing: o.drawing || '', product: o.product || '',
+                        spec: o.spec || '', plating: o.plating || '',
+                        quantity: o.quantity || 0, price: o.price || 0
+                    }];
+                    // 订单级不变字段
                     const deliveryStatus = getDeliveryStatus(o.shipDate);
-                    let statusClass = '';
-                    if (deliveryStatus === '生产中') {
-                        statusClass = 'status-producing';
-                    } else if (deliveryStatus === '已出货') {
-                        statusClass = 'status-shipped';
-                    }
-                    return `
-                    <tr>
-                        <td style="text-align:center;"><input type="checkbox" class="orders-checkbox" data-id="${o.id}" onchange="updateSelectAll('orders'); updateOrdersSummary();"></td>
-                        <td>${o.date || '-'}</td>
-                        <td>${o.customer || '-'}</td>
-                        <td>${o.orderNo || '-'}</td>
-                        <td>${o.drawing || '-'}</td>
-                        <td>${o.product || '-'}</td>
-                        <td>${o.spec || '-'}</td>
-                        <td>${o.plating || '-'}</td>
-                        <td>${o.logo || '-'}</td>
-                        <td>${o.quantity || 0}</td>
-                        <td>${o.currency || 'EUR'}</td>
-                        <td>${parseFloat(o.price || 0).toFixed(2)}</td>
-                        <td>${parseFloat(o.moldFee || 0).toFixed(2)}</td>
-                        <td>${parseFloat(o.orderAmount || 0).toFixed(2)}</td>
-                        <td>${o.deadline || '-'}</td>
-                        <td>${o.remark || '-'}</td>
-                        <td class="${statusClass}">${deliveryStatus}</td>
-                        <td>
-                            <button class="btn btn-sm btn-primary" onclick="editOrder('${o.id}')" title="编辑">✏️</button>
-                            <button class="btn btn-sm btn-primary" onclick="viewOrderDrawing('${o.id}')" title="查看/下载图纸">📐</button>
-                            <button class="btn btn-sm btn-primary" onclick="pushOrderToWage('${o.id}')" title="推送到 wage 系统">📤</button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteOrder('${o.id}')" title="删除">🗑️</button>
-                        </td>
-                    </tr>
-                `}).join('');
+                    const statusClass = deliveryStatus === '生产中' ? 'status-producing'
+                        : deliveryStatus === '已出货' ? 'status-shipped' : '';
+
+                    items.forEach((it, j) => {
+                        const isFirst = j === 0;
+                        const subAmount = (parseFloat(it.quantity) || 0) * (parseFloat(it.price) || 0);
+                        const topRowSpan = items.length;
+                        // 订单级字段只在第一行显示（rowspan 合并），明细字段每行独立
+                        rowsHTML.push(`
+                        <tr data-order-id="${o.id}" data-row-index="${j}">
+                            ${isFirst ? `<td rowspan="${topRowSpan}" style="text-align:center;vertical-align:middle;"><input type="checkbox" class="orders-checkbox" data-id="${o.id}" onchange="updateSelectAll('orders'); updateOrdersSummary();"></td>` : ''}
+                            ${isFirst ? `<td rowspan="${topRowSpan}" style="vertical-align:middle;">${o.date || '-'}</td>` : ''}
+                            ${isFirst ? `<td rowspan="${topRowSpan}" style="vertical-align:middle;">${o.customer || '-'}</td>` : ''}
+                            ${isFirst ? `<td rowspan="${topRowSpan}" style="vertical-align:middle;">${o.orderNo || '-'}</td>` : ''}
+                            <td>${it.drawing || '-'}</td>
+                            <td><strong>${it.product || '-'}</strong></td>
+                            <td>${it.spec || '-'}</td>
+                            <td>${it.plating || '-'}</td>
+                            ${isFirst ? `<td rowspan="${topRowSpan}" style="vertical-align:middle;">${o.logo || '-'}</td>` : ''}
+                            <td style="text-align:right;">${it.quantity || 0}</td>
+                            ${isFirst ? `<td rowspan="${topRowSpan}" style="vertical-align:middle;">${o.currency || 'EUR'}</td>` : ''}
+                            <td style="text-align:right;">${parseFloat(it.price || 0).toFixed(2)}</td>
+                            ${isFirst ? `<td rowspan="${topRowSpan}" style="vertical-align:middle;text-align:right;">${parseFloat(o.moldFee || 0).toFixed(2)}</td>` : ''}
+                            ${isFirst ? `<td rowspan="${topRowSpan}" style="vertical-align:middle;text-align:right;color:#0f172a;font-weight:600;">${parseFloat(o.orderAmount || 0).toFixed(2)}</td>` : ''}
+                            ${isFirst ? `<td rowspan="${topRowSpan}" style="vertical-align:middle;">${o.deadline || '-'}</td>` : ''}
+                            ${isFirst ? `<td rowspan="${topRowSpan}" style="vertical-align:middle;">${o.remark || '-'}</td>` : ''}
+                            ${isFirst ? `<td rowspan="${topRowSpan}" class="${statusClass}" style="vertical-align:middle;">${deliveryStatus}</td>` : ''}
+                            ${isFirst ? `<td rowspan="${topRowSpan}" style="vertical-align:middle;white-space:nowrap;">
+                                <button class="btn btn-sm btn-primary" onclick="editOrder('${o.id}')" title="编辑">✏️</button>
+                                <button class="btn btn-sm btn-primary" onclick="viewOrderDrawing('${o.id}')" title="查看/下载图纸">📐</button>
+                                <button class="btn btn-sm btn-primary" onclick="pushOrderToWage('${o.id}')" title="推送到 wage 系统">📤</button>
+                                <button class="btn btn-sm btn-danger" onclick="deleteOrder('${o.id}')" title="删除">🗑️</button>
+                            </td>` : ''}
+                        </tr>`);
+                    });
+                });
+                tbody.innerHTML = rowsHTML.join('');
             }
 
             // 分页按钮
@@ -3737,18 +3753,22 @@
             renderOrderItemsTable();
         }
 
+        // 产品明细里的 autocomplete 浮层状态（单个 absolute 定位的 list，跟随当前焦点 input）
+        let osAcState = { rowIdx: -1, field: null, inputEl: null };
+
         function renderOrderItemsTable() {
             const wrap = document.getElementById('order-items-rows');
             if (!wrap) return;
             const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+            // grid 顺序：# / 产品名称 / 图纸编号 / 型号规格 / 电镀 / 数量 / 单价 / 小计 / 删除
             wrap.innerHTML = orderItems.map((it, i) => {
                 const sub = ((parseFloat(it.quantity) || 0) * (parseFloat(it.price) || 0)).toFixed(2);
-                return `<div style="display:grid;grid-template-columns:28px 100px 120px 110px 100px 80px 70px 90px 32px;padding:6px 8px;gap:6px;align-items:center;border-bottom:1px solid #f1f5f9;font-size:12px;" class="os-item-row" data-idx="${i}">
+                return `<div style="display:grid;grid-template-columns:28px 140px 200px 220px 100px 80px 70px 90px 32px;padding:6px 8px;gap:6px;align-items:center;border-bottom:1px solid #f1f5f9;font-size:12px;" class="os-item-row" data-idx="${i}">
                     <div style="color:#94a3b8;text-align:center;">${i + 1}</div>
-                    <input type="text" data-k="drawing" value="${esc(it.drawing)}" style="height:28px;padding:0 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;width:100%;" placeholder="Dxxxx">
-                    <input type="text" data-k="product" value="${esc(it.product)}" style="height:28px;padding:0 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;width:100%;" placeholder="如：扁铁炉架">
-                    <input type="text" data-k="spec" value="${esc(it.spec)}" style="height:28px;padding:0 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;width:100%;" placeholder="518*700">
-                    <input type="text" data-k="plating" value="${esc(it.plating)}" style="height:28px;padding:0 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;width:100%;" placeholder="如：不电镀">
+                    <input type="text" data-k="product" class="os-ac" data-field="product" value="${esc(it.product)}" style="height:28px;padding:0 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;width:100%;" placeholder="如：扁铁炉架">
+                    <input type="text" data-k="drawing" class="os-ac" data-field="drawing" value="${esc(it.drawing)}" style="height:28px;padding:0 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;width:100%;" placeholder="Dxxxx">
+                    <input type="text" data-k="spec" class="os-ac" data-field="spec" value="${esc(it.spec)}" style="height:28px;padding:0 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;width:100%;" placeholder="518*700">
+                    <input type="text" data-k="plating" class="os-ac" data-field="plating" value="${esc(it.plating)}" style="height:28px;padding:0 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;width:100%;" placeholder="如：不电镀">
                     <input type="number" data-k="quantity" value="${esc(it.quantity)}" style="height:28px;padding:0 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;width:100%;text-align:right;" min="0" step="1" placeholder="0">
                     <input type="number" data-k="price" value="${esc(it.price)}" style="height:28px;padding:0 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;width:100%;text-align:right;" min="0" step="0.01" placeholder="0.00">
                     <div style="text-align:right;color:#2e86ab;font-weight:600;" data-sub="${i}">${sub}</div>
@@ -3756,13 +3776,17 @@
                 </div>`;
             }).join('');
 
-            // 绑定事件：每行 input 改值后更新 orderItems + 小计 + 合计
+            // 绑定事件
             wrap.querySelectorAll('.os-item-row').forEach(row => {
                 const idx = parseInt(row.dataset.idx, 10);
                 row.querySelectorAll('input').forEach(inp => {
+                    // autocomplete 字段（product/drawing/spec/plating）
+                    if (inp.classList.contains('os-ac')) {
+                        inp.addEventListener('focus', () => showOsItemAc(inp.dataset.field, inp, idx, inp.value));
+                        inp.addEventListener('input', () => showOsItemAc(inp.dataset.field, inp, idx, inp.value));
+                    }
                     inp.addEventListener('input', () => {
                         orderItems[idx][inp.dataset.k] = inp.value;
-                        // 更新小计
                         const subEl = row.querySelector(`[data-sub="${idx}"]`);
                         const qty = parseFloat(orderItems[idx].quantity) || 0;
                         const prc = parseFloat(orderItems[idx].price) || 0;
@@ -3773,6 +3797,71 @@
             });
             calculateOrderAmount();
         }
+
+        // 产品明细行内 autocomplete
+        function showOsItemAc(field, inputEl, rowIdx, value) {
+            // 如果 row idx 改了，先关旧的
+            if (osAcState.listEl && (osAcState.rowIdx !== rowIdx || osAcState.field !== field)) {
+                osAcState.listEl.classList.remove('show');
+            }
+            osAcState.field = field;
+            osAcState.rowIdx = rowIdx;
+            osAcState.inputEl = inputEl;
+
+            const orders = getOrders();
+            const fieldMap = { product: 'product', drawing: 'drawing', spec: 'spec', plating: 'plating' };
+            const dataField = fieldMap[field];
+            const kw = (value || '').toLowerCase();
+            let uniqueValues = [...new Set(orders.map(o => o[dataField]).filter(v => v && v !== '-'))];
+            if (kw) uniqueValues = uniqueValues.filter(v => v.toLowerCase().includes(kw));
+
+            const listEl = document.getElementById('os-item-ac-list');
+            if (!listEl) return;
+            if (uniqueValues.length === 0) { listEl.classList.remove('show'); return; }
+
+            const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+            listEl.innerHTML = uniqueValues.slice(0, kw ? 10 : 20).map(v =>
+                `<div class="autocomplete-item" data-v="${esc(v)}" data-row="${rowIdx}" data-field="${field}">${esc(v)}</div>`
+            ).join('');
+
+            // 定位到 input 正下方（相对 modal 容器 absolute）
+            const rect = inputEl.getBoundingClientRect();
+            const modal = document.querySelector('#order-modal .modal');
+            const mRect = modal.getBoundingClientRect();
+            listEl.style.top = (rect.bottom - mRect.top + 2) + 'px';
+            listEl.style.left = (rect.left - mRect.left) + 'px';
+            listEl.style.width = rect.width + 'px';
+            listEl.classList.add('show');
+        }
+
+        // 委托：autocomplete item 点击（listEl 在 modal 里，用事件委托）
+        document.addEventListener('click', function(e) {
+            const item = e.target.closest('#os-item-ac-list .autocomplete-item');
+            if (item) {
+                const v = item.dataset.v;
+                const rowIdx = parseInt(item.dataset.row, 10);
+                const field = item.dataset.field;
+                if (!isNaN(rowIdx) && orderItems[rowIdx]) {
+                    orderItems[rowIdx][field] = v;
+                    renderOrderItemsTable();
+                    // 重新聚焦刚选上的 input
+                    setTimeout(() => {
+                        const newRow = document.querySelector(`#order-items-rows .os-item-row[data-idx="${rowIdx}"]`);
+                        if (newRow) {
+                            const newInput = newRow.querySelector(`input[data-field="${field}"]`);
+                            if (newInput) newInput.focus();
+                        }
+                    }, 0);
+                }
+                document.getElementById('os-item-ac-list').classList.remove('show');
+                return;
+            }
+            // 点别处关
+            if (!e.target.closest('.os-item-row input') && !e.target.closest('#os-item-ac-list')) {
+                const l = document.getElementById('os-item-ac-list');
+                if (l) l.classList.remove('show');
+            }
+        });
 
         function calculateOrderAmount() {
             const moldFee = parseFloat(document.getElementById('order-mold-fee').value) || 0;
