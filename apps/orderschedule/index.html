@@ -2166,26 +2166,6 @@
                         <label class="req">订单号</label>
                         <input type="text" id="order-no" placeholder="如：2200387" required>
                     </div>
-                    <div class="form-group autocomplete-wrapper">
-                        <label>图纸编号</label>
-                        <input type="text" id="order-drawing" placeholder="如：D02561" onfocus="showAutocomplete('drawing', this.value)" oninput="showAutocomplete('drawing', this.value)">
-                        <div class="autocomplete-list" id="autocomplete-drawing"></div>
-                    </div>
-                    <div class="form-group autocomplete-wrapper">
-                        <label class="req">产品名称</label>
-                        <input type="text" id="order-product" placeholder="如：扁铁炉架" required onfocus="showAutocomplete('product', this.value)" oninput="showAutocomplete('product', this.value)">
-                        <div class="autocomplete-list" id="autocomplete-product"></div>
-                    </div>
-                    <div class="form-group autocomplete-wrapper">
-                        <label class="req">型号规格</label>
-                        <input type="text" id="order-spec" placeholder="如：518*700" required onfocus="showAutocomplete('spec', this.value)" oninput="showAutocomplete('spec', this.value)">
-                        <div class="autocomplete-list" id="autocomplete-spec"></div>
-                    </div>
-                    <div class="form-group autocomplete-wrapper">
-                        <label>电镀</label>
-                        <input type="text" id="order-plating" placeholder="如：不电镀" oninput="showAutocomplete('plating', this.value)">
-                        <div class="autocomplete-list" id="autocomplete-plating"></div>
-                    </div>
                     <div class="form-group">
                         <label>LOGO<button type="button" class="lp-manage-btn" onclick="openLogoManager()" title="管理LOGO选项">⚙</button></label>
                         <div class="logo-picker">
@@ -2194,18 +2174,8 @@
                             <div class="logo-picker-menu" hidden></div>
                         </div>
                     </div>
-                </div>
-
-                <div class="form-group remark-full-width">
-                    <label>备注</label>
-                    <textarea id="order-remark" placeholder="备注信息" rows="3"></textarea>
-                </div>
-
-                <div class="os-sec-divider"></div>
-                <h3 class="os-sec-title">📦 产品信息</h3>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label class="req">货币类型</label>
+                    <div class="form-group autocomplete-wrapper">
+                        <label>货币类型</label>
                         <select id="order-currency">
                             <option value="USD">USD (美元)</option>
                             <option value="EUR" selected>EUR (欧元)</option>
@@ -2215,25 +2185,43 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label class="req">订单数量</label>
-                        <input type="number" id="order-quantity" placeholder="0" min="0" required oninput="calculateOrderAmount()">
-                    </div>
-                    <div class="form-group">
-                        <label class="req">单价</label>
-                        <input type="number" id="order-price" placeholder="0.00" min="0" step="0.01" required oninput="calculateOrderAmount()">
-                    </div>
-                    <div class="form-group">
                         <label>模具费</label>
                         <input type="number" id="order-mold-fee" placeholder="0" min="0" step="0.01" oninput="calculateOrderAmount()">
-                    </div>
-                    <div class="form-group">
-                        <label>订单金额</label>
-                        <input type="number" id="order-amount" class="os-ro" placeholder="0.00" step="0.01" readonly>
                     </div>
                     <div class="form-group">
                         <label>计划交期</label>
                         <input type="date" id="order-deadline">
                     </div>
+                </div>
+
+                <div class="form-group remark-full-width">
+                    <label>备注</label>
+                    <textarea id="order-remark" placeholder="备注信息" rows="2"></textarea>
+                </div>
+
+                <div class="os-sec-divider"></div>
+                <h3 class="os-sec-title">📝 产品明细 <span style="font-size:12px;font-weight:400;color:#94a3b8;margin-left:8px;">（同一订单号下可录入多条不同图纸/产品）</span></h3>
+                <div id="order-items-wrap" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:12px;">
+                    <div style="display:grid;grid-template-columns:28px 100px 120px 110px 100px 80px 70px 90px 32px;background:#f1f5f9;padding:8px 8px;font-size:12px;font-weight:600;color:#475569;gap:6px;align-items:center;">
+                        <div>#</div>
+                        <div>图纸编号</div>
+                        <div>产品名称</div>
+                        <div>型号规格</div>
+                        <div>电镀</div>
+                        <div style="text-align:right;">数量</div>
+                        <div style="text-align:right;">单价</div>
+                        <div style="text-align:right;">小计</div>
+                        <div></div>
+                    </div>
+                    <div id="order-items-rows"></div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px;border-top:1px solid #e2e8f0;background:#fafbfc;">
+                        <button type="button" class="os-btn-cancel" style="border:1px dashed #2e86ab;color:#2e86ab;background:transparent;padding:4px 12px;border-radius:6px;font-size:12px;cursor:pointer;" onclick="addOrderItem()">➕ 添加一行</button>
+                        <div style="font-size:13px;color:#334155;">合计数量: <strong id="order-items-sum-qty" style="color:#0f172a;">0</strong> &nbsp;&nbsp; 合计金额: <strong id="order-items-sum-amount" style="color:#2e86ab;">0.00</strong></div>
+                    </div>
+                </div>
+                <div class="form-group" style="max-width:240px;">
+                    <label>订单金额（自动）</label>
+                    <input type="number" id="order-amount" class="os-ro" placeholder="0.00" step="0.01" readonly>
                 </div>
 
                 <div class="os-sec-divider"></div>
@@ -3334,13 +3322,15 @@
             document.getElementById('edit-id').value = '';
             document.getElementById('modal-title').textContent = '新增订单';
             document.getElementById('order-date').value = getTodayDate();
-            // 开票日期默认留空，不预填今日（未开票订单）
             document.getElementById('order-invoice-date').value = '';
             document.getElementById('order-currency').value = 'EUR';
-            // LOGO 下拉重置为默认 LONGLI（选项可能被管理弹窗改动，重渲染菜单）
             initLogoPickers(document.getElementById('order-modal'));
             setLogoPickerValue(document.querySelector('#order-modal .logo-picker'), 'LONGLI');
+            // 明细行：默认一行空白
+            orderItems = [{ drawing: '', product: '', spec: '', plating: '', quantity: 0, price: 0 }];
+            // 先打开 modal（DOM 里已有 #order-items-rows），再渲染
             document.getElementById('order-modal').classList.add('active');
+            renderOrderItemsTable();
         }
 
         function closeOrderModal() {
@@ -3732,12 +3722,73 @@
             refreshList();
         }
 
-        // ==================== 自动计算功能 ====================
+        // ==================== 产品明细（可多行）====================
+        // 当前 modal 里的明细行数据，在 openOrderModal/editOrder 里初始化
+        let orderItems = [];
+
+        function addOrderItem(item) {
+            orderItems.push(item || { drawing: '', product: '', spec: '', plating: '', quantity: 0, price: 0 });
+            renderOrderItemsTable();
+        }
+
+        function removeOrderItem(idx) {
+            if (orderItems.length <= 1) return; // 至少保留一行
+            orderItems.splice(idx, 1);
+            renderOrderItemsTable();
+        }
+
+        function renderOrderItemsTable() {
+            const wrap = document.getElementById('order-items-rows');
+            if (!wrap) return;
+            const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+            wrap.innerHTML = orderItems.map((it, i) => {
+                const sub = ((parseFloat(it.quantity) || 0) * (parseFloat(it.price) || 0)).toFixed(2);
+                return `<div style="display:grid;grid-template-columns:28px 100px 120px 110px 100px 80px 70px 90px 32px;padding:6px 8px;gap:6px;align-items:center;border-bottom:1px solid #f1f5f9;font-size:12px;" class="os-item-row" data-idx="${i}">
+                    <div style="color:#94a3b8;text-align:center;">${i + 1}</div>
+                    <input type="text" data-k="drawing" value="${esc(it.drawing)}" style="height:28px;padding:0 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;width:100%;" placeholder="Dxxxx">
+                    <input type="text" data-k="product" value="${esc(it.product)}" style="height:28px;padding:0 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;width:100%;" placeholder="如：扁铁炉架">
+                    <input type="text" data-k="spec" value="${esc(it.spec)}" style="height:28px;padding:0 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;width:100%;" placeholder="518*700">
+                    <input type="text" data-k="plating" value="${esc(it.plating)}" style="height:28px;padding:0 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;width:100%;" placeholder="如：不电镀">
+                    <input type="number" data-k="quantity" value="${esc(it.quantity)}" style="height:28px;padding:0 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;width:100%;text-align:right;" min="0" step="1" placeholder="0">
+                    <input type="number" data-k="price" value="${esc(it.price)}" style="height:28px;padding:0 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;width:100%;text-align:right;" min="0" step="0.01" placeholder="0.00">
+                    <div style="text-align:right;color:#2e86ab;font-weight:600;" data-sub="${i}">${sub}</div>
+                    <button type="button" onclick="removeOrderItem(${i})" style="border:none;background:transparent;color:#ef4444;cursor:pointer;font-size:14px;padding:0;" ${orderItems.length <= 1 ? 'disabled style="opacity:.3;cursor:not-allowed;"' : ''} title="删除此行">✕</button>
+                </div>`;
+            }).join('');
+
+            // 绑定事件：每行 input 改值后更新 orderItems + 小计 + 合计
+            wrap.querySelectorAll('.os-item-row').forEach(row => {
+                const idx = parseInt(row.dataset.idx, 10);
+                row.querySelectorAll('input').forEach(inp => {
+                    inp.addEventListener('input', () => {
+                        orderItems[idx][inp.dataset.k] = inp.value;
+                        // 更新小计
+                        const subEl = row.querySelector(`[data-sub="${idx}"]`);
+                        const qty = parseFloat(orderItems[idx].quantity) || 0;
+                        const prc = parseFloat(orderItems[idx].price) || 0;
+                        if (subEl) subEl.textContent = (qty * prc).toFixed(2);
+                        calculateOrderAmount();
+                    });
+                });
+            });
+            calculateOrderAmount();
+        }
+
         function calculateOrderAmount() {
-            const quantity = parseFloat(document.getElementById('order-quantity').value) || 0;
-            const price = parseFloat(document.getElementById('order-price').value) || 0;
             const moldFee = parseFloat(document.getElementById('order-mold-fee').value) || 0;
-            document.getElementById('order-amount').value = (quantity * price + moldFee).toFixed(2);
+            let totalQty = 0, totalItemsAmount = 0;
+            orderItems.forEach(it => {
+                const q = parseFloat(it.quantity) || 0;
+                const p = parseFloat(it.price) || 0;
+                totalQty += q;
+                totalItemsAmount += q * p;
+            });
+            const orderAmount = totalItemsAmount + moldFee;
+            document.getElementById('order-amount').value = orderAmount.toFixed(2);
+            const sq = document.getElementById('order-items-sum-qty');
+            if (sq) sq.textContent = totalQty;
+            const sa = document.getElementById('order-items-sum-amount');
+            if (sa) sa.textContent = totalItemsAmount.toFixed(2);
         }
 
         function calculateActualQty() {
@@ -3781,18 +3832,12 @@
             document.getElementById('edit-id').value = id;
             document.getElementById('modal-title').textContent = '编辑订单';
 
-            // 填充表单
+            // 填充表单（明细字段由 items[] 接管）
             document.getElementById('order-date').value = order.date || '';
             document.getElementById('order-customer').value = order.customer || '';
             document.getElementById('order-no').value = order.orderNo || '';
-            document.getElementById('order-drawing').value = order.drawing || '';
-            document.getElementById('order-product').value = order.product || '';
-            document.getElementById('order-spec').value = order.spec || '';
-            document.getElementById('order-plating').value = order.plating || '';
             document.getElementById('order-remark').value = order.remark || '';
             document.getElementById('order-currency').value = order.currency || 'EUR';
-            document.getElementById('order-quantity').value = order.quantity || '';
-            document.getElementById('order-price').value = order.price || '';
             document.getElementById('order-mold-fee').value = order.moldFee || '';
             document.getElementById('order-amount').value = order.orderAmount || '';
             document.getElementById('order-deadline').value = order.deadline || '';
@@ -3817,11 +3862,21 @@
             document.getElementById('order-pay-amount4').value = order.payAmount4 || '';
             document.getElementById('order-invoice-title').value = order.invoiceTitle || '';
 
-            // LOGO 由 logo-picker 管理（隐藏 input 仍保留 id=order-logo，saveOrder 按 id 取值）
+            // LOGO 由 logo-picker 管理
             initLogoPickers(document.getElementById('order-modal'));
             setLogoPickerValue(document.querySelector('#order-modal .logo-picker'), order.logo || 'LONGLI');
 
+            // 明细行：新格式 items[] 或 旧格式从顶层字段构造第一条（兼容）
+            orderItems = (Array.isArray(order.items) && order.items.length)
+                ? order.items.map(it => ({ drawing: it.drawing || '', product: it.product || '', spec: it.spec || '', plating: it.plating || '', quantity: it.quantity || 0, price: it.price || 0 }))
+                : [{
+                    drawing: order.drawing || '', product: order.product || '',
+                    spec: order.spec || '', plating: order.plating || '',
+                    quantity: order.quantity || 0, price: order.price || 0
+                  }];
+
             document.getElementById('order-modal').classList.add('active');
+            renderOrderItemsTable();
         }
 
         function saveOrder(event) {
@@ -3829,10 +3884,24 @@
             const editId = document.getElementById('edit-id').value;
             const orders = getOrders();
 
-            const quantity = parseFloat(document.getElementById('order-quantity').value) || 0;
-            const price = parseFloat(document.getElementById('order-price').value) || 0;
             const moldFee = parseFloat(document.getElementById('order-mold-fee').value) || 0;
-            const orderAmount = quantity * price + moldFee;
+            // 从明细行汇总
+            let totalQty = 0, totalItemsAmount = 0;
+            orderItems.forEach(it => {
+                const q = parseFloat(it.quantity) || 0;
+                const p = parseFloat(it.price) || 0;
+                totalQty += q;
+                totalItemsAmount += q * p;
+            });
+            const orderAmount = totalItemsAmount + moldFee;
+            // 明细行 quantity/price 存数字，避免 "0" 字符串
+            const normalizedItems = orderItems.map(it => ({
+                drawing: it.drawing || '', product: it.product || '',
+                spec: it.spec || '', plating: it.plating || '',
+                quantity: parseFloat(it.quantity) || 0, price: parseFloat(it.price) || 0
+            }));
+            // 顶层 drawing/product/spec/plating/quantity/price 取第一条，保持 renderOrders 等现有代码兼容
+            const firstItem = normalizedItems[0] || {};
 
             const output1 = parseInt(document.getElementById('order-output1').value) || 0;
             const output2 = parseInt(document.getElementById('order-output2').value) || 0;
@@ -3851,15 +3920,18 @@
                 date: document.getElementById('order-date').value,
                 customer: document.getElementById('order-customer').value,
                 orderNo: document.getElementById('order-no').value,
-                drawing: document.getElementById('order-drawing').value,
-                product: document.getElementById('order-product').value,
-                spec: document.getElementById('order-spec').value,
-                plating: document.getElementById('order-plating').value,
+                // 顶层字段（取明细第一行）
+                drawing: firstItem.drawing || '',
+                product: firstItem.product || '',
+                spec: firstItem.spec || '',
+                plating: firstItem.plating || '',
+                quantity: totalQty,
+                price: firstItem.price || 0,
+                // 完整明细（新字段）
+                items: normalizedItems,
                 logo: document.getElementById('order-logo').value,
                 remark: document.getElementById('order-remark').value,
                 currency: document.getElementById('order-currency').value,
-                quantity: quantity,
-                price: price,
                 moldFee: moldFee,
                 orderAmount: orderAmount,
                 deadline: document.getElementById('order-deadline').value,
@@ -3883,9 +3955,8 @@
                 payDate4: document.getElementById('order-pay-date4').value,
                 payAmount4: payAmount4,
                 invoiceTitle: document.getElementById('order-invoice-title').value,
-                // 自动计算的字段
                 deliveryStatus: getDeliveryStatus(shipDate),
-                rmbPrice: getRmbPrice(invoiceAmount, quantity),
+                rmbPrice: getRmbPrice(invoiceAmount, totalQty),
                 paymentStatus: getPaymentStatus(invoiceAmount, payAmount1, payAmount2, payAmount3, payAmount4),
                 invoiceStatus: getInvoiceStatus(invoiceDate),
                 status: getDeliveryStatus(shipDate),
