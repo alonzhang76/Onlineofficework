@@ -1804,12 +1804,16 @@ function getActiveOrderInfoDatalist() {
   const dl = document.getElementById('orderInfoDatalist');
   if (!dl) return;
   // 只显示未出货且未包装结束的订单（已出货/包装结束的记录不进入下拉提示），按下单日期倒序
+  // 推送自 orderschedule 的多产品订单已拆成多条 wage_orders，每行都是独立产品条目
   const activeOrders = DB.orders.filter(o => !o.shipDate && !o.packDate)
     .sort((a, b) => (b.orderDate || '').localeCompare(a.orderDate || ''));
   dl.innerHTML = activeOrders.map(o => {
-    const label = `${o.customer || ''} | ${o.orderNo || ''} | ${o.type || ''} | ${o.drawingNo || ''} | 订单数:${o.qty || 0}`;
-    const value = `${o.customer || ''},${o.orderNo || ''}`;
-    return `<option value="${value}" data-label="${label}">${label}</option>`;
+    const label = `${o.customer || ''} | ${o.orderNo || ''} | ${o.type || ''} | ${o.drawingNo || ''} | ${o.spec || ''} | 订单数:${o.qty || 0}`;
+    // value 用 osUniqueKey 区分同订单号下的不同产品；历史订单无 osUniqueKey 则退化用 customer,orderNo
+    const value = o.osUniqueKey
+      ? `${o.customer || ''},${o.orderNo || ''} [${o.type || ''}]`
+      : `${o.customer || ''},${o.orderNo || ''}`;
+    return `<option value="${value.replace(/"/g, '&quot;')}" data-label="${label}">${label}</option>`;
   }).join('');
 }
 

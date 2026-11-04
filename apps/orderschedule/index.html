@@ -4105,7 +4105,6 @@
                 if (res.error) throw res.error;
                 if (res.data && res.data.length > 0) {
                     let pv = res.data[0].payload;
-                    // 兼容 {data: [...]} 包装形态
                     if (pv && typeof pv === 'object' && !Array.isArray(pv) && Array.isArray(pv.data)) pv = pv.data;
                     if (Array.isArray(pv)) wageOrders = pv;
                 }
@@ -4114,47 +4113,61 @@
                 return;
             }
 
-            const qty = parseInt(order.quantity) || 0;
-            // 字段映射
-            const mapped = {
-                customer: order.customer || '',
-                orderNo: order.orderNo || '',
-                type: order.product || '',
-                drawingNo: order.drawing || '',
-                spec: order.spec || '',
-                qty: qty,
-                bow: order.logo || '',
-                delivery: order.deadline || ''   // 计划交期 → wage 交期
-            };
+            // items[] 拆成多条 wage 记录推送，一条 item 对应一条 wage 订单（用 osOrderId + osRowIdx 去重更新）
+            const items = (Array.isArray(order.items) && order.items.length) ? order.items : [{
+                drawing: order.drawing || '', product: order.product || '',
+                spec: order.spec || '', plating: order.plating || '',
+                quantity: order.quantity || 0, price: order.price || 0
+            }];
 
-            let action;
-            // 按订单号去重：已存在则只更新推送字段，保留 wage 侧生产进度
-            // （产出 output、月度 m1~m12、投料/包装/出货日期、库存、状态等）
-            const existIdx = mapped.orderNo
-                ? wageOrders.findIndex(w => w.orderNo === mapped.orderNo)
-                : -1;
-            if (existIdx >= 0) {
-                wageOrders[existIdx] = Object.assign({}, wageOrders[existIdx], mapped);
-                action = 'updated';
-            } else {
-                // 新订单：默认值与 wage 新增订单保存逻辑一致
-                const newRec = {
-                    id: Date.now().toString(36) + Math.random().toString(36).substring(2, 7),
-                    orderDate: order.date || new Date().toISOString().slice(0, 10),
-                    output: 0,
-                    stock: 0 - qty,   // wage 公式：stock = output - qty
-                    plating: '',
-                    notes: '',
-                    delivery: '',
-                    materialDate: '',
-                    packDate: '',
-                    shipDate: '',
-                    status: '待生产'
+            const addedList = [], updatedList = [];
+
+            items.forEach((it, rowIdx) => {
+                const qty = parseInt(it.quantity) || 0;
+                const osOrderId = order.id;
+                const osRowIdx = rowIdx;
+                // 唯一标识：orderschedule 订单 id + 明细行索引
+                const uniqueKey = `${osOrderId}#${osRowIdx}`;
+
+                const mapped = {
+                    customer: order.customer || '',
+                    orderNo: order.orderNo || '',
+                    type: it.product || order.product || '',
+                    drawingNo: it.drawing || order.drawing || '',
+                    spec: it.spec || order.spec || '',
+                    plating: it.plating || order.plating || '',
+                    qty: qty,
+                    bow: order.logo || '',
+                    delivery: order.deadline || '',
+                    // 溯源字段（用于 wage 端合并同订单、更新/删除对应条目）
+                    osOrderId: osOrderId,
+                    osRowIdx: osRowIdx,
+                    osUniqueKey: uniqueKey
                 };
-                for (let m = 1; m <= 12; m++) newRec['m' + m] = 0;
-                wageOrders.push(Object.assign(newRec, mapped));
-                action = 'added';
-            }
+
+                const existIdx = wageOrders.findIndex(w => w.osUniqueKey === uniqueKey);
+                if (existIdx >= 0) {
+                    wageOrders[existIdx] = Object.assign({}, wageOrders[existIdx], mapped);
+                    updatedList.push(existIdx);
+                } else {
+                    const newRec = {
+                        id: Date.now().toString(36) + Math.random().toString(36).substring(2, 7),
+                        orderDate: order.date || new Date().toISOString().slice(0, 10),
+                        output: 0,
+                        stock: 0 - qty,
+                        plating: '',
+                        notes: '',
+                        delivery: '',
+                        materialDate: '',
+                        packDate: '',
+                        shipDate: '',
+                        status: '待生产'
+                    };
+                    for (let m = 1; m <= 12; m++) newRec['m' + m] = 0;
+                    wageOrders.push(Object.assign(newRec, mapped));
+                    addedList.push(wageOrders.length - 1);
+                }
+            });
 
             // 覆盖写回云端
             try {
@@ -4164,9 +4177,11 @@
                     updated_at: new Date().toISOString()
                 }, { onConflict: 'store_key' });
                 if (up.error) throw up.error;
-                showToast(action === 'updated'
-                    ? '已推送，并更新 wage 中的该订单！'
-                    : '已推送至 wage 订单管理！');
+                const a = addedList.length, u = updatedList.length;
+                const msg = a && u ? `已推送 ${a} 条新增 + ${u} 条更新到 wage！`
+                    : a ? `已推送 ${a} 条新产品到 wage！`
+                    : `已更新 ${u} 条条目到 wage！`;
+                showToast(msg);
             } catch (e) {
                 showToast('推送失败：' + (e.message || e));
             }
