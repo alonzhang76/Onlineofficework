@@ -1803,8 +1803,9 @@ function updateBatchTotal() {
 function getActiveOrderInfoDatalist() {
   const dl = document.getElementById('orderInfoDatalist');
   if (!dl) return;
-  // 只显示未出货且未包装结束的订单（已出货/包装结束的记录不进入下拉提示）
-  const activeOrders = DB.orders.filter(o => !o.shipDate && !o.packDate);
+  // 只显示未出货且未包装结束的订单（已出货/包装结束的记录不进入下拉提示），按下单日期倒序
+  const activeOrders = DB.orders.filter(o => !o.shipDate && !o.packDate)
+    .sort((a, b) => (b.orderDate || '').localeCompare(a.orderDate || ''));
   dl.innerHTML = activeOrders.map(o => {
     const label = `${o.customer || ''} | ${o.orderNo || ''} | ${o.type || ''} | ${o.drawingNo || ''} | 订单数:${o.qty || 0}`;
     const value = `${o.customer || ''},${o.orderNo || ''}`;
