@@ -180,9 +180,11 @@ function drawPurchaseTable(box, kw) {
     }
   }));
 }
-/* ---------- 汇总卡片（跟随当前搜索结果）：供应商数 / 未开票 / 未付款 ----------
-   未付款 = 合同额 − 已付款；已付款含发票分摊付款 + 无票付款（预付款/进度款等），
-   因此预付款已自动从「未付款」中扣减。 */
+/* ---------- 汇总卡片（跟随当前搜索结果） ----------
+   待付款 = 合同额 − 已付款；已付款含发票分摊付款 + 无票付款（预付款/进度款等），
+   因此预付款已自动从「待付款」中扣减。
+   待收货：按产品行计算 合同数量 −（已收货 − 已退货），金额按单价折算，识别在途/欠交。
+   逾期交货：交货期已过、状态仍是「未收货 / 部分收货」的合同。 */
 function renderPoCards(orders) {
   const box = $('#poCards'); if (!box) return;
   const alloc = _contractAllocations();
@@ -191,21 +193,49 @@ function renderPoCards(orders) {
     prepay[c] = (prepay[c] || 0) + (+p.amount || 0);
   }));
   const sups = new Set();
-  let total = 0, invoiced = 0, paid = 0, prepaid = 0;
+  const today = todayStr(), ym = today.slice(0, 7); // 当前月份（YYYY-MM），用于「本月新增合同额」
+  const thisYear = today.slice(0, 4), lyCut = String(+thisYear - 1) + today.slice(4); // 去年同期截止日
+  let total = 0, invoiced = 0, paid = 0, prepaid = 0, lines = 0, monthAmt = 0;
+  let pendingQty = 0, pendingAmt = 0, overdueCnt = 0, overdueAmt = 0;
+  let ytd = 0, lyYtd = 0;
   orders.forEach(o => {
     const cno = o.contractNumber, t = +o.totalAmount || 0;
     const inv = Math.min(t, alloc.invAlloc[cno] || 0);
     const pre = prepay[cno] || 0;
     total += t; invoiced += inv; prepaid += pre;
     paid += (alloc.paidAlloc[cno] || 0) + pre;
+    lines += (o.products || []).length;
+    const od = o.orderDate || '';
+    if (od.slice(0, 7) === ym) monthAmt += t;
+    if (od.slice(0, 4) === thisYear) ytd += t;
+    if (od.slice(0, 4) === String(+thisYear - 1) && od <= lyCut) lyYtd += t;
     if (o.supplier && String(o.supplier).trim()) sups.add(String(o.supplier).trim());
+    (o.products || []).forEach(p => {
+      const remain = Math.max(0, (+p.quantity || 0) - receivedQty(cno, p.name) + returnedQty(cno, p.name));
+      pendingQty += remain;
+      pendingAmt += remain * (+p.unitPrice || 0);
+    });
+    if (o.deliveryDate && o.deliveryDate < today) {
+      const st = orderStatus(o);
+      if (st.t === '未收货' || st.t === '部分收货') { overdueCnt++; overdueAmt += t; }
+    }
   });
-  const unInv = Math.max(0, total - invoiced);
-  const unPaid = Math.max(0, total - paid);
+  const unInv = Math.max(0, total - invoiced);      // 待开票
+  const unPaid = Math.max(0, total - paid);         // 待付款（含未开票部分）
+  const invUnpaid = Math.max(0, invoiced - paid);   // 已开票但尚未付的部分
+  const pctOf = (v) => (total > 0 ? Math.max(0, Math.min(100, v / total * 100)) : 0).toFixed(1) + '%';
+  // 同比 = 本年累计 vs 去年同期累计（截止到今天的同月同日）
+  const yoyTxt = lyYtd > 0.005 ? (ytd >= lyYtd ? '+' : '') + ((ytd - lyYtd) / lyYtd * 100).toFixed(1) + '%' : (ytd > 0.005 ? '新增' : '—');
   box.innerHTML =
-    '<div class="stat-card"><div class="l">涉及供应商</div><div class="v">' + sups.size + ' 家</div><div class="s">合同 ' + orders.length + ' 份 · 合同额 ' + fmtMoney(total) + '</div></div>' +
-    '<div class="stat-card ' + (unInv > 0.005 ? 'warn' : 'good') + '"><div class="l">未开票金额</div><div class="v">' + fmtMoney(unInv) + '</div><div class="s">已开票 ' + fmtMoney(invoiced) + '</div></div>' +
-    '<div class="stat-card ' + (unPaid > 0.005 ? 'bad' : 'good') + '"><div class="l">未付款金额</div><div class="v">' + fmtMoney(unPaid) + '</div><div class="s">已付款 ' + fmtMoney(paid) + (prepaid > 0.005 ? '（含预付款/无票付款 ' + fmtMoney(prepaid) + '，已扣减）' : '') + '</div></div>';
+    '<div class="stat-card"><div class="l">涉及供应商</div><div class="v">' + sups.size + ' 家</div><div class="s">合同 ' + orders.length + ' 份 · 明细 ' + lines + ' 条</div></div>' +
+    '<div class="stat-card hl"><div class="l">合同总金额</div><div class="v">' + fmtMoney(total) + '</div><div class="s">本月新增 ' + fmtMoney(monthAmt) + '</div></div>' +
+    '<div class="stat-card"><div class="l">本年累计采购额</div><div class="v">' + fmtMoney(ytd) + '</div><div class="s">去年同期 ' + fmtMoney(lyYtd) + ' · 同比 ' + yoyTxt + '</div></div>' +
+    '<div class="stat-card"><div class="l">已开票金额</div><div class="v">' + fmtMoney(invoiced) + '</div><div class="s">开票进度 ' + pctOf(invoiced) + '</div></div>' +
+    '<div class="stat-card good"><div class="l">已付款金额</div><div class="v">' + fmtMoney(paid) + '</div><div class="s">付款进度 ' + pctOf(paid) + (prepaid > 0.005 ? ' · 含预付款/无票付款 ' + fmtMoney(prepaid) : '') + '</div></div>' +
+    '<div class="stat-card ' + (unPaid > 0.005 ? 'bad' : 'good') + '"><div class="l">待付款金额</div><div class="v">' + fmtMoney(unPaid) + '</div><div class="s">已开票未付 ' + fmtMoney(invUnpaid) + '</div></div>' +
+    '<div class="stat-card ' + (unInv > 0.005 ? 'warn' : 'good') + '"><div class="l">待开票金额</div><div class="v">' + fmtMoney(unInv) + '</div><div class="s">占合同额 ' + pctOf(unInv) + ' · 建议及时索票</div></div>' +
+    '<div class="stat-card"><div class="l">待收货金额</div><div class="v">' + fmtMoney(pendingAmt) + '</div><div class="s">待收数量 ' + fmtNum(pendingQty) + ' · 收货进度 ' + pctOf(total - pendingAmt) + '</div></div>' +
+    '<div class="stat-card ' + (overdueCnt ? 'bad' : 'good') + '"><div class="l">逾期交货</div><div class="v">' + overdueCnt + ' 份</div><div class="s">涉及合同额 ' + fmtMoney(overdueAmt) + '</div></div>';
 }
 /* ---------- 导入EXCEL ---------- */
 async function handleImportFile(f) {
