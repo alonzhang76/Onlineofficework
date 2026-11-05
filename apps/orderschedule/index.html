@@ -2718,12 +2718,12 @@
                             ${isFirst ? `<td rowspan="${topRowSpan}" style="vertical-align:middle;">${o.deadline || '-'}</td>` : ''}
                             ${isFirst ? `<td rowspan="${topRowSpan}" style="vertical-align:middle;">${o.remark || '-'}</td>` : ''}
                             ${isFirst ? `<td rowspan="${topRowSpan}" class="${statusClass}" style="vertical-align:middle;">${deliveryStatus}</td>` : ''}
-                            ${isFirst ? `<td rowspan="${topRowSpan}" style="vertical-align:middle;white-space:nowrap;">
+                            <td style="vertical-align:middle;white-space:nowrap;">
                                 <button class="btn btn-sm btn-primary" onclick="editOrder('${o.id}')" title="编辑">✏️</button>
-                                <button class="btn btn-sm btn-primary" onclick="viewOrderDrawing('${o.id}')" title="查看/下载图纸">📐</button>
+                                <button class="btn btn-sm btn-primary" onclick="viewOrderDrawing('${o.id}', ${j})" title="查看/下载图纸">📐</button>
                                 <button class="btn btn-sm btn-primary" onclick="pushOrderToWage('${o.id}')" title="推送到 wage 系统">📤</button>
                                 <button class="btn btn-sm btn-danger" onclick="deleteOrder('${o.id}')" title="删除">🗑️</button>
-                            </td>` : ''}
+                            </td>
                         </tr>`);
                     });
                 });
@@ -5453,11 +5453,14 @@
         document.body.appendChild(ov);
     }
 
-    async function viewOrderDrawing(id) {
+    async function viewOrderDrawing(id, itemIndex) {
         var order = getOrders().find(function (o) { return o.id === id; });
         if (!order) return;
-        var drawing = String(order.drawing || '').trim();
-        if (!drawing) { showToast('该订单未填写图纸编号，请先编辑订单补充', 'error'); return; }
+        // 同一订单号下有多条产品明细时，按所在行取该明细的图纸编号（不再只取订单首条）
+        var items = Array.isArray(order.items) ? order.items : [];
+        var it = items[itemIndex];
+        var drawing = String((it && it.drawing) || order.drawing || '').trim();
+        if (!drawing) { showToast('该产品明细未填写图纸编号，请先编辑订单补充', 'error'); return; }
         showToast('正在检索云端图纸库…');
         try {
             var files = await _dwListPdfs();

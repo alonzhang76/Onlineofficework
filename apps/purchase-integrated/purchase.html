@@ -54,9 +54,12 @@ function pagePurchase(root) {
       '<div class="more-wrap" id="poMoreWrap"></div></div>' +
     '<input type="file" id="poImportFile" accept=".xlsx,.xls,.csv" style="display:none">' +
     '<div class="card"><div class="row-flex" style="margin-bottom:12px"><div style="flex:1;max-width:340px"><label>搜索</label><input id="poSearch" placeholder="合同号 / 供应商 / 产品 / 规格 / 成本类别"></div></div>' +
+    '<div id="poCards" class="stat-grid" style="margin-bottom:12px"></div>' +
     '<div id="pgBar" class="pgbar"></div>' +
     '<div id="poTableBox"></div></div>';
-  $('#poSearch').addEventListener('input', () => { poPg = 1; draw(); });
+  // 搜索条件跨重绘保持：编辑保存后仍停留在当前搜索结果与页码，不回到首页
+  $('#poSearch').value = State.poKw || '';
+  $('#poSearch').addEventListener('input', () => { poPg = 1; State.poKw = $('#poSearch').value; draw(); });
   if (canW) $('#poAdd').addEventListener('click', () => orderForm(null));
   $('#poMoreWrap').innerHTML = moreMenuHTML('poMore', [
     { m: 'import', label: '📥 导入EXCEL' },
@@ -100,6 +103,7 @@ function drawPurchaseTable(box, kw) {
   // 展开为产品明细行（每个产品一行，同参考表格）
   const lines = [];
   orders.forEach(o => (o.products || []).forEach(p => lines.push({ o, p })));
+  renderPoCards(orders);
   const qSum = lines.reduce((s, l) => s + (+l.p.quantity || 0), 0);
   const aSum = lines.reduce((s, l) => s + poAmtOf(l.p), 0);
   // 分页（表格左上角）
@@ -175,6 +179,33 @@ function drawPurchaseTable(box, kw) {
       if (confirm('确定删除合同 ' + o.contractNumber + ' ？相关收发货记录不会删除。')) { Data.remove('orders', o.id); poSel.delete(o.id); toast('已删除', 'ok'); renderPage(); }
     }
   }));
+}
+/* ---------- 汇总卡片（跟随当前搜索结果）：供应商数 / 未开票 / 未付款 ----------
+   未付款 = 合同额 − 已付款；已付款含发票分摊付款 + 无票付款（预付款/进度款等），
+   因此预付款已自动从「未付款」中扣减。 */
+function renderPoCards(orders) {
+  const box = $('#poCards'); if (!box) return;
+  const alloc = _contractAllocations();
+  const prepay = {};
+  ReimPay.payments().forEach(p => splitMulti(p.project || '').forEach(c => {
+    prepay[c] = (prepay[c] || 0) + (+p.amount || 0);
+  }));
+  const sups = new Set();
+  let total = 0, invoiced = 0, paid = 0, prepaid = 0;
+  orders.forEach(o => {
+    const cno = o.contractNumber, t = +o.totalAmount || 0;
+    const inv = Math.min(t, alloc.invAlloc[cno] || 0);
+    const pre = prepay[cno] || 0;
+    total += t; invoiced += inv; prepaid += pre;
+    paid += (alloc.paidAlloc[cno] || 0) + pre;
+    if (o.supplier && String(o.supplier).trim()) sups.add(String(o.supplier).trim());
+  });
+  const unInv = Math.max(0, total - invoiced);
+  const unPaid = Math.max(0, total - paid);
+  box.innerHTML =
+    '<div class="stat-card"><div class="l">涉及供应商</div><div class="v">' + sups.size + ' 家</div><div class="s">合同 ' + orders.length + ' 份 · 合同额 ' + fmtMoney(total) + '</div></div>' +
+    '<div class="stat-card ' + (unInv > 0.005 ? 'warn' : 'good') + '"><div class="l">未开票金额</div><div class="v">' + fmtMoney(unInv) + '</div><div class="s">已开票 ' + fmtMoney(invoiced) + '</div></div>' +
+    '<div class="stat-card ' + (unPaid > 0.005 ? 'bad' : 'good') + '"><div class="l">未付款金额</div><div class="v">' + fmtMoney(unPaid) + '</div><div class="s">已付款 ' + fmtMoney(paid) + (prepaid > 0.005 ? '（含预付款/无票付款 ' + fmtMoney(prepaid) + '，已扣减）' : '') + '</div></div>';
 }
 /* ---------- 导入EXCEL ---------- */
 async function handleImportFile(f) {

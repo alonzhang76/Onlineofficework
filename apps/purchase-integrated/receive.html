@@ -197,6 +197,9 @@ function pendingShipRows() {
 /* ---------- 数量差异：合同数量 vs 实收合计（无退货影响，直面付款口径） ---------- */
 /* 展开状态：key = 合同号|产品名，跨重绘保持（搜索/切页签后仍保留展开项） */
 let rcvDiffOpen = {};
+/* 批量收货：勾选的发货单 id（跨重绘保持）+ 默认收货人 */
+let rcvSel = new Set();
+const RCV_BATCH_PERSON = '许小成';
 function diffRows() {
   const rows = [];
   Data.list('orders').forEach(o => (o.products || []).forEach(p => {
@@ -241,10 +244,20 @@ function drawReceive() {
   if (State.receiveTab === 'pending') {
     const rows = pendingShipRows().filter(r => match(r.shipNumber, r.contractNumber, r.supplier, r.product));
     const newCnt = rows.filter(r => r.isNew).length;
+    // 批量收货：仅采购员与管理员可见（仓管员仍可逐条确认）
+    const canBatch = canW && (Session.isAdmin() || (Session.user && Session.user.role === 'purchaser'));
+    const selCnt = rows.filter(r => rcvSel.has(r.rec.id)).length;
     box.innerHTML =
-      '<div class="hint" style="margin-bottom:10px">供应商在「发货管理」登记发货后，发货单会列在此处。请核对实收数量后点 <b>「确认到货」</b>——系统会自动生成收货记录，并把确认结果与差异反馈以消息形式推送给供应商查看' + (newCnt ? ' · 当前有 <b style="color:var(--red)">' + newCnt + '</b> 条新到货待处理' : '') + '。</div>' +
-      (rows.length ? '<div class="tbl-wrap" style="max-height:60vh"><table><thead><tr><th>发货单号</th><th>合同号</th><th>供应商</th><th>产品</th><th class="num">发货数量</th><th class="num">已确认</th><th class="num">待收</th><th>状态</th><th>发货日期</th>' + (canW ? '<th style="width:150px">操作</th>' : '') + '</tr></thead><tbody>' +
-        rows.map((r, i) => '<tr><td class="mono">' + esc(r.shipNumber) + (r.isNew ? ' <span class="badge b-red">新</span>' : '') + '</td>' +
+      '<div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:10px">' +
+        '<div class="hint" style="margin:0;flex:1">供应商在「发货管理」登记发货后，发货单会列在此处。请核对实收数量后点 <b>「确认到货」</b>——系统会自动生成收货记录，并把确认结果与差异反馈以消息形式推送给供应商查看' + (newCnt ? ' · 当前有 <b style="color:var(--red)">' + newCnt + '</b> 条新到货待处理' : '') + '。</div>' +
+        (canBatch ? '<button class="btn btn-primary" id="rcvBatchBtn" style="white-space:nowrap"' + (selCnt ? '' : ' disabled') + '>批量收货' + (selCnt ? '（' + selCnt + '）' : '') + '</button>' : '') +
+      '</div>' +
+      (rows.length ? '<div class="tbl-wrap" style="max-height:60vh"><table><thead><tr>' +
+        (canBatch ? '<th style="width:34px;text-align:center"><input type="checkbox" id="rcvSelAll" title="全选 / 取消本页"></th>' : '') +
+        '<th>发货单号</th><th>合同号</th><th>供应商</th><th>产品</th><th class="num">发货数量</th><th class="num">已确认</th><th class="num">待收</th><th>状态</th><th>发货日期</th>' + (canW ? '<th style="width:150px">操作</th>' : '') + '</tr></thead><tbody>' +
+        rows.map((r, i) => '<tr>' +
+          (canBatch ? '<td style="text-align:center"><input type="checkbox" class="rcv-chk" data-id="' + esc(r.rec.id) + '"' + (rcvSel.has(r.rec.id) ? ' checked' : '') + '></td>' : '') +
+          '<td class="mono">' + esc(r.shipNumber) + (r.isNew ? ' <span class="badge b-red">新</span>' : '') + '</td>' +
           '<td class="mono">' + esc(r.contractNumber) + '</td><td>' + esc(r.supplier) + '</td><td>' + esc(r.product) + '</td>' +
           '<td class="num">' + fmtNum(r.quantity) + '</td><td class="num"><b>' + fmtNum(r.done) + '</b></td><td class="num">' + fmtNum(r.remain) + '</td>' +
           '<td>' + shipBadge({ status: r.status }) + '</td><td>' + esc(r.shipDate) + '</td>' +
@@ -256,6 +269,27 @@ function drawReceive() {
       if (b.dataset.a === 'c') confirmShipReceive(r.rec);
       else if (b.dataset.a === 'd') shipDetail(r.rec);
     }));
+    if (canBatch) {
+      const btn = $('#rcvBatchBtn');
+      const syncBatch = () => {
+        const n = rows.filter(r => rcvSel.has(r.rec.id)).length;
+        btn.disabled = n === 0;
+        btn.textContent = '批量收货' + (n ? '（' + n + '）' : '');
+        const all = $('#rcvSelAll'); if (all) all.checked = rows.length > 0 && n === rows.length;
+      };
+      box.querySelectorAll('.rcv-chk').forEach(chk => chk.addEventListener('change', () => {
+        if (chk.checked) rcvSel.add(chk.dataset.id); else rcvSel.delete(chk.dataset.id);
+        syncBatch();
+      }));
+      const all = $('#rcvSelAll');
+      if (all) all.addEventListener('change', () => {
+        rows.forEach(r => { if (all.checked) rcvSel.add(r.rec.id); else rcvSel.delete(r.rec.id); });
+        box.querySelectorAll('.rcv-chk').forEach(chk => { chk.checked = all.checked; });
+        syncBatch();
+      });
+      syncBatch();
+      btn.addEventListener('click', () => batchShipReceive(rows.filter(r => rcvSel.has(r.rec.id))));
+    }
   } else if (State.receiveTab === 'receipt') {
     const list = Data.list('receipts').filter(r => match(r.receiptNumber, r.contractNumber, r.supplier, r.product));
     list.sort((a, b) => (b.receiptDate || '').localeCompare(a.receiptDate || ''));
@@ -416,6 +450,49 @@ function receiptForm(rec) {
         toast('收货拍照上传失败：' + (err.message || err) + '（记录已保存，可稍后重试）', 'err');
       }
     }
+  });
+}
+/* ---------- 批量收货（采购员 / 管理员）：勾选多条发货单，按各自待收数量一次性确认 ----------
+   默认收货人：许小成（可在弹窗中修改）；一次性生成收货记录并回写发货状态。 */
+function batchShipReceive(rows) {
+  if (!rows || !rows.length) { toast('请先勾选待确认到货的发货单', 'info'); return; }
+  if (!Session.canWrite('receive')) { toast('当前角色无权确认收货', 'err'); return; }
+  const list = rows.filter(r => (+r.remain || 0) > 0.0001);
+  if (!list.length) { toast('所选发货单的待收数量均为 0，无需收货', 'info'); return; }
+  const total = list.reduce((s, r) => s + (+r.remain || 0), 0);
+  const body = list.map(r => '<tr><td class="mono">' + esc(r.shipNumber) + '</td><td class="mono">' + esc(r.contractNumber) + '</td>' +
+    '<td>' + esc(r.supplier) + '</td><td>' + esc(r.product) + '</td><td class="num"><b>' + fmtNum(r.remain) + '</b></td></tr>').join('');
+  openModal('<h3>批量收货</h3>' +
+    '<div class="hint" style="margin-bottom:10px">将对已勾选的 <b>' + list.length + '</b> 条发货单按各自<b>待收数量</b>一次性收货（合计 <b>' + fmtNum(total) + '</b>），自动生成收货记录并把结果回馈给供应商。</div>' +
+    '<div class="tbl-wrap" style="max-height:220px;margin-bottom:12px"><table style="font-size:12.5px"><thead><tr><th>发货单号</th><th>合同号</th><th>供应商</th><th>产品</th><th class="num">本次实收</th></tr></thead><tbody>' + body + '</tbody></table></div>' +
+    '<form id="brF"><div class="form-grid">' +
+    '<div><label class="req">收货日期</label><input id="brDate" type="date" required value="' + todayStr() + '"></div>' +
+    '<div><label>收货人</label><input id="brPerson" value="' + esc(RCV_BATCH_PERSON) + '"></div>' +
+    '<div style="grid-column:1/-1"><label>备注 / 反馈给供应商（可选）</label><input id="brRemark" placeholder="如：一次性收货，无数量差异"></div></div>' +
+    '<div class="modal-foot"><button type="button" class="btn btn-outline" onclick="closeModal()">取消</button><button class="btn btn-primary">确认收货（' + list.length + ' 条）</button></div></form>', 'wide');
+  $('#brF').addEventListener('submit', e => {
+    e.preventDefault();
+    const date = $('#brDate').value || todayStr();
+    const person = $('#brPerson').value.trim() || RCV_BATCH_PERSON;
+    const remark = $('#brRemark').value.trim();
+    const now = new Date().toISOString();
+    list.forEach(r => {
+      const q = +r.remain || 0;
+      if (q <= 0) return;
+      Data.add('receipts', {
+        id: uid(), company: r.rec.company || curCo(), receiptNumber: nextNo('RCV-'),
+        contractNumber: r.contractNumber, supplier: r.supplier, product: r.product,
+        quantity: q, receiptDate: date, person: person, remark: remark,
+        shipNumber: r.shipNumber, status: RECV_CONFIRMED, source: 'ship-confirm',
+        createdAt: now, rnote: null
+      });
+      Data.update('shipments', r.rec.id, { status: SHIP_CONFIRMED, receivedAt: now, receiveRemark: remark, supplierReadAt: '' });
+    });
+    closeModal();
+    rcvSel.clear();
+    cloudPushNow('receipts', 'shipments');
+    toast('已批量收货 ' + list.length + ' 条发货单（收货人：' + person + '）', 'ok');
+    renderPage();
   });
 }
 /* ---------- 确认到货（核心：按实收数量生成收货记录 + 回写发货状态 + 差异反馈给供应商） ----------
