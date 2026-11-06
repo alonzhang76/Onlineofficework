@@ -294,6 +294,9 @@ table.batch-table .col-total { text-align: right; font-weight: 600; color: var(-
 table.batch-table .row-num { text-align: center; color: var(--text-light); font-size: 12px; }
 table.batch-table .del-btn { width: 28px; height: 28px; border: none; background: var(--danger-light); color: var(--danger); border-radius: 4px; cursor: pointer; font-size: 16px; line-height: 1; }
 table.batch-table .del-btn:hover { background: var(--danger); color: #fff; }
+table.batch-table .row-btn { width: 28px; height: 28px; border: none; background: #eef2ff; color: var(--primary); border-radius: 4px; cursor: pointer; font-size: 14px; line-height: 1; margin-right: 2px; }
+table.batch-table .row-btn:hover { background: var(--primary); color: #fff; }
+table.batch-table .row-btn:disabled { opacity: .3; cursor: not-allowed; background: #eef2ff; color: var(--primary); }
 table.batch-table tfoot td { padding: 8px; border-top: 2px solid var(--border); }
 table.batch-table input[type=number]::-webkit-inner-spin-button,
 table.batch-table input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
@@ -628,7 +631,7 @@ table.data-table .del-btn:hover { background: var(--danger); color: #fff; }
                 <th style="width:90px;">合计</th>
                 <th style="width:180px;">订单信息</th>
                 <th style="width:120px;">备注</th>
-                <th style="width:50px;"></th>
+                <th style="width:104px;">操作</th>
               </tr></thead>
               <tbody id="batchRows"></tbody>
               <tfoot><tr style="font-weight:700;background:var(--primary-light);">
@@ -642,7 +645,7 @@ table.data-table .del-btn:hover { background: var(--danger); color: #fff; }
             <button class="btn btn-primary" onclick="addBatchRow()">+ 添加行</button>
             <button class="btn btn-success" onclick="saveBatch()">保存全部</button>
             <button class="btn" style="background:#e2e8f0;" onclick="clearBatch()">清空</button>
-            <span style="margin-left:auto;font-size:12px;color:var(--text-light);">提示：选工序后按Tab到数量，回车自动添加新行</span>
+            <span style="margin-left:auto;font-size:12px;color:var(--text-light);">提示：选工序后按Tab到数量，回车自动添加新行；↑ 复制上一行工序，+ 批量生成同工序多行</span>
           </div>
           <input type="hidden" id="entryId">
         </div>
@@ -1697,9 +1700,14 @@ function addBatchRow(data) {
     <td class="col-total batch-total">0.00</td>
     <td><input type="text" class="batch-ord-info form-control" list="orderInfoDatalist" placeholder="客户,订单号" oninput="onOrderInfoSelect(this)"></td>
     <td><input type="text" class="batch-note form-control" placeholder="备注"></td>
-    <td><button class="del-btn" onclick="delBatchRow('${row.id}')" title="删除">&times;</button></td>
+    <td style="white-space:nowrap;">
+      <button class="row-btn btn-copy-prev" onclick="copyPrevProc('${row.id}')" title="复制上一行的工序">&uarr;</button>
+      <button class="row-btn" onclick="repeatProcRows('${row.id}')" title="按本行工序批量生成多行">+</button>
+      <button class="del-btn" onclick="delBatchRow('${row.id}')" title="删除">&times;</button>
+    </td>
   `;
   tbody.appendChild(tr);
+  renumberBatchRows();
   if (data) {
     tr.querySelector('.batch-proc').value = data.process;
     tr.querySelector('.batch-price').value = data.unitPrice ? (Math.round(data.unitPrice * 1000) / 1000).toFixed(3) : '';
@@ -1789,7 +1797,46 @@ function delBatchRow(rowId) {
 function renumberBatchRows() {
   document.querySelectorAll('#batchRows tr').forEach((tr, i) => {
     tr.querySelector('.row-num').textContent = i + 1;
+    const cp = tr.querySelector('.btn-copy-prev');
+    if (cp) cp.disabled = (i === 0); // 第一行没有上一行可复制
   });
+}
+
+/** 复制上一行的工序到本行（单价/超产/合计随之重算；不复制数量） */
+function copyPrevProc(rowId) {
+  const tr = document.getElementById(rowId);
+  if (!tr) return;
+  const prev = tr.previousElementSibling;
+  if (!prev || prev.tagName !== 'TR') { UI.toast('已是第一行', 'error'); return; }
+  const name = prev.querySelector('.batch-proc').value.trim();
+  if (!name) { UI.toast('上一行尚未选择工序', 'error'); return; }
+  const inp = tr.querySelector('.batch-proc');
+  inp.value = name;
+  onProcChange(inp);
+  tr.querySelector('.batch-qty').focus();
+}
+
+/** 按本行工序批量生成 N 行（插在本行之后，数量留空） */
+function repeatProcRows(rowId) {
+  const tr = document.getElementById(rowId);
+  if (!tr) return;
+  const name = tr.querySelector('.batch-proc').value.trim();
+  if (!name) { UI.toast('请先选择工序', 'error'); return; }
+  const raw = prompt(`按「${name}」生成几行？（不含本行）`, '2');
+  if (raw === null) return;
+  const n = parseInt(raw, 10);
+  if (!n || n < 1 || n > 50) { UI.toast('请输入 1~50 的整数', 'error'); return; }
+  let last = tr;
+  for (let i = 0; i < n; i++) {
+    const newTr = addBatchRow();
+    const procInp = newTr.querySelector('.batch-proc');
+    procInp.value = name;
+    onProcChange(procInp);
+    last.after(newTr); // 紧跟上一新行，保持同一工序连在一起
+    last = newTr;
+  }
+  renumberBatchRows();
+  last.querySelector('.batch-qty').focus();
 }
 
 function updateBatchTotal() {
