@@ -618,6 +618,10 @@ table.data-table .del-btn:hover { background: var(--danger); color: #fff; }
               <label>&nbsp;</label>
               <button class="btn btn-primary" onclick="syncDefaults()">同步至所有行</button>
             </div>
+            <div class="form-group" style="min-width:120px;">
+              <label>&nbsp;</label>
+              <button class="btn" style="background:var(--success-light);color:var(--success-dark);" onclick="showDailyWageSummary()">当前日所有工资</button>
+            </div>
           </div>
           <!-- 批量录入表格 -->
           <div class="table-wrap">
@@ -1184,6 +1188,29 @@ table.data-table .del-btn:hover { background: var(--danger); color: #fff; }
       <button class="btn btn-primary" onclick="confirmHousingSocialImport()">导入到月度汇总</button>
       <button class="btn" style="background:#e2e8f0;" onclick="closeModal('housingSocialModal')">取消</button>
     </div>
+  </div>
+</div>
+
+<!-- 当前日所有工资汇总弹窗 -->
+<div class="modal-overlay" id="dailyWageModal">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-header">
+      <h3 id="dailyWageTitle">当前日工资汇总</h3>
+      <button class="btn btn-sm" style="background:#e2e8f0;" onclick="closeModal('dailyWageModal')">关闭</button>
+    </div>
+    <div class="table-wrap" style="max-height:60vh;overflow:auto;border:1px solid var(--border);border-radius:6px;">
+      <table class="data-table" id="dailyWageTable">
+        <thead><tr>
+          <th style="width:60px;">排名</th>
+          <th>姓名</th>
+          <th style="width:120px;text-align:right;">当日工资（元）</th>
+          <th style="width:80px;text-align:right;">工序数</th>
+        </tr></thead>
+        <tbody id="dailyWageTbody"></tbody>
+        <tfoot id="dailyWageTfoot"></tfoot>
+      </table>
+    </div>
+    <div id="dailyWageEmpty" style="display:none;text-align:center;color:var(--text-light);padding:32px 0;">该日期暂无工资记录</div>
   </div>
 </div>
 
@@ -1880,6 +1907,52 @@ function syncDefaults() {
     if (!el.value) el.value = info;
   });
   UI.toast('已同步至空白行');
+}
+
+// 弹出"当前日所有工资"汇总：按员工汇总当日 totalAmount，按工资降序排名
+function showDailyWageSummary() {
+  const date = document.getElementById('entryDate').value;
+  if (!date) { UI.toast('请先选择日期', 'error'); return; }
+  const map = {};
+  DB.records.forEach(r => {
+    if (r.date !== date) return;
+    const name = r.employee || '未指定';
+    if (!map[name]) map[name] = { name, total: 0, count: 0 };
+    map[name].total += parseFloat(r.totalAmount || 0);
+    map[name].count += 1;
+  });
+  const rows = Object.values(map).sort((a, b) => b.total - a.total);
+  document.getElementById('dailyWageTitle').textContent = `${date} 当日工资汇总`;
+  const tbody = document.getElementById('dailyWageTbody');
+  const table = document.getElementById('dailyWageTable');
+  const empty = document.getElementById('dailyWageEmpty');
+  if (rows.length === 0) {
+    tbody.innerHTML = '';
+    document.getElementById('dailyWageTfoot').innerHTML = '';
+    table.style.display = 'none';
+    empty.style.display = 'block';
+    document.getElementById('dailyWageModal').classList.add('show');
+    return;
+  }
+  table.style.display = '';
+  empty.style.display = 'none';
+  let grand = 0;
+  tbody.innerHTML = rows.map((r, i) => {
+    grand += r.total;
+    return `<tr>
+      <td style="text-align:center;">${i + 1}</td>
+      <td>${r.name}</td>
+      <td style="text-align:right;font-weight:600;">${UI.fmtMoney(r.total)}</td>
+      <td style="text-align:right;color:var(--text-light);">${r.count}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('dailyWageTfoot').innerHTML =
+    `<tr class="total-row">
+      <td colspan="2" style="text-align:right;">合计（${rows.length} 人）</td>
+      <td style="text-align:right;font-weight:700;color:var(--primary-dark);">${UI.fmtMoney(grand)}</td>
+      <td></td>
+    </tr>`;
+  document.getElementById('dailyWageModal').classList.add('show');
 }
 
 function saveBatch() {
