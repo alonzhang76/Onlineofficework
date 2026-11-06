@@ -168,10 +168,14 @@ async function handleReceiptImport(f) {
 }
 function inventoryRows() {
   const rows = [];
-  Data.list('orders').forEach(o => (o.products || []).forEach(p => {
-    const rec = receivedQty(o.contractNumber, p.name), ret = returnedQty(o.contractNumber, p.name);
-    rows.push({ cno: o.contractNumber, sup: o.supplier, name: p.name, unit: p.unit, ordered: +p.quantity || 0, rec, ret, stock: rec - ret });
-  }));
+  Data.list('orders').forEach(o => {
+    const totals = orderProductTotals(o);
+    totals.forEach(t => {
+      const stock = Math.max(0, t.received - t.returned);
+      rows.push({ oid: o.id, cno: o.contractNumber, sup: o.supplier, name: t.name, unit: t.unit, ordered: t.ordered, rec: t.received, ret: t.returned, stock });
+    });
+  });
+  rows.sort((a, b) => a.cno.localeCompare(b.cno) || a.name.localeCompare(b.name));
   return rows;
 }
 /* ---------- 待确认到货：供应商已登记但需方尚未处理完成的发货单（采购员主工作列表） ---------- */
@@ -180,15 +184,15 @@ function pendingShipRows() {
   Data.list('shipments').forEach(s => {
     const done = confirmedQtyOfShip(s);
     const remain = Math.max(0, (+s.quantity || 0) - done);
-    // 已完整确认（收货合计 ≥ 发货数量）的发货单不再列入待确认清单
     if ((+s.quantity || 0) > 0 && done >= (+s.quantity || 0) - 0.0001) return;
     const o = contractByNo(s.contractNumber);
-    const prod = o ? (o.products || []).find(p => p.name === s.product) : null;
+    const pt = o ? orderProductTotals(o) : [];
+    const group = pt.find(g => g.name === s.product);
+    const prodLine = o ? (o.products || []).find(p => p.lineId === s.lineId) : null;
     rows.push({ rec: s, shipNumber: s.shipNumber, contractNumber: s.contractNumber, supplier: s.supplier, product: s.product,
-      unit: (prod || {}).unit || '', quantity: +s.quantity || 0, done, remain,
-      ordered: prod ? (+prod.quantity || 0) : 0, orderedBefore: prod ? (+prod.quantity || 0) - (prod._adj || 0) : 0,
+      unit: (prodLine || group || {}).unit || '', quantity: +s.quantity || 0, done, remain,
+      ordered: group ? group.ordered : (prodLine ? (+prodLine.quantity || 0) : 0),
       status: deriveShipStatus(s), shipDate: s.shipDate || '', carrier: s.carrier || '', trackingNo: s.trackingNo || '',
-      // isNew：尚未确认过的到货（未读）视为「新」，提示采购员优先处理
       remark: s.remark || '', isNew: !s.supplierReadAt && deriveShipStatus(s) === SHIP_PENDING });
   });
   rows.sort((a, b) => String(b.shipDate).localeCompare(String(a.shipDate)) || String(b.shipNumber).localeCompare(String(a.shipNumber)));
@@ -202,14 +206,17 @@ let rcvSel = new Set();
 const RCV_BATCH_PERSON = '许小成';
 function diffRows() {
   const rows = [];
-  Data.list('orders').forEach(o => (o.products || []).forEach(p => {
-    const ord = +p.quantity || 0;
-    const recv = receivedQty(o.contractNumber, p.name);
-    const diff = recv - ord;                 // >0 实收多于合同；<0 实收少于合同
-    if (Math.abs(diff) < 0.0001) return;     // 无差异不列示
-    rows.push({ oid: o.id, cno: o.contractNumber, sup: o.supplier, name: p.name, unit: p.unit, product: p,
-      ordered: ord, recv, diff, type: diff > 0 ? '实收超出' : '实收不足' });
-  }));
+  Data.list('orders').forEach(o => {
+    const pt = orderProductTotals(o);
+    pt.forEach(g => {
+      const diff = g.received - g.ordered;      // >0 实收多于合同；<0 实收少于合同
+      if (Math.abs(diff) < 0.0001) return;        // 无差异不列示
+      // 取第一条产品的 unit 作为展示；diffExpandRow 按 cno+name 聚合流水
+      const firstLine = (o.products || []).find(p => p.name === g.name) || {};
+      rows.push({ oid: o.id, cno: o.contractNumber, sup: o.supplier, name: g.name, unit: g.unit || firstLine.unit || '',
+        ordered: g.ordered, recv: g.received, diff, type: diff > 0 ? '实收超出' : '实收不足' });
+    });
+  });
   rows.sort((a, b) => a.cno.localeCompare(b.cno) || a.name.localeCompare(b.name));
   return rows;
 }
@@ -355,27 +362,36 @@ function drawReceive() {
       }).join('') + '</tbody></table></div>' : '<div class="empty">暂无库存数据</div>';
   }
 }
-/* ---------- 按实收调整合同数量（差异处理，防多付/少付） ---------- */
+/* ---------- 按实收调整合同数量（差异处理，防多付/少付） ----------
+   同产品多条行时自动合并为一条，数量/金额以实收合计重算。 */
 function adjustContractQty(row) {
   const o = Data.list('orders').find(x => x.id === row.oid) || contractByNo(row.cno);
   if (!o) { toast('合同不存在', 'err'); return; }
-  if (!Session.guardTouch(o, '合同')) return; // 数量调整会改写他人创建的合同（防推责）
+  if (!Session.guardTouch(o, '合同')) return;
   const target = row.recv; // 以实收合计为准
   const oldQty = row.ordered, newQty = target;
   const up = newQty > oldQty;
-  const unitPrice = +row.product.unitPrice || 0;
-  const oldAmt = (+row.product.amount || 0), newAmt = +(unitPrice * newQty).toFixed(2);
-  const confirmMsg = '将合同「' + o.contractNumber + '」· 产品「' + row.name + '」的数量\n' +
-    '由 ' + fmtNum(oldQty) + ' 调整为实收合计 ' + fmtNum(newQty) + '（' + (up ? '+' : '') + fmtNum(newQty - oldQty) + '）？\n\n' +
-    '金额：' + fmtMoney(oldAmt) + ' → ' + fmtMoney(newAmt) + '（单价 ' + fmtMoney(unitPrice) + '）\n' +
+  const products = o.products || [];
+  // 取同名产品组第一条的规格、单位作为展示；单价按加权平均
+  const matchIdx = products.findIndex(p => p.name === row.name);
+  if (matchIdx < 0) { toast('未找到合同中的对应产品行', 'err'); return; }
+  const matchLines = products.filter(p => p.name === row.name);
+  const oldGroupAmt = matchLines.reduce((s, p) => s + (+p.amount || 0), 0);
+  const avgPrice = oldQty > 0 ? oldGroupAmt / oldQty : (matchLines[0].unitPrice || 0);
+  const newGroupAmt = +(avgPrice * newQty).toFixed(2);
+  const confirmMsg = '将合同「' + o.contractNumber + '」· 产品「' + row.name + '」的合同数量\n' +
+    '由 ' + fmtNum(oldQty) + ' 调整为实收合计 ' + fmtNum(newQty) + '（' + (up ? '+' : '') + fmtNum(newQty - oldQty) + '）\n' +
+    (matchLines.length > 1 ? '（该产品合并了 ' + matchLines.length + ' 条多行）\n' : '') +
+    '金额：' + fmtMoney(oldGroupAmt) + ' → ' + fmtMoney(newGroupAmt) + '（加权单价 ' + fmtMoney(avgPrice) + '）\n' +
     '合同总额：' + fmtMoney(o.totalAmount) + ' → 将同步重算\n\n' +
     (up ? '⚠ 实收多于合同：调整后需按实收数量付款。' : '⚠ 实收少于合同：调整后按实收数量付款，避免多付。');
   if (!confirm(confirmMsg)) return;
-  const products = (o.products || []).map(p => p.name === row.name
-    ? Object.assign({}, p, { quantity: newQty, amount: newAmt.toFixed(2) })
-    : p);
-  const total = products.reduce((s, p) => s + (+p.amount || 0), 0);
-  Data.update('orders', o.id, { products, totalAmount: total });
+  // 合并：保留第一条匹配行，移除其余同名行
+  const keep = Object.assign({}, matchLines[0], { quantity: newQty, unitPrice: avgPrice.toFixed(2), amount: newGroupAmt.toFixed(2) });
+  const newProducts = products.filter(p => p.name !== row.name);
+  newProducts.splice(matchIdx, 0, keep);
+  const total = newProducts.reduce((s, p) => s + (+p.amount || 0), 0);
+  Data.update('orders', o.id, { products: newProducts, totalAmount: +total.toFixed(2) });
   toast('合同数量已调整为 ' + fmtNum(newQty) + '，金额已重算', 'ok');
   renderPage();
 }
@@ -503,15 +519,16 @@ function confirmShipReceive(rec) {
   if (!Session.canWrite('receive')) { toast('当前角色无权确认收货', 'err'); return; }
   if (deriveShipStatus(rec) === SHIP_CONFIRMED) { toast('该发货单已确认收货完成', 'info'); return; }
   const o = contractByNo(rec.contractNumber);
-  const prod = o ? (o.products || []).find(p => p.name === rec.product) : null;
-  const ordered = prod ? (+prod.quantity || 0) : 0;
+  const pt = orderProductTotals(o || {});
+  const group = pt.find(g => g.name === rec.product);
+  const ordered = group ? group.ordered : ((o && o.products || []).find(p => p.lineId === rec.lineId) || {}).quantity || 0;
   const doneBefore = confirmedQtyOfShip(rec);
-  const alreadyRecv = receivedQty(rec.contractNumber, rec.product) - doneBefore; // 本合同该产品此前已收
+  const alreadyRecv = (group ? group.received : receivedQty(rec.contractNumber, rec.product)) - doneBefore;
   const remainShip = Math.max(0, (+rec.quantity || 0) - doneBefore);
   openModal('<h3>确认到货 · ' + esc(rec.shipNumber) + '</h3>' +
     '<div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">' +
     '<div class="stat-card"><div class="l">发货</div><div class="v">' + fmtNum(rec.quantity) + '</div><div class="s">本次待收 ' + fmtNum(remainShip) + '</div></div>' +
-    '<div class="stat-card"><div class="l">合同数量</div><div class="v">' + fmtNum(ordered) + '</div><div class="s">' + esc(rec.product) + '</div></div>' +
+    '<div class="stat-card"><div class="l">合同数量（' + esc(rec.product) + '）</div><div class="v">' + fmtNum(ordered) + '</div><div class="s">' + (group ? group.ordered + ' 已收 ' + fmtNum(alreadyRecv + doneBefore) : '按合同统计') + '</div></div>' +
     '<div class="stat-card hl"><div class="l">已收（本合同）</div><div class="v">' + fmtNum(alreadyRecv + doneBefore) + '</div><div class="s">含本单已确认 ' + fmtNum(doneBefore) + '</div></div></div>' +
     '<form id="cfF"><div class="form-grid">' +
     '<div><label class="req">本次实收数量</label><input id="cfQty" type="number" min="0" step="1" required value="' + remainShip + '"></div>' +
@@ -538,16 +555,17 @@ function confirmShipReceive(rec) {
     const q = +$('#cfQty').value || 0;
     const o2 = contractByNo(rec.contractNumber);
     if (!o2) { toast('合同不存在', 'err'); return; }
-    const p2 = (o2.products || []).find(p => p.name === rec.product);
-    const ordered2 = p2 ? (+p2.quantity || 0) : 0;
-    const already2 = receivedQty(rec.contractNumber, rec.product) - doneBefore;
+    const pt2 = orderProductTotals(o2);
+    const group2 = pt2.find(g => g.name === rec.product);
+    const ordered2 = group2 ? group2.ordered : ((o2.products || []).find(p => p.lineId === rec.lineId) || {}).quantity || 0;
+    const already2 = (group2 ? group2.received : receivedQty(rec.contractNumber, rec.product)) - doneBefore;
     const photoFile = $('#cfPhoto') ? $('#cfPhoto').files[0] : null;
     if (photoFile) { const pe = _recvPhotoErr(photoFile); if (pe) { toast(pe, 'err'); return; } }
-    // ① 生成收货记录（挂在发货单下，供供应商查看）
+    // ① 生成收货记录（挂在发货单下，供供应商查看；带 lineId 以便精确追踪）
     const rc = {
       id: uid(), company: rec.company || curCo(), receiptNumber: nextNo('RCV-'),
       contractNumber: rec.contractNumber, supplier: rec.supplier, product: rec.product,
-      quantity: q, receiptDate: $('#cfDate').value, person: $('#cfPerson').value.trim(),
+      lineId: rec.lineId || null, quantity: q, receiptDate: $('#cfDate').value, person: $('#cfPerson').value.trim(),
       remark: $('#cfRemark').value.trim(), shipNumber: rec.shipNumber,
       status: RECV_CONFIRMED, source: 'ship-confirm', createdAt: new Date().toISOString(),
       rnote: null
@@ -561,14 +579,19 @@ function confirmShipReceive(rec) {
     const diff = ordered2 - (already2 + newDone);
     if (diff < 0 && !Session.canTouchRec(o2)) // ③ 实收超出合同但合同为他人创建：确认继续，数量调整交由创建人/管理员
       toast('已确认到货。合同由「' + (o2.createdByName || o2.createdBy || '其他经办人') + '」创建，按实收调整数量请联系创建人或管理员', 'info');
-    else if (diff < 0) { // ③ 实收超出合同 → 提示按实收调整合同数量（防超付）
-      const ok = confirm('本次确认后累计收货 ' + fmtNum(already2 + newDone) + '，已超出合同数量 ' + fmtNum(ordered2) + ' 共 ' + fmtNum(-diff) + '。\n\n是否将合同「' + rec.product + '」的数量按实收合计（' + fmtNum(already2 + newDone) + '）调整？\n（调整后合同金额同步重算，避免多付款）');
+    else if (diff < 0) { // ③ 实收超出合同 → 提示按实收调整合同数量（防超付），同产品多行自动合并
+      const ok = confirm('本次确认后累计收货 ' + fmtNum(already2 + newDone) + '，已超出合同数量 ' + fmtNum(ordered2) + ' 共 ' + fmtNum(-diff) + '。\n\n是否将合同「' + rec.product + '」的数量按实收合计（' + fmtNum(already2 + newDone) + '）调整？\n（同产品多行将合并为一条，合同金额同步重算，避免多付款）');
       if (ok) {
-        const prods = (o2.products || []).map(p => p.name === rec.product
-          ? Object.assign({}, p, { quantity: already2 + newDone, amount: ((+p.unitPrice || 0) * (already2 + newDone)).toFixed(2) })
-          : p);
+        const matchLines = (o2.products || []).filter(p => p.name === rec.product);
+        const oldGroupAmt = matchLines.reduce((s, p) => s + (+p.amount || 0), 0);
+        const avgPrice = ordered2 > 0 ? oldGroupAmt / ordered2 : (matchLines[0].unitPrice || 0);
+        const newGroupAmt = +(avgPrice * (already2 + newDone)).toFixed(2);
+        const keep = Object.assign({}, matchLines[0], { quantity: already2 + newDone, unitPrice: avgPrice.toFixed(2), amount: newGroupAmt.toFixed(2) });
+        const prods = (o2.products || []).filter(p => p.name !== rec.product);
+        const idx = (o2.products || []).findIndex(p => p.name === rec.product);
+        prods.splice(Math.max(0, idx), 0, keep);
         const total = prods.reduce((s, p) => s + (+p.amount || 0), 0);
-        Data.update('orders', o2.id, { products: prods, totalAmount: total });
+        Data.update('orders', o2.id, { products: prods, totalAmount: +total.toFixed(2) });
         cloudPushNow('orders');
         toast('合同数量已按实收调整为 ' + fmtNum(already2 + newDone) + '，金额已重算', 'ok');
       } else toast('已确认到货，结果已回馈供应商', 'ok');

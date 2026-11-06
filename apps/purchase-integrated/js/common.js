@@ -1074,20 +1074,107 @@ ReimPay.init();
 /* ---------- 业务统计 ---------- */
 function contractByNo(cno) { return Data.list('orders').find(o => o.contractNumber === cno); }
 function orderProducts(o) { return (o && o.products) || []; }
+/* ---------- 产品行唯一 lineId ----------
+   每条产品行分配唯一 id，解决同名多批次行统计混乱问题。
+   老合同自动补 id；新合同在新建/编辑时生成。 */
+function ensureLineIds(o) {
+  if (!o || !Array.isArray(o.products)) return o;
+  let changed = false;
+  o.products.forEach((p, i) => {
+    if (!p.lineId) { p.lineId = 'L' + (i + 1) + '-' + uid(); changed = true; }
+  });
+  // 去重：同名+同规格+同单价+同数量 → 合并为一条（多数是复制粘贴造成的重复）
+  const merged = [];
+  o.products.forEach(p => {
+    const key = (p.name || '') + '|' + (p.spec || '') + '|' + (+p.unitPrice || 0) + '|' + (+p.quantity || 0);
+    const ex = merged.find(x => (x._mergeKey === key) && !x._merged);
+    if (ex) {
+      ex.quantity = (+ex.quantity || 0) + (+p.quantity || 0);
+      ex.amount = ((+ex.unitPrice || 0) * (+ex.quantity || 0)).toFixed(2);
+      ex._merged = true; changed = true;
+    } else {
+      p._mergeKey = key;
+      merged.push(p);
+    }
+  });
+  merged.forEach(p => { delete p._mergeKey; delete p._merged; });
+  if (merged.length !== o.products.length) changed = true;
+  if (changed) {
+    o.products = merged;
+    Data.update('orders', o.id, { products: merged });
+  }
+  return o;
+}
+/* 一次性迁移：给所有老合同产品行补 lineId，并合并明显的重复行 */
+function migrateLineIds() {
+  (DB.get('orders', []) || []).forEach(o => ensureLineIds(o));
+}
 function sumQty(list, cno, pname, field, dateField, dateEnd) {
   return list.filter(r => r.contractNumber === cno && (!pname || r.product === pname))
     .filter(r => !dateEnd || !r[dateField] || r[dateField] <= dateEnd)
     .reduce((s, r) => s + (+r[field] || 0), 0);
 }
+/* 按 lineId 精确聚合（优先，没有 lineId 则退回 product 名称匹配，兼容老数据） */
+const receivedQtyByLine = (lineId, cno, pn) => {
+  if (lineId) return Data.list('receipts').filter(r => r.lineId === lineId).reduce((s, r) => s + (+r.quantity || 0), 0);
+  return sumQty(Data.list('receipts'), cno, pn, 'quantity', 'receiptDate');
+};
+const returnedQtyByLine = (lineId, cno, pn) => {
+  if (lineId) return Data.list('returns').filter(r => r.lineId === lineId).reduce((s, r) => s + (+r.quantity || 0), 0);
+  return sumQty(Data.list('returns'), cno, pn, 'quantity', 'returnDate');
+};
+const shippedQtyByLine = (lineId, cno, pn) => {
+  if (lineId) return Data.list('shipments').filter(r => r.lineId === lineId).reduce((s, r) => s + (+r.quantity || 0), 0);
+  return sumQty(Data.list('shipments'), cno, pn, 'quantity', 'shipDate');
+};
+/* 按产品名的总聚合（跨所有同名产品行），用于全局视图 */
 const receivedQty = (cno, pn) => sumQty(Data.list('receipts'), cno, pn, 'quantity', 'receiptDate');
 const returnedQty = (cno, pn) => sumQty(Data.list('returns'), cno, pn, 'quantity', 'returnDate');
 const shippedQty = (cno, pn) => sumQty(Data.list('shipments'), cno, pn, 'quantity', 'shipDate');
-function orderOrderedQty(o) { return orderProducts(o).reduce((s, p) => s + (+p.quantity || 0), 0); }
-function orderReceivedTotal(o) { return orderProducts(o).reduce((s, p) => s + receivedQty(o.contractNumber, p.name), 0); }
-function orderShippedTotal(o) { return orderProducts(o).reduce((s, p) => s + shippedQty(o.contractNumber, p.name), 0); }
-function orderReturnTotal(o) { return orderProducts(o).reduce((s, p) => s + returnedQty(o.contractNumber, p.name), 0); }
+function orderOrderedQty(o) {
+  ensureLineIds(o);
+  return orderProducts(o).reduce((s, p) => s + (+p.quantity || 0), 0);
+}
+/* 产品名维度汇总（跨同名多行求和）—— 真实总数量
+   优先按 lineId 精确计算新数据；老数据（无 lineId 单据）按 product 名称分配到对应产品 */
+function orderProductTotals(o) {
+  ensureLineIds(o);
+  const cno = o.contractNumber;
+  // 按产品名分组，收集该名下所有 lineId
+  const byName = {};
+  orderProducts(o).forEach(p => {
+    const k = p.name;
+    if (!byName[k]) byName[k] = { name: k, unit: p.unit || '', ordered: 0, lineIds: [] };
+    byName[k].ordered += (+p.quantity || 0);
+    if (p.lineId) byName[k].lineIds.push(p.lineId);
+  });
+  const lines = Object.values(byName);
+  // 辅助：筛选本合同的单据
+  const recList = Data.list('receipts').filter(r => r.contractNumber === cno);
+  const retList = Data.list('returns').filter(r => r.contractNumber === cno);
+  const shipList = Data.list('shipments').filter(r => r.contractNumber === cno);
+  const calc = (list, lineIds, pn) => {
+    let byLine = 0, lineLess = 0;
+    list.forEach(r => {
+      if (lineIds && r.lineId && lineIds.includes(r.lineId)) byLine += (+r.quantity || 0);
+      else if (!r.lineId && r.product === pn) lineLess += (+r.quantity || 0);
+    });
+    return byLine + lineLess;
+  };
+  lines.forEach(l => {
+    l.shipped = calc(shipList, l.lineIds, l.name);
+    l.received = calc(recList, l.lineIds, l.name);
+    l.returned = calc(retList, l.lineIds, l.name);
+  });
+  return lines;
+}
+function orderReceivedTotal(o) { return orderProductTotals(o).reduce((s, t) => s + t.received, 0); }
+function orderShippedTotal(o) { return orderProductTotals(o).reduce((s, t) => s + t.shipped, 0); }
+function orderReturnTotal(o) { return orderProductTotals(o).reduce((s, t) => s + t.returned, 0); }
 function orderStatus(o) {
-  const ordered = orderOrderedQty(o), recv = Math.max(0, orderReceivedTotal(o) - orderReturnTotal(o));
+  ensureLineIds(o);
+  const ordered = orderOrderedQty(o);
+  const recv = Math.max(0, orderReceivedTotal(o) - orderReturnTotal(o));
   if (ordered <= 0) return { t: '执行中', c: 'b-gray' };
   if (recv >= ordered) return { t: '已收齐', c: 'b-green' };
   if (recv > 0) return { t: '部分收货', c: 'b-amber' };
@@ -1397,6 +1484,7 @@ function renderPage() {
 /* ---------- 模块页初始化（含权限守卫兜底） ---------- */
 function initPage(pageKey, pageFn) {
   seed();
+  migrateLineIds(); // 老合同产品行补 lineId，合并重复行
   loadSession();
   const u = Session.user;
   const cur = u ? DB.get('users', []).find(x => x.id === u.id) : null;

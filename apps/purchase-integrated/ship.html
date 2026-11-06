@@ -220,34 +220,62 @@ function shipForm(rec) {
     '<div class="modal-foot"><button type="button" class="btn btn-outline" onclick="closeModal()">取消</button><button class="btn btn-primary">保存</button></div></form>');
   const fillProducts = () => {
     const o = contractByNo($('#shContract').value);
-    $('#shProduct').innerHTML = o ? o.products.map(p => '<option value="' + esc(p.name) + '">' + esc(p.name) + '（合同 ' + fmtNum(p.quantity) + ' ' + esc(p.unit || '') + '）</option>').join('') : '';
+    // 按 lineId 显示每条产品行（即使同名也以规格/单价区分）
+    $('#shProduct').innerHTML = o ? o.products.map((p, i) => {
+      const tag = (p.spec || '') + ' / ¥' + (p.unitPrice || 0);
+      return '<option value="' + esc(p.lineId || p.name) + '" data-name="' + esc(p.name) + '">' +
+        esc(p.name) + (p.spec ? '（' + esc(p.spec) + '）' : '') + ' · ' + fmtNum(p.quantity) + ' ' + esc(p.unit || '') + ' · ¥' + (p.unitPrice || 0) +
+        '</option>';
+    }).join('') : '';
     updHint();
   };
   const updHint = () => {
-    const cno = $('#shContract').value, pn = $('#shProduct').value;
-    const o = contractByNo(cno); if (!o || !pn) { $('#shHint').innerHTML = ''; return; }
-    const shipped = shippedQty(cno, pn) - (isEdit ? +rec.quantity || 0 : 0), ordered = (o.products.find(p => p.name === pn) || {}).quantity || 0;
+    const cno = $('#shContract').value, selVal = $('#shProduct').value;
+    const o = contractByNo(cno); if (!o || !selVal) { $('#shHint').innerHTML = ''; return; }
+    const pLine = (o.products || []).find(p => p.lineId === selVal);
+    const pn = pLine ? pLine.name : selVal;
+    const lineId = pLine ? pLine.lineId : null;
+    const shipped = shippedQty(cno, pn) - (isEdit ? +rec.quantity || 0 : 0);
+    const ordered = pLine ? (+pLine.quantity || 0) : 0;
     const over = shipped + (+$('#shQty').value || 0) > ordered;
-    $('#shHint').innerHTML = '该产品已发货 <b>' + fmtNum(shipped) + '</b> / 合同数量 <b>' + fmtNum(ordered) + '</b>' +
+    $('#shHint').innerHTML =
+      (pLine ? '该产品行：' + esc(pLine.name) + (pLine.spec ? '（' + esc(pLine.spec) + '）' : '')
+        + ' <b>' + fmtNum(shipped) + '</b> / 合同行 <b>' + fmtNum(ordered) + '</b>'
+        : '该合同「' + esc(pn) + '」已发货 <b>' + fmtNum(shipped) + '</b>') +
       (over ? ' · <span style="color:var(--red)">本次发货将超出合同数量，超额部分需方确认时可不计入收货</span>' : '') +
       '<br><span style="color:var(--muted)">保存后进入「待确认」，采购员在「收货管理」核对实收数量后，结果会以消息形式回馈到本页「需方消息」</span>';
   };
   $('#shContract').addEventListener('change', fillProducts);
   $('#shProduct').addEventListener('change', updHint);
   $('#shQty').addEventListener('input', updHint);
-  if (isEdit) { fillProducts(); $('#shProduct').value = rec.product; updHint(); } else fillProducts();
+  if (isEdit) {
+    fillProducts();
+    // 编辑老发货单：lineId 优先，否则用 product name 匹配首个同名选项
+    const o2 = contractByNo(rec.contractNumber);
+    let sel = rec.lineId;
+    if (!sel && o2) {
+      const firstMatch = (o2.products || []).find(p => p.name === rec.product);
+      sel = firstMatch ? firstMatch.lineId : rec.product;
+    }
+    $('#shProduct').value = sel;
+    updHint();
+  } else fillProducts();
 
   $('#shipF').addEventListener('submit', async e => {
     e.preventDefault();
     const cno = $('#shContract').value; const o = contractByNo(cno);
     if (!o) { toast('请选择合同', 'err'); return; }
+    const selVal = $('#shProduct').value;
+    const pLine = (o.products || []).find(p => p.lineId === selVal);
+    const productName = pLine ? pLine.name : selVal;
+    const lineId = pLine ? pLine.lineId : null;
     const noteFile = $('#shNoteFile') ? $('#shNoteFile').files[0] : null;
     if (noteFile) { const ne = _noteErr(noteFile); if (ne) { toast(ne, 'err'); return; } }
     const noteDel = !!(isEdit && rec.dnote && $('#shNoteDel') && $('#shNoteDel').checked);
     const data = {
       id: isEdit ? rec.id : uid(), company: o.company || curCo(),
       shipNumber: $('#shNo').value.trim(), contractNumber: cno, supplier: o.supplier,
-      product: $('#shProduct').value, quantity: +$('#shQty').value || 0,
+      product: productName, lineId: lineId, quantity: +$('#shQty').value || 0,
       shipDate: $('#shDate').value, carrier: $('#shCarrier').value.trim(),
       trackingNo: $('#shTrack').value.trim(), remark: $('#shRemark').value.trim(),
       status: isEdit ? (rec.status || SHIP_PENDING) : SHIP_PENDING, // 新登记 / 修改后均回到"待确认"，由采购员复核

@@ -210,10 +210,16 @@ function renderPoCards(orders) {
     if (od.slice(0, 4) === thisYear) ytd += t;
     if (od.slice(0, 4) === String(+thisYear - 1) && od <= lyCut) lyYtd += t;
     if (o.supplier && String(o.supplier).trim()) sups.add(String(o.supplier).trim());
-    (o.products || []).forEach(p => {
-      const remain = Math.max(0, (+p.quantity || 0) - receivedQty(cno, p.name) + returnedQty(cno, p.name));
+    // 待收货：按产品名维度汇总，避免多行同名重复计算
+    const pt = orderProductTotals(o);
+    pt.forEach(g => {
+      // 计算该产品组的合同总金额（跨多行）
+      const groupAmt = (o.products || []).filter(p => p.name === g.name)
+        .reduce((s, p) => s + (+p.amount || 0), 0);
+      const avgPrice = g.ordered > 0 ? groupAmt / g.ordered : 0;
+      const remain = Math.max(0, g.ordered - g.received + g.returned);
       pendingQty += remain;
-      pendingAmt += remain * (+p.unitPrice || 0);
+      pendingAmt += remain * avgPrice;
     });
     if (o.deliveryDate && o.deliveryDate < today) {
       const st = orderStatus(o);
