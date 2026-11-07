@@ -2090,6 +2090,19 @@
       }
     }
     
+    // 工资汇总排序：先按年/月倒序，再按所属公司，最后按工号
+    function sortSummaryData(list) {
+      return list.sort((a, b) => {
+        const ymDiff = (b.year * 100 + b.month) - (a.year * 100 + a.month);
+        if (ymDiff !== 0) return ymDiff;
+        const companyDiff = String(a.company || '').localeCompare(String(b.company || ''), 'zh-Hans-CN');
+        if (companyDiff !== 0) return companyDiff;
+        const idA = String(a.employeeId !== undefined ? a.employeeId : (a.id || ''));
+        const idB = String(b.employeeId !== undefined ? b.employeeId : (b.id || ''));
+        return idA.localeCompare(idB, 'zh-Hans-CN', { numeric: true });
+      });
+    }
+
     // 从localStorage加载工资汇总数据
     function loadSummaryDataFromStorage() {
       const salarySummaryTableBody = document.getElementById('salarySummaryTableBody');
@@ -2102,12 +2115,8 @@
       // 清空表格
       salarySummaryTableBody.innerHTML = '';
       
-      // 按年份月份降序排序
-      summaryData.sort((a, b) => {
-        const keyA = a.year * 100 + a.month;
-        const keyB = b.year * 100 + b.month;
-        return keyB - keyA;
-      });
+      // 年/月倒序 → 所属公司 → 工号
+      sortSummaryData(summaryData);
       
       // 重建表格
       summaryData.forEach((data, index) => {
@@ -2240,7 +2249,9 @@
             row: row,
             year: rowYear,
             month: rowMonth,
-            key: rowYear * 100 + rowMonth // 用于排序的键值
+            key: rowYear * 100 + rowMonth, // 用于排序的键值
+            company: row.querySelector('td:nth-child(8)') ? row.querySelector('td:nth-child(8)').textContent.trim() : '',
+            employeeId: row.querySelector('td:nth-child(3)') ? row.querySelector('td:nth-child(3)').textContent.trim() : ''
           });
         }
       });
@@ -2349,13 +2360,15 @@
             row: summaryRow,
             year: year,
             month: month,
-            key: year * 100 + month
+            key: year * 100 + month,
+            company: employee.company || '',
+            employeeId: employee.id || ''
           });
         }
       });
       
-      // 对所有汇总数据按年份月份降序排序（最新的在前面）
-      allSummaryData.sort((a, b) => b.key - a.key);
+      // 年/月倒序 → 所属公司 → 工号
+      sortSummaryData(allSummaryData);
       
       // 清空并重新填充表格，保持排序顺序
       salarySummaryTableBody.innerHTML = '';
@@ -2437,12 +2450,8 @@
       // 合并现有数据和新数据
       const updatedSummaryData = [...existingSummaryData, ...newDataToStore];
       
-      // 按年份月份降序排序
-      updatedSummaryData.sort((a, b) => {
-        const keyA = a.year * 100 + a.month;
-        const keyB = b.year * 100 + b.month;
-        return keyB - keyA;
-      });
+      // 年/月倒序 → 所属公司 → 工号
+      sortSummaryData(updatedSummaryData);
       
       // 更新paginationState.allData，确保所有数据都被保存
       paginationState.allData = updatedSummaryData;
@@ -3586,6 +3595,7 @@
         try {
           const data = JSON.parse(storedData);
           if (data.length > 0) {
+            sortSummaryData(data);
             paginationState.allData = data;
             applyPagination();
           }
@@ -4588,8 +4598,8 @@
           });
 
           const mergedData = Array.from(mergedMap.values());
-          // 按年份月份降序排序
-          mergedData.sort((a, b) => (b.year * 100 + b.month) - (a.year * 100 + a.month));
+          // 年/月倒序 → 所属公司 → 工号
+          sortSummaryData(mergedData);
 
           paginationState.allData = mergedData;
           paginationState.currentPage = 1;
@@ -4633,12 +4643,8 @@
       
       const summaryData = JSON.parse(storedData);
       
-      // 按年份月份降序排序
-      summaryData.sort((a, b) => {
-        const keyA = a.year * 100 + a.month;
-        const keyB = b.year * 100 + b.month;
-        return keyB - keyA;
-      });
+      // 年/月倒序 → 所属公司 → 工号
+      sortSummaryData(summaryData);
       
       // 更新分页状态
       paginationState.allData = summaryData;
