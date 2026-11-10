@@ -133,6 +133,13 @@ a.link{color:var(--primary);text-decoration:none}
   border:none;background:transparent;color:#6e6e73;opacity:.6;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:8px}
 .login-card .pwd-toggle:hover{opacity:1}
 .login-card .pwd-toggle svg{width:17px;height:17px}
+/* 通用密码框小眼睛（用户新增/编辑、修改本人密码等场景复用） */
+.pwd-wrap{position:relative;display:block}
+.pwd-wrap>input{padding-right:36px !important}
+.pwd-wrap .pwd-toggle{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:28px;height:28px;padding:0;
+  border:none;background:transparent;color:#6e6e73;opacity:.6;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:8px}
+.pwd-wrap .pwd-toggle:hover{opacity:1}
+.pwd-wrap .pwd-toggle svg{width:16px;height:16px}
 .login-card select:focus,.login-card .pwd input:focus{box-shadow:inset 0 0 0 1px rgba(10,132,255,.7),0 0 0 4px rgba(10,132,255,.15)}
 .login-card .btn{width:100%;height:44px;border:none;border-radius:12px;background:#0a84ff;color:#fff;
   font-size:15px;font-weight:600;letter-spacing:6px;cursor:pointer;transition:background .15s,transform .06s;margin-top:6px;justify-content:center}
@@ -345,6 +352,16 @@ html.reim-non-admin #cbBtnClear{display:none!important}
       <button class="btn btn-sm btn-primary" onclick="openNoInvPay()">＋ 无票付款登记</button>
     </div>
     <div class="sumbar" id="paySummary" style="padding-top:0"></div>
+    <div class="row-flex" style="margin:10px 0 12px">
+      <div style="width:150px"><label>结算状态</label><select id="s_pay" onchange="loadStats()">
+        <option value="">全部</option><option value="unpaid">有未付欠款</option><option value="paid">已付清</option></select></div>
+      <div style="width:170px"><label>排序</label><select id="s_sort" onchange="loadStats()">
+        <option value="latest">最近开票日期 ↓</option><option value="owed">未付欠款 ↓</option>
+        <option value="amount">价税合计 ↓</option><option value="name">名称</option></select></div>
+      <div style="width:210px"><label>关键词（单位 / 报销人 / 客户）</label><input id="s_kw" placeholder="回车查询" onkeydown="if(event.key==='Enter')loadStats()"></div>
+      <button class="btn btn-outline btn-sm" style="align-self:flex-end" onclick="statsReset()">重置</button>
+      <span class="hint" style="align-self:center;margin:0">筛选只影响下方三张表，不影响顶部卡片合计</span>
+    </div>
     <div class="hint">仅做账的发票不计入欠款；收到的发票需匹配公司抬头为进项后计入。点击行内「付款」为该单位登记付款（支持整笔按开票顺序自动抵扣，也可单独登记某张）。<b>无票付款</b>用于先付款后开票场景（预付款 / 进度款 / 尾款），以合同号为锚点，后续发票到达后可回填关联。</div>
 
     <h2 style="margin:14px 0 8px;font-size:14px">① 付给销售方（供应商）</h2>
@@ -391,7 +408,7 @@ html.reim-non-admin #cbBtnClear{display:none!important}
     <h2>新增用户</h2>
     <div class="grid g4">
       <div><label>用户名 *</label><input id="nu_username" placeholder="登录工号，如 zhangsan"></div>
-      <div><label>初始密码 *（至少6位）</label><input id="nu_password"></div>
+      <div><label>初始密码 *（至少6位）</label><div class="pwd-wrap"><input id="nu_password" type="password"></div></div>
       <div><label>姓名 *</label><input id="nu_display_name"></div>
       <div><label>角色 *</label><select id="nu_role">
         <option value="claimant">报销人</option><option value="approver">审核人</option><option value="accountant">会计</option><option value="admin">管理员</option></select></div>
@@ -420,8 +437,17 @@ html.reim-non-admin #cbBtnClear{display:none!important}
       <div style="width:140px"><label>日期起（可与年月二选一）</label><input id="v_date_from" type="date"></div>
       <div style="width:140px"><label>日期止</label><input id="v_date_to" type="date"></div>
       <div style="width:280px"><label>公司抬头</label><select id="v_company"><option value="">全部公司</option></select></div>
+      <div style="width:120px"><label>发票状态</label><select id="v_status" onchange="loadVat()">
+        <option value="">全部</option><option>已通过</option><option>草稿</option><option>待审核</option><option>已驳回</option></select></div>
+      <div style="width:126px"><label>收/付状态</label><select id="v_pay" onchange="loadVat()">
+        <option value="">全部</option><option value="unpaid">未结清</option><option value="partial">部分结清</option><option value="paid">已结清</option></select></div>
+      <div style="width:140px"><label>明细排序</label><select id="v_sort" onchange="loadVat()">
+        <option value="date_desc">开票日期 ↓</option><option value="date_asc">开票日期 ↑</option>
+        <option value="amount_desc">价税合计 ↓</option><option value="amount_asc">价税合计 ↑</option>
+        <option value="owed_desc">未结清金额 ↓</option></select></div>
+      <div style="width:190px"><label>关键词（票号 / 对方名称）</label><input id="v_kw" placeholder="回车查询" onkeydown="if(event.key==='Enter')loadVat()"></div>
       <button class="btn btn-primary" onclick="loadVat()">查询</button>
-      <button class="btn btn-outline" onclick="vatClearRange()">清日期</button>
+      <button class="btn btn-outline" onclick="vatReset()">重置</button>
       <span style="flex:1"></span>
       <button class="btn btn-outline" onclick="vatExport('进项')">⬇ 导出进项</button>
       <button class="btn btn-outline" onclick="vatExport('销项')">⬇ 导出销项</button>
@@ -591,7 +617,7 @@ html.reim-non-admin #cbBtnClear{display:none!important}
       <div><label>角色 *</label><select id="eu_role">
         <option value="claimant">报销人</option><option value="approver">审核人</option><option value="accountant">会计</option><option value="admin">管理员</option></select></div>
       <div><label>部门</label><input id="eu_department"></div>
-      <div><label>新密码（留空则不修改）</label><input id="eu_password" type="password" placeholder="至少 6 位"></div>
+      <div><label>新密码（留空则不修改）</label><div class="pwd-wrap"><input id="eu_password" type="password" placeholder="至少 6 位"></div></div>
     </div>
     <div class="hint">修改角色后该用户重新登录即按新角色显示功能菜单；不能降级或停用自己的管理员角色。</div>
     <div style="margin-top:20px;display:flex;gap:10px;justify-content:flex-end">
@@ -608,10 +634,16 @@ html.reim-non-admin #cbBtnClear{display:none!important}
   <div class="modal narrow">
     <h3>登记付款 <span id="sup_co" style="display:none;background:var(--red);color:#fff;border-radius:4px;padding:2px 8px;font-size:12px;vertical-align:2px"></span> <span id="sup_name" style="color:var(--muted);font-size:13px"></span></h3>
     <div id="sup_info" style="font-size:13px;color:var(--muted);line-height:2;margin-bottom:10px"></div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:6px">名下未付清发票（按开票顺序自动抵扣，点击「单独」可对某张单独登记）：</div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;font-size:12px;color:var(--muted);flex-wrap:wrap">
+      <span>名下未付清发票（勾选后按开票顺序抵扣，点「单独」可对某张单独登记）：</span>
+      <label style="display:inline-flex;align-items:center;gap:5px;margin:0;color:var(--text);cursor:pointer;font-size:12px">
+        <input type="checkbox" id="sup_all" checked onchange="supToggleAll(this.checked)" style="width:auto;margin:0">全选</label>
+      <span>已勾选 <b id="sup_selinfo" style="color:var(--text)">0</b> 张 · 未结清 ¥<b id="sup_selamt" style="color:var(--red)">0.00</b></span>
+    </div>
     <div id="sup_list" style="max-height:200px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px"></div>
-    <div class="grid g4" style="margin-top:12px">
-      <div><label>本次付款金额 *</label><div style="display:flex;gap:6px"><input id="sup_amount" type="number" step="0.01" min="0" oninput="supPreview()" style="flex:1"><button type="button" class="btn btn-sm btn-outline" onclick="supFillAll()">全额</button></div></div>
+    <div id="sup_mixhint" style="font-size:12px;color:var(--red);min-height:16px;margin-top:6px"></div>
+    <div class="grid g4" style="margin-top:6px">
+      <div><label>本次付款金额 *</label><div style="display:flex;gap:6px"><input id="sup_amount" type="number" step="0.01" min="0" oninput="supPreview()" style="flex:1"><button type="button" class="btn btn-sm btn-outline" onclick="supFillAll()">按勾选合计</button></div></div>
       <div><label>付款日期</label><input id="sup_date" type="date"></div>
       <div><label>付款方式</label><select id="sup_method">
         <option value="">--未选择--</option><option>电汇</option><option>承兑</option><option>现金</option></select></div>
@@ -965,6 +997,26 @@ function toggleLoginPwd(){
   btn.querySelector('.eye-hide').style.display=show?'':'none';
   btn.setAttribute('aria-label',show?'隐藏密码':'显示密码');
 }
+/* 给所有 .pwd-wrap 密码框自动挂上"小眼睛"按钮（用户新增/编辑等表单复用） */
+function initPwdToggles(root){
+  (root||document).querySelectorAll('.pwd-wrap').forEach(w=>{
+    if(w.querySelector('.pwd-toggle'))return;
+    const inp=w.querySelector('input');if(!inp)return;
+    if(!inp.getAttribute('type'))inp.setAttribute('type','password');
+    const btn=document.createElement('button');
+    btn.type='button';btn.className='pwd-toggle';btn.setAttribute('aria-label','显示密码');
+    btn.innerHTML='<svg class="eye-show" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
+      +'<svg class="eye-hide" style="display:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+    btn.onclick=()=>{
+      const show=inp.type==='password';
+      inp.type=show?'text':'password';
+      btn.querySelector('.eye-show').style.display=show?'none':'';
+      btn.querySelector('.eye-hide').style.display=show?'':'none';
+      btn.setAttribute('aria-label',show?'隐藏密码':'显示密码');
+    };
+    w.appendChild(btn);
+  });
+}
 async function doLogin(){
   const username=$('#login_email').value.trim(),password=$('#login_pass').value;
   if(!username||!password){$('#login_err').textContent='请选择用户名并输入密码';return;}
@@ -993,6 +1045,7 @@ function boot(user){
   $('#u_name').textContent=user.display_name+'（'+user.username+'）';
   $('#u_role').textContent=ROLE_NAME[user.role]||user.role;
   buildNav();
+  initPwdToggles();
   loadSubjects();
   loadCompaniesCache();
   // 进销项统计：年份与月份选项（初始化一次，默认"全部"年份以展示所有发票）
@@ -1665,24 +1718,24 @@ function payTableRender(state,tbodyId,pagerId,nameKey,navFn,sizeFn,mode){
   $(('#'+tbodyId)).innerHTML=pageRows.length?pageRows.map(x=>{
     const owed=(x.t||0)-(x.p||0),name=x[nameKey]||'-';
     return `<tr>
-      <td title="${esc(name)}">${esc(cut(name,20))}</td>
+      <td title="${esc(name)}">${owed>0.005&&CAN.pay?`<a class="link" href="javascript:;" onclick="openSupPay('${mode}','${esc(name)}')">${esc(cut(name,20))}</a>`:esc(cut(name,20))}</td>
       <td class="num">${x.n}</td>
       <td class="num">${fmt(x.t)}</td>
       <td class="num" style="color:var(--green)">${fmt(x.p)}</td>
       <td class="num"><b style="color:${owed>0.005?(isBuyer?'var(--primary)':'var(--red)'):'inherit'}">${fmt(owed)}</b></td>
       <td>${x.last_pay||'-'}</td>
       <td>${!CAN.pay?'—':(owed>0.005?`<button class="btn btn-sm ${isBuyer?'btn-success':'btn-primary'}" onclick="openSupPay('${mode}','${esc(name)}')">${isBuyer?'收款':'付款'}</button>`:`<button class="btn btn-sm" disabled style="opacity:.45;cursor:not-allowed">${isBuyer?'收款':'付款'}</button>`)}</td>
-    </tr>`;}).join(''):`<tr><td colspan="7" class="empty">${isBuyer?'暂无开票数据（我方开出的销项发票需匹配公司抬头后计入）':'暂无数据（收到的发票需匹配公司抬头为进项后计入）'}</td></tr>`;
+    </tr>`;}).join(''):`<tr><td colspan="7" class="empty">${isBuyer?'暂无开票数据（我方开出的销项发票需匹配公司抬头后计入）':'暂无数据（收到的发票需匹配公司抬头为进项后计入）'}，或当前筛选条件无匹配</td></tr>`;
 }
 function renderPayStats(){
   const a=PAY_P.all||{n:0,total:0,paid:0,owed:0},bk=PAY_P.book||{n:0,total:0},rj=PAY_P.rej||{n:0,total:0};
   const rc=RCP_P.all||{n:0,total:0,received:0,owed:0};
-  $('#paySummary').innerHTML=(PAY_P.rows.length||PAYC_P.rows.length)?`
+  $('#paySummary').innerHTML=a.n?`
     <span>待付款发票 <b>${a.n}</b> 张 · ¥<b>${a.total.toFixed(2)}</b></span>
     <span>已付款 <b style="color:var(--green)">¥${a.paid.toFixed(2)}</b></span>
     <span>未付欠款 <b style="color:var(--red)">¥${a.owed.toFixed(2)}</b></span>
     <span style="color:var(--muted)">（仅做账 ${bk.n} 张 ¥${bk.total.toFixed(2)}、已驳回 ${rj.n} 张 ¥${rj.total.toFixed(2)} 不计入）</span>`:'';
-  $('#rcSummary').innerHTML=RCP_P.rows.length?`
+  $('#rcSummary').innerHTML=rc.n?`
     <span>待收款发票 <b>${rc.n}</b> 张 · ¥<b>${rc.total.toFixed(2)}</b></span>
     <span>已收款 <b style="color:var(--green)">¥${rc.received.toFixed(2)}</b></span>
     <span>未收差额 <b style="color:var(--red)">¥${rc.owed.toFixed(2)}</b></span>`:'';
@@ -1695,16 +1748,37 @@ function renderPayStats(){
   $('#payBookHint').textContent=hints.join('');
 }
 /* ---------- 按单位付款 ---------- */
-let SUP={mode:'seller',name:'',rows:[]};
+let SUP={mode:'seller',name:'',rows:[],sel:{}};
+function supSelRows(){return SUP.rows.filter(r=>SUP.sel[r.id]);}
+function supToggleSel(id,checked){SUP.sel[id]=!!checked;supRefreshSel();}
+function supToggleAll(checked){
+  SUP.rows.forEach(r=>{SUP.sel[r.id]=!!checked;});
+  $$('#sup_list input[type=checkbox]').forEach(cb=>{cb.checked=!!checked;});
+  supRefreshSel();
+}
+function supRefreshSel(){
+  const rows=supSelRows(),verb=SUP.mode==='buyer'?'收款':'付款';
+  const sum=rows.reduce((s,r)=>s+(r.balance||0),0);
+  $('#sup_selinfo').textContent=rows.length;
+  $('#sup_selamt').textContent=sum.toFixed(2);
+  $('#sup_all').checked=SUP.rows.length>0&&rows.length===SUP.rows.length;
+  const mixed=ieMixedRows(rows);
+  $('#sup_mixhint').textContent=mixed?`⚠ 勾选的发票涉及多个我方抬头，整笔${verb}无法正确入账收支表，请逐张点「单独」登记${verb}`:'';
+  const dis=mixed||!rows.length;
+  const btn=$('#supMask .btn-primary');
+  btn.disabled=dis;btn.style.opacity=dis?'.45':'';btn.style.cursor=dis?'not-allowed':'';
+  $('#sup_amount').disabled=mixed;
+  supPreview();
+}
 async function openSupPay(mode,name){
-  SUP={mode,name,rows:[]};
+  SUP={mode,name,rows:[],sel:{}};
   const tag={seller:'销售方',claimant:'报销人',buyer:'客户'}[mode]||'';
   const verb=mode==='buyer'?'收款':'付款';
   $('#sup_name').textContent=tag+' '+name;
   $('#sup_info').textContent='正在加载未付清发票…';
   $('#sup_list').innerHTML='';$('#sup_amount').value='';$('#sup_method').value='';
   $('#sup_note').value='';$('#sup_date').value=new Date().toISOString().slice(0,10);
-  $('#sup_preview').textContent='';
+  $('#sup_preview').textContent='';$('#sup_mixhint').textContent='';
   $('#supMask').querySelector('h3').firstChild.textContent=verb==='收款'?'登记收款 ':'登记付款 ';
   $('#supMask').querySelector('.btn-primary').textContent=`确认${verb}（按序抵扣）`;
   $('#supMask').classList.add('show');
@@ -1720,36 +1794,36 @@ async function openSupPay(mode,name){
     .map(r=>{const bal=(r.total_amount||0)-(r.paid_amount||0);return{...r,balance:Math.max(0,bal)};})
     .filter(r=>r.balance>0.004)
     .sort((a,b)=>(a.invoice_date||'').localeCompare(b.invoice_date||''));
+  // 默认全部勾选，可按需取消（只对勾选的发票按序抵扣）
+  SUP.rows.forEach(r=>{SUP.sel[r.id]=true;});
   const cos=[...new Set(SUP.rows.map(r=>r.company_short).filter(Boolean))];
   $('#sup_co').textContent=cos.join(' / ');$('#sup_co').style.display=cos.length?'':'none';
   const sum=SUP.rows.reduce((s,r)=>s+r.balance,0);
   $('#sup_info').innerHTML=`未${verb==='收款'?'收清':'付清'} <b>${SUP.rows.length}</b> 张，合计未${verb==='收款'?'收':'付'} <b style="color:var(--red)">¥${sum.toFixed(2)}</b>`;
-  // 涉及多个我方抬头（龙力/普利美）时禁止整笔按序抵扣，引导逐张「单独」登记
-  const mixedSup=ieMixedRows(SUP.rows);
-  if(mixedSup)$('#sup_info').innerHTML+=`<br><b style="color:var(--red)">⚠ 该${mode==='buyer'?'客户':'销售方'}发票涉及多个我方抬头（${cos.join(' / ')}），整笔${verb}无法正确入账收支表，请逐张点「单独」登记${verb}</b>`;
-  const supBtn=$('#supMask .btn-primary');
-  if(supBtn){supBtn.disabled=mixedSup;supBtn.style.opacity=mixedSup?'.45':'';supBtn.style.cursor=mixedSup?'not-allowed':'';}
-  $('#sup_amount').disabled=mixedSup;
-  $('#sup_list').innerHTML=SUP.rows.map(r=>`
+  $('#sup_list').innerHTML=SUP.rows.length?SUP.rows.map(r=>`
     <div style="display:flex;gap:10px;align-items:center;padding:4px 0;border-bottom:1px dashed #f1f5f9">
+      <input type="checkbox" ${SUP.sel[r.id]?'checked':''} onchange="supToggleSel(${r.id},this.checked)" style="width:auto;margin:0;flex:none">
       <span style="flex:1">${r.invoice_date||'-'} · <span class="mono">${esc(cut(r.invoice_no,18))}</span></span>
       <span>合计 ¥${fmt(r.total_amount)}</span>
       <span style="color:var(--red)">差 ¥${fmt(r.balance)}</span>
-      <button class="btn btn-sm btn-outline" onclick='openPay(${r.id},SUP.rows)'>单独</button>
-    </div>`).join('');
+      <button type="button" class="btn btn-sm btn-outline" onclick='openPay(${r.id},SUP.rows)'>单独</button>
+    </div>`).join(''):'<div style="color:var(--muted);padding:6px 0">该单位暂无未结清发票</div>';
+  supRefreshSel();
 }
 function supPreview(){
-  let amt=+$('#sup_amount').value||0,remain=amt;const lines=[];
-  for(const r of SUP.rows){
+  let amt=+$('#sup_amount').value||0,remain=amt;const lines=[],rows=supSelRows();
+  for(const r of rows){
     if(remain<=0.004)break;
     const pay=Math.min(r.balance,remain);
     lines.push(`#${r.id} ¥${pay.toFixed(2)}`);
     remain=Math.round((remain-pay)*100)/100;
   }
-  $('#sup_preview').textContent=amt>0?`按开票顺序抵扣：${lines.join('，')||'无可抵扣发票'}${remain>0.004?`；多余 ¥${remain.toFixed(2)} 无票可抵，请核对金额`:''}`:'';
+  $('#sup_preview').textContent=amt>0?`按开票顺序抵扣（仅勾选 ${rows.length} 张）：${lines.join('，')||'无可抵扣发票'}${remain>0.004?`；多余 ¥${remain.toFixed(2)} 无票可抵，请核对金额`:''}`:'';
 }
 function supFillAll(){
-  const total=SUP.rows.reduce((s,r)=>s+r.balance,0);
+  const rows=supSelRows();
+  if(!rows.length)return toast('请先勾选需要登记的发票','err');
+  const total=rows.reduce((s,r)=>s+(r.balance||0),0);
   $('#sup_amount').value=total.toFixed(2);supPreview();
   if(total<=0.004)toast('没有未付清发票','err');
 }
@@ -1759,15 +1833,16 @@ function payFillAll(){
 async function supSave(){
   if(!CAN.pay)return toast('无收付款操作权限','err');
   const amount=+$('#sup_amount').value;
+  const rows=supSelRows();
   const verb=SUP.mode==='buyer'?'收款':'付款';
-  const tagN=SUP.mode==='buyer'?'客户':(SUP.mode==='claimant'?'报销人':'销售方');
+  if(!rows.length)return toast('请先勾选需要登记的发票','err');
   if(!amount||amount<=0)return toast(`请填写有效的${verb}金额`,'err');
-  if(ieMixedRows(SUP.rows))return toast(`该${tagN}发票涉及多个我方抬头（龙力/普利美），请逐张点「单独」登记${verb}`,'err');
-  if(!confirm(`确认${verb==='收款'?'收到':'向'}「${SUP.name}」${verb} ¥${amount.toFixed(2)}？将按开票顺序自动抵扣。`))return;
+  if(ieMixedRows(rows))return toast(`勾选的发票涉及多个我方抬头（龙力/普利美），请逐张点「单独」登记${verb}`,'err');
+  if(!confirm(`确认${verb==='收款'?'收到':'向'}「${SUP.name}」${verb} ¥${amount.toFixed(2)}？将按开票顺序在勾选的 ${rows.length} 张发票中自动抵扣。`))return;
   let remain=amount;const invoices=await ReimStore.getInvoices();
   const payDate=$('#sup_date').value,payMethod=$('#sup_method').value,payNote=$('#sup_note').value.trim();
   const ieGroups={}; // 付款时按公司累计抵扣金额 → 同步收支表
-  for(const row of SUP.rows){
+  for(const row of rows){
     if(remain<=0.004)break;
     const inv=invoices.find(x=>x.id===row.id);if(!inv)continue;
     const bal=(inv.total_amount||0)-(inv.paid_amount||0);
@@ -1913,6 +1988,7 @@ async function ieConfirm(){
   IE_SYNC.queue.shift();ieShowNext();
 }
 async function loadStats(){
+  if(!STATS_F_READY){restoreStatsFilters();STATS_F_READY=true;}
   let invoices=await ReimStore.getInvoices();
   let noinvPays=await ReimStore.getPayments();
   // 报销人只统计自己经手的发票（与"我的发票"过滤口径一致）
@@ -1978,29 +2054,58 @@ async function loadStats(){
   // 收票付款统计（按收款对象分组）——此处必须与上方 eff 的 companyFilter 口径一致
   const payEff=invoices.filter(r=>r.direction==='进项'&&r.status!=='已驳回'&&r.settle!=='仅做账'&&(!companyFilter||r.company_id===companyFilter));
   const bySeller={},byClaimant={};
+  // 记录每个分组最近的开票/付款日期与最近付款日，用于排序：
+  // 新发生的最先显示，否则新上传的发票会因排在云端数组末尾而落到后面几页
+  const touch=(g,d)=>{if(d&&(!g.d||d>g.d))g.d=d;};
+  const touchPay=(g,d)=>{if(d&&(!g.last_pay||d>g.last_pay))g.last_pay=d;};
   // ① 付给销售方：只统计收款对象为"销售方"的发票（"付报销人"的进项发票归②，避免一张票两边重复出现）
   payEff.filter(r=>r.payee!=='报销人').forEach(r=>{
-    const s=r.seller_name||'未知';if(!bySeller[s])bySeller[s]={seller_name:s,n:0,t:0,p:0};bySeller[s].n++;bySeller[s].t+=r.total_amount||0;bySeller[s].p+=r.paid_amount||0;
+    const s=r.seller_name||'未知';if(!bySeller[s])bySeller[s]={seller_name:s,n:0,t:0,p:0,d:'',last_pay:''};bySeller[s].n++;bySeller[s].t+=r.total_amount||0;bySeller[s].p+=r.paid_amount||0;touch(bySeller[s],r.invoice_date);if((r.paid_amount||0)>0)touchPay(bySeller[s],r.payment_date);
   });
   // 无票付款（预付款/进度款/尾款/其他）按供应商累加到已付款，不计入价税合计。
   // 已关联发票号的无票付款不再累加（由发票 paid_amount 承载，避免重复计算）。
   noinvPays.filter(r=>r.payee!=='报销人'&&!r.invoice_no&&(!companyFilter||r.company_id===companyFilter)).forEach(r=>{
-    const s=r.seller_name||'未知';if(!bySeller[s])bySeller[s]={seller_name:s,n:0,t:0,p:0};bySeller[s].p+=r.amount||0;
+    const s=r.seller_name||'未知';if(!bySeller[s])bySeller[s]={seller_name:s,n:0,t:0,p:0,d:'',last_pay:''};bySeller[s].p+=r.amount||0;touch(bySeller[s],r.payment_date||r.created_at);touchPay(bySeller[s],r.payment_date);
   });
   payEff.filter(r=>r.payee==='报销人').forEach(r=>{
-    const c=r.claimant||'未知';if(!byClaimant[c])byClaimant[c]={claimant:c,n:0,t:0,p:0};byClaimant[c].n++;byClaimant[c].t+=r.total_amount||0;byClaimant[c].p+=r.paid_amount||0;
+    const c=r.claimant||'未知';if(!byClaimant[c])byClaimant[c]={claimant:c,n:0,t:0,p:0,d:'',last_pay:''};byClaimant[c].n++;byClaimant[c].t+=r.total_amount||0;byClaimant[c].p+=r.paid_amount||0;touch(byClaimant[c],r.invoice_date);if((r.paid_amount||0)>0)touchPay(byClaimant[c],r.payment_date);
   });
   const recEff=invoices.filter(r=>r.direction==='销项'&&r.status!=='已驳回'&&(!companyFilter||r.company_id===companyFilter));
   const byBuyer={};
-  recEff.forEach(r=>{const b=r.buyer_name||'未知';if(!byBuyer[b])byBuyer[b]={buyer_name:b,n:0,t:0,p:0};byBuyer[b].n++;byBuyer[b].t+=r.total_amount||0;byBuyer[b].p+=r.paid_amount||0;});
-  PAY_P.rows=Object.values(bySeller);
+  recEff.forEach(r=>{const b=r.buyer_name||'未知';if(!byBuyer[b])byBuyer[b]={buyer_name:b,n:0,t:0,p:0,d:'',last_pay:''};byBuyer[b].n++;byBuyer[b].t+=r.total_amount||0;byBuyer[b].p+=r.paid_amount||0;touch(byBuyer[b],r.invoice_date);if((r.paid_amount||0)>0)touchPay(byBuyer[b],r.payment_date);});
+  // 展示层筛选/排序（只影响下方三张表，不影响顶部卡片与汇总合计）
+  const fPayState=$('#s_pay')?$('#s_pay').value:'';
+  const fPaySort=$('#s_sort')?$('#s_sort').value:'latest';
+  const fPayKw=($('#s_kw')&&$('#s_kw').value||'').trim().toLowerCase();
+  const applyView=(arr,nameKey)=>{
+    let a=arr.filter(x=>!fPayKw||String(x[nameKey]||'').toLowerCase().includes(fPayKw));
+    if(fPayState==='unpaid')a=a.filter(x=>((x.t||0)-(x.p||0))>0.005);
+    if(fPayState==='paid')a=a.filter(x=>((x.t||0)-(x.p||0))<=0.005);
+    const cmps={
+      latest:(x,y)=>(y.d||'').localeCompare(x.d||'')||(y.t||0)-(x.t||0),
+      owed:(x,y)=>((y.t||0)-(y.p||0))-((x.t||0)-(x.p||0)),
+      amount:(x,y)=>(y.t||0)-(x.t||0),
+      name:(x,y)=>String(x[nameKey]||'').localeCompare(String(y[nameKey]||''),'zh-Hans-CN')
+    };
+    return a.sort(cmps[fPaySort]||cmps.latest);
+  };
+  PAY_P.rows=applyView(Object.values(bySeller),'seller_name');
   const nipPaid=noinvPays.filter(r=>r.payee!=='报销人'&&!r.invoice_no&&(!companyFilter||r.company_id===companyFilter)).reduce((s,r)=>s+(r.amount||0),0);
   PAY_P.all={n:payEff.length,total:sum(payEff,'total_amount'),paid:sum(payEff,'paid_amount')+nipPaid,owed:sum(payEff,'total_amount')-sum(payEff,'paid_amount')-nipPaid};
   PAY_P.book={n:invoices.filter(r=>r.settle==='仅做账').length,total:sum(invoices.filter(r=>r.settle==='仅做账'),'total_amount')};
   PAY_P.rej={n:invoices.filter(r=>r.status==='已驳回').length,total:sum(invoices.filter(r=>r.status==='已驳回'),'total_amount')};PAY_P.page=1;
-  PAYC_P.rows=Object.values(byClaimant);PAYC_P.all=PAY_P.all;PAYC_P.book=PAY_P.book;PAYC_P.rej=PAY_P.rej;PAYC_P.page=1;
-  RCP_P.rows=Object.values(byBuyer);RCP_P.all={n:recEff.length,total:sum(recEff,'total_amount'),received:sum(recEff,'paid_amount'),owed:sum(recEff,'total_amount')-sum(recEff,'paid_amount')};RCP_P.page=1;
+  PAYC_P.rows=applyView(Object.values(byClaimant),'claimant');PAYC_P.all=PAY_P.all;PAYC_P.book=PAY_P.book;PAYC_P.rej=PAY_P.rej;PAYC_P.page=1;
+  RCP_P.rows=applyView(Object.values(byBuyer),'buyer_name');RCP_P.all={n:recEff.length,total:sum(recEff,'total_amount'),received:sum(recEff,'paid_amount'),owed:sum(recEff,'total_amount')-sum(recEff,'paid_amount')};RCP_P.page=1;
   renderPayStats();
+  saveStatsFilters();
+}
+function statsReset(){
+  if($('#s_pay'))$('#s_pay').value='';
+  if($('#s_sort'))$('#s_sort').value='latest';
+  if($('#s_kw'))$('#s_kw').value='';
+  if($('#s_company'))$('#s_company').value='';
+  try{localStorage.removeItem(STATS_F_KEY);}catch(e){}
+  loadStats();
 }
 
 /* ---------- 公司抬头（缓存 + 管理员管理） ---------- */
@@ -2013,12 +2118,27 @@ async function loadCompaniesCache(){
   const sel=$('#v_company'),cur=sel.value;
   sel.innerHTML='<option value="">全部公司</option>'+COMPANIES.map(c=>
     `<option value="${c.id}">${esc(c.short_name||c.name)}${c.active?'':'（停用）'}</option>`).join('');
+  let vReload=false;
   if(cur)sel.value=cur;
+  else{
+    // 选项生成晚于筛选恢复时，这里补回上次记忆的公司
+    const vf=readFilters(VAT_F_KEY);
+    if(vf&&vf.company){sel.value=vf.company;vReload=!!sel.value;}
+  }
   const sc=$('#s_company');
+  let sReload=false;
   if(sc){const scur=sc.value;
     sc.innerHTML='<option value="">全部公司</option>'+COMPANIES.map(c=>
       `<option value="${c.id}">${esc(c.short_name||c.name)}${c.active?'':'（停用）'}</option>`).join('');
     if(scur)sc.value=scur;
+    else{
+      const sf=readFilters(STATS_F_KEY);
+      if(sf&&sf.company){sc.value=sf.company;sReload=!!sc.value;}
+    }
+  }
+  if(ME){
+    if(vReload&&!$('#tab-vat').hidden)loadVat();
+    if(sReload&&!$('#tab-stats').hidden)loadStats();
   }
 }
 const COMP_P={page:1,size:20};
@@ -2107,6 +2227,13 @@ function vatRenderList(k){
   if(!pageRows.length){$(('#'+bodyId)).innerHTML=`<tr><td colspan="8" class="empty">${isR?'该期间暂无进项发票':'该期间暂无销项发票'}</td></tr>`;return;}
   $(('#'+bodyId)).innerHTML=pageRows.map(r=>{
     const deduct=isR&&(r.invoice_type||'').includes('专用');
+    const paid=r.paid_amount||0, owed=(r.total_amount||0)-paid;
+    // 审核通过的发票显示结清情况，方便直接看出哪些还没付款/收款
+    const settle=r.status==='已通过'
+      ? (owed>0.005
+        ? `<div style="font-size:11px;color:var(--red)">未结清 ${fmt(owed)}${paid>0.005?` · 已付 ${fmt(paid)}`:''}</div>`
+        : `<div style="font-size:11px;color:var(--green)">已结清</div>`)
+      : '';
     return `<tr>
     <td>${r.invoice_date||'-'}</td>
     <td class="mono">${esc(cut(r.invoice_no,16))}</td>
@@ -2115,7 +2242,7 @@ function vatRenderList(k){
     <td class="num">${fmt(r.amount)}</td>
     <td class="num">${fmt(r.tax_amount)}${isR&&!deduct?'<div style="font-size:10px;color:var(--muted)">不计抵扣</div>':''}</td>
     <td class="num"><b>${fmt(r.total_amount)}</b></td>
-    <td>${esc(r.status||'-')}${r.payment_method?`<div style="font-size:11px;color:var(--muted)">${esc(r.payment_method)} · 已付 ${fmt(r.paid_amount||0)}</div>`:''}</td>
+    <td>${esc(r.status||'-')}${settle}</td>
   </tr>`;}).join('');
 }
 function vatQuery(){
@@ -2132,15 +2259,68 @@ function vatQuery(){
   return p;
 }
 function vatClearRange(){$('#v_date_from').value='';$('#v_date_to').value='';}
+/* ---------- 筛选条件记忆（下次进入保持上次选择） ---------- */
+const VAT_F_KEY='reim_vat_filters',STATS_F_KEY='reim_stats_filters';
+let VAT_F_READY=false,STATS_F_READY=false;
+function readFilters(key){try{return JSON.parse(localStorage.getItem(key)||'null')||null;}catch(e){return null;}}
+function saveVatFilters(){
+  const vSel=$('#v_company');
+  const prev=readFilters(VAT_F_KEY)||{};
+  const o={from:$('#v_date_from').value,to:$('#v_date_to').value,year:$('#v_year').value||'',
+    month:$('#v_month').value||'',
+    // 公司下拉选项尚未生成时保留上次记忆，避免被空值覆盖
+    company:vSel.options.length>1?vSel.value:(prev.company||''),
+    status:$('#v_status').value||'',pay:$('#v_pay').value||'',
+    sort:$('#v_sort').value||'date_desc',kw:$('#v_kw').value||''};
+  try{localStorage.setItem(VAT_F_KEY,JSON.stringify(o));}catch(e){}
+}
+function restoreVatFilters(){
+  const o=readFilters(VAT_F_KEY);if(!o)return;
+  $('#v_date_from').value=o.from||'';$('#v_date_to').value=o.to||'';
+  if(o.year)$('#v_year').value=o.year;
+  if(o.month)$('#v_month').value=o.month;
+  if(o.company)$('#v_company').value=o.company;
+  if(o.status)$('#v_status').value=o.status;
+  if(o.pay)$('#v_pay').value=o.pay;
+  if(o.sort)$('#v_sort').value=o.sort;
+  $('#v_kw').value=o.kw||'';
+}
+function saveStatsFilters(){
+  const sc=$('#s_company');
+  const prev=readFilters(STATS_F_KEY)||{};
+  const o={company:sc.options.length>1?sc.value:(prev.company||''),
+    pay:$('#s_pay').value||'',sort:$('#s_sort').value||'latest',kw:$('#s_kw').value||''};
+  try{localStorage.setItem(STATS_F_KEY,JSON.stringify(o));}catch(e){}
+}
+function restoreStatsFilters(){
+  const o=readFilters(STATS_F_KEY);if(!o)return;
+  if(o.company)$('#s_company').value=o.company;
+  if(o.pay)$('#s_pay').value=o.pay;
+  if(o.sort)$('#s_sort').value=o.sort;
+  $('#s_kw').value=o.kw||'';
+}
+function vatReset(){
+  // 重置全部筛选：期间 / 公司 / 状态 / 收付状态 / 关键词 / 排序，并清除记忆
+  $('#v_date_from').value='';$('#v_date_to').value='';
+  $('#v_year').value='';$('#v_month').value='';$('#v_company').value='';
+  if($('#v_status'))$('#v_status').value='';
+  if($('#v_pay'))$('#v_pay').value='';
+  if($('#v_sort'))$('#v_sort').value='date_desc';
+  if($('#v_kw'))$('#v_kw').value='';
+  VAT.month='';VAT.year='';
+  try{localStorage.removeItem(VAT_F_KEY);}catch(e){}
+  loadVat();
+}
 function vatExport(direction){
   // direction 为按钮传入的「进项」/「销项」
+  // 导出「当前筛选后的明细」（含状态/收付/关键词/排序条件），便于直接对账
   const invoices=window._lastVatInvoices||[];
   const dirRows=invoices.filter(r=>r.direction===direction);
-  if(!dirRows.length){toast(`该期间暂无${direction}发票`,'err');return;}
+  if(!dirRows.length){toast(`当前筛选条件下暂无${direction}发票`,'err');return;}
   if(typeof XLSX==='undefined'){toast('Excel 组件未加载，请刷新后重试','err');return;}
   const isIn=direction==='进项';
   const otherCol=isIn?'seller_name':'buyer_name';
-  const headers=['序号','开票日期','发票号码','发票类型',isIn?'销售方':'购买方','商品名称','金额','税率','税额','价税合计','校验码'];
+  const headers=['序号','开票日期','发票号码','发票类型',isIn?'销售方':'购买方','商品名称','金额','税率','税额','价税合计','已付金额','未结清金额','收付状态','审核状态','校验码'];
   // 按公司分组（工作表名取公司全称，如「无锡龙力」「普利美」）
   const byCo={};
   dirRows.forEach(r=>{
@@ -2153,10 +2333,11 @@ function vatExport(direction){
     // 按开票日期倒序
     const list=byCo[coName].slice().sort((a,b)=>(b.invoice_date||'').localeCompare(a.invoice_date||''));
     const aoa=[headers];
-    let totalAmount=0,totalTax=0,totalAll=0;
+    let totalAmount=0,totalTax=0,totalAll=0,totalPaid=0,totalOwed=0;
     list.forEach((r,i)=>{
       const amt=Number(r.amount)||0,tax=Number(r.tax_amount)||0,all=Number(r.total_amount)||0;
-      totalAmount+=amt;totalTax+=tax;totalAll+=all;
+      const paid=Number(r.paid_amount)||0,owed=Math.round((all-paid)*100)/100;
+      totalAmount+=amt;totalTax+=tax;totalAll+=all;totalPaid+=paid;totalOwed+=owed;
       aoa.push([
         i+1,
         r.invoice_date||'',
@@ -2165,13 +2346,16 @@ function vatExport(direction){
         r[otherCol]||'',
         r.item_name||'',
         amt,r.tax_rate||'',tax,all,
+        paid,owed,
+        owed>0.005?(paid>0.005?'部分结清':'未结清'):'已结清',
+        r.status||'',
         r.check_code||''
       ]);
     });
-    aoa.push(['合计','','','','','',totalAmount,'',totalTax,totalAll,'']);
+    aoa.push(['合计','','','','','',totalAmount,'',totalTax,totalAll,Math.round(totalPaid*100)/100,Math.round(totalOwed*100)/100,'','','']);
     const ws=XLSX.utils.aoa_to_sheet(aoa);
     // 列宽
-    ws['!cols']=[{wch:6},{wch:12},{wch:18},{wch:12},{wch:20},{wch:24},{wch:12},{wch:8},{wch:12},{wch:14},{wch:20}];
+    ws['!cols']=[{wch:6},{wch:12},{wch:18},{wch:12},{wch:20},{wch:24},{wch:12},{wch:8},{wch:12},{wch:14},{wch:12},{wch:14},{wch:12},{wch:10},{wch:20}];
     // 合计行加粗（最后一行）
     const lastRow=aoa.length;
     const range=XLSX.utils.decode_range(ws['!ref']);
@@ -2186,9 +2370,6 @@ function vatExport(direction){
 async function loadVat(){
   if(ME.role==='claimant')return;
   const invoices=await ReimStore.getInvoices();
-  const df=$('#v_date_from').value,dt=$('#v_date_to').value;
-  const year=$('#v_year').value,month=$('#v_month').value;
-  const companyId=$('#v_company').value?parseInt($('#v_company').value):null;
   // 生成年份下拉（含"全部"选项，首次默认选"全部"以展示所有年份发票）
   const years=[...new Set(invoices.filter(r=>r.invoice_date).map(r=>r.invoice_date.slice(0,4)))].sort().reverse();
   const ySel=$('#v_year');
@@ -2197,8 +2378,13 @@ async function loadVat(){
     const cur=ySel.value;
     ySel.innerHTML='<option value="">全部</option>'+years.map(y=>`<option value="${y}" ${y===cur?'selected':''}>${y}</option>`).join('');
   }
-  // 过滤（year 为空字符串表示"全部年份"）
-  let rows=invoices.filter(r=>{
+  // 首次进入恢复上次筛选（年份选项已生成，才能正确回填）
+  if(!VAT_F_READY){restoreVatFilters();VAT_F_READY=true;}
+  const df=$('#v_date_from').value,dt=$('#v_date_to').value;
+  const year=$('#v_year').value,month=$('#v_month').value;
+  const companyId=$('#v_company').value?parseInt($('#v_company').value):null;
+  // 过滤（year 为空字符串表示"全部年份"）——只按期间/公司，作为统计口径的基准集
+  let base=invoices.filter(r=>{
     if(!r.invoice_date)return false;
     if(df&&r.invoice_date<df)return false;
     if(dt&&r.invoice_date>dt)return false;
@@ -2209,13 +2395,45 @@ async function loadVat(){
     if(companyId&&r.company_id!==companyId)return false;
     return true;
   });
+  // 明细列表的额外筛选（发票状态 / 收付状态 / 关键词），不影响上方统计卡片与导出
+  const fStatus=$('#v_status')?$('#v_status').value:'';
+  const fPay=$('#v_pay')?$('#v_pay').value:'';
+  const fKw=($('#v_kw')&&$('#v_kw').value||'').trim().toLowerCase();
+  const fSort=$('#v_sort')?$('#v_sort').value:'date_desc';
+  const owedOf=r=>(r.total_amount||0)-(r.paid_amount||0);
+  let rows=base.filter(r=>{
+    if(fStatus&&(r.status||'')!==fStatus)return false;
+    if(fPay){
+      const owed=owedOf(r);
+      if(fPay==='unpaid'&&owed<=0.005)return false;
+      if(fPay==='paid'&&owed>0.005)return false;
+      if(fPay==='partial'&&!((r.paid_amount||0)>0.005&&owed>0.005))return false;
+    }
+    if(fKw){
+      const hay=((r.invoice_no||'')+' '+(r.seller_name||'')+' '+(r.buyer_name||'')).toLowerCase();
+      if(hay.indexOf(fKw)<0)return false;
+    }
+    return true;
+  });
+  // 默认按开票日期倒序（与「全部发票」台账一致），避免新发票被挤到后几页
+  const cmps={
+    date_desc:(a,b)=>(b.invoice_date||'').localeCompare(a.invoice_date||'')||String(b.created_at||'').localeCompare(String(a.created_at||'')),
+    date_asc:(a,b)=>(a.invoice_date||'').localeCompare(b.invoice_date||''),
+    amount_desc:(a,b)=>(b.total_amount||0)-(a.total_amount||0),
+    amount_asc:(a,b)=>(a.total_amount||0)-(b.total_amount||0),
+    owed_desc:(a,b)=>owedOf(b)-owedOf(a)
+  };
+  rows=rows.slice().sort(cmps[fSort]||cmps.date_desc);
+  // 导出使用「当前筛选后的明细」（状态/收付/关键词/排序均已生效）
   window._lastVatInvoices=rows;
+  saveVatFilters();
   const inRows=rows.filter(r=>r.direction==='进项'),outRows=rows.filter(r=>r.direction==='销项');
+  const baseIn=base.filter(r=>r.direction==='进项'),baseOut=base.filter(r=>r.direction==='销项');
   const sum=(arr,k)=>arr.reduce((s,r)=>s+(r[k]||0),0);
-  const inN=inRows.length,inAmt=sum(inRows,'amount');
-  const inTax=sum(inRows.filter(r=>(r.invoice_type||'').includes('专用')),'tax_amount');
-  const inTaxOther=sum(inRows.filter(r=>!(r.invoice_type||'').includes('专用')),'tax_amount');
-  const outN=outRows.length,outAmt=sum(outRows,'amount'),outTax=sum(outRows,'tax_amount');
+  const inN=baseIn.length,inAmt=sum(baseIn,'amount');
+  const inTax=sum(baseIn.filter(r=>(r.invoice_type||'').includes('专用')),'tax_amount');
+  const inTaxOther=sum(baseIn.filter(r=>!(r.invoice_type||'').includes('专用')),'tax_amount');
+  const outN=baseOut.length,outAmt=sum(baseOut,'amount'),outTax=sum(baseOut,'tax_amount');
   const diffTax=outTax-inTax;
   VAT.year=year;VAT.month=month;VAT.company_id=$('#v_company').value;
   const curY=$('#v_year').value;
@@ -2233,7 +2451,7 @@ async function loadVat(){
   $('#vDiffHint').textContent=diffTax>=0?'正数：应缴增值税':'负数：留抵税额';
   // 月度卡片（year 为空时按所有有数据的"年-月"倒序展示）
   const mm={};
-  rows.forEach(r=>{const m=r.invoice_date.slice(0,7);if(!mm[m])mm[m]={in_n:0,out_n:0,in_tax:0,out_tax:0};
+  base.forEach(r=>{const m=r.invoice_date.slice(0,7);if(!mm[m])mm[m]={in_n:0,out_n:0,in_tax:0,out_tax:0};
     if(r.direction==='进项'){mm[m].in_n++;mm[m].in_tax+=(r.invoice_type||'').includes('专用')?(r.tax_amount||0):0;}
     else{mm[m].out_n++;mm[m].out_tax+=r.tax_amount||0;}});
   const monthCardHtml=(m,x,clickable)=>{
@@ -2257,8 +2475,10 @@ async function loadVat(){
   }
   // 明细列表
   const period=(df||dt)?`${df||'…'} ~ ${dt||'…'}`:(year?(month?`${year}年${+month}月`:`${year}年全年`):'全部年份');
-  $('#v_in_title').textContent=`（${period}，共 ${inRows.length} 张，进项税额仅专票计入）`;
-  $('#v_out_title').textContent=`（${period}，共 ${outRows.length} 张）`;
+  const filtered=!!(fStatus||fPay||fKw);
+  const fTag=filtered?'，已筛选':'';
+  $('#v_in_title').textContent=`（${period}，共 ${inRows.length} 张${fTag}，进项税额仅专票计入）`;
+  $('#v_out_title').textContent=`（${period}，共 ${outRows.length} 张${fTag}）`;
   VATLIST.in.rows=inRows;VATLIST.in.page=1;
   VATLIST.out.rows=outRows;VATLIST.out.page=1;
   vatRenderList('in');vatRenderList('out');
