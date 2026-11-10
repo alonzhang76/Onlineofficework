@@ -10973,6 +10973,346 @@ function generateOrderLabels() {
     window.open(`merged_order_labels.html?${params.toString()}`, '_blank');
 }
 
+/* ================= 订单生成发票/合同（参考报价系统格式，中英文双语） ================= */
+
+// 公司抬头与报价系统共用同一 localStorage 键，保持两处数据一致
+const ORDER_DOC_COMPANY_STORAGE_KEY = 'quotationCompanies';
+const ORDER_DOC_DEFAULT_COMPANIES = [
+    {
+        id: 'longli',
+        nameCn: '无锡龙力印铁设备制造有限公司',
+        nameEn: 'Wuxi Longli Iron-Printing Equipment Manufacturing Co., Ltd',
+        address: '6-1, zhongnan gaoke industrial park, #8 zhounan road, xueyan town, wujin district, Changzhou City, Jiangsu Province, China',
+        phone: '+86 139 5158 9291',
+        email: 'anny@rhssjx.com',
+        taxRate: '13% (增值税)',
+        accounts: [
+            { label: '人民币账户', bankName: '江苏银行无锡新区支行', bankAddress: '', accountNo: '807010188600012106', swift: '', telex: '' }
+        ]
+    },
+    {
+        id: 'purimate',
+        nameCn: '普利美(常州)环境工程科技有限公司',
+        nameEn: 'Purimate (Changzhou) Environmental Engineering Technology Co., Ltd',
+        address: '6-1, zhongnan gaoke industrial park, #8 zhounan road, xueyan town, wujin district, Changzhou City, Jiangsu Province, China',
+        phone: '+86 139 5158 9291',
+        email: 'anny@rhssjx.com',
+        taxRate: '13% (增值税)',
+        accounts: [
+            { label: '人民币账户', bankName: '中国银行常州潘家支行', bankAddress: '', accountNo: '463776505380', swift: '', telex: '' }
+        ]
+    },
+    {
+        id: 'tianliang',
+        nameCn: '无锡市天梁对外贸易有限公司',
+        nameEn: 'WUXI TIANLIANG FOREIGN TRADE CO.,LTD',
+        address: 'Room#605, XingSheng Building No.900 JieFang East Street, WuXi City,JiangSu Province,China',
+        phone: '+86 186 2632 7266',
+        email: 'alonzhang76@outlook.com',
+        taxRate: '0% (免税)',
+        accounts: [
+            { label: '外币账户', bankName: 'BANK OF CHINA,WUXI BR', bankAddress: '258 ZHONGSHAN ROAD, WUXI, 214001 P.R.CHINA', accountNo: '510558218196', swift: 'BKCHCNBJ95C', telex: '362021 WXBOC CN' }
+        ]
+    }
+];
+
+// 默认付款比例（与报价系统一致）
+const ORDER_DOC_DEFAULT_PAYMENT_RATIOS = [
+    '预付20%/出货前80% | 20%Deposit 80%B.Shipment',
+    '预付30%/出货前70% |30%Deposit 70%B.shipment',
+    '预付40%/出货前60% |40%Deposit 60%B.shipment',
+    '发货前100% | Full Payment Before Shipment',
+    '货到付全款 | Payment on Delivery',
+    '月结30天 | Monthly Payment (30 days)'
+];
+
+// 加载公司抬头（优先读报价系统保存的数据，缺失时使用默认值）
+function loadOrderDocCompanies() {
+    let list = null;
+    try { list = JSON.parse(localStorage.getItem(ORDER_DOC_COMPANY_STORAGE_KEY) || 'null'); } catch (e) { list = null; }
+    if (!Array.isArray(list) || list.length === 0) {
+        list = JSON.parse(JSON.stringify(ORDER_DOC_DEFAULT_COMPANIES));
+    }
+    return list.map(c => {
+        c.nameCn = c.nameCn || '';
+        c.nameEn = c.nameEn || '';
+        c.taxRate = c.taxRate === '0% (免税)' ? '0% (免税)' : '13% (增值税)';
+        if (!Array.isArray(c.accounts)) c.accounts = [];
+        return c;
+    });
+}
+
+// 单个账户渲染为银行账户文本（与报价系统一致）
+function renderOrderDocAccountText(acc) {
+    if (!acc) return '';
+    const hasDetail = acc.bankAddress || acc.swift || acc.telex;
+    if (!hasDetail) {
+        return [acc.bankName, acc.accountNo].filter(Boolean).join(' | ');
+    }
+    const lines = [];
+    if (acc.bankName) lines.push('Bank Name: ' + acc.bankName);
+    if (acc.bankAddress) lines.push('Bank Addr: ' + acc.bankAddress);
+    if (acc.accountNo) lines.push('Account: ' + acc.accountNo);
+    if (acc.swift) lines.push('Swift No.: ' + acc.swift);
+    if (acc.telex) lines.push('Telex No.: ' + acc.telex);
+    return lines.join('\n');
+}
+
+// 提取日期部分（兼容 ISO 时间字符串）
+function extractOrderDocDate(dateString) {
+    if (!dateString) return '';
+    const dateStr = String(dateString);
+    if (dateStr.includes('T')) return dateStr.split('T')[0];
+    if (dateStr.length > 10) return dateStr.substring(0, 10);
+    return dateStr;
+}
+
+// 当前弹窗类型（invoice/contract）与选中订单缓存
+let orderDocState = { type: 'invoice', orders: [] };
+
+// 打开制作发票/合同模态框
+function openOrderDocModal(type) {
+    // 获取所有选中的订单ID（支持跨页选中）
+    const selectedOrderIds = getSelectedOrderIds();
+    if (selectedOrderIds.length === 0) {
+        alert('请先选择要' + (type === 'invoice' ? '制作发票' : '制作合同') + '的订单');
+        return;
+    }
+
+    const allOrders = storage.getOrderRecords();
+    const selectedOrders = allOrders.filter(order => selectedOrderIds.includes(order.id));
+
+    // 校验：必须是相同客户
+    const firstCustomer = selectedOrders[0].customer || '';
+    if (!selectedOrders.every(o => (o.customer || '') === firstCustomer)) {
+        alert('只能选择相同客户的订单' + (type === 'invoice' ? '制作发票' : '制作合同') + '，请返回重新选择');
+        return;
+    }
+
+    // 校验：货币必须一致（发票/合同按单一币种合计）
+    const firstCurrency = selectedOrders[0].currency || '';
+    if (!selectedOrders.every(o => (o.currency || '') === firstCurrency)) {
+        alert('所选订单货币不一致，无法合并' + (type === 'invoice' ? '制作发票' : '制作合同') + '，请返回重新选择');
+        return;
+    }
+
+    orderDocState = { type, orders: selectedOrders };
+
+    const isInvoice = type === 'invoice';
+    const docName = isInvoice ? '发票' : '合同';
+    document.getElementById('orderDocModalTitle').textContent = '制作' + docName;
+    document.getElementById('orderDocType').value = type;
+    document.getElementById('orderDocNoLabel').textContent = docName + '编号';
+    document.getElementById('orderDocDateLabel').textContent = docName + '日期';
+    document.getElementById('orderDocSubmitBtn').textContent = '生成' + docName;
+    document.getElementById('orderDocSelectedCount').textContent = selectedOrders.length;
+    document.getElementById('orderDocCustomer').textContent = firstCustomer || '-';
+
+    // 单据编号/日期
+    const now = new Date();
+    const autoNo = (isInvoice ? 'INV-' : 'CON-') + now.getFullYear() +
+        (now.getMonth() + 1).toString().padStart(2, '0') +
+        Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    document.getElementById('orderDocNo').value = autoNo;
+    document.getElementById('orderDocDate').value = now.toISOString().split('T')[0];
+
+    // 合同有效期（默认30天后），发票隐藏该字段
+    const validGroup = document.getElementById('orderDocValidUntilGroup');
+    if (isInvoice) {
+        validGroup.style.display = 'none';
+    } else {
+        validGroup.style.display = '';
+        const validDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+        document.getElementById('orderDocValidUntil').value = validDate.toISOString().split('T')[0];
+    }
+
+    const firstOrder = selectedOrders[0];
+
+    // 客户信息：优先取客户通讯录中的联系人/电话/邮箱
+    document.getElementById('orderDocCustomerCompany').value = firstCustomer;
+    const customerRecord = storage.getCustomerRecords().find(c => c.customerName === firstCustomer) || {};
+    document.getElementById('orderDocCustomerContact').value = customerRecord.contactName || '';
+    document.getElementById('orderDocCustomerTel').value = customerRecord.phone || '';
+    document.getElementById('orderDocCustomerEmail').value = customerRecord.email || '';
+
+    // 交货信息：运输方式映射为双语交货方式
+    const transportMethod = firstOrder.transportMethod || '';
+    let deliveryMethod = '海运 | Sea Freight';
+    if (transportMethod.includes('快递')) deliveryMethod = '快递 | Express';
+    else if (transportMethod.includes('空运')) deliveryMethod = '空运 | Air Freight';
+    else if (transportMethod.includes('陆运') || transportMethod.includes('铁路')) deliveryMethod = '陆运 | Land Transport';
+    else if (transportMethod.includes('自提')) deliveryMethod = '自提 | Self Pickup';
+    document.getElementById('orderDocDeliveryMethod').value = deliveryMethod;
+    document.getElementById('orderDocDeliveryLocation').selectedIndex = 0;
+    document.getElementById('orderDocDeliveryDate').value = extractOrderDocDate(firstOrder.deliveryDate);
+    document.getElementById('orderDocRemarks').value = firstOrder.remark || '';
+
+    // 付款信息
+    document.getElementById('orderDocTerms').value = firstOrder.tradeTerms || '';
+    document.getElementById('orderDocPaymentMethod').value = firstOrder.paymentMethod || '';
+
+    // 付款比例：读取报价系统保存的列表，缺失时用默认值
+    let ratios = null;
+    try { ratios = JSON.parse(localStorage.getItem('quotationSystemPaymentRatios') || 'null'); } catch (e) { ratios = null; }
+    if (!Array.isArray(ratios) || ratios.length === 0) ratios = ORDER_DOC_DEFAULT_PAYMENT_RATIOS;
+    const ratioSelect = document.getElementById('orderDocPaymentRatio');
+    ratioSelect.innerHTML = '';
+    ratios.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r;
+        opt.textContent = r;
+        ratioSelect.appendChild(opt);
+    });
+
+    // 开票公司下拉
+    const companies = loadOrderDocCompanies();
+    const companySelect = document.getElementById('orderDocCompany');
+    companySelect.innerHTML = '';
+    companies.forEach((c, i) => {
+        const opt = document.createElement('option');
+        opt.value = String(i);
+        opt.textContent = c.nameCn;
+        companySelect.appendChild(opt);
+    });
+    companySelect.selectedIndex = 0;
+    onOrderDocCompanyChange();
+
+    openModal('orderDocModal');
+}
+
+// 切换开票公司：刷新税率默认值与银行账户选择
+function onOrderDocCompanyChange() {
+    const companies = loadOrderDocCompanies();
+    const idx = parseInt(document.getElementById('orderDocCompany').value, 10) || 0;
+    const c = companies[idx];
+    if (!c) return;
+
+    document.getElementById('orderDocTaxRate').value = c.taxRate;
+
+    const accSelect = document.getElementById('orderDocBankAccountSelect');
+    accSelect.innerHTML = '';
+    c.accounts.forEach((acc, i) => {
+        const opt = document.createElement('option');
+        opt.value = String(i);
+        opt.textContent = acc.label || ('账户' + (i + 1));
+        accSelect.appendChild(opt);
+    });
+    document.getElementById('orderDocBankAccountInfo').value = c.accounts.length ? renderOrderDocAccountText(c.accounts[0]) : '';
+}
+
+// 切换银行账户：刷新账户信息文本
+function onOrderDocAccountChange() {
+    const companies = loadOrderDocCompanies();
+    const companyIdx = parseInt(document.getElementById('orderDocCompany').value, 10) || 0;
+    const c = companies[companyIdx];
+    if (!c) return;
+    const accIdx = parseInt(document.getElementById('orderDocBankAccountSelect').value, 10) || 0;
+    document.getElementById('orderDocBankAccountInfo').value = renderOrderDocAccountText(c.accounts[accIdx]);
+}
+
+// 提交生成发票/合同
+function submitOrderDoc(event) {
+    event.preventDefault();
+
+    const type = document.getElementById('orderDocType').value;
+    const isInvoice = type === 'invoice';
+    const selectedOrders = orderDocState.orders || [];
+    if (selectedOrders.length === 0) {
+        alert('未找到选中订单，请重新选择');
+        closeModal('orderDocModal');
+        return;
+    }
+
+    // 开票公司全名（中文 | English）
+    const companies = loadOrderDocCompanies();
+    const companyIdx = parseInt(document.getElementById('orderDocCompany').value, 10) || 0;
+    const company = companies[companyIdx] || {};
+    const companyName = company.nameCn ? (company.nameCn + (company.nameEn ? ' | ' + company.nameEn : '')) : '';
+
+    // 所有订单号去重后逗号连接
+    const orderNumbers = [...new Set(selectedOrders.map(o => o.orderNo || '').filter(Boolean))];
+
+    // 产品明细：金额口径与订单一致（单价+包装单价）×数量
+    const products = selectedOrders.map((order, index) => ({
+        serialNo: index + 1,
+        productNo: order.orderNo || '',
+        productName: order.productName || '',
+        drawingNumber: order.drawingNo || '',
+        specification: order.spec || '',
+        unit: order.unit || '',
+        quantity: parseFloat(order.quantity) || 0,
+        unitPrice: (parseFloat(order.unitPrice) || 0) + (parseFloat(order.packPrice) || 0),
+        currency: order.currency || 'USD',
+        remark: order.remark || ''
+    }));
+
+    const docNo = document.getElementById('orderDocNo').value.trim();
+    const docDate = document.getElementById('orderDocDate').value;
+    // productsKey 含 'sb-' 子串：cloudbase-sync 的 SKIP_KEYS 会跳过此类键，
+    // 避免临时传递数据被标记/上传云端
+    const productsKey = (isInvoice ? 'inv_sb-' : 'contract_sb-') + Date.now();
+
+    let header;
+    if (isInvoice) {
+        header = {
+            invoiceNo: docNo,
+            invoiceDate: docDate,
+            orderNo: orderNumbers.join(','),
+            customerCompany: document.getElementById('orderDocCustomerCompany').value.trim(),
+            customerContact: document.getElementById('orderDocCustomerContact').value.trim(),
+            customerTel: document.getElementById('orderDocCustomerTel').value.trim(),
+            customerEmail: document.getElementById('orderDocCustomerEmail').value.trim(),
+            deliveryMethod: document.getElementById('orderDocDeliveryMethod').value,
+            deliveryLocation: document.getElementById('orderDocDeliveryLocation').value,
+            deliveryDate: document.getElementById('orderDocDeliveryDate').value,
+            remarks: document.getElementById('orderDocRemarks').value,
+            terms: document.getElementById('orderDocTerms').value.trim(),
+            paymentMethod: document.getElementById('orderDocPaymentMethod').value.trim(),
+            paymentRatio: document.getElementById('orderDocPaymentRatio').value,
+            bankAccountInfo: document.getElementById('orderDocBankAccountInfo').value,
+            taxRate: document.getElementById('orderDocTaxRate').value,
+            companyName: companyName
+        };
+        sessionStorage.setItem('invoice_products_' + productsKey, JSON.stringify(products));
+        sessionStorage.setItem('invoice_header_' + productsKey, JSON.stringify(header));
+        // 部分浏览器/环境 window.open 新标签页不克隆 sessionStorage，双写 localStorage 兜底
+        localStorage.setItem('invoice_products_' + productsKey, JSON.stringify(products));
+        localStorage.setItem('invoice_header_' + productsKey, JSON.stringify(header));
+    } else {
+        header = {
+            contractNo: docNo,
+            contractDate: docDate,
+            quotationNo: orderNumbers.join(','),
+            validUntil: document.getElementById('orderDocValidUntil').value,
+            customerCompany: document.getElementById('orderDocCustomerCompany').value.trim(),
+            customerContact: document.getElementById('orderDocCustomerContact').value.trim(),
+            customerTel: document.getElementById('orderDocCustomerTel').value.trim(),
+            customerEmail: document.getElementById('orderDocCustomerEmail').value.trim(),
+            deliveryMethod: document.getElementById('orderDocDeliveryMethod').value,
+            deliveryLocation: document.getElementById('orderDocDeliveryLocation').value,
+            deliveryDate: document.getElementById('orderDocDeliveryDate').value,
+            deliveryRemarks: document.getElementById('orderDocRemarks').value,
+            terms: document.getElementById('orderDocTerms').value.trim(),
+            paymentMethod: document.getElementById('orderDocPaymentMethod').value.trim(),
+            paymentRatio: document.getElementById('orderDocPaymentRatio').value,
+            bankAccountInfo: document.getElementById('orderDocBankAccountInfo').value,
+            taxRate: document.getElementById('orderDocTaxRate').value,
+            companyName: companyName
+        };
+        sessionStorage.setItem('contract_products_' + productsKey, JSON.stringify(products));
+        sessionStorage.setItem('contract_header_' + productsKey, JSON.stringify(header));
+        // 部分浏览器/环境 window.open 新标签页不克隆 sessionStorage，双写 localStorage 兜底
+        localStorage.setItem('contract_products_' + productsKey, JSON.stringify(products));
+        localStorage.setItem('contract_header_' + productsKey, JSON.stringify(header));
+    }
+
+    closeModal('orderDocModal');
+
+    const params = new URLSearchParams();
+    params.append('productsKey', productsKey);
+    window.open((isInvoice ? '发票.html?' : '销售合同.html?') + params.toString(), '_blank');
+}
+
 // 导入出口记录Excel
 function importExportExcel() {
     // 创建文件输入元素

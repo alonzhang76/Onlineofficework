@@ -2229,6 +2229,16 @@
                                     <span class="mr-2">📦</span>
                                     制作箱唛
                                 </button>
+                                <!-- 制作发票 -->
+                                <button class="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100" onclick="openOrderDocModal('invoice')">
+                                    <span class="mr-2">🧾</span>
+                                    制作发票
+                                </button>
+                                <!-- 制作合同 -->
+                                <button class="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100" onclick="openOrderDocModal('contract')">
+                                    <span class="mr-2">📄</span>
+                                    制作合同
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -4989,6 +4999,137 @@
                     <div class="flex justify-end gap-2 mt-6">
                         <button type="button" class="btn btn-secondary" onclick="closeModal('batchCustomerModal')">取消</button>
                         <button type="submit" class="btn btn-primary">确认修改</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 制作发票/合同模态框 -->
+    <div id="orderDocModal" class="modal-overlay hidden">
+        <div class="modal-content wider-modal-content">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold text-gray-800" id="orderDocModalTitle">制作发票</h3>
+                    <button class="text-gray-500 hover:text-gray-700" onclick="closeModal('orderDocModal')">
+                        <span class="text-2xl">✕</span>
+                    </button>
+                </div>
+                <form id="orderDocForm" onsubmit="submitOrderDoc(event)">
+                    <input type="hidden" id="orderDocType" value="invoice">
+                    <div class="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-800 mb-4">
+                        已选中订单数量：<strong id="orderDocSelectedCount">0</strong> 条（客户：<strong id="orderDocCustomer">-</strong>）
+                    </div>
+
+                    <!-- 开票公司与单据信息 -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                        <div class="form-group md:col-span-2">
+                            <label class="form-label">开票公司 <span class="text-red-500">*</span></label>
+                            <select id="orderDocCompany" class="form-input" onchange="onOrderDocCompanyChange()"></select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" id="orderDocNoLabel">发票编号</label>
+                            <input type="text" id="orderDocNo" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" id="orderDocDateLabel">发票日期</label>
+                            <input type="date" id="orderDocDate" class="form-input">
+                        </div>
+                        <div class="form-group" id="orderDocValidUntilGroup" style="display:none;">
+                            <label class="form-label">有效期至</label>
+                            <input type="date" id="orderDocValidUntil" class="form-input">
+                        </div>
+                    </div>
+
+                    <!-- 客户信息 -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                        <div class="form-group">
+                            <label class="form-label">客户公司</label>
+                            <input type="text" id="orderDocCustomerCompany" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">联系人</label>
+                            <input type="text" id="orderDocCustomerContact" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">电话</label>
+                            <input type="text" id="orderDocCustomerTel" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">邮箱</label>
+                            <input type="text" id="orderDocCustomerEmail" class="form-input">
+                        </div>
+                    </div>
+
+                    <!-- 交货信息 -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                        <div class="form-group">
+                            <label class="form-label">交货方式</label>
+                            <select id="orderDocDeliveryMethod" class="form-input">
+                                <option>快递 | Express</option>
+                                <option>空运 | Air Freight</option>
+                                <option selected>海运 | Sea Freight</option>
+                                <option>陆运 | Land Transport</option>
+                                <option>自提 | Self Pickup</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">交货港口/地点</label>
+                            <select id="orderDocDeliveryLocation" class="form-input">
+                                <option>上海 | Shanghai</option>
+                                <option>买家仓库 | Buyer's Warehouse</option>
+                                <option>卖家工厂 | Seller's Factory</option>
+                                <option>目的港 | Destination Port</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">交货日期</label>
+                            <input type="date" id="orderDocDeliveryDate" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">备注</label>
+                            <input type="text" id="orderDocRemarks" class="form-input" placeholder="备注信息">
+                        </div>
+                    </div>
+
+                    <!-- 付款信息 -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                        <div class="form-group">
+                            <label class="form-label">成交条款</label>
+                            <input type="text" id="orderDocTerms" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">付款方式</label>
+                            <input type="text" id="orderDocPaymentMethod" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">付款比例</label>
+                            <select id="orderDocPaymentRatio" class="form-input"></select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">税率</label>
+                            <select id="orderDocTaxRate" class="form-input">
+                                <option>13% (增值税)</option>
+                                <option>0% (免税)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- 银行账户 -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-2">
+                        <div class="form-group">
+                            <label class="form-label">银行账户</label>
+                            <select id="orderDocBankAccountSelect" class="form-input" onchange="onOrderDocAccountChange()"></select>
+                        </div>
+                        <div class="form-group md:col-span-3">
+                            <label class="form-label">银行账户信息</label>
+                            <textarea id="orderDocBankAccountInfo" class="form-input" rows="3"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end gap-2 mt-6">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('orderDocModal')">取消</button>
+                        <button type="submit" class="btn btn-primary" id="orderDocSubmitBtn">生成发票</button>
                     </div>
                 </form>
             </div>

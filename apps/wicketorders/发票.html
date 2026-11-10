@@ -739,7 +739,11 @@
             let header = null;
             if (productsKey) {
                 try {
-                    const headerJson = sessionStorage.getItem('invoice_header_' + productsKey);
+                    let headerJson = sessionStorage.getItem('invoice_header_' + productsKey);
+                    // 新标签页未克隆 sessionStorage 时，回退到 localStorage（订单管理"制作发票"双写）
+                    if (!headerJson) {
+                        headerJson = localStorage.getItem('invoice_header_' + productsKey);
+                    }
                     if (headerJson) {
                         header = JSON.parse(headerJson);
                     }
@@ -783,11 +787,17 @@
             // 获取产品明细（优先从sessionStorage读取）
             try {
                 if (productsKey) {
-                    const productsJson = sessionStorage.getItem('invoice_products_' + productsKey);
+                    let productsJson = sessionStorage.getItem('invoice_products_' + productsKey);
+                    // 新标签页未克隆 sessionStorage 时，回退到 localStorage
+                    if (!productsJson) {
+                        productsJson = localStorage.getItem('invoice_products_' + productsKey);
+                    }
                     if (productsJson) {
                         data.products = JSON.parse(productsJson);
                         sessionStorage.removeItem('invoice_products_' + productsKey);
                         sessionStorage.removeItem('invoice_header_' + productsKey);
+                        localStorage.removeItem('invoice_products_' + productsKey);
+                        localStorage.removeItem('invoice_header_' + productsKey);
                     } else {
                         data.products = [];
                     }

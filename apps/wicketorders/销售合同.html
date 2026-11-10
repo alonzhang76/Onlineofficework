@@ -690,7 +690,11 @@
             let header = null;
             if (productsKey) {
                 try {
-                    const headerJson = sessionStorage.getItem('contract_header_' + productsKey);
+                    let headerJson = sessionStorage.getItem('contract_header_' + productsKey);
+                    // 新标签页未克隆 sessionStorage 时，回退到 localStorage（订单管理"制作合同"双写）
+                    if (!headerJson) {
+                        headerJson = localStorage.getItem('contract_header_' + productsKey);
+                    }
                     if (headerJson) {
                         header = JSON.parse(headerJson);
                     }
@@ -750,11 +754,17 @@
             // 获取产品明细（优先从sessionStorage读取）
             try {
                 if (productsKey) {
-                    const productsJson = sessionStorage.getItem('contract_products_' + productsKey);
+                    let productsJson = sessionStorage.getItem('contract_products_' + productsKey);
+                    // 新标签页未克隆 sessionStorage 时，回退到 localStorage
+                    if (!productsJson) {
+                        productsJson = localStorage.getItem('contract_products_' + productsKey);
+                    }
                     if (productsJson) {
                         data.products = JSON.parse(productsJson);
                         sessionStorage.removeItem('contract_products_' + productsKey);
                         sessionStorage.removeItem('contract_header_' + productsKey);
+                        localStorage.removeItem('contract_products_' + productsKey);
+                        localStorage.removeItem('contract_header_' + productsKey);
                     } else {
                         data.products = [];
                     }
