@@ -146,6 +146,7 @@ function renderLedger(box) {
   const isSup = Session.isSupplier(), me = Session.mySupplier();
   box.innerHTML =
     '<div id="rcStats" class="stat-grid"></div>' +
+    '<div id="rcUnlinked" style="margin-bottom:12px"></div>' +
     '<div class="card"><div class="row-flex" style="margin-bottom:12px">' +
     '<div style="flex:1;max-width:300px"><label>搜索</label><input id="rcSearch" placeholder="合同号 / 供应商"></div>' +
     '<div><label>执行状态</label><select id="rcStatus"><option value="">全部</option><option value="done">已执行完</option><option value="running">执行中</option><option value="idle">未执行</option></select></div>' +
@@ -160,6 +161,51 @@ function renderLedger(box) {
       : st === 'done' ? '<span class="badge b-green">已执行完</span>'
       : '<span class="badge b-amber">执行中</span>';
   let expanded = {};   // cno -> bool
+
+  /* 未关联合同的发票提示：票流/款流按合同归集，未挂合同的票（含其已付款）
+     无法落到具体合同，若静默忽略，用户会看到「票已开、款已付」但对账仍显示未开票/未付款 */
+  const drawUnlinked = () => {
+    const box = $('#rcUnlinked'); if (!box) return;
+    const linkMap = new Map();   // 发票号 -> 本地台账是否已挂合同
+    Data.all('invoices').forEach(v => {
+      linkMap.set(String(v.invoiceNumber || ''), splitMulti(v.contractNumber).length > 0);
+    });
+    const rows = new Map();
+    const push = (no, supplier, amt, date) => {
+      const key = no || ('x' + Math.random());
+      if (rows.has(key)) return;
+      rows.set(key, { no: no, supplier: supplier || '（未知供应商）', amt: amt, date: date || '' });
+    };
+    Data.list('invoices').forEach(v => {
+      if (splitMulti(v.contractNumber).length) return;
+      push(String(v.invoiceNumber || ''), v.supplier, +v.amount || 0, v.invoiceDate);
+    });
+    const me = Session.isSupplier() ? Session.mySupplier() : '';
+    ReimPay.invoices().forEach(r => {
+      if (splitMulti(r.project).length) return;                 // 报销侧已填合同号
+      if (me && r.seller_name !== me) return;
+      const no = String(r.invoice_no || '');
+      if (no && linkMap.get(no) === true) return;               // 本地台账已挂合同
+      push(no, r.seller_name, +r.total_amount || 0, r.invoice_date);
+    });
+    const list = Array.from(rows.values()).filter(x => x.amt > 0.005);
+    if (!list.length) { box.innerHTML = ''; return; }
+    const g = {};
+    list.forEach(x => { const o = g[x.supplier] || (g[x.supplier] = { n: 0, amt: 0 }); o.n++; o.amt += x.amt; });
+    const names = Object.keys(g).sort((a, b) => g[b].amt - g[a].amt);
+    const total = list.reduce((s, x) => s + x.amt, 0);
+    box.innerHTML =
+      '<div class="card" style="border-left:4px solid #f59e0b">' +
+      '<div class="row-flex" style="align-items:flex-start;gap:14px">' +
+      '<div style="flex:1">' +
+      '<div><b>⚠️ ' + list.length + ' 张发票未关联合同，合计 ' + fmtMoney(total) + ' 未计入对账</b></div>' +
+      '<div class="hint">票流 / 款流按合同归集：未挂合同的发票（及其已付款）无法落到具体合同，因此不计入上方「已开票 / 已付款 / 待开票 / 待付款」，相关合同可能仍显示未开票、未付款。</div>' +
+      '<div style="font-size:12.5px;margin-top:4px">' + names.slice(0, 6).map(n => esc(n) + ' ' + fmtMoney(g[n].amt) + '（' + g[n].n + ' 张）').join('　·　') + (names.length > 6 ? ' 等 ' + names.length + ' 家' : '') + '</div>' +
+      '<div class="hint">处理：到「发票管理 → 发票台账」编辑这些发票并勾选所属合同；或在报销系统付款登记时多选合同。</div>' +
+      '</div>' +
+      '<a class="btn btn-outline" href="invoice.html" style="align-self:center">去关联 →</a>' +
+      '</div></div>';
+  };
 
   const draw = () => {
     const kw = ($('#rcSearch').value || '').trim().toLowerCase();
@@ -182,6 +228,7 @@ function renderLedger(box) {
       statCard('已执行完', doneAll.length + ' 份', 'var(--green)', '金额 ' + fmtMoney(doneAll.reduce((s, r) => s + r.contractTotal, 0))) +
       statCard('待开票（货到票未到）', fmtMoney(base.reduce((s, r) => s + r.waitInv, 0)), 'var(--red)', '仅统计执行中/已执行完合同') +
       statCard('待付款（票到款未付）', fmtMoney(base.reduce((s, r) => s + r.waitPay, 0)), 'var(--red)', '仅统计执行中/已执行完合同');
+    drawUnlinked();
     /* 分组渲染：已执行完 → 执行中 → 未执行（置底，独立提示） */
     const order = [['done', '已执行完（货清 · 票清 · 款清）'], ['running', '执行中（已发生收货 / 开票 / 付款）'], ['idle', '未执行（已签订合同，尚未送货、未开票、未付款——不参与应收应付对账）']];
     const html = order.map(([st, label]) => {

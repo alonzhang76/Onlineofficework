@@ -245,6 +245,25 @@ async function getSupplierNames() {
   }
 }
 
+/* ---------- 采购合同列表（跨应用读取采购系统 pis_orders 主数据） ----------
+ * 付款登记「关联合同」下拉的数据源：以前只读本机 localStorage.pis_orders，
+ * 换浏览器 / 换设备时为空，导致发票 project 存空、采购侧对账归集不到合同。
+ * 这里与 supplier 主数据一样直连云端行，读不到时由调用方回退 localStorage。 */
+async function getContractList() {
+  var data = await storeGet('purchase-integrated__pis_orders');
+  var list = Array.isArray(data) ? data : [];
+  return list
+    .filter(function (o) { return o && o.contractNumber; })
+    .map(function (o) {
+      return {
+        contractNumber: String(o.contractNumber),
+        supplier: o.supplier || '',
+        totalAmount: parseFloat(o.totalAmount) || 0,
+        orderDate: o.orderDate || ''
+      };
+    });
+}
+
 /* ---------- 公司抬头匹配（进项/销项方向） ---------- */
 function _normName(s) {
   // NFKC 归一：全角括号（）→半角()、全角英数→半角，再去空白
@@ -345,6 +364,7 @@ window.ReimStore = {
   getPayments: getPayments,
   savePayments: savePayments,
   getSupplierNames: getSupplierNames,
+  getContractList: getContractList,
   PAYMENT_STAGES: PAYMENT_STAGES,
   matchCompany: matchCompany,
   recomputeAllDirections: recomputeAllDirections,

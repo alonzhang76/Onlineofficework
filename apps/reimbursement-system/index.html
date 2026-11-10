@@ -15,7 +15,7 @@
 <script>window.CLOUDBASE_SYNC={email:'sync@lori.app',password:'LoriSync2026!'};</script>
 <script type="module" src="../cloudbase/cloudbase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/scrypt-js@3.0.1/scrypt.min.js"></script>
-<script src="static/store.js?v=20261006c"></script>
+<script src="static/store.js?v=20261110a"></script>
 <script src="static/pdf-parse.js?v=20260929a"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -592,10 +592,8 @@ html.reim-non-admin #cbBtnClear{display:none!important}
       <div><label>备注</label><input id="pay_note" placeholder="如：承兑到期日、票据号等"></div>
     </div>
     <div style="margin-top:12px">
-      <label>关联合同（选择后同步到发票所属项目，便于采购侧对账）</label>
-      <select id="pay_contract" style="width:100%">
-        <option value="">--未选择--</option>
-      </select>
+      <label>关联合同（可多选，按住 Ctrl / ⌘ 选择；同步到发票所属项目，便于采购侧对账）</label>
+      <select id="pay_contract" multiple size="6" style="width:100%"></select>
       <div id="pay_contract_hint" style="font-size:12px;color:var(--muted);margin-top:4px"></div>
     </div>
     <div class="hint">差额 = 价税合计 − 累计已付金额，保存后实时更新台账中的付款状态；每次登记都会写入流转记录。</div>
@@ -2537,6 +2535,44 @@ function payCell(r){
   return `<span class="badge ${cls}">${r.payment_status}</span>${r.payee==='报销人'?' <span class="badge b-dai" style="font-size:10px">付报销人</span>':''}
     <div style="font-size:11px;color:var(--muted)">${r.payment_method?esc(r.payment_method)+' · ':''}已付 ${fmt(r.paid_amount||0)} / 差 ${fmt(r.balance)}</div>`;
 }
+/* 采购合同下拉数据：云端优先（换设备/换浏览器也能读到），失败回退本机缓存 */
+let _orderCache=null,_orderCacheAt=0;
+async function loadOrderOptions(force){
+  if(_orderCache&&!force&&Date.now()-_orderCacheAt<5*60*1000)return _orderCache;
+  let list=[];
+  try{list=await ReimStore.getContractList();}catch(e){list=[];}
+  if(!list.length){
+    try{const raw=JSON.parse(localStorage.getItem('pis_orders')||'[]');if(Array.isArray(raw))list=raw;}catch(e){}
+  }
+  list=(Array.isArray(list)?list:[]).filter(o=>o&&o.contractNumber);
+  _orderCache=list;_orderCacheAt=Date.now();
+  return list;
+}
+/* 关联合同可多选：回显发票 project 中已挂的全部合同，同供应商合同优先 */
+async function fillPayContracts(r){
+  const sel=$('#pay_contract'),hint=$('#pay_contract_hint');
+  if(!sel)return;
+  sel.innerHTML='<option value="" disabled>正在读取合同列表…</option>';
+  const orders=await loadOrderOptions();
+  const curCnos=String(r.project||'').split(/[，,、;；\s]+/).map(x=>x.trim()).filter(Boolean);
+  if(!orders.length){
+    sel.innerHTML='<option value="" disabled>未读取到采购合同</option>';
+    if(hint)hint.textContent='未取到合同列表（本张发票仍可正常登记付款）；可稍后在采购系统「发票台账」里关联合同。';
+    return;
+  }
+  const seller=(r.seller_name||'').trim();
+  const sameSup=orders.filter(o=>o.supplier===seller);
+  const other=orders.filter(o=>o.supplier!==seller);
+  sel.innerHTML=[...sameSup,...other].map(o=>{
+    const cno=o.contractNumber;
+    return `<option value="${esc(cno)}"${curCnos.includes(cno)?' selected':''}>${esc(cno+' · '+(o.supplier||'')+'（¥'+fmt(o.totalAmount||0)+'）')}</option>`;
+  }).join('');
+  if(hint){
+    if(curCnos.length)hint.textContent='当前发票已关联 '+curCnos.length+' 个合同：'+curCnos.join('、');
+    else if(sameSup.length)hint.textContent='已按销售方「'+seller+'」优先列出 '+sameSup.length+' 份合同，可按住 Ctrl / ⌘ 多选';
+    else hint.textContent='共 '+sel.options.length+' 份合同可选，可按住 Ctrl / ⌘ 多选';
+  }
+}
 function openPay(id,src){
   const r=(src||LEDGER.rows||[]).find(x=>x.id===id);
   if(!r)return toast('请刷新后重试','err');
@@ -2550,37 +2586,8 @@ function openPay(id,src){
   $('#pay_method').value=r.payment_method||'';
   $('#pay_note').value=r.payment_note||'';
   $('#pay_amount').value=r.paid_amount||'';
-  // 填充关联合同下拉菜单：从采购系统 pis_orders 读取，按供应商优先匹配
-  const payContractSel=$('#pay_contract');
-  if(payContractSel){
-    let orders=[];
-    try{orders=JSON.parse(localStorage.getItem('pis_orders')||'[]');}catch(e){orders=[];}
-    if(!Array.isArray(orders))orders=[];
-    // 优先显示同供应商的合同，其次显示全部合同
-    const seller=(r.seller_name||'').trim();
-    const sameSup=orders.filter(o=>o.supplier===seller);
-    const other=orders.filter(o=>o.supplier!==seller);
-    const sorted=[...sameSup,...other];
-    const curProject=(r.project||'').trim();
-    let opts=['<option value="">--未选择--</option>'];
-    sorted.forEach(o=>{
-      const cno=o.contractNumber||'';
-      if(!cno)return;
-      const amt=o.totalAmount||0;
-      const sup=o.supplier||'';
-      const label=`${cno} · ${sup}（¥${fmt(amt)}）`;
-      const sel=curProject&&String(curProject||'').split(/[，,、;；\s]+/).map(x=>x.trim()).filter(Boolean).includes(cno)?' selected':'';
-      opts.push(`<option value="${esc(cno)}"${sel}>${esc(label)}</option>`);
-    });
-    payContractSel.innerHTML=opts.join('');
-    const hint=$('#pay_contract_hint');
-    if(hint){
-      if(curProject)hint.textContent='当前发票已关联：'+curProject;
-      else if(sameSup.length)hint.textContent='已按销售方「'+seller+'」筛选出 '+sameSup.length+' 份合同';
-      else hint.textContent='共 '+sorted.length+' 份合同可选';
-    }
-  }
   $('#payMask').classList.add('show');
+  fillPayContracts(r).catch(()=>{});
 }
 async function savePay(){
   if(!CAN.pay)return toast('无收付款操作权限','err');
@@ -2594,11 +2601,11 @@ async function savePay(){
   inv.paid_amount=+amount;
   inv.payment_method=$('#pay_method').value;
   inv.payment_note=$('#pay_note').value.trim();
-  // 保存关联合同号到发票 project 字段（同步到采购侧对账）
+  // 保存关联合同号到发票 project 字段（多选以「，」分隔，采购侧按合同分摊）
   const payContractSel=$('#pay_contract');
   if(payContractSel){
-    const cno=payContractSel.value.trim();
-    if(cno)inv.project=cno;
+    const cnos=Array.from(payContractSel.selectedOptions||[]).map(o=>o.value).filter(Boolean);
+    if(cnos.length)inv.project=cnos.join('，');
   }
   await ReimStore.saveInvoices(invoices);
   const balance=Math.max(0,(inv.total_amount||0)-(inv.paid_amount||0));
