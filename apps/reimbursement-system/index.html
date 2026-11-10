@@ -1749,11 +1749,11 @@ function renderPayStats(){
 }
 /* ---------- 按单位付款 ---------- */
 let SUP={mode:'seller',name:'',rows:[],sel:{}};
-function supSelRows(){return SUP.rows.filter(r=>SUP.sel[r.id]);}
+function supSelRows(){return SUP.rows.filter(r=>SUP.sel[r.id]&&r.balance>0.004);}
 function supToggleSel(id,checked){SUP.sel[id]=!!checked;supRefreshSel();}
 function supToggleAll(checked){
-  SUP.rows.forEach(r=>{SUP.sel[r.id]=!!checked;});
-  $$('#sup_list input[type=checkbox]').forEach(cb=>{cb.checked=!!checked;});
+  SUP.rows.forEach(r=>{SUP.sel[r.id]=!!checked&&r.balance>0.004;});
+  $$('#sup_list input[type=checkbox]').forEach(cb=>{cb.checked=cb.disabled?false:!!checked;});
   supRefreshSel();
 }
 function supRefreshSel(){
@@ -1761,7 +1761,8 @@ function supRefreshSel(){
   const sum=rows.reduce((s,r)=>s+(r.balance||0),0);
   $('#sup_selinfo').textContent=rows.length;
   $('#sup_selamt').textContent=sum.toFixed(2);
-  $('#sup_all').checked=SUP.rows.length>0&&rows.length===SUP.rows.length;
+  const openCount=SUP.rows.filter(r=>r.balance>0.004).length;
+  $('#sup_all').checked=openCount>0&&rows.length===openCount;
   const mixed=ieMixedRows(rows);
   $('#sup_mixhint').textContent=mixed?`⚠ 勾选的发票涉及多个我方抬头，整笔${verb}无法正确入账收支表，请逐张点「单独」登记${verb}`:'';
   const dis=mixed||!rows.length;
@@ -1794,19 +1795,49 @@ async function openSupPay(mode,name){
     .map(r=>{const bal=(r.total_amount||0)-(r.paid_amount||0);return{...r,balance:Math.max(0,bal)};})
     .filter(r=>r.balance>0.004)
     .sort((a,b)=>(a.invoice_date||'').localeCompare(b.invoice_date||''));
-  // 默认全部勾选，可按需取消（只对勾选的发票按序抵扣）
-  SUP.rows.forEach(r=>{SUP.sel[r.id]=true;});
+  // 未开票预付款（无票付款且未关联发票号）先按开票顺序冲减该单位欠款。
+  // 「付款与统计」已把这部分计入已付款；这里同步扣除，避免按单位付款时重复计算。
+  let prepayLeft=0;
+  if(mode==='seller'){
+    let pays=[];
+    try{pays=await ReimStore.getPayments();}catch(e){pays=[];}
+    // 只抵扣同一我方抬头下的预付款（抬头为空的历史记录按通用处理）
+    const compIds=new Set(SUP.rows.map(r=>r.company_id).filter(x=>x!=null));
+    prepayLeft=pays.filter(p=>p.direction==='进项'&&p.payee!=='报销人'&&!p.invoice_no&&(p.seller_name||'')===name&&
+      (!compIds.size||p.company_id==null||compIds.has(p.company_id)))
+      .reduce((s,p)=>s+(+p.amount||0),0);
+    prepayLeft=Math.round(prepayLeft*100)/100;
+  }
+  SUP.prepayUsed=0;
+  SUP.rows.forEach(r=>{
+    r.prepayUsed=0;
+    if(prepayLeft>0.004&&r.balance>0.004){
+      const use=Math.min(r.balance,prepayLeft);
+      r.prepayUsed=Math.round(use*100)/100;
+      r.balance=Math.round((r.balance-use)*100)/100;
+      prepayLeft=Math.round((prepayLeft-use)*100)/100;
+      SUP.prepayUsed=Math.round((SUP.prepayUsed+r.prepayUsed)*100)/100;
+    }
+  });
+  SUP.prepayLeft=prepayLeft;
+  // 默认勾选仍有未付余额的发票（已被预付款抵清的不可勾选）
+  SUP.rows.forEach(r=>{SUP.sel[r.id]=r.balance>0.004;});
   const cos=[...new Set(SUP.rows.map(r=>r.company_short).filter(Boolean))];
   $('#sup_co').textContent=cos.join(' / ');$('#sup_co').style.display=cos.length?'':'none';
-  const sum=SUP.rows.reduce((s,r)=>s+r.balance,0);
-  $('#sup_info').innerHTML=`未${verb==='收款'?'收清':'付清'} <b>${SUP.rows.length}</b> 张，合计未${verb==='收款'?'收':'付'} <b style="color:var(--red)">¥${sum.toFixed(2)}</b>`;
+  const openRows=SUP.rows.filter(r=>r.balance>0.004);
+  const sum=openRows.reduce((s,r)=>s+r.balance,0);
+  let info=`未${verb==='收款'?'收清':'付清'} <b>${openRows.length}</b> 张，合计未${verb==='收款'?'收':'付'} <b style="color:var(--red)">¥${sum.toFixed(2)}</b>`;
+  if(SUP.prepayUsed>0.004)info+=`<br>其中未开票预付款已冲减 <b style="color:var(--green)">¥${SUP.prepayUsed.toFixed(2)}</b>`;
+  if(SUP.prepayLeft>0.004)info+=`；预付款尚余 <b>¥${SUP.prepayLeft.toFixed(2)}</b> 待后续发票`;
+  $('#sup_info').innerHTML=info;
   $('#sup_list').innerHTML=SUP.rows.length?SUP.rows.map(r=>`
     <div style="display:flex;gap:10px;align-items:center;padding:4px 0;border-bottom:1px dashed #f1f5f9">
-      <input type="checkbox" ${SUP.sel[r.id]?'checked':''} onchange="supToggleSel(${r.id},this.checked)" style="width:auto;margin:0;flex:none">
+      <input type="checkbox" ${SUP.sel[r.id]?'checked':''} ${r.balance<=0.004?'disabled':''} onchange="supToggleSel(${r.id},this.checked)" style="width:auto;margin:0;flex:none">
       <span style="flex:1">${r.invoice_date||'-'} · <span class="mono">${esc(cut(r.invoice_no,18))}</span></span>
       <span>合计 ¥${fmt(r.total_amount)}</span>
-      <span style="color:var(--red)">差 ¥${fmt(r.balance)}</span>
-      <button type="button" class="btn btn-sm btn-outline" onclick='openPay(${r.id},SUP.rows)'>单独</button>
+      <span style="color:${r.balance>0.004?'var(--red)':'var(--green)'}">差 ¥${fmt(r.balance)}</span>
+      ${r.prepayUsed>0.004?`<span style="color:var(--green)">预付款抵 ¥${fmt(r.prepayUsed)}</span>`:''}
+      <button type="button" class="btn btn-sm btn-outline" onclick='openPay(${r.id},SUP.rows)' ${r.balance<=0.004?'disabled style="opacity:.45;cursor:not-allowed"':''}>单独</button>
     </div>`).join(''):'<div style="color:var(--muted);padding:6px 0">该单位暂无未结清发票</div>';
   supRefreshSel();
 }
@@ -1845,7 +1876,8 @@ async function supSave(){
   for(const row of rows){
     if(remain<=0.004)break;
     const inv=invoices.find(x=>x.id===row.id);if(!inv)continue;
-    const bal=(inv.total_amount||0)-(inv.paid_amount||0);
+    // 用已扣除未开票预付款后的有效余额抵扣，避免把预付款重复付一遍
+    const bal=row.balance;
     if(bal<=0.004)continue;
     const pay=Math.min(bal,remain);
     inv.paid_amount=+(inv.paid_amount||0)+pay;
