@@ -803,10 +803,10 @@
                                             <th scope="col" class="table-header">电镀厂</th>
                                             <th scope="col" class="table-header">毛坯数量</th>
                                             <th scope="col" class="table-header">良品数量</th>
-                                            <th scope="col" class="table-header">差额</th>
+                                            <th scope="col" class="table-header">差额<span class="block text-xs font-normal text-gray-400">报废+滞留数</span></th>
                                             <th scope="col" class="table-header">电镀成品数</th>
                                             <th scope="col" class="table-header">返镀数量</th>
-                                            <th scope="col" class="table-header">返修数量</th>
+                                            <th scope="col" class="table-header">毛坯返修</th>
                                             <th scope="col" class="table-header">报废数量</th>
                                             <th scope="col" class="table-header">备注</th>
                                             <th scope="col" class="table-header">操作</th>
@@ -854,10 +854,10 @@
                                             <th scope="col" class="table-header">毛坯总发</th>
                                             <th scope="col" class="table-header">电镀成品数</th>
                                             <th scope="col" class="table-header">返镀数量</th>
-                                            <th scope="col" class="table-header">返修数量</th>
+                                            <th scope="col" class="table-header">毛坯返修</th>
                                             <th scope="col" class="table-header">报废数量</th>
                                             <th scope="col" class="table-header">良品数量</th>
-                                            <th scope="col" class="table-header">差额</th>
+                                            <th scope="col" class="table-header">差额<span class="block text-xs font-normal text-gray-400">报废+滞留数</span></th>
                                             <th scope="col" class="table-header">结算单价</th>
                                             <th scope="col" class="table-header">报废单价</th>
                                             <th scope="col" class="table-header">额外扣减</th>
@@ -4090,7 +4090,7 @@
                     ['毛坯总发', formatStatementNumber(stats.roughTotal, 0)],
                     ['电镀成品数', formatStatementNumber(stats.electroplateTotal, 0)],
                     ['返镀数量', formatStatementNumber(stats.replateTotal, 0)],
-                    ['返修数量', formatStatementNumber(stats.repairTotal, 0)],
+                    ['毛坯返修', formatStatementNumber(stats.repairTotal, 0)],
                     ['报废数量', formatStatementNumber(stats.scrapTotal, 0)],
                     ['良品数量', formatStatementNumber(stats.goodTotal, 0)],
                     ['差额', formatStatementNumber(stats.difference, 0)],
@@ -4138,7 +4138,7 @@
                     '<table class="flow-table">' +
                     '<thead><tr>' +
                     '<th>类型</th><th>收发日期</th><th>产品名称</th><th>图纸号</th><th>蝴蝶结</th>' +
-                    '<th>毛坯数量</th><th>电镀成品数</th><th>返镀数量</th><th>返修数量</th><th>报废数量</th><th>备注</th>' +
+                    '<th>毛坯数量</th><th>电镀成品数</th><th>返镀数量</th><th>毛坯返修</th><th>报废数量</th><th>备注</th>' +
                     '</tr></thead>' +
                     '<tbody>' + flowHtml + '</tbody>' +
                     '</table>' +
@@ -7723,7 +7723,7 @@
                         <input type="number" id="delivery-replate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary no-spin-button" min="0" step="1">
                     </div>
                     <div id="delivery-repair-group">
-                        <label for="delivery-repair" class="block text-sm font-medium text-gray-700 mb-1">返修数量</label>
+                        <label for="delivery-repair" class="block text-sm font-medium text-gray-700 mb-1">毛坯返修</label>
                         <input type="number" id="delivery-repair" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary no-spin-button" min="0" step="1">
                     </div>
                     <div id="delivery-scrap-group">
@@ -7731,7 +7731,7 @@
                         <input type="number" id="delivery-scrap" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary no-spin-button" min="0" step="1">
                     </div>
                 </div>
-                <p class="text-sm text-gray-500">发货登记：毛坯数量，以及电镀不合格退回重镀的返镀数量；收货登记：电镀成品数，以及电镀厂未电镀直接退回的返修数量、报废数量。</p>
+                <p class="text-sm text-gray-500">发货登记：毛坯数量，以及电镀不合格退回重镀的返镀数量；收货登记：电镀成品数，以及电镀厂未电镀直接退回的毛坯返修、报废数量。</p>
                 <div>
                     <label for="delivery-remark" class="block text-sm font-medium text-gray-700 mb-1">备注</label>
                     <textarea id="delivery-remark" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"></textarea>
@@ -9002,7 +9002,7 @@
             const headers = [
                 '类型', '收发日期', '客户', '订单号', '订单数量', '产品名称',
                 '图纸号', '蝴蝶结', '电镀厂',
-                '毛坯数量', '良品数量', '差额', '电镀成品数', '返镀数量', '返修数量', '报废数量', '备注'
+                '毛坯数量', '良品数量', '差额', '电镀成品数', '返镀数量', '毛坯返修', '报废数量', '备注'
             ];
             
             const selectedRows = document.querySelectorAll('#deliveriesTableBody .table-row input[type="checkbox"]:checked');
