@@ -3668,17 +3668,10 @@
             if (amountCell) amountCell.textContent = formatNumber(amount, 2);
         }
 
-        // 订单汇总：根据收发货渲染汇总表（支持搜索 + 分页）
-        function renderOrderSummary() {
-            const tableBody = document.getElementById('orderSummaryTableBody');
-            if (!tableBody) return;
-
+        // 订单汇总：按当前搜索条件取订单号列表
+        function getOrderSummaryOrderNums() {
             const osConfig = tableConfigs.orderSummary;
             const statsMap = getDeliveryOrderStats();
-            const settlementData = getOrderSettlementSettings();
-            const invoicePaymentStats = getInvoicePaymentOrderStats();
-
-            // 1. 搜索过滤
             const keyword = (osConfig.keyword || '').trim().toLowerCase();
             let orderNums = Array.from(statsMap.keys()).sort();
             if (keyword) {
@@ -3694,6 +3687,112 @@
                     return hay.includes(keyword);
                 });
             }
+            return orderNums;
+        }
+
+        // 订单汇总：渲染合计行（统计当前搜索结果的全部订单，不受分页影响）
+        function renderOrderSummaryTotalRow(orderNums) {
+            const tableBody = document.getElementById('orderSummaryTableBody');
+            const table = document.getElementById('orderSummaryTable');
+            if (!tableBody || !table || !orderNums || !orderNums.length) return;
+
+            const statsMap = getDeliveryOrderStats();
+            const settlementData = getOrderSettlementSettings();
+            const invoicePaymentStats = getInvoicePaymentOrderStats();
+
+            const totals = {
+                orderQuantity: 0,
+                roughTotal: 0,
+                electroplateTotal: 0,
+                replateTotal: 0,
+                repairTotal: 0,
+                scrapTotal: 0,
+                goodTotal: 0,
+                difference: 0,
+                extraDeduction: 0,
+                amount: 0,
+                invoiced: 0,
+                paid: 0,
+                unpaid: 0
+            };
+
+            orderNums.forEach(orderNumber => {
+                const stats = statsMap.get(orderNumber);
+                if (!stats) return;
+                const settlement = settlementData[orderNumber] || {};
+                const extraDeduction = parseQuantity(settlement.extraDeduction);
+
+                totals.orderQuantity += stats.orderQuantity || 0;
+                totals.roughTotal += stats.roughTotal || 0;
+                totals.electroplateTotal += stats.electroplateTotal || 0;
+                totals.replateTotal += stats.replateTotal || 0;
+                totals.repairTotal += stats.repairTotal || 0;
+                totals.scrapTotal += stats.scrapTotal || 0;
+                totals.goodTotal += stats.goodTotal || 0;
+                totals.difference += stats.difference || 0;
+                totals.extraDeduction += extraDeduction;
+                totals.amount += calcOrderSettlementAmount(
+                    stats.goodTotal,
+                    stats.scrapTotal,
+                    parseQuantity(settlement.settlementPrice),
+                    parseQuantity(settlement.scrapPrice),
+                    extraDeduction
+                );
+
+                const paymentStats = invoicePaymentStats.get(orderNumber) || { invoiced: 0, paid: 0 };
+                totals.invoiced += paymentStats.invoiced;
+                totals.paid += paymentStats.paid;
+                totals.unpaid += paymentStats.invoiced - paymentStats.paid;
+            });
+
+            const totalRow = document.createElement('tr');
+            totalRow.className = 'order-summary-total-row total-row bg-gray-50 font-semibold';
+
+            // 列顺序：复选框, 订单号, 客户, 产品名称, 图纸号, 蝴蝶结, 订单数量, 毛坯总发, 电镀成品数, 返镀数量, 返修数量, 报废数量, 良品数量, 差额, 结算单价, 报废单价, 额外扣减, 结算金额, 开票金额, 已付金额, 未付金额, 开票付款状态
+            const totalCells = [
+                '<td class="table-cell"></td>', // 复选框列
+                '<td class="table-cell font-semibold">合计：</td>', // 订单号列
+                '<td class="table-cell"></td>', // 客户列
+                '<td class="table-cell"></td>', // 产品名称列
+                '<td class="table-cell"></td>', // 图纸号列
+                '<td class="table-cell"></td>', // 蝴蝶结列
+                `<td class="table-cell">${formatNumber(totals.orderQuantity, 0)}</td>`, // 订单数量列
+                `<td class="table-cell">${formatNumber(totals.roughTotal, 0)}</td>`, // 毛坯总发列
+                `<td class="table-cell">${formatNumber(totals.electroplateTotal, 0)}</td>`, // 电镀成品数列
+                `<td class="table-cell">${formatNumber(totals.replateTotal, 0)}</td>`, // 返镀数量列
+                `<td class="table-cell">${formatNumber(totals.repairTotal, 0)}</td>`, // 返修数量列
+                `<td class="table-cell">${formatNumber(totals.scrapTotal, 0)}</td>`, // 报废数量列
+                `<td class="table-cell">${formatNumber(totals.goodTotal, 0)}</td>`, // 良品数量列
+                `<td class="table-cell">${formatNumber(totals.difference, 0)}</td>`, // 差额列
+                '<td class="table-cell">-</td>', // 结算单价列（单价不做汇总）
+                '<td class="table-cell">-</td>', // 报废单价列（单价不做汇总）
+                `<td class="table-cell">${formatNumber(totals.extraDeduction, 2)}</td>`, // 额外扣减列
+                `<td class="table-cell">${formatNumber(totals.amount, 2)}</td>`, // 结算金额列
+                `<td class="table-cell">${formatNumber(totals.invoiced, 2)}</td>`, // 开票金额列
+                `<td class="table-cell">${formatNumber(totals.paid, 2)}</td>`, // 已付金额列
+                `<td class="table-cell">${formatNumber(totals.unpaid, 2)}</td>`, // 未付金额列
+                '<td class="table-cell"></td>' // 开票付款状态列
+            ];
+            totalRow.innerHTML = totalCells.join('');
+
+            const existingTotalRow = table.querySelector('.order-summary-total-row');
+            if (existingTotalRow) existingTotalRow.remove();
+            tableBody.appendChild(totalRow);
+        }
+
+        // 订单汇总：根据收发货渲染汇总表（支持搜索 + 分页）
+        function renderOrderSummary() {
+            const tableBody = document.getElementById('orderSummaryTableBody');
+            if (!tableBody) return;
+
+            const osConfig = tableConfigs.orderSummary;
+            const statsMap = getDeliveryOrderStats();
+            const settlementData = getOrderSettlementSettings();
+            const invoicePaymentStats = getInvoicePaymentOrderStats();
+
+            // 1. 搜索过滤
+            const keyword = (osConfig.keyword || '').trim().toLowerCase();
+            const orderNums = getOrderSummaryOrderNums();
 
             // 2. 分页
             const total = orderNums.length;
@@ -3853,6 +3952,7 @@
                 tableBody.appendChild(row);
             });
 
+            renderOrderSummaryTotalRow(orderNums);
             updateOrderSummaryPagination(total, totalPages);
             syncOrderSummarySelectAll();
         }
@@ -5458,6 +5558,7 @@
                     '<td class="table-cell"></td>', // 产品名称列
                     '<td class="table-cell"></td>', // 图纸号列
                     '<td class="table-cell"></td>', // 蝴蝶结列
+                    '<td class="table-cell"></td>', // 电镀厂列
                     `<td class="table-cell">${totals.roughQuantity}</td>`, // 毛坯数量列
                     `<td class="table-cell">${totals.goodQuantity}</td>`, // 良品数量列
                     '<td class="table-cell">-</td>', // 差额列（按订单累计，不做跨行求和）
@@ -5563,14 +5664,14 @@
             data.forEach(row => {
                 
                 if (tableName === 'deliveries') {
-                    if (row.length >= 16) {
-                        // 表格显示结构：[类型, 收发日期, 客户, 订单号, 订单数量, 产品名称, 图纸号, 蝴蝶结, 毛坯, 良品, 差额, 成品数, 返镀, 返修, 报废, 备注]
-                        roughQuantity += parseNumber(row[8]);
-                        goodQuantity += parseNumber(row[9]);
-                        electroplateQuantity += parseNumber(row[11]);
-                        replateQuantity += parseNumber(row[12]);
-                        repairQuantity += parseNumber(row[13]);
-                        scrapQuantity += parseNumber(row[14]);
+                    if (row.length >= 17) {
+                        // 表格显示结构：[类型, 收发日期, 客户, 订单号, 订单数量, 产品名称, 图纸号, 蝴蝶结, 电镀厂, 毛坯, 良品, 差额, 成品数, 返镀, 返修, 报废, 备注]
+                        roughQuantity += parseNumber(row[9]);
+                        goodQuantity += parseNumber(row[10]);
+                        electroplateQuantity += parseNumber(row[12]);
+                        replateQuantity += parseNumber(row[13]);
+                        repairQuantity += parseNumber(row[14]);
+                        scrapQuantity += parseNumber(row[15]);
                     } else {
                         // 存贮结构：[类型, 收发日期, 订单号, 客户, 产品名称, 毛坯, 成品数, 返镀, 返修, 报废, 备注]
                         const rowType = (row[0] || '').trim();
@@ -6566,6 +6667,7 @@
                     localStorage.setItem('orderSettlementData', JSON.stringify(allSettings));
 
                     recalcOrderSummaryRowAmount(input.closest('tr'));
+                    renderOrderSummaryTotalRow(getOrderSummaryOrderNums());
                 };
                 // change 覆盖失焦提交，focusout 兜底失焦场景
                 orderSummaryTableBody.addEventListener('change', handleOrderSettlementChange);
@@ -8899,7 +9001,7 @@
         function exportDeliveriesToExcel() {
             const headers = [
                 '类型', '收发日期', '客户', '订单号', '订单数量', '产品名称',
-                '图纸号', '蝴蝶结',
+                '图纸号', '蝴蝶结', '电镀厂',
                 '毛坯数量', '良品数量', '差额', '电镀成品数', '返镀数量', '返修数量', '报废数量', '备注'
             ];
             
@@ -8910,7 +9012,7 @@
             
             const rowsToExport = [];
             const totals = new Array(headers.length).fill(0);
-            const numberIndexes = [4, 8, 9, 11, 12, 13, 14]; // 订单数量、毛坯、良品、成品、返镀、返修、报废
+            const numberIndexes = [4, 9, 10, 12, 13, 14, 15]; // 订单数量、毛坯、良品、成品、返镀、返修、报废
             
             rows.forEach(row => {
                 const cells = row.querySelectorAll('.table-cell:not(:first-child):not(:last-child)');
@@ -8926,12 +9028,12 @@
             });
             
             // 良品合计 = 成品合计 - 返镀合计 - 报废合计（返镀件重镀后成品会被重复累计，需扣除返镀）
-            totals[9] = totals[11] - totals[12] - totals[14];
+            totals[10] = totals[12] - totals[13] - totals[15];
             
             // 合计行（订单数量与差额不跨行求和）
             const totalRow = new Array(headers.length).fill('');
             totalRow[4] = '合计';
-            [8, 9, 11, 12, 13, 14].forEach(index => {
+            [9, 10, 12, 13, 14, 15].forEach(index => {
                 totalRow[index] = totals[index];
             });
             rowsToExport.push(totalRow);
@@ -8939,7 +9041,7 @@
             const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rowsToExport]);
             
             // 设置数量列的数字格式（订单数量、毛坯、良品、成品、返镀、返修、报废）
-            ['E', 'I', 'J', 'L', 'M', 'N', 'O'].forEach(col => {
+            ['E', 'J', 'K', 'M', 'N', 'O', 'P'].forEach(col => {
                 for (let row = 2; row <= rowsToExport.length + 1; row++) {
                     const cellAddress = `${col}${row}`;
                     if (worksheet[cellAddress] && typeof worksheet[cellAddress].v === 'number') {
