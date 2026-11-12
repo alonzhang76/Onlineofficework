@@ -892,7 +892,6 @@
                 const checkboxes = document.querySelectorAll('input[type="checkbox"]');
                 // 获取总数和总箱数字段
                 const totalQtyField = document.getElementById('totalQty');
-                const totalBoxesField = document.getElementById('totalBoxes');
                 const qtyPerBoxField = document.getElementById('qtyPerBox');
                 
                 // 复选框事件处理
@@ -911,17 +910,22 @@
                 qtyPerBoxField.addEventListener('input', calculateTotalBoxes);
                 
                 function calculateTotalBoxes() {
-                    const raw = (qtyPerBoxField.value || '').trim();
+                    // 直接按 id 取元素：本函数可能在下方 const 初始化前被 handleUrlParams 调用
+                    const qtyEl = document.getElementById('qtyPerBox');
+                    const ttlEl = document.getElementById('totalQty');
+                    const boxesEl = document.getElementById('totalBoxes');
+                    if (!qtyEl || !ttlEl || !boxesEl) return;
+                    const raw = (qtyEl.value || '').trim();
                     // 拆分方案（如 50x2+100x3）：总箱数 = 各箱数量之和
                     const plan = parseQtyPlan(raw);
                     if (plan) {
-                        totalBoxesField.value = plan.length;
+                        boxesEl.value = plan.length;
                         return;
                     }
-                    const totalQty = parseInt(totalQtyField.value) || 0;
+                    const totalQty = parseInt(ttlEl.value) || 0;
                     const qtyPerBox = parseInt(raw, 10) || 0;
                     if (totalQty > 0 && qtyPerBox > 0) {
-                        totalBoxesField.value = Math.ceil(totalQty / qtyPerBox);
+                        boxesEl.value = Math.ceil(totalQty / qtyPerBox);
                     }
                 }
                 

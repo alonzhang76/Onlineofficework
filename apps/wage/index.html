@@ -1243,6 +1243,23 @@ table.data-table .del-btn:hover { background: var(--danger); color: #fff; }
   </div>
 </div>
 
+<!-- 超产奖励弹窗 -->
+<div class="modal-overlay" id="overtimeRewardModal">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-title">超产奖励</div>
+    <div id="overtimeRewardInfo" style="font-size:13px;color:var(--text-light);margin-bottom:10px;"></div>
+    <div style="background:var(--bg);border-radius:6px;padding:12px;font-size:13px;line-height:1.9;">
+      <div>工序合计（不含“试用计时工资”）：<b id="overtimeRewardBase">0.00</b></div>
+      <div>（合计 − 90）× 40% = <b id="overtimeRewardAmount" style="color:var(--primary);">0.00</b></div>
+    </div>
+    <div style="font-size:12px;color:var(--text-light);margin-top:10px;">点击“添加”将生成一条“超产奖励”工序记录（单价=计算金额，数量=1）；点击“忽略”则不生成。</div>
+    <div class="form-actions" style="margin-top:16px;">
+      <button class="btn btn-primary" onclick="addOvertimeReward()">添加</button>
+      <button class="btn" style="background:#e2e8f0;" onclick="ignoreOvertimeReward()">忽略</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -2072,6 +2089,7 @@ function saveBatch() {
   const defOrd = defParts[1] || '';
   const editId = document.getElementById('entryId').value;
   let saved = 0;
+  let rewardBase = 0;
   const rows = document.querySelectorAll('#batchRows tr');
   rows.forEach(tr => {
     const proc = tr.querySelector('.batch-proc').value;
@@ -2088,6 +2106,8 @@ function saveBatch() {
     const procData = DB.processes.find(p => p.name === proc);
     const quota = procData ? (procData.dailyQuota || 0) : 0;
     const total = (quota > 0 && qty > quota) ? (price * quota + overSub) : (price * qty);
+    // 超产奖励基数：除“试用计时工资”外的所有工序合计
+    if (proc.trim() !== '试用计时工资') rewardBase += total;
     const rec = { date, employee, process: proc, unitPrice: price, quantity: qty, totalAmount: total, customer, orderNo, notes, overtime };
     if (editId && saved === 0) { DB.updateRecord(editId, rec); }
     else { DB.addRecord(rec); }
@@ -2098,6 +2118,40 @@ function saveBatch() {
   clearBatch();
   renderTodayRecords();
   executeQuery();
+
+  // 超产奖励：(除试用计时工资外的合计 − 90) × 40%
+  const reward = Math.round((rewardBase - 90) * 0.4 * 100) / 100;
+  if (reward > 0) showOvertimeReward({ date, employee, base: rewardBase, reward });
+}
+
+let _pendingOvertimeReward = null;
+
+function showOvertimeReward(info) {
+  _pendingOvertimeReward = info;
+  document.getElementById('overtimeRewardInfo').textContent = `${info.date} ${info.employee}`;
+  document.getElementById('overtimeRewardBase').textContent = UI.fmtMoney(info.base);
+  document.getElementById('overtimeRewardAmount').textContent = UI.fmtMoney(info.reward);
+  document.getElementById('overtimeRewardModal').classList.add('show');
+}
+
+function addOvertimeReward() {
+  const info = _pendingOvertimeReward;
+  _pendingOvertimeReward = null;
+  closeModal('overtimeRewardModal');
+  if (!info) return;
+  DB.addRecord({
+    date: info.date, employee: info.employee, process: '超产奖励',
+    unitPrice: info.reward, quantity: 1, totalAmount: info.reward,
+    customer: '', orderNo: '', notes: '', overtime: '未加班'
+  });
+  renderTodayRecords();
+  executeQuery();
+  UI.toast('已添加超产奖励记录');
+}
+
+function ignoreOvertimeReward() {
+  _pendingOvertimeReward = null;
+  closeModal('overtimeRewardModal');
 }
 
 function clearBatch() {
@@ -3319,7 +3373,11 @@ function renderEmpRanking(data, d, colors) {
               months.forEach(m => {
                 const md = e.monthData[m];
                 if (md.amount > 0) {
-                  monthCells += `<td style="text-align:center;" title="${m} 工资:${md.amount.toFixed(0)} 天数:${md.days}">${md.amount.toFixed(0)}<br><span style="font-size:9px;color:var(--text-light);">${md.days}天</span></td>`;
+                  const ot = md.otDays || 0;
+                  const dayStr = ot > 0
+                    ? `（${md.days}<span style="color:var(--danger);font-weight:600;">+${ot}</span>）`
+                    : `${md.days}天`;
+                  monthCells += `<td style="text-align:center;" title="${m} 工资:${md.amount.toFixed(0)} 出勤:${md.days}天 加班:${ot}天">${md.amount.toFixed(0)}<br><span style="font-size:9px;color:var(--text-light);">${dayStr}</span></td>`;
                 } else {
                   monthCells += '<td style="text-align:center;color:var(--text-light);">-</td>';
                 }
@@ -3341,7 +3399,11 @@ function renderEmpRanking(data, d, colors) {
               ${months.map(m => {
                 const total = empRows.reduce((s, e) => s + e.monthData[m].amount, 0);
                 const days = empRows.reduce((s, e) => s + e.monthData[m].days, 0);
-                return total > 0 ? `<td style="text-align:center;font-weight:600;">${total.toFixed(0)}<br><span style="font-size:9px;">${days}天</span></td>` : '<td style="text-align:center;">-</td>';
+                const otDays = empRows.reduce((s, e) => s + (e.monthData[m].otDays || 0), 0);
+                const dayStr = otDays > 0
+                  ? `（${days}<span style="color:var(--danger);font-weight:600;">+${otDays}</span>）`
+                  : `${days}天`;
+                return total > 0 ? `<td style="text-align:center;font-weight:600;">${total.toFixed(0)}<br><span style="font-size:9px;">${dayStr}</span></td>` : '<td style="text-align:center;">-</td>';
               }).join('')}
               <td style="font-weight:700;">${grandDays}</td>
               <td style="font-weight:700;color:var(--danger);">${grandOvertimeDays}</td>
@@ -3427,12 +3489,16 @@ function renderEmpRanking(data, d, colors) {
 
 function renderOrderAnalysis(data, d, colors) {
   const orderMap = {};
+  const searchMap = {};
   data.forEach(r => {
     const key = r.orderNo || '(无订单号)';
     if (!orderMap[key]) orderMap[key] = { orderNo: key, amount: 0, qty: 0, count: 0, customer: r.customer || '' };
     orderMap[key].amount += parseFloat(r.totalAmount || 0);
     orderMap[key].qty += parseFloat(r.quantity || 0);
     orderMap[key].count++;
+    // 收集该订单下所有工资记录的字段值，供搜索框全字段匹配
+    searchMap[key] = (searchMap[key] || '') + ' ' +
+      Object.values(r).filter(v => v !== null && v !== undefined && typeof v !== 'object').join(' ');
   });
   DB.orders.forEach(o => {
     if (orderMap[o.orderNo]) {
@@ -3440,8 +3506,12 @@ function renderOrderAnalysis(data, d, colors) {
       orderMap[o.orderNo].orderQty = parseFloat(o.qty) || 0;
       orderMap[o.orderNo].drawingNo = o.drawingNo || '';
       orderMap[o.orderNo].productType = o.type || '';
+      // 订单自身字段同样纳入搜索范围
+      searchMap[o.orderNo] = (searchMap[o.orderNo] || '') + ' ' +
+        Object.values(o).filter(v => v !== null && v !== undefined && typeof v !== 'object').join(' ');
     }
   });
+  orderCostSearchText = searchMap;
   const allOrders = Object.values(orderMap).sort((a, b) => b.amount - a.amount);
   allOrders.forEach(o => {
     o.unitCost = (o.output && o.output > 0) ? (o.amount / o.output) : null;
@@ -3466,18 +3536,18 @@ function renderOrderAnalysis(data, d, colors) {
       <div class="filter-bar" style="margin-bottom:12px;">
         <div class="form-group" style="min-width:200px;">
           <label>搜索</label>
-          <input type="text" class="form-control" id="orderSearchInput" placeholder="搜索订单号/客户..." oninput="filterOrderTable()" style="width:200px;">
+          <input type="text" class="form-control" id="orderCostSearchInput" placeholder="搜索任意字段（订单号/客户/工序/员工/备注等）" oninput="filterOrderCostTable()" style="width:280px;">
         </div>
         <div class="form-group">
           <label>产品类型</label>
-          <select class="form-control" id="orderTypeFilter" onchange="filterOrderTable()" style="width:130px;">
+          <select class="form-control" id="orderTypeFilter" onchange="filterOrderCostTable()" style="width:130px;">
             <option value="">全部</option>
             ${productTypes.map(t => `<option value="${t}">${t}</option>`).join('')}
           </select>
         </div>
         <div class="form-group">
           <label>图纸号</label>
-          <select class="form-control" id="orderDrawingFilter" onchange="filterOrderTable()" style="width:130px;">
+          <select class="form-control" id="orderDrawingFilter" onchange="filterOrderCostTable()" style="width:130px;">
             <option value="">全部</option>
             ${drawingNos.map(t => `<option value="${t}">${t}</option>`).join('')}
           </select>
@@ -3625,8 +3695,11 @@ function renderOrderAnalysis(data, d, colors) {
   return kpi + table + drawingCharts + frameCharts;
 }
 
-function filterOrderTable() {
-  const search = (document.getElementById('orderSearchInput') || {}).value || '';
+// 订单分析：当前表格每行的全字段搜索文本（订单号 → 文本）
+let orderCostSearchText = {};
+
+function filterOrderCostTable() {
+  const search = (document.getElementById('orderCostSearchInput')?.value || '').trim().toLowerCase();
   const typeFilter = (document.getElementById('orderTypeFilter') || {}).value || '';
   const drawingFilter = (document.getElementById('orderDrawingFilter') || {}).value || '';
   const tbody = document.getElementById('orderCostBody');
@@ -3636,10 +3709,12 @@ function filterOrderTable() {
   let totalAmt = 0;
   let totalOutput = 0;
   rows.forEach(row => {
-    const orderNo = (row.dataset.orderno || '').toLowerCase();
+    const orderNo = row.dataset.orderno || '';
     const type = row.dataset.type || '';
     const drawing = row.dataset.drawing || '';
-    const matchSearch = !search || orderNo.includes(search.toLowerCase());
+    // 搜索范围：该订单下所有工资记录与订单记录的全部字段
+    const hay = (orderCostSearchText[orderNo] || row.textContent || '').toLowerCase();
+    const matchSearch = !search || hay.includes(search);
     const matchType = !typeFilter || type === typeFilter;
     const matchDrawing = !drawingFilter || drawing === drawingFilter;
     if (matchSearch && matchType && matchDrawing) {
