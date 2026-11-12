@@ -1465,6 +1465,11 @@ const DB = {
     return allEmps.map(emp => {
       const empRecords = this.records.filter(r => r.employee === emp.name && r.date.startsWith(prefix));
       const baseWage = empRecords.reduce((s, r) => s + parseFloat(r.totalAmount || 0), 0);
+      // 基本工资已包含超产小计、奖励、罚款，此处仅拆出展示，不改变合计
+      const overSubtotal = empRecords.reduce((s, r) => s + this.getRecordOverSubtotal(r), 0);
+      // 奖励列同时包含自动生成的「超产奖励」记录
+      const reward = empRecords.reduce((s, r) => s + (r.process === '超产奖励' ? (parseFloat(r.totalAmount) || 0) : (parseFloat(r.reward) || 0)), 0);
+      const penalty = empRecords.reduce((s, r) => s + (parseFloat(r.penalty) || 0), 0);
       const attendDays = new Set(empRecords.map(r => r.date)).size;
       const adj = this.getOrCreateAdjustment(emp.name, year, month);
       if (adj.performance === undefined) adj.performance = 0;
@@ -1484,8 +1489,20 @@ const DB = {
       const loanDeduction = adj.loanDeduction || 0;
       const tax = adj.tax || 0;
       const total = baseWage + performance + housing + otherAllowance + yearEndBonus - socialInsurance - housingFund - loanDeduction - tax;
-      return { name: emp.name, baseWage, attendDays, performance, housing, otherAllowance, yearEndBonus, socialInsurance, housingFund, loanDeduction, tax, total, recordCount: empRecords.length };
+      return { name: emp.name, baseWage, overSubtotal, reward, penalty, attendDays, performance, housing, otherAllowance, yearEndBonus, socialInsurance, housingFund, loanDeduction, tax, total, recordCount: empRecords.length };
     }).filter(r => r.baseWage > 0);
+  },
+
+  // 单条记录的超产小计：优先用保存时的快照，历史记录按工序参数推算
+  getRecordOverSubtotal(record) {
+    if (record.overSubtotal != null) return parseFloat(record.overSubtotal) || 0;
+    const proc = this.processes.find(p => p.name === record.process);
+    if (!proc) return 0;
+    const qty = parseFloat(record.quantity) || 0;
+    const quota = proc.dailyQuota || 0;
+    const overPrice = proc.overPrice || 0;
+    if (quota <= 0 || overPrice <= 0 || qty <= quota) return 0;
+    return (qty - quota) * overPrice;
   },
 
   // Annual summary - optimized: call getMonthlySummary only 12 times total
@@ -2120,7 +2137,7 @@ function saveBatch() {
     const total = (quota > 0 && qty > quota ? (price * quota + overSub) : (price * qty)) + rewardAmt - penaltyAmt;
     // 超产奖励基数：排除“试用计时工资”整行，且奖励金额不参与计算
     if (proc.trim() !== '试用计时工资') rewardBase += total - rewardAmt;
-    const rec = { date, employee, process: proc, unitPrice: price, quantity: qty, reward: rewardAmt, penalty: penaltyAmt, totalAmount: total, customer, orderNo, notes, overtime };
+    const rec = { date, employee, process: proc, unitPrice: price, quantity: qty, overSubtotal: overSub, reward: rewardAmt, penalty: penaltyAmt, totalAmount: total, customer, orderNo, notes, overtime };
     if (editId && saved === 0) { DB.updateRecord(editId, rec); }
     else { DB.addRecord(rec); }
     saved++;
@@ -2502,7 +2519,8 @@ function renderMonthlySummary() {
   container.innerHTML = `
     <table class="data-table summary-table" id="monthlyTable">
       <thead><tr>
-        <th>序号</th><th>姓名</th><th>出勤天数</th><th>基本工资</th>
+        <th>序号</th><th>姓名</th><th>出勤天数</th><th title="已包含超产小计、奖励、罚款">基本工资</th>
+        <th>超产小计</th><th>奖励</th><th title="已从基本工资中扣除">罚款</th>
         <th>绩效奖 <span style="font-size:10px;cursor:pointer;color:var(--primary);" onclick="showDropdownManager('performance')">管理</span></th>
         <th>房贴 <span style="font-size:10px;cursor:pointer;color:var(--primary);" onclick="showDropdownManager('housing')">管理</span></th>
         <th>其它补贴</th><th>年终奖</th>
@@ -2516,6 +2534,9 @@ function renderMonthlySummary() {
           <td>${i + 1}</td><td style="font-weight:600;">${r.name}</td>
           <td>${r.attendDays}</td>
           <td style="color:var(--primary);font-weight:600;">${r.baseWage.toFixed(2)}</td>
+          <td>${r.overSubtotal.toFixed(2)}</td>
+          <td>${r.reward.toFixed(2)}</td>
+          <td>${r.penalty.toFixed(2)}</td>
           ${allFields.map(f => {
             const val = parseFloat(r[f.key]) || 0;
             return f.type === 'dropdown' ? `<td>${buildDropdown(val, f.key, r.name)}</td>` : `<td>${buildInput(val, f.key, r.name)}</td>`;
@@ -2526,6 +2547,9 @@ function renderMonthlySummary() {
           <td></td><td>合计</td>
           <td>-</td>
           <td>${(data.reduce((s, r) => s + r.baseWage, 0)).toFixed(2)}</td>
+          <td>${(data.reduce((s, r) => s + r.overSubtotal, 0)).toFixed(2)}</td>
+          <td>${(data.reduce((s, r) => s + r.reward, 0)).toFixed(2)}</td>
+          <td>${(data.reduce((s, r) => s + r.penalty, 0)).toFixed(2)}</td>
           <td>${(data.reduce((s, r) => s + r.performance, 0)).toFixed(2)}</td>
           <td>${(data.reduce((s, r) => s + r.housing, 0)).toFixed(2)}</td>
           <td>${(data.reduce((s, r) => s + r.otherAllowance, 0)).toFixed(2)}</td>
@@ -2816,12 +2840,12 @@ function exportMonthlySummary() {
   const year = document.getElementById('monthlyYear').value;
   const month = document.getElementById('monthlyMonth').value;
   const data = DB.getMonthlySummary(year, parseInt(month));
-  const headers = ['序号', '姓名', '出勤天数', '基本工资', '绩效奖', '房贴', '其它补贴', '年终奖', '代扣个人社保', '代扣公积金', '扣借款', '代扣个税', '实发工资'];
+  const headers = ['序号', '姓名', '出勤天数', '基本工资', '超产小计', '奖励', '罚款', '绩效奖', '房贴', '其它补贴', '年终奖', '代扣个人社保', '代扣公积金', '扣借款', '代扣个税', '实发工资'];
   const wsData = [headers];
   data.forEach((r, i) => {
-    wsData.push([i + 1, r.name, r.attendDays, r.baseWage, r.performance, r.housing, r.otherAllowance, r.yearEndBonus, r.socialInsurance, r.housingFund, r.loanDeduction, r.tax, r.total]);
+    wsData.push([i + 1, r.name, r.attendDays, r.baseWage, r.overSubtotal, r.reward, r.penalty, r.performance, r.housing, r.otherAllowance, r.yearEndBonus, r.socialInsurance, r.housingFund, r.loanDeduction, r.tax, r.total]);
   });
-  wsData.push(['', '合计', '', data.reduce((s, r) => s + r.baseWage, 0), data.reduce((s, r) => s + r.performance, 0), data.reduce((s, r) => s + r.housing, 0), data.reduce((s, r) => s + r.otherAllowance, 0), data.reduce((s, r) => s + r.yearEndBonus, 0), data.reduce((s, r) => s + r.socialInsurance, 0), data.reduce((s, r) => s + r.housingFund, 0), data.reduce((s, r) => s + r.loanDeduction, 0), data.reduce((s, r) => s + r.tax, 0), data.reduce((s, r) => s + r.total, 0)]);
+  wsData.push(['', '合计', '', data.reduce((s, r) => s + r.baseWage, 0), data.reduce((s, r) => s + r.overSubtotal, 0), data.reduce((s, r) => s + r.reward, 0), data.reduce((s, r) => s + r.penalty, 0), data.reduce((s, r) => s + r.performance, 0), data.reduce((s, r) => s + r.housing, 0), data.reduce((s, r) => s + r.otherAllowance, 0), data.reduce((s, r) => s + r.yearEndBonus, 0), data.reduce((s, r) => s + r.socialInsurance, 0), data.reduce((s, r) => s + r.housingFund, 0), data.reduce((s, r) => s + r.loanDeduction, 0), data.reduce((s, r) => s + r.tax, 0), data.reduce((s, r) => s + r.total, 0)]);
   const ws = XLSX.utils.aoa_to_sheet(wsData);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, `${month}月工资汇总`);
