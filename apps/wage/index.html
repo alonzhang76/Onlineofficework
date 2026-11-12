@@ -639,6 +639,7 @@ table.data-table .del-btn:hover { background: var(--danger); color: #fff; }
                 <th style="width:90px;">超产小计</th>
                 <th style="width:90px;">合计</th>
                 <th style="width:180px;">订单信息</th>
+                <th style="width:80px;">加班</th>
                 <th style="width:120px;">备注</th>
                 <th style="width:104px;">操作</th>
               </tr></thead>
@@ -723,7 +724,11 @@ table.data-table .del-btn:hover { background: var(--danger); color: #fff; }
               <span style="font-size:13px;color:var(--text-light);">条/页</span>
             </div>
           </div>
-          <div class="table-wrap" id="queryResults"></div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <input type="text" id="queryKeyword" class="form-control" style="max-width:380px;" placeholder="搜索全部字段：工序 / 员工 / 客户 / 订单号 / 备注 / 加班 …" oninput="executeQuery()">
+            <span style="font-size:12px;color:var(--text-light);">输入即筛选，可与上方条件叠加</span>
+          </div>
+          <div id="queryResults"></div>
           <div class="pagination" id="queryPagination"></div>
         </div>
       </div>
@@ -1389,16 +1394,26 @@ const DB = {
 
   // Query
   queryRecords(filters) {
+    const keyword = String(filters.keyword || '').trim().toLowerCase();
     return this.records.filter(r => {
       if (filters.startDate && r.date < filters.startDate) return false;
       if (filters.endDate && r.date > filters.endDate) return false;
       if (filters.employee && r.employee !== filters.employee) return false;
       if (filters.process && r.process !== filters.process) return false;
-      if (filters.customer && !r.customer.includes(filters.customer)) return false;
+      if (filters.customer && !(r.customer || '').includes(filters.customer)) return false;
       if (filters.orderNo) {
         // 支持逗号（中英文）分隔多个订单号，命中任一即返回
         const orderKeys = filters.orderNo.split(/[,，]/).map(s => s.trim()).filter(Boolean);
         if (orderKeys.length && !orderKeys.some(k => (r.orderNo || '').includes(k))) return false;
+      }
+      if (keyword) {
+        // 全字段模糊搜索：把记录里所有简单字段拼成一段文本再匹配
+        const hay = Object.keys(r)
+          .map(k => r[k])
+          .filter(v => v !== null && v !== undefined && typeof v !== 'object')
+          .join(' ')
+          .toLowerCase();
+        if (!hay.includes(keyword)) return false;
       }
       return true;
     }).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
@@ -1732,6 +1747,7 @@ function addBatchRow(data) {
     <td class="col-over batch-over">0.00</td>
     <td class="col-total batch-total">0.00</td>
     <td><input type="text" class="batch-ord-info form-control" list="orderInfoDatalist" placeholder="客户,订单号" oninput="onOrderInfoSelect(this)"></td>
+    <td><select class="form-control batch-overtime"><option value="未加班">未加班</option><option value="加班">加班</option></select></td>
     <td><input type="text" class="batch-note form-control" placeholder="备注"></td>
     <td style="white-space:nowrap;">
       <button class="row-btn btn-copy-prev" onclick="copyPrevProc('${row.id}')" title="复制上一行的工序">&uarr;</button>
@@ -1747,6 +1763,7 @@ function addBatchRow(data) {
     tr.querySelector('.batch-qty').value = data.quantity || '';
     tr.querySelector('.batch-total').textContent = UI.fmtMoney((data.unitPrice || 0) * (data.quantity || 0));
     tr.querySelector('.batch-ord-info').value = [data.customer, data.orderNo].filter(Boolean).join(',');
+    tr.querySelector('.batch-overtime').value = data.overtime === '加班' ? '加班' : '未加班';
     tr.querySelector('.batch-note').value = data.notes || '';
   }
   updateBatchTotal();
@@ -1961,7 +1978,8 @@ function copyYesterdayRows() {
       process: r.process,
       customer: r.customer,
       orderNo: r.orderNo,
-      notes: r.notes
+      notes: r.notes,
+      overtime: r.overtime
     });
     // 按当前工序单价重新计算，避免沿用过期的历史单价
     onProcChange(tr.querySelector('.batch-proc'));
@@ -2038,10 +2056,11 @@ function saveBatch() {
     const customer = parts[0] || defCust;
     const orderNo = parts[1] || defOrd;
     const notes = tr.querySelector('.batch-note').value || '';
+    const overtime = tr.querySelector('.batch-overtime').value === '加班' ? '加班' : '未加班';
     const procData = DB.processes.find(p => p.name === proc);
     const quota = procData ? (procData.dailyQuota || 0) : 0;
     const total = (quota > 0 && qty > quota) ? (price * quota + overSub) : (price * qty);
-    const rec = { date, employee, process: proc, unitPrice: price, quantity: qty, totalAmount: total, customer, orderNo, notes };
+    const rec = { date, employee, process: proc, unitPrice: price, quantity: qty, totalAmount: total, customer, orderNo, notes, overtime };
     if (editId && saved === 0) { DB.updateRecord(editId, rec); }
     else { DB.addRecord(rec); }
     saved++;
@@ -2072,7 +2091,7 @@ function editEntry(id) {
   document.getElementById('entryId').value = r.id;
   document.getElementById('entryDefaultOrderInfo').value = [r.customer, r.orderNo].filter(Boolean).join(',');
   document.getElementById('batchRows').innerHTML = '';
-  addBatchRow({ process: r.process, unitPrice: r.unitPrice, quantity: r.quantity, totalAmount: r.totalAmount, customer: r.customer, orderNo: r.orderNo, notes: r.notes });
+  addBatchRow({ process: r.process, unitPrice: r.unitPrice, quantity: r.quantity, totalAmount: r.totalAmount, customer: r.customer, orderNo: r.orderNo, notes: r.notes, overtime: r.overtime });
   renderTodayRecords();
   updateYesterdayCopyHint();
 }
@@ -2089,12 +2108,12 @@ function renderTodayRecords() {
   if (todayRecs.length === 0) { container.innerHTML = '<div style="padding:12px;color:var(--text-light);font-size:13px;">今日该员工暂无记录</div>'; return; }
   container.innerHTML = `
     <table class="data-table">
-      <thead><tr><th>工序</th><th>单价</th><th>数量</th><th>合计</th><th>客户</th><th>订单号</th><th>备注</th><th>操作</th></tr></thead>
+      <thead><tr><th>工序</th><th>单价</th><th>数量</th><th>合计</th><th>客户</th><th>订单号</th><th>加班</th><th>备注</th><th>操作</th></tr></thead>
       <tbody>
         ${todayRecs.map(r => `<tr>
           <td>${r.process}</td><td>${UI.fmtMoney(r.unitPrice)}</td><td>${r.quantity}</td>
           <td style="font-weight:600;color:var(--primary);">${UI.fmtMoney(r.totalAmount)}</td>
-          <td>${r.customer || '-'}</td><td>${r.orderNo || '-'}</td><td>${r.notes || '-'}</td>
+          <td>${r.customer || '-'}</td><td>${r.orderNo || '-'}</td><td>${r.overtime || '未加班'}</td><td>${r.notes || '-'}</td>
           <td class="col-actions">
             <button class="btn btn-sm btn-icon-only" style="background:var(--primary-light);color:var(--primary-dark);" onclick="editEntry('${r.id}')" title="编辑">&#9998;</button>
             <button class="btn btn-sm btn-icon-only btn-danger" onclick="deleteTodayRecord('${r.id}')" title="删除">&times;</button>
@@ -2127,7 +2146,8 @@ function executeQuery() {
     employee: document.getElementById('queryEmployee').value,
     process: document.getElementById('queryProcess').value,
     customer: document.getElementById('queryCustomer').value,
-    orderNo: document.getElementById('queryOrderNo').value
+    orderNo: document.getElementById('queryOrderNo').value,
+    keyword: (document.getElementById('queryKeyword') || {}).value || ''
   };
   DB.queryResult = DB.queryRecords(filters);
   DB.currentPage = 1;
@@ -2164,7 +2184,7 @@ function renderQueryResults() {
     <table class="data-table">
       <thead><tr>
         <th style="width:36px;"><input type="checkbox" id="checkAllQuery" onchange="toggleAllQueryCheckboxes(this)"></th>
-        <th>序号</th><th>日期</th><th>员工</th><th>工序</th><th>单价</th><th>数量</th><th>合计</th><th>客户</th><th>订单号</th><th>备注</th><th>操作</th>
+        <th>序号</th><th>日期</th><th>员工</th><th>工序</th><th>单价</th><th>数量</th><th>合计</th><th>客户</th><th>订单号</th><th>加班</th><th>备注</th><th>操作</th>
       </tr></thead>
       <tbody>
         ${pageData.map((r, i) => `<tr>
@@ -2173,7 +2193,7 @@ function renderQueryResults() {
           <td>${UI.fmtDate(r.date)}</td><td>${r.employee}</td><td>${r.process}</td>
           <td>${UI.fmtMoney(r.unitPrice)}</td><td>${r.quantity}</td>
           <td style="font-weight:600;color:var(--primary);">${UI.fmtMoney(r.totalAmount)}</td>
-          <td>${r.customer || '-'}</td><td>${r.orderNo || '-'}</td><td>${r.notes || '-'}</td>
+          <td>${r.customer || '-'}</td><td>${r.orderNo || '-'}</td><td>${r.overtime || '未加班'}</td><td>${r.notes || '-'}</td>
           <td class="col-actions">
             <button class="btn btn-sm btn-icon-only" style="background:var(--primary-light);color:var(--primary-dark);" onclick="editEntry('${r.id}')" title="编辑">&#9998;</button>
             <button class="btn btn-sm btn-icon-only btn-danger" onclick="deleteQueryRecord('${r.id}')" title="删除">&times;</button>
@@ -2225,6 +2245,7 @@ function importExcel(input) {
         else if (/合计|金额/.test(h)) colMap.totalAmount = i;
         else if (/客户/.test(h)) colMap.customer = i;
         else if (/订单/.test(h)) colMap.orderNo = i;
+        else if (/加班/.test(h)) colMap.overtime = i;
         else if (/备注/.test(h)) colMap.notes = i;
       });
       const ci = (k, fallback) => colMap[k] !== undefined ? colMap[k] : fallback;
@@ -2235,7 +2256,7 @@ function importExcel(input) {
       const dedupKey = rec => [
         UI.fmtDate(rec.date), normStr(rec.employee), normStr(rec.process),
         normNum(rec.unitPrice), normNum(rec.quantity), normNum(rec.totalAmount),
-        normStr(rec.customer), normStr(rec.orderNo), normStr(rec.notes)
+        normStr(rec.customer), normStr(rec.orderNo), normStr(rec.overtime), normStr(rec.notes)
       ].join('\u0001');
 
       const validRows = [];
@@ -2259,6 +2280,7 @@ function importExcel(input) {
           totalAmount: parseFloat(r[ci('totalAmount', 6)]) || 0,
           customer: normStr(r[ci('customer', 7)]),
           orderNo: normStr(r[ci('orderNo', 8)]),
+          overtime: normStr(r[ci('overtime', -1)]) === '加班' ? '加班' : '未加班',
           notes: normStr(r[ci('notes', 9)])
         };
         const key = dedupKey(rec);
@@ -2327,12 +2349,12 @@ function exportQueryResult() {
   const data = DB.queryResult;
   if (data.length === 0) { UI.toast('无数据可导出', 'error'); return; }
   const wsData = [
-    ['序号', '日期', '员工', '工序名称', '单价', '数量', '合计金额', '客户', '订单号', '备注']
+    ['序号', '日期', '员工', '工序名称', '单价', '数量', '合计金额', '客户', '订单号', '加班', '备注']
   ];
   data.forEach((r, i) => {
-    wsData.push([i + 1, UI.fmtDate(r.date), r.employee, r.process, r.unitPrice, r.quantity, r.totalAmount, r.customer || '', r.orderNo || '', r.notes || '']);
+    wsData.push([i + 1, UI.fmtDate(r.date), r.employee, r.process, r.unitPrice, r.quantity, r.totalAmount, r.customer || '', r.orderNo || '', r.overtime || '未加班', r.notes || '']);
   });
-  wsData.push(['', '', '', '', '', '合计', data.reduce((s, r) => s + parseFloat(r.totalAmount || 0), 0), '', '', '']);
+  wsData.push(['', '', '', '', '', '合计', data.reduce((s, r) => s + parseFloat(r.totalAmount || 0), 0), '', '', '', '']);
   const ws = XLSX.utils.aoa_to_sheet(wsData);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '查询结果');
@@ -3188,11 +3210,12 @@ function renderEmpRanking(data, d, colors) {
   data.forEach(r => {
     if (!empMonthMap[r.employee]) empMonthMap[r.employee] = {};
     const m = r.date.slice(0, 7);
-    if (!empMonthMap[r.employee][m]) empMonthMap[r.employee][m] = { amount: 0, qty: 0, count: 0, days: new Set() };
+    if (!empMonthMap[r.employee][m]) empMonthMap[r.employee][m] = { amount: 0, qty: 0, count: 0, days: new Set(), otDays: new Set() };
     empMonthMap[r.employee][m].amount += parseFloat(r.totalAmount || 0);
     empMonthMap[r.employee][m].qty += parseFloat(r.quantity || 0);
     empMonthMap[r.employee][m].count++;
     empMonthMap[r.employee][m].days.add(r.date);
+    if (r.overtime === '加班') empMonthMap[r.employee][m].otDays.add(r.date);
   });
 
   // Determine year/month from stats filter
@@ -3210,24 +3233,27 @@ function renderEmpRanking(data, d, colors) {
   const empRows = Object.keys(empMonthMap).map(name => {
     let totalAmount = 0;
     let totalDays = 0;
+    let totalOvertimeDays = 0;
     const monthData = {};
     months.forEach(m => {
       const md = empMonthMap[name][m];
       if (md) {
-        monthData[m] = { amount: md.amount, days: md.days.size };
+        monthData[m] = { amount: md.amount, days: md.days.size, otDays: md.otDays.size };
         totalAmount += md.amount;
         totalDays += md.days.size;
+        totalOvertimeDays += md.otDays.size;
       } else {
-        monthData[m] = { amount: 0, days: 0 };
+        monthData[m] = { amount: 0, days: 0, otDays: 0 };
       }
     });
-    return { name, monthData, totalAmount, totalDays };
+    return { name, monthData, totalAmount, totalDays, totalOvertimeDays };
   }).filter(r => r.totalAmount > 0).sort((a, b) => b.totalAmount - a.totalAmount);
 
   const maxTotal = empRows.length > 0 ? empRows[0].totalAmount : 1;
   const avgTotal = empRows.length > 0 ? empRows.reduce((s, r) => s + r.totalAmount, 0) / empRows.length : 0;
   const grandTotal = empRows.reduce((s, r) => s + r.totalAmount, 0);
   const grandDays = empRows.reduce((s, r) => s + r.totalDays, 0);
+  const grandOvertimeDays = empRows.reduce((s, r) => s + (r.totalOvertimeDays || 0), 0);
 
   let kpi = `
     <div class="stats-grid">
@@ -3235,6 +3261,7 @@ function renderEmpRanking(data, d, colors) {
       <div class="stat-card stat-success"><div class="stat-label">工资总额</div><div class="stat-value">${grandTotal.toFixed(2)}</div></div>
       <div class="stat-card stat-warn"><div class="stat-label">人均工资</div><div class="stat-value">${avgTotal.toFixed(2)}</div></div>
       <div class="stat-card"><div class="stat-label">总出勤天数</div><div class="stat-value">${grandDays}</div><div class="stat-sub">天</div></div>
+      <div class="stat-card stat-warn"><div class="stat-label">总加班天数</div><div class="stat-value">${grandOvertimeDays}</div><div class="stat-sub">天</div></div>
     </div>`;
 
   // Table 1: Monthly wage + days + ranking
@@ -3250,7 +3277,7 @@ function renderEmpRanking(data, d, colors) {
             <tr>
               <th>排名</th><th>姓名</th>
               ${monthHeader}
-              <th>出勤天数</th><th>工资合计</th><th>进度条</th><th>占比</th><th>VS平均</th>
+              <th>出勤天数</th><th>加班天数</th><th>工资合计</th><th>进度条</th><th>占比</th><th>VS平均</th>
             </tr>
           </thead>
           <tbody>
@@ -3275,6 +3302,7 @@ function renderEmpRanking(data, d, colors) {
                 <td style="font-weight:600;">${e.name}</td>
                 ${monthCells}
                 <td style="font-weight:600;">${e.totalDays}</td>
+                <td style="font-weight:600;color:var(--danger);">${e.totalOvertimeDays || 0}</td>
                 <td style="font-weight:700;color:var(--primary);">${e.totalAmount.toFixed(2)}</td>
                 <td><div style="width:80px;height:14px;background:#f1f5f9;border-radius:3px;overflow:hidden;"><div style="width:${barW}%;height:100%;background:var(--primary);border-radius:3px;"></div></div></td>
                 <td>${pct}%</td>
@@ -3289,6 +3317,7 @@ function renderEmpRanking(data, d, colors) {
                 return total > 0 ? `<td style="text-align:center;font-weight:600;">${total.toFixed(0)}<br><span style="font-size:9px;">${days}天</span></td>` : '<td style="text-align:center;">-</td>';
               }).join('')}
               <td style="font-weight:700;">${grandDays}</td>
+              <td style="font-weight:700;color:var(--danger);">${grandOvertimeDays}</td>
               <td style="font-weight:700;color:var(--primary);">${grandTotal.toFixed(2)}</td>
               <td></td><td>100%</td><td>—</td>
             </tr>
@@ -3336,7 +3365,37 @@ function renderEmpRanking(data, d, colors) {
       </table>
     </div>`;
 
-  return kpi + table1 + table2;
+  // Table 3: Overtime days per employee
+  const empOvertime = empRows
+    .map(e => ({ name: e.name, days: e.totalDays, ot: e.totalOvertimeDays || 0 }))
+    .sort((a, b) => b.ot - a.ot || a.name.localeCompare(b.name));
+  const maxOt = empOvertime.length ? Math.max(...empOvertime.map(e => e.ot), 1) : 1;
+  const table3 = `
+    <div class="card" style="margin-top:16px;">
+      <div class="card-title">${year}年 员工加班天数统计</div>
+      <div class="table-wrap">
+        <table class="data-table" style="font-size:12px;">
+          <thead><tr><th>排名</th><th>姓名</th><th>出勤天数</th><th>加班天数</th><th>加班占比</th><th>进度条</th></tr></thead>
+          <tbody>
+            ${empOvertime.map((e, i) => {
+              const ratio = e.days > 0 ? (e.ot / e.days * 100).toFixed(1) : '0.0';
+              const barW = Math.min(100, e.ot / maxOt * 100);
+              return `<tr>
+                <td>${i + 1}</td>
+                <td style="font-weight:600;">${e.name}</td>
+                <td>${e.days}天</td>
+                <td style="font-weight:700;color:var(--danger);">${e.ot}天</td>
+                <td>${ratio}%</td>
+                <td><div style="width:80px;height:14px;background:#f1f5f9;border-radius:3px;overflow:hidden;"><div style="width:${barW}%;height:100%;background:var(--danger);border-radius:3px;"></div></div></td>
+              </tr>`;
+            }).join('')}
+            <tr class="total-row"><td></td><td>合计</td><td>${grandDays}天</td><td>${grandOvertimeDays}天</td><td>—</td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  return kpi + table1 + table2 + table3;
 }
 
 function renderOrderAnalysis(data, d, colors) {
