@@ -477,6 +477,11 @@
             z-index: 1;
         }
 
+        /* 订单管理：客户下拉建议需盖住下方表格的冻结表头（th z-index 18~20） */
+        #orderTab .filter-card {
+            z-index: 30;
+        }
+
         .card {
             background: var(--bg-white);
             border: 1px solid var(--border-color);
@@ -2164,7 +2169,7 @@
             <!-- 订单管理模块 -->
             <div id="orderTab" class="tab-content hidden">
                 <!-- 操作按钮区 -->
-                <div class="flex justify-between items-center mb-4" style="position: relative; z-index: 20;">
+                <div class="flex justify-between items-center mb-4" style="position: relative; z-index: 100;">
                     <h2 class="text-xl font-semibold text-gray-800">订单管理</h2>
                     <div class="flex gap-2">
                         <button class="btn btn-success" onclick="openModal('orderModal')">

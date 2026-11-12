@@ -624,10 +624,9 @@ table.data-table .del-btn:hover { background: var(--danger); color: #fff; }
             </div>
             <div class="form-group" style="min-width:120px;">
               <label>&nbsp;</label>
-              <button class="btn" style="background:#e0f2fe;color:#0369a1;" onclick="copyYesterdayRows()" title="把该员工昨天的工序带到表格，数量留空">载入昨日工序</button>
+              <button class="btn" style="background:#e0f2fe;color:#0369a1;" onclick="openCopyProcessModal()" title="选择日期和员工，复制其工序、数量、订单信息、加班">复制工序</button>
             </div>
           </div>
-          <div id="yesterdayHint" style="display:none;margin:-4px 0 12px;padding:8px 12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;font-size:13px;color:#0369a1;"></div>
           <!-- 批量录入表格 -->
           <div class="table-wrap">
             <table class="batch-table" id="batchTable">
@@ -1224,6 +1223,26 @@ table.data-table .del-btn:hover { background: var(--danger); color: #fff; }
   </div>
 </div>
 
+<!-- 复制工序弹窗 -->
+<div class="modal-overlay" id="copyProcessModal">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-title">复制工序</div>
+    <div class="form-group">
+      <label>日期 <span class="req">*</span></label>
+      <input type="date" class="form-control" id="copyProcessDate" onchange="updateCopyProcessCount()">
+    </div>
+    <div class="form-group">
+      <label>员工 <span class="req">*</span></label>
+      <select class="form-control" id="copyProcessEmployee" onchange="updateCopyProcessCount()"></select>
+    </div>
+    <div id="copyProcessCount" style="padding:8px 12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;font-size:13px;color:#0369a1;"></div>
+    <div class="form-actions" style="margin-top:16px;">
+      <button class="btn btn-primary" onclick="confirmCopyProcess()">复制到表格</button>
+      <button class="btn" style="background:#e2e8f0;" onclick="closeModal('copyProcessModal')">取消</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -1561,7 +1580,7 @@ const UI = {
   },
 
   bindEntryEvents() {
-    const onEntryCommonChange = () => { renderTodayRecords(); updateYesterdayCopyHint(); };
+    const onEntryCommonChange = () => { renderTodayRecords(); };
     document.getElementById('entryDate').addEventListener('change', onEntryCommonChange);
     document.getElementById('entryEmployee').addEventListener('change', onEntryCommonChange);
   },
@@ -1932,60 +1951,69 @@ function syncDefaults() {
   UI.toast('已同步至空白行');
 }
 
-// 日期偏移，返回 YYYY-MM-DD
-function shiftDate(dateStr, delta) {
-  const parts = String(dateStr).split('-').map(Number);
-  const dt = new Date(parts[0], parts[1] - 1, parts[2] + delta);
-  const pad = n => String(n).padStart(2, '0');
-  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+// 复制工序：弹窗选择来源日期和员工
+function openCopyProcessModal() {
+  const dateEl = document.getElementById('copyProcessDate');
+  const empEl = document.getElementById('copyProcessEmployee');
+  dateEl.value = document.getElementById('entryDate').value || new Date().toISOString().slice(0, 10);
+  const curEmp = document.getElementById('entryEmployee').value;
+  empEl.innerHTML = '<option value="">请选择</option>' +
+    DB.employees.map(e => `<option value="${e.name}">${e.name}</option>`).join('');
+  empEl.value = curEmp || '';
+  updateCopyProcessCount();
+  document.getElementById('copyProcessModal').classList.add('show');
 }
 
-// 昨天该员工有工序时，在录入区上方提示
-function updateYesterdayCopyHint() {
-  const hint = document.getElementById('yesterdayHint');
-  if (!hint) return;
-  const date = document.getElementById('entryDate').value;
-  const employee = document.getElementById('entryEmployee').value;
-  if (!date || !employee) { hint.style.display = 'none'; return; }
-  const prevDate = shiftDate(date, -1);
-  const count = DB.records.filter(r => r.date === prevDate && r.employee === employee).length;
-  if (!count) { hint.style.display = 'none'; return; }
-  hint.style.display = 'block';
-  hint.textContent = `昨日（${prevDate}）该员工有 ${count} 条工序记录，点「载入昨日工序」可一键带入（数量留空待填）`;
-}
-
-// 一键载入昨日工序：复制工序、单价、订单信息、备注，数量留空
-function copyYesterdayRows() {
-  const date = document.getElementById('entryDate').value;
-  const employee = document.getElementById('entryEmployee').value;
-  if (!date || !employee) { UI.toast('请先选择日期和员工', 'error'); return; }
-  const prevDate = shiftDate(date, -1);
-  const recs = DB.records
-    .filter(r => r.date === prevDate && r.employee === employee)
+function getCopySourceRecords() {
+  const date = document.getElementById('copyProcessDate').value;
+  const employee = document.getElementById('copyProcessEmployee').value;
+  if (!date || !employee) return [];
+  return DB.records
+    .filter(r => r.date === date && r.employee === employee)
     .sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
-  if (!recs.length) { UI.toast(`${prevDate} 该员工没有工序记录`, 'error'); return; }
+}
+
+function updateCopyProcessCount() {
+  const el = document.getElementById('copyProcessCount');
+  if (!el) return;
+  const date = document.getElementById('copyProcessDate').value;
+  const employee = document.getElementById('copyProcessEmployee').value;
+  if (!date || !employee) { el.textContent = '请选择日期和员工'; return; }
+  const count = getCopySourceRecords().length;
+  el.textContent = count
+    ? `${date} ${employee} 共有 ${count} 条工序，将复制工序名称、数量、订单信息、加班`
+    : `${date} ${employee} 没有工序记录`;
+}
+
+function confirmCopyProcess() {
+  const date = document.getElementById('copyProcessDate').value;
+  const employee = document.getElementById('copyProcessEmployee').value;
+  if (!date || !employee) { UI.toast('请选择日期和员工', 'error'); return; }
+  const recs = getCopySourceRecords();
+  if (!recs.length) { UI.toast(`${date} 该员工没有工序记录`, 'error'); return; }
 
   const currentRows = document.querySelectorAll('#batchRows tr');
   const hasInput = Array.from(currentRows).some(tr =>
     tr.querySelector('.batch-proc').value || tr.querySelector('.batch-qty').value
   );
-  if (hasInput && !confirm(`将覆盖当前表格内容，载入 ${prevDate} 的 ${recs.length} 条工序？`)) return;
+  if (hasInput && !confirm(`将覆盖当前表格内容，复制 ${date} ${employee} 的 ${recs.length} 条工序？`)) return;
 
   document.getElementById('batchRows').innerHTML = '';
   Batch.rows = [];
   recs.forEach(r => {
     const tr = addBatchRow({
       process: r.process,
+      quantity: r.quantity,
       customer: r.customer,
       orderNo: r.orderNo,
-      notes: r.notes,
       overtime: r.overtime
     });
     // 按当前工序单价重新计算，避免沿用过期的历史单价
     onProcChange(tr.querySelector('.batch-proc'));
   });
   updateBatchTotal();
-  UI.toast(`已载入 ${recs.length} 条工序，请填写数量`);
+  closeModal('copyProcessModal');
+  UI.toast(`已复制 ${recs.length} 条工序`);
 }
 
 // 弹出"当前日所有工资"汇总：按员工汇总当日 totalAmount，按工资降序排名
@@ -2093,7 +2121,6 @@ function editEntry(id) {
   document.getElementById('batchRows').innerHTML = '';
   addBatchRow({ process: r.process, unitPrice: r.unitPrice, quantity: r.quantity, totalAmount: r.totalAmount, customer: r.customer, orderNo: r.orderNo, notes: r.notes, overtime: r.overtime });
   renderTodayRecords();
-  updateYesterdayCopyHint();
 }
 
 function renderTodayRecords() {
