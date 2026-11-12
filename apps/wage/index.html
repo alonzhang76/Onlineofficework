@@ -636,6 +636,8 @@ table.data-table .del-btn:hover { background: var(--danger); color: #fff; }
                 <th style="width:70px;">单价</th>
                 <th style="width:70px;">数量 <span class="req">*</span></th>
                 <th style="width:90px;">超产小计</th>
+                <th style="width:70px;">奖励</th>
+                <th style="width:70px;">罚款</th>
                 <th style="width:90px;">合计</th>
                 <th style="width:180px;">订单信息</th>
                 <th style="width:80px;">加班</th>
@@ -644,9 +646,9 @@ table.data-table .del-btn:hover { background: var(--danger); color: #fff; }
               </tr></thead>
               <tbody id="batchRows"></tbody>
               <tfoot><tr style="font-weight:700;background:var(--primary-light);">
-                <td colspan="5" style="text-align:right;">当日合计</td>
+                <td colspan="7" style="text-align:right;">当日合计</td>
                 <td id="batchGrandTotal" style="color:var(--primary-dark);font-size:15px;">0.00</td>
-                <td colspan="3"></td>
+                <td colspan="4"></td>
               </tr></tfoot>
             </table>
           </div>
@@ -1249,7 +1251,7 @@ table.data-table .del-btn:hover { background: var(--danger); color: #fff; }
     <div class="modal-title">超产奖励</div>
     <div id="overtimeRewardInfo" style="font-size:13px;color:var(--text-light);margin-bottom:10px;"></div>
     <div style="background:var(--bg);border-radius:6px;padding:12px;font-size:13px;line-height:1.9;">
-      <div>工序合计（不含“试用计时工资”）：<b id="overtimeRewardBase">0.00</b></div>
+      <div>工序合计（不含“试用计时工资”及奖励）：<b id="overtimeRewardBase">0.00</b></div>
       <div>（合计 − 90）× 40% = <b id="overtimeRewardAmount" style="color:var(--primary);">0.00</b></div>
     </div>
     <div style="font-size:12px;color:var(--text-light);margin-top:10px;">点击“添加”将生成一条“超产奖励”工序记录（单价=计算金额，数量=1）；点击“忽略”则不生成。</div>
@@ -1781,6 +1783,8 @@ function addBatchRow(data) {
     <td class="col-price"><input type="text" class="batch-price" readonly style="text-align:right;background:#f1f5f9;"></td>
     <td class="col-qty"><input type="text" inputmode="decimal" class="batch-qty form-control" placeholder="0" oninput="calcBatchRow(this)" onkeydown="onQtyKeydown(event,this)"></td>
     <td class="col-over batch-over">0.00</td>
+    <td><input type="text" inputmode="decimal" class="batch-reward form-control" value="0" placeholder="0" oninput="calcBatchRow(this)"></td>
+    <td><input type="text" inputmode="decimal" class="batch-penalty form-control" value="0" placeholder="0" oninput="calcBatchRow(this)"></td>
     <td class="col-total batch-total">0.00</td>
     <td><input type="text" class="batch-ord-info form-control" list="orderInfoDatalist" placeholder="客户,订单号" oninput="onOrderInfoSelect(this)"></td>
     <td><select class="form-control batch-overtime"><option value="未加班">未加班</option><option value="加班">加班</option></select></td>
@@ -1797,7 +1801,11 @@ function addBatchRow(data) {
     tr.querySelector('.batch-proc').value = data.process;
     tr.querySelector('.batch-price').value = data.unitPrice ? (Math.round(data.unitPrice * 1000) / 1000).toFixed(3) : '';
     tr.querySelector('.batch-qty').value = data.quantity || '';
-    tr.querySelector('.batch-total').textContent = UI.fmtMoney((data.unitPrice || 0) * (data.quantity || 0));
+    tr.querySelector('.batch-reward').value = data.reward != null ? data.reward : 0;
+    tr.querySelector('.batch-penalty').value = data.penalty != null ? data.penalty : 0;
+    const adj = (parseFloat(data.reward) || 0) - (parseFloat(data.penalty) || 0);
+    const fallbackTotal = (data.unitPrice || 0) * (data.quantity || 0) + adj;
+    tr.querySelector('.batch-total').textContent = UI.fmtMoney(data.totalAmount != null ? data.totalAmount : fallbackTotal);
     tr.querySelector('.batch-ord-info').value = [data.customer, data.orderNo].filter(Boolean).join(',');
     tr.querySelector('.batch-overtime').value = data.overtime === '加班' ? '加班' : '未加班';
     tr.querySelector('.batch-note').value = data.notes || '';
@@ -1836,13 +1844,15 @@ function calcBatchRow(inp) {
   const quota = proc ? (proc.dailyQuota || 0) : 0;
   const overSub = getOverSubtotal(tr);
   tr.querySelector('.batch-over').textContent = UI.fmtMoney(overSub);
-  let total;
+  const reward = parseFloat(tr.querySelector('.batch-reward').value) || 0;
+  const penalty = parseFloat(tr.querySelector('.batch-penalty').value) || 0;
+  let base;
   if (quota > 0 && qty > quota) {
-    total = price * quota + overSub;
+    base = price * quota + overSub;
   } else {
-    total = price * qty;
+    base = price * qty;
   }
-  tr.querySelector('.batch-total').textContent = UI.fmtMoney(total);
+  tr.querySelector('.batch-total').textContent = UI.fmtMoney(base + reward - penalty);
   updateBatchTotal();
 }
 
@@ -2103,12 +2113,14 @@ function saveBatch() {
     const orderNo = parts[1] || defOrd;
     const notes = tr.querySelector('.batch-note').value || '';
     const overtime = tr.querySelector('.batch-overtime').value === '加班' ? '加班' : '未加班';
+    const rewardAmt = parseFloat(tr.querySelector('.batch-reward').value) || 0;
+    const penaltyAmt = parseFloat(tr.querySelector('.batch-penalty').value) || 0;
     const procData = DB.processes.find(p => p.name === proc);
     const quota = procData ? (procData.dailyQuota || 0) : 0;
-    const total = (quota > 0 && qty > quota) ? (price * quota + overSub) : (price * qty);
-    // 超产奖励基数：除“试用计时工资”外的所有工序合计
-    if (proc.trim() !== '试用计时工资') rewardBase += total;
-    const rec = { date, employee, process: proc, unitPrice: price, quantity: qty, totalAmount: total, customer, orderNo, notes, overtime };
+    const total = (quota > 0 && qty > quota ? (price * quota + overSub) : (price * qty)) + rewardAmt - penaltyAmt;
+    // 超产奖励基数：排除“试用计时工资”整行，且奖励金额不参与计算
+    if (proc.trim() !== '试用计时工资') rewardBase += total - rewardAmt;
+    const rec = { date, employee, process: proc, unitPrice: price, quantity: qty, reward: rewardAmt, penalty: penaltyAmt, totalAmount: total, customer, orderNo, notes, overtime };
     if (editId && saved === 0) { DB.updateRecord(editId, rec); }
     else { DB.addRecord(rec); }
     saved++;
@@ -2173,7 +2185,7 @@ function editEntry(id) {
   document.getElementById('entryId').value = r.id;
   document.getElementById('entryDefaultOrderInfo').value = [r.customer, r.orderNo].filter(Boolean).join(',');
   document.getElementById('batchRows').innerHTML = '';
-  addBatchRow({ process: r.process, unitPrice: r.unitPrice, quantity: r.quantity, totalAmount: r.totalAmount, customer: r.customer, orderNo: r.orderNo, notes: r.notes, overtime: r.overtime });
+  addBatchRow({ process: r.process, unitPrice: r.unitPrice, quantity: r.quantity, reward: r.reward, penalty: r.penalty, totalAmount: r.totalAmount, customer: r.customer, orderNo: r.orderNo, notes: r.notes, overtime: r.overtime });
   renderTodayRecords();
 }
 
@@ -2193,7 +2205,7 @@ function renderTodayRecords() {
       <tbody>
         ${todayRecs.map(r => `<tr>
           <td>${r.process}</td><td>${UI.fmtMoney(r.unitPrice)}</td><td>${r.quantity}</td>
-          <td style="font-weight:600;color:var(--primary);">${UI.fmtMoney(r.totalAmount)}</td>
+          <td style="font-weight:600;color:var(--primary);">${UI.fmtMoney(r.totalAmount)}${(parseFloat(r.reward) || parseFloat(r.penalty)) ? `<br><span style="font-size:11px;color:var(--text-light);">奖 ${UI.fmtMoney(r.reward || 0)} / 罚 ${UI.fmtMoney(r.penalty || 0)}</span>` : ''}</td>
           <td>${r.customer || '-'}</td><td>${r.orderNo || '-'}</td><td>${r.overtime || '未加班'}</td><td>${r.notes || '-'}</td>
           <td class="col-actions">
             <button class="btn btn-sm btn-icon-only" style="background:var(--primary-light);color:var(--primary-dark);" onclick="editEntry('${r.id}')" title="编辑">&#9998;</button>
@@ -2273,7 +2285,7 @@ function renderQueryResults() {
           <td>${start + i + 1}</td>
           <td>${UI.fmtDate(r.date)}</td><td>${r.employee}</td><td>${r.process}</td>
           <td>${UI.fmtMoney(r.unitPrice)}</td><td>${r.quantity}</td>
-          <td style="font-weight:600;color:var(--primary);">${UI.fmtMoney(r.totalAmount)}</td>
+          <td style="font-weight:600;color:var(--primary);">${UI.fmtMoney(r.totalAmount)}${(parseFloat(r.reward) || parseFloat(r.penalty)) ? `<br><span style="font-size:11px;color:var(--text-light);">奖 ${UI.fmtMoney(r.reward || 0)} / 罚 ${UI.fmtMoney(r.penalty || 0)}</span>` : ''}</td>
           <td>${r.customer || '-'}</td><td>${r.orderNo || '-'}</td><td>${r.overtime || '未加班'}</td><td>${r.notes || '-'}</td>
           <td class="col-actions">
             <button class="btn btn-sm btn-icon-only" style="background:var(--primary-light);color:var(--primary-dark);" onclick="editEntry('${r.id}')" title="编辑">&#9998;</button>
@@ -2430,12 +2442,12 @@ function exportQueryResult() {
   const data = DB.queryResult;
   if (data.length === 0) { UI.toast('无数据可导出', 'error'); return; }
   const wsData = [
-    ['序号', '日期', '员工', '工序名称', '单价', '数量', '合计金额', '客户', '订单号', '加班', '备注']
+    ['序号', '日期', '员工', '工序名称', '单价', '数量', '奖励', '罚款', '合计金额', '客户', '订单号', '加班', '备注']
   ];
   data.forEach((r, i) => {
-    wsData.push([i + 1, UI.fmtDate(r.date), r.employee, r.process, r.unitPrice, r.quantity, r.totalAmount, r.customer || '', r.orderNo || '', r.overtime || '未加班', r.notes || '']);
+    wsData.push([i + 1, UI.fmtDate(r.date), r.employee, r.process, r.unitPrice, r.quantity, r.reward || 0, r.penalty || 0, r.totalAmount, r.customer || '', r.orderNo || '', r.overtime || '未加班', r.notes || '']);
   });
-  wsData.push(['', '', '', '', '', '合计', data.reduce((s, r) => s + parseFloat(r.totalAmount || 0), 0), '', '', '', '']);
+  wsData.push(['', '', '', '', '', '', '合计', '', data.reduce((s, r) => s + parseFloat(r.totalAmount || 0), 0), '', '', '', '']);
   const ws = XLSX.utils.aoa_to_sheet(wsData);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '查询结果');

@@ -7376,13 +7376,13 @@
                 deliveryRepair.required = false;
                 
                 if (isReceipt) {
-                    deliveryRaw.value = '';
-                    deliveryReplate.value = '';
+                    deliveryRaw.value = '0';
+                    deliveryReplate.value = '0';
                 }
                 if (isShipping) {
-                    deliveryElectroplate.value = '';
-                    deliveryScrap.value = '';
-                    deliveryRepair.value = '';
+                    deliveryElectroplate.value = '0';
+                    deliveryScrap.value = '0';
+                    deliveryRepair.value = '0';
                 }
             }
             
@@ -7712,23 +7712,23 @@
                 <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                     <div id="delivery-raw-group">
                         <label for="delivery-raw" class="block text-sm font-medium text-gray-700 mb-1">毛坯数量</label>
-                        <input type="number" id="delivery-raw" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary no-spin-button" min="0" step="1">
+                        <input type="number" id="delivery-raw" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary no-spin-button" min="0" step="1" value="0">
                     </div>
                     <div id="delivery-electroplate-group">
                         <label for="delivery-electroplate" class="block text-sm font-medium text-gray-700 mb-1">电镀成品数</label>
-                        <input type="number" id="delivery-electroplate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary no-spin-button" min="0" step="1">
+                        <input type="number" id="delivery-electroplate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary no-spin-button" min="0" step="1" value="0">
                     </div>
                     <div id="delivery-replate-group">
                         <label for="delivery-replate" class="block text-sm font-medium text-gray-700 mb-1">返镀数量</label>
-                        <input type="number" id="delivery-replate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary no-spin-button" min="0" step="1">
+                        <input type="number" id="delivery-replate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary no-spin-button" min="0" step="1" value="0">
                     </div>
                     <div id="delivery-repair-group">
                         <label for="delivery-repair" class="block text-sm font-medium text-gray-700 mb-1">毛坯返修</label>
-                        <input type="number" id="delivery-repair" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary no-spin-button" min="0" step="1">
+                        <input type="number" id="delivery-repair" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary no-spin-button" min="0" step="1" value="0">
                     </div>
                     <div id="delivery-scrap-group">
                         <label for="delivery-scrap" class="block text-sm font-medium text-gray-700 mb-1">报废数量</label>
-                        <input type="number" id="delivery-scrap" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary no-spin-button" min="0" step="1">
+                        <input type="number" id="delivery-scrap" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary no-spin-button" min="0" step="1" value="0">
                     </div>
                 </div>
                 <p class="text-sm text-gray-500">发货登记：毛坯数量，以及电镀不合格退回重镀的返镀数量；收货登记：电镀成品数，以及电镀厂未电镀直接退回的毛坯返修、报废数量。</p>
