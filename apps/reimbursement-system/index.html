@@ -1722,7 +1722,13 @@ function payTableRender(state,tbodyId,pagerId,nameKey,navFn,sizeFn,mode){
       <td class="num" style="color:var(--green)">${fmt(x.p)}</td>
       <td class="num"><b style="color:${owed>0.005?(isBuyer?'var(--primary)':'var(--red)'):'inherit'}">${fmt(owed)}</b></td>
       <td>${x.last_pay||'-'}</td>
-      <td>${!CAN.pay?'—':(owed>0.005?`<button class="btn btn-sm ${isBuyer?'btn-success':'btn-primary'}" onclick="openSupPay('${mode}','${esc(name)}')">${isBuyer?'收款':'付款'}</button>`:`<button class="btn btn-sm" disabled style="opacity:.45;cursor:not-allowed">${isBuyer?'收款':'付款'}</button>`)}</td>
+      <td>${(()=>{
+        const ops=[];
+        if(mode==='claimant'&&x.n>0)ops.push(`<button class="btn btn-sm btn-outline" onclick="exportClaimantInvoicesPdf('${esc(name)}')" title="把该报销人全部发票原件合并为一个 PDF">PDF发票</button>`);
+        if(!CAN.pay)return ops.join('')||'—';
+        ops.push(owed>0.005?`<button class="btn btn-sm ${isBuyer?'btn-success':'btn-primary'}" onclick="openSupPay('${mode}','${esc(name)}')">${isBuyer?'收款':'付款'}</button>`:`<button class="btn btn-sm" disabled style="opacity:.45;cursor:not-allowed">${isBuyer?'收款':'付款'}</button>`);
+        return `<span style="display:inline-flex;gap:6px;flex-wrap:wrap">${ops.join('')}</span>`;
+      })()}</td>
     </tr>`;}).join(''):`<tr><td colspan="7" class="empty">${isBuyer?'暂无开票数据（我方开出的销项发票需匹配公司抬头后计入）':'暂无数据（收到的发票需匹配公司抬头为进项后计入）'}，或当前筛选条件无匹配</td></tr>`;
 }
 function renderPayStats(){
@@ -2923,6 +2929,53 @@ async function exportOriginalsPdf(){
     toast(`导出完成：成功 ${ok} 张${fail?`，失败 ${fail} 张`:''}`,'ok');
   }catch(e){
     toast('导出失败：'+e.message,'err');
+  }
+}
+/* 将某报销人名下全部发票原件按开票日期合并为一个 PDF（与“付给报销人”行口径一致） */
+async function exportClaimantInvoicesPdf(name){
+  if(!window.PDFLib){return toast('PDF 合并库加载失败，请刷新页面后重试','err');}
+  let invoices=await ReimStore.getInvoices();
+  // 角色过滤（与统计口径一致）
+  if(ME.role==='claimant')invoices=invoices.filter(r=>{
+    const nc=(r.claimant||'').replace(/\s+/g,''),nm=(ME.display_name||'').replace(/\s+/g,'');
+    return (nc&&nc===nm)||r.user_id===ME.id;
+  });
+  const companyFilter=$('#s_company')&&$('#s_company').value?parseInt($('#s_company').value):null;
+  const rows=invoices.filter(r=>r.direction==='进项'&&r.status!=='已驳回'&&r.settle!=='仅做账'
+    &&(r.claimant||'未知')===name&&(!companyFilter||r.company_id===companyFilter));
+  if(!rows.length)return toast('该报销人名下没有可导出的发票','err');
+  const withPdf=rows.filter(r=>r.cloud_path).sort((a,b)=>(a.invoice_date||'').localeCompare(b.invoice_date||''));
+  const missing=rows.length-withPdf.length;
+  if(!withPdf.length)return toast(`该报销人名下 ${rows.length} 张发票均未上传 PDF 原件`,'err');
+  if(!confirm(`将把「${name}」名下 ${withPdf.length} 张发票原件合并为一个 PDF，是否继续？`))return;
+  toast(`正在生成「${name}」的发票 PDF，请稍候…`,'info');
+  try{
+    const merged=await PDFLib.PDFDocument.create();
+    let ok=0,fail=0;
+    for(let i=0;i<withPdf.length;i++){
+      const r=withPdf[i];
+      try{
+        const blob=await cbDownload(r.cloud_path);
+        const bytes=new Uint8Array(await blob.arrayBuffer());
+        const src=await PDFLib.PDFDocument.load(bytes);
+        const pages=await merged.copyPages(src,src.getPageIndices());
+        pages.forEach(p=>merged.addPage(p));
+        ok++;
+        if(i%5===4||i===withPdf.length-1)toast(`已合并 ${ok}/${withPdf.length} 张…`,'info');
+      }catch(e){fail++;console.warn('合并失败:',r.invoice_no,e);}
+    }
+    if(!ok)return toast('合并失败：没有可用的发票 PDF 原件','err');
+    const out=await merged.save();
+    const blob=new Blob([out],{type:'application/pdf'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`${name.replace(/[\\/:*?"<>|]/g,'_')}_发票原件_${Date.now()}.pdf`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    const extra=[missing?`${missing} 张未上传原件`:null,fail?`${fail} 张合并失败`:null].filter(Boolean);
+    toast(`已生成 ${ok} 张发票 PDF${extra.length?`（${extra.join('，')}）`:''}`,'ok');
+  }catch(e){
+    toast('生成 PDF 失败：'+e.message,'err');
   }
 }
 async function exportPaysCsv(){

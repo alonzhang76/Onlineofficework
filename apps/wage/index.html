@@ -855,6 +855,10 @@ table.data-table .del-btn:hover { background: var(--danger); color: #fff; }
               <label>统计年份</label>
               <select class="form-control" id="orderStatYear" onchange="renderStats()" style="width:120px;"></select>
             </div>
+            <div class="form-group" id="orderProcessSearchGroup" style="display:none;">
+              <label>搜索</label>
+              <input type="text" class="form-control" id="orderProcessSearch" placeholder="订单号 / 客户 / 工序 / 员工" oninput="renderStats()" style="width:230px;">
+            </div>
             <div class="form-group" style="flex-direction:row;gap:8px;">
               <button class="btn btn-success" onclick="exportStats()">导出Excel</button>
             </div>
@@ -1651,9 +1655,11 @@ const UI = {
         const yearGroup = document.getElementById('orderStatYearGroup');
         const startGroup = document.getElementById('statsStartGroup');
         const endGroup = document.getElementById('statsEndGroup');
+        const opSearchGroup = document.getElementById('orderProcessSearchGroup');
         if (yearGroup) yearGroup.style.display = isOrderStat ? '' : 'none';
         if (startGroup) startGroup.style.display = isOrderStat ? 'none' : '';
         if (endGroup) endGroup.style.display = isOrderStat ? 'none' : '';
+        if (opSearchGroup) opSearchGroup.style.display = DB.currentStat === 'orderProcess' ? '' : 'none';
         renderStats();
       });
     });
@@ -2016,8 +2022,9 @@ function getCopySourceRecords() {
   const date = document.getElementById('copyProcessDate').value;
   const employee = document.getElementById('copyProcessEmployee').value;
   if (!date || !employee) return [];
+  // 超产奖励由保存时按当天工序自动重算，不随复制带入，避免出现空单价或重复记录
   return DB.records
-    .filter(r => r.date === date && r.employee === employee)
+    .filter(r => r.date === date && r.employee === employee && r.process !== '超产奖励')
     .sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
 }
 
@@ -2124,12 +2131,15 @@ function saveBatch() {
   const oldDate = editRec ? editRec.date : '';
   const oldEmployee = editRec ? editRec.employee : '';
   const oldProcess = editRec ? editRec.process : '';
+  const editingReward = oldProcess === '超产奖励';
   let saved = 0;
   const rows = document.querySelectorAll('#batchRows tr');
   rows.forEach(tr => {
     const proc = tr.querySelector('.batch-proc').value;
     const qty = parseFloat(tr.querySelector('.batch-qty').value) || 0;
     if (!proc || !qty) return;
+    // “超产奖励”只允许编辑原记录，不允许通过普通行新增（否则会出现空单价/重复记录）
+    if (proc === '超产奖励' && !(editingReward && saved === 0)) return;
     const price = parseFloat(tr.querySelector('.batch-price').value) || 0;
     const overSub = getOverSubtotal(tr);
     const rowInfo = tr.querySelector('.batch-ord-info').value || defInfo;
@@ -2153,19 +2163,22 @@ function saveBatch() {
   clearBatch();
 
   // 超产奖励：(当日有效工序合计 − 90) × 40%
-  // 编辑 / 复制工序后，按最新工序动态重算当天已有的“超产奖励”记录（不新增第二条）
+  // 编辑 / 复制工序后，按最新工序动态重算当天已有的“超产奖励”记录（只保留一条）
   const base = calcDailyRewardBase(employee, date);
   const reward = calcOvertimeReward(base);
-  const existingReward = DB.records.find(r => r.employee === employee && r.date === date && r.process === '超产奖励');
-  if (existingReward) {
+  const rewardRecs = getOvertimeRewardRecords(employee, date);
+  if (rewardRecs.length) {
+    const keep = rewardRecs[0];
     if (reward > 0) {
-      const oldAmount = parseFloat(existingReward.totalAmount) || 0;
+      const oldAmount = parseFloat(keep.totalAmount) || 0;
       if (Math.abs(oldAmount - reward) > 0.005) {
-        DB.updateRecord(existingReward.id, { unitPrice: reward, quantity: 1, totalAmount: reward });
+        DB.updateRecord(keep.id, { unitPrice: reward, quantity: 1, totalAmount: reward });
         UI.toast(`已按最新工序更新超产奖励：${UI.fmtMoney(reward)} 元`);
       }
+      // 清理历史复制遗留的重复奖励记录
+      rewardRecs.slice(1).forEach(r => DB.deleteRecord(r.id));
     } else {
-      DB.deleteRecord(existingReward.id);
+      rewardRecs.forEach(r => DB.deleteRecord(r.id));
       UI.toast('工序合计未达奖励条件，已移除当日超产奖励');
     }
   } else if (!editId && reward > 0) {
@@ -2179,6 +2192,11 @@ function saveBatch() {
   executeQuery();
 }
 
+// 某员工某天的全部“超产奖励”记录
+function getOvertimeRewardRecords(employee, date) {
+  return DB.records.filter(r => r.employee === employee && r.date === date && r.process === '超产奖励');
+}
+
 // 当日超产奖励基数：排除“超产奖励”与“试用计时工资”，奖励字段不计入基数
 function calcDailyRewardBase(employee, date) {
   return DB.records
@@ -2190,18 +2208,20 @@ function calcOvertimeReward(base) {
   return Math.round((base - 90) * 0.4 * 100) / 100;
 }
 
-// 同步某员工某天已有的“超产奖励”记录；没有则不动，金额不足时移除
+// 同步某员工某天已有的“超产奖励”记录：只保留一条，金额不足时全部移除
 function syncOvertimeReward(employee, date) {
-  const existing = DB.records.find(r => r.employee === employee && r.date === date && r.process === '超产奖励');
-  if (!existing) return;
+  const rewardRecs = getOvertimeRewardRecords(employee, date);
+  if (!rewardRecs.length) return;
   const reward = calcOvertimeReward(calcDailyRewardBase(employee, date));
-  if (reward > 0) {
-    if (Math.abs((parseFloat(existing.totalAmount) || 0) - reward) > 0.005) {
-      DB.updateRecord(existing.id, { unitPrice: reward, quantity: 1, totalAmount: reward });
-    }
-  } else {
-    DB.deleteRecord(existing.id);
+  if (reward <= 0) {
+    rewardRecs.forEach(r => DB.deleteRecord(r.id));
+    return;
   }
+  const keep = rewardRecs[0];
+  if (Math.abs((parseFloat(keep.totalAmount) || 0) - reward) > 0.005) {
+    DB.updateRecord(keep.id, { unitPrice: reward, quantity: 1, totalAmount: reward });
+  }
+  rewardRecs.slice(1).forEach(r => DB.deleteRecord(r.id));
 }
 
 let _pendingOvertimeReward = null;
@@ -3820,10 +3840,18 @@ function renderOrderAnalysis(data, d, colors) {
 // ========== Order × Process Statistics ==========
 // 同一订单号下：相同工序按员工分行（多人操作各占一行），同一员工同一工序合并为一行
 function renderOrderProcessStats(data) {
+  const keyword = String((document.getElementById('orderProcessSearch') || {}).value || '').trim().toLowerCase();
   const rows = data.filter(r => r.orderNo);
   if (!rows.length) {
     return '<div class="card"><div class="empty-state">所选时间范围内没有带订单号的工序记录</div></div>';
   }
+
+  // 订单下单日期：记录中的订单号可能带 “ [产品]” 后缀，匹配前先剥离
+  const orderDateMap = {};
+  (DB.orders || []).forEach(o => {
+    orderDateMap[String(o.orderNo || '').trim()] = o.orderDate || '';
+  });
+  const baseOrderNo = s => String(s || '').replace(/\s*\[.*\]\s*$/, '').trim();
 
   const groupMap = {};
   rows.forEach(r => {
@@ -3841,27 +3869,58 @@ function renderOrderProcessStats(data) {
 
   const orderMap = {};
   Object.values(groupMap).forEach(g => {
-    if (!orderMap[g.orderNo]) orderMap[g.orderNo] = { orderNo: g.orderNo, customer: '', qty: 0, amount: 0, rows: [] };
+    if (!orderMap[g.orderNo]) {
+      orderMap[g.orderNo] = {
+        orderNo: g.orderNo, customer: '', qty: 0, amount: 0, rows: [],
+        orderDate: orderDateMap[baseOrderNo(g.orderNo)] || ''
+      };
+    }
     const o = orderMap[g.orderNo];
     if (!o.customer && g.customer) o.customer = g.customer;
     o.qty += g.qty;
     o.amount += g.amount;
     o.rows.push(g);
   });
-  const orderList = Object.values(orderMap).sort((a, b) => String(b.orderNo).localeCompare(String(a.orderNo)));
+
+  let orderList = Object.values(orderMap);
+  // 搜索：命中订单号/客户/下单日期时保留整单；否则只保留匹配工序或员工的明细行
+  if (keyword) {
+    orderList = orderList.map(o => {
+      const orderHit = [o.orderNo, o.customer, o.orderDate]
+        .some(v => String(v || '').toLowerCase().includes(keyword));
+      const matched = orderHit ? o.rows : o.rows.filter(g =>
+        String(g.process).toLowerCase().includes(keyword) || String(g.employee).toLowerCase().includes(keyword));
+      if (!matched.length) return null;
+      return Object.assign({}, o, {
+        rows: matched,
+        qty: matched.reduce((s, g) => s + g.qty, 0),
+        amount: matched.reduce((s, g) => s + g.amount, 0)
+      });
+    }).filter(Boolean);
+    if (!orderList.length) {
+      return '<div class="card"><div class="empty-state">未找到匹配的订单工序记录</div></div>';
+    }
+  }
+
+  // 按订单下单日期倒序（无日期排最后），同日期按订单号倒序
+  orderList.sort((a, b) =>
+    String(b.orderDate || '').localeCompare(String(a.orderDate || '')) ||
+    String(b.orderNo).localeCompare(String(a.orderNo)));
   orderList.forEach(o => o.rows.sort((a, b) =>
     String(a.process).localeCompare(String(b.process), 'zh') || String(a.employee).localeCompare(String(b.employee), 'zh')));
 
+  const visibleGroups = orderList.reduce((arr, o) => arr.concat(o.rows), []);
   const grandQty = orderList.reduce((s, o) => s + o.qty, 0);
   const grandAmount = orderList.reduce((s, o) => s + o.amount, 0);
-  const procCount = new Set(rows.map(r => r.process)).size;
-  const empCount = new Set(rows.map(r => r.employee)).size;
+  const procCount = new Set(visibleGroups.map(g => g.process)).size;
+  const empCount = new Set(visibleGroups.map(g => g.employee)).size;
 
   let body = '';
   orderList.forEach(o => {
     o.rows.forEach((g, i) => {
+      const sub = [o.customer, o.orderDate ? '下单 ' + o.orderDate : ''].filter(Boolean).join(' · ');
       body += `<tr>
-        ${i === 0 ? `<td rowspan="${o.rows.length}" style="font-weight:600;vertical-align:top;">${o.orderNo}${o.customer ? `<div style="font-size:11px;color:var(--text-light);font-weight:400;">${o.customer}</div>` : ''}</td>` : ''}
+        ${i === 0 ? `<td rowspan="${o.rows.length}" style="font-weight:600;vertical-align:top;">${o.orderNo}${sub ? `<div style="font-size:11px;color:var(--text-light);font-weight:400;">${sub}</div>` : ''}</td>` : ''}
         <td>${g.process}</td>
         <td>${g.employee}</td>
         <td style="text-align:right;">${g.qty}</td>
@@ -3885,7 +3944,7 @@ function renderOrderProcessStats(data) {
       <div class="stat-card"><div class="stat-label">金额合计</div><div class="stat-value">${UI.fmtMoney(grandAmount)}</div><div class="stat-sub">数量合计 ${grandQty}</div></div>
     </div>
     <div class="card">
-      <div class="card-title">订单工序统计<span style="font-weight:400;color:var(--text-light);font-size:13px;margin-left:10px;">同一工序多人操作按员工分行，同一员工合并为一行（不含无订单号记录）</span></div>
+      <div class="card-title">订单工序统计<span style="font-weight:400;color:var(--text-light);font-size:13px;margin-left:10px;">按下单日期倒序；同一工序多人操作按员工分行，同一员工合并为一行（不含无订单号记录）</span></div>
       <div class="table-wrap">
         <table class="data-table summary-table">
           <thead><tr>
@@ -4102,7 +4161,11 @@ function exportStats() {
       g.count++;
       if (!g.customer && r.customer) g.customer = r.customer;
     });
+    const orderDateMap = {};
+    (DB.orders || []).forEach(o => { orderDateMap[String(o.orderNo || '').trim()] = o.orderDate || ''; });
+    const orderDateOf = no => orderDateMap[String(no || '').replace(/\s*\[.*\]\s*$/, '').trim()] || '';
     const list = Object.values(map).sort((a, b) =>
+      String(orderDateOf(b.orderNo)).localeCompare(String(orderDateOf(a.orderNo))) ||
       String(b.orderNo).localeCompare(String(a.orderNo)) ||
       String(a.process).localeCompare(String(b.process), 'zh') ||
       String(a.employee).localeCompare(String(b.employee), 'zh'));
