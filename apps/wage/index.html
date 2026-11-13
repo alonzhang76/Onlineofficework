@@ -264,6 +264,7 @@ table.data-table .col-actions button { margin-right: 4px; }
 .pagination-controls button:hover { background: var(--primary-light); }
 .pagination-controls button:disabled { opacity: 0.5; cursor: default; }
 .pagination-controls button.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* Empty state */
 .empty-state { text-align: center; padding: 40px; color: var(--text-light); }
@@ -728,6 +729,8 @@ table.data-table .del-btn:hover { background: var(--danger); color: #fff; }
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
             <input type="text" id="queryKeyword" class="form-control" style="max-width:380px;" placeholder="搜索全部字段：工序 / 员工 / 客户 / 订单号 / 备注 / 加班 …" oninput="executeQuery()">
             <span style="font-size:12px;color:var(--text-light);">输入即筛选，可与上方条件叠加</span>
+            <span id="querySelectedInfo" style="margin-left:auto;font-size:12px;color:var(--text-light);">已选 0 条</span>
+            <button class="btn btn-danger" id="batchDeleteBtn" onclick="batchDeleteQueryRecords()" disabled>批量删除</button>
           </div>
           <div id="queryResults"></div>
           <div class="pagination" id="queryPagination"></div>
@@ -2149,8 +2152,10 @@ function saveBatch() {
   executeQuery();
 
   // 超产奖励：(除试用计时工资外的合计 − 90) × 40%
+  // 编辑已有记录后不再提示；同一员工同一天已有“超产奖励”记录时也不重复提示
   const reward = Math.round((rewardBase - 90) * 0.4 * 100) / 100;
-  if (reward > 0) showOvertimeReward({ date, employee, base: rewardBase, reward });
+  const hasOvertimeReward = DB.records.some(r => r.employee === employee && r.date === date && r.process === '超产奖励');
+  if (!editId && reward > 0 && !hasOvertimeReward) showOvertimeReward({ date, employee, base: rewardBase, reward });
 }
 
 let _pendingOvertimeReward = null;
@@ -2168,6 +2173,11 @@ function addOvertimeReward() {
   _pendingOvertimeReward = null;
   closeModal('overtimeRewardModal');
   if (!info) return;
+  // 同一员工同一天只允许一条“超产奖励”
+  if (DB.records.some(r => r.employee === info.employee && r.date === info.date && r.process === '超产奖励')) {
+    UI.toast('当日已有“超产奖励”记录，未重复添加');
+    return;
+  }
   DB.addRecord({
     date: info.date, employee: info.employee, process: '超产奖励',
     unitPrice: info.reward, quantity: 1, totalAmount: info.reward,
@@ -2273,6 +2283,30 @@ function changePageSize() {
 
 function toggleAllQueryCheckboxes(master) {
   document.querySelectorAll('.query-check').forEach(cb => { cb.checked = master.checked; });
+  updateQuerySelectionInfo();
+}
+
+/** 更新“已选 N 条”提示与批量删除按钮状态 */
+function updateQuerySelectionInfo() {
+  const n = document.querySelectorAll('.query-check:checked').length;
+  const info = document.getElementById('querySelectedInfo');
+  const btn = document.getElementById('batchDeleteBtn');
+  if (info) info.textContent = `已选 ${n} 条`;
+  if (btn) btn.disabled = n === 0;
+}
+
+/** 批量删除工资汇总表中勾选的记录 */
+function batchDeleteQueryRecords() {
+  const ids = Array.from(document.querySelectorAll('.query-check:checked')).map(cb => cb.value);
+  if (ids.length === 0) { UI.toast('请先勾选要删除的记录', 'error'); return; }
+  if (!confirm(`确认删除选中的 ${ids.length} 条记录？\n\n此操作不可恢复！`)) return;
+  const idSet = new Set(ids);
+  DB.records = DB.records.filter(r => !idSet.has(r.id));
+  DB.save('records');
+  executeQuery();
+  renderTodayRecords();
+  UI.renderDataOverview();
+  UI.toast(`已删除 ${ids.length} 条记录`);
 }
 
 function renderQueryResults() {
@@ -2283,7 +2317,7 @@ function renderQueryResults() {
 
   countEl.textContent = `共 ${data.length} 条记录，合计金额：${UI.fmtMoney(data.reduce((s, r) => s + parseFloat(r.totalAmount || 0), 0))} 元`;
 
-  if (data.length === 0) { container.innerHTML = UI.emptyState('无匹配记录'); pagEl.innerHTML = ''; return; }
+  if (data.length === 0) { container.innerHTML = UI.emptyState('无匹配记录'); pagEl.innerHTML = ''; updateQuerySelectionInfo(); return; }
 
   const totalPages = Math.ceil(data.length / DB.pageSize);
   if (DB.currentPage > totalPages) DB.currentPage = 1;
@@ -2298,7 +2332,7 @@ function renderQueryResults() {
       </tr></thead>
       <tbody>
         ${pageData.map((r, i) => `<tr>
-          <td><input type="checkbox" class="query-check" value="${r.id}"></td>
+          <td><input type="checkbox" class="query-check" value="${r.id}" onchange="updateQuerySelectionInfo()"></td>
           <td>${start + i + 1}</td>
           <td>${UI.fmtDate(r.date)}</td><td>${r.employee}</td><td>${r.process}</td>
           <td>${UI.fmtMoney(r.unitPrice)}</td><td>${r.quantity}</td>
@@ -2321,6 +2355,7 @@ function renderQueryResults() {
       <button onclick="goToPage(${DB.currentPage + 1})" ${DB.currentPage === totalPages ? 'disabled' : ''}>&rsaquo;</button>
       <button onclick="goToPage(${totalPages})" ${DB.currentPage === totalPages ? 'disabled' : ''}>&raquo;</button>
     </div>`;
+  updateQuerySelectionInfo();
 }
 
 function goToPage(p) { DB.currentPage = p; renderQueryResults(); }
