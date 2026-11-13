@@ -373,11 +373,11 @@ html.reim-non-admin #cbBtnClear{display:none!important}
       </table>
     </div>
 
-    <h2 style="margin:18px 0 8px;font-size:14px">② 付给报销人（费用报销）</h2>
+    <h2 style="margin:18px 0 8px;font-size:14px">② 付给报销人（费用报销）<span style="font-weight:400;color:var(--muted);font-size:12px;margin-left:8px">每行 = 一次报销/付款批次；已付款批次保留原发票，新发票另起一行</span></h2>
     <div class="tbl-topbar" id="payc_pager"></div>
     <div class="tbl-wrap" style="max-height:34vh">
       <table>
-        <thead><tr><th>报销人</th><th class="num">发票张数</th><th class="num">价税合计</th><th class="num">已付款</th><th class="num">未付欠款</th><th>最近付款日期</th><th>操作</th></tr></thead>
+        <thead><tr><th>报销人</th><th class="num">发票张数</th><th class="num">价税合计</th><th class="num">已付款</th><th class="num">未付欠款</th><th>报销/付款日期</th><th>操作</th></tr></thead>
         <tbody id="paycBody"></tbody>
       </table>
     </div>
@@ -1715,18 +1715,19 @@ function payTableRender(state,tbodyId,pagerId,nameKey,navFn,sizeFn,mode){
   const pageRows=rows.slice((state.page-1)*state.size,state.page*state.size);
   $(('#'+tbodyId)).innerHTML=pageRows.length?pageRows.map(x=>{
     const owed=(x.t||0)-(x.p||0),name=x[nameKey]||'-';
+    const batchArg=mode==='claimant'&&x.key?`,'${x.key}'`:'';
     return `<tr>
-      <td title="${esc(name)}">${owed>0.005&&CAN.pay?`<a class="link" href="javascript:;" onclick="openSupPay('${mode}','${esc(name)}')">${esc(cut(name,20))}</a>`:esc(cut(name,20))}</td>
+      <td title="${esc(name)}">${owed>0.005&&CAN.pay?`<a class="link" href="javascript:;" onclick="openSupPay('${mode}','${esc(name)}'${batchArg})">${esc(cut(name,20))}</a>`:esc(cut(name,20))}</td>
       <td class="num">${x.n}</td>
       <td class="num">${fmt(x.t)}</td>
       <td class="num" style="color:var(--green)">${fmt(x.p)}</td>
       <td class="num"><b style="color:${owed>0.005?(isBuyer?'var(--primary)':'var(--red)'):'inherit'}">${fmt(owed)}</b></td>
-      <td>${x.last_pay||'-'}</td>
+      <td>${mode==='claimant'?(x.batch||'<span style="color:var(--muted)">待付款</span>'):(x.last_pay||'-')}</td>
       <td>${(()=>{
         const ops=[];
-        if(mode==='claimant'&&x.n>0)ops.push(`<button class="btn btn-sm btn-outline" onclick="exportClaimantInvoicesPdf('${esc(name)}')" title="把该报销人全部发票原件合并为一个 PDF">PDF发票</button>`);
+        if(mode==='claimant'&&x.n>0)ops.push(`<button class="btn btn-sm btn-outline" onclick="exportClaimantInvoicesPdf('${x.key}')" title="把本行对应发票原件合并为一个 PDF">PDF发票</button>`);
         if(!CAN.pay)return ops.join('')||'—';
-        ops.push(owed>0.005?`<button class="btn btn-sm ${isBuyer?'btn-success':'btn-primary'}" onclick="openSupPay('${mode}','${esc(name)}')">${isBuyer?'收款':'付款'}</button>`:`<button class="btn btn-sm" disabled style="opacity:.45;cursor:not-allowed">${isBuyer?'收款':'付款'}</button>`);
+        ops.push(owed>0.005?`<button class="btn btn-sm ${isBuyer?'btn-success':'btn-primary'}" onclick="openSupPay('${mode}','${esc(name)}'${batchArg})">${isBuyer?'收款':'付款'}</button>`:`<button class="btn btn-sm" disabled style="opacity:.45;cursor:not-allowed">${isBuyer?'收款':'付款'}</button>`);
         return `<span style="display:inline-flex;gap:6px;flex-wrap:wrap">${ops.join('')}</span>`;
       })()}</td>
     </tr>`;}).join(''):`<tr><td colspan="7" class="empty">${isBuyer?'暂无开票数据（我方开出的销项发票需匹配公司抬头后计入）':'暂无数据（收到的发票需匹配公司抬头为进项后计入）'}，或当前筛选条件无匹配</td></tr>`;
@@ -1775,11 +1776,12 @@ function supRefreshSel(){
   $('#sup_amount').disabled=mixed;
   supPreview();
 }
-async function openSupPay(mode,name){
-  SUP={mode,name,rows:[],sel:{}};
+async function openSupPay(mode,name,batchKey){
+  SUP={mode,name,batchKey,rows:[],sel:{}};
   const tag={seller:'销售方',claimant:'报销人',buyer:'客户'}[mode]||'';
   const verb=mode==='buyer'?'收款':'付款';
-  $('#sup_name').textContent=tag+' '+name;
+  const batchRow=(mode==='claimant'&&batchKey)?PAYC_P.rows.find(x=>x.key===batchKey):null;
+  $('#sup_name').textContent=tag+' '+name+(batchRow?`（${batchRow.batch||'待付款'}）`:'');
   $('#sup_info').textContent='正在加载未付清发票…';
   $('#sup_list').innerHTML='';$('#sup_amount').value='';$('#sup_method').value='';
   $('#sup_note').value='';$('#sup_date').value=new Date().toISOString().slice(0,10);
@@ -1795,6 +1797,11 @@ async function openSupPay(mode,name){
   let pool=invoices.filter(r=>r.direction===dir&&r.status!=='已驳回'&&r.settle!=='仅做账');
   if(mode==='claimant')pool=pool.filter(r=>r.payee==='报销人');
   if(mode==='seller')pool=pool.filter(r=>r.payee!=='报销人');
+  // 付报销人：只处理本行（本次报销/付款批次）对应的发票
+  if(batchRow&&batchRow.ids&&batchRow.ids.length){
+    const ids=new Set(batchRow.ids.map(String));
+    pool=pool.filter(r=>ids.has(String(r.id)));
+  }
   SUP.rows=pool.filter(r=>r[field]===name)
     .map(r=>{const bal=(r.total_amount||0)-(r.paid_amount||0);return{...r,balance:Math.max(0,bal)};})
     .filter(r=>r.balance>0.004)
@@ -2104,8 +2111,17 @@ async function loadStats(){
     const s=r.seller_name||'未知';if(!bySeller[s])bySeller[s]={seller_name:s,n:0,t:0,p:0,d:'',last_pay:''};bySeller[s].p+=r.amount||0;touch(bySeller[s],r.payment_date||r.created_at);touchPay(bySeller[s],r.payment_date);
   });
   payEff.filter(r=>r.payee==='报销人').forEach(r=>{
-    const c=r.claimant||'未知';if(!byClaimant[c])byClaimant[c]={claimant:c,n:0,t:0,p:0,d:'',last_pay:''};byClaimant[c].n++;byClaimant[c].t+=r.total_amount||0;byClaimant[c].p+=r.paid_amount||0;touch(byClaimant[c],r.invoice_date);if((r.paid_amount||0)>0)touchPay(byClaimant[c],r.payment_date);
+    const c=r.claimant||'未知';
+    // 一行对应一次报销/付款批次：已付款按付款日期分组；新发票（未付款）单独成行，不并入已付款批次
+    const paid=r.paid_amount||0;
+    const batch=paid>0.005?String(r.payment_date||'未填付款日期'):'';
+    const key=c+'||'+batch;
+    if(!byClaimant[key])byClaimant[key]={claimant:c,batch,n:0,t:0,p:0,d:'',last_pay:'',ids:[]};
+    const g=byClaimant[key];
+    g.n++;g.t+=r.total_amount||0;g.p+=paid;g.ids.push(r.id);
+    if(!g.batch)touch(g,r.invoice_date);
   });
+  Object.values(byClaimant).forEach(g=>{if(g.batch){g.d=g.batch;g.last_pay=g.batch;}});
   const recEff=invoices.filter(r=>r.direction==='销项'&&r.status!=='已驳回'&&(!companyFilter||r.company_id===companyFilter));
   const byBuyer={};
   recEff.forEach(r=>{const b=r.buyer_name||'未知';if(!byBuyer[b])byBuyer[b]={buyer_name:b,n:0,t:0,p:0,d:'',last_pay:''};byBuyer[b].n++;byBuyer[b].t+=r.total_amount||0;byBuyer[b].p+=r.paid_amount||0;touch(byBuyer[b],r.invoice_date);if((r.paid_amount||0)>0)touchPay(byBuyer[b],r.payment_date);});
@@ -2130,7 +2146,8 @@ async function loadStats(){
   PAY_P.all={n:payEff.length,total:sum(payEff,'total_amount'),paid:sum(payEff,'paid_amount')+nipPaid,owed:sum(payEff,'total_amount')-sum(payEff,'paid_amount')-nipPaid};
   PAY_P.book={n:invoices.filter(r=>r.settle==='仅做账').length,total:sum(invoices.filter(r=>r.settle==='仅做账'),'total_amount')};
   PAY_P.rej={n:invoices.filter(r=>r.status==='已驳回').length,total:sum(invoices.filter(r=>r.status==='已驳回'),'total_amount')};PAY_P.page=1;
-  PAYC_P.rows=applyView(Object.values(byClaimant),'claimant');PAYC_P.all=PAY_P.all;PAYC_P.book=PAY_P.book;PAYC_P.rej=PAY_P.rej;PAYC_P.page=1;
+  PAYC_P.rows=applyView(Object.values(byClaimant),'claimant');
+  PAYC_P.rows.forEach((x,i)=>{x.key='pc'+i;});PAYC_P.all=PAY_P.all;PAYC_P.book=PAY_P.book;PAYC_P.rej=PAY_P.rej;PAYC_P.page=1;
   RCP_P.rows=applyView(Object.values(byBuyer),'buyer_name');RCP_P.all={n:recEff.length,total:sum(recEff,'total_amount'),received:sum(recEff,'paid_amount'),owed:sum(recEff,'total_amount')-sum(recEff,'paid_amount')};RCP_P.page=1;
   renderPayStats();
   saveStatsFilters();
@@ -2618,7 +2635,7 @@ async function savePay(){
   const status=inv.paid_amount<=0.004?'未付款':(balance<=0.004?'已付清':'部分付款');
   toast(`已登记付款：${status}，未付差额 ¥${balance.toFixed(2)}`);
   closeModal('payMask');
-  if($('#supMask').classList.contains('show')){openSupPay(SUP.mode,SUP.name);loadStats();}
+  if($('#supMask').classList.contains('show')){openSupPay(SUP.mode,SUP.name,SUP.batchKey);loadStats();}
   else loadLedger(LEDGER.page);
   const paysTab=document.getElementById('tab-pays');
   if(paysTab&&!paysTab.hidden)loadPays(PAYREC.page);
@@ -2931,24 +2948,26 @@ async function exportOriginalsPdf(){
     toast('导出失败：'+e.message,'err');
   }
 }
-/* 将某报销人名下全部发票原件按开票日期合并为一个 PDF（与“付给报销人”行口径一致） */
-async function exportClaimantInvoicesPdf(name){
+/* 将“付给报销人”某一行的发票原件按开票日期合并为一个 PDF（只含本批次） */
+async function exportClaimantInvoicesPdf(batchKey){
   if(!window.PDFLib){return toast('PDF 合并库加载失败，请刷新页面后重试','err');}
+  const batchRow=PAYC_P.rows.find(x=>x.key===batchKey);
+  if(!batchRow){return toast('未找到该报销批次，请刷新页面后重试','err');}
+  const name=batchRow.claimant||'未知';
+  const ids=new Set((batchRow.ids||[]).map(String));
   let invoices=await ReimStore.getInvoices();
   // 角色过滤（与统计口径一致）
   if(ME.role==='claimant')invoices=invoices.filter(r=>{
     const nc=(r.claimant||'').replace(/\s+/g,''),nm=(ME.display_name||'').replace(/\s+/g,'');
     return (nc&&nc===nm)||r.user_id===ME.id;
   });
-  const companyFilter=$('#s_company')&&$('#s_company').value?parseInt($('#s_company').value):null;
-  const rows=invoices.filter(r=>r.direction==='进项'&&r.status!=='已驳回'&&r.settle!=='仅做账'
-    &&(r.claimant||'未知')===name&&(!companyFilter||r.company_id===companyFilter));
-  if(!rows.length)return toast('该报销人名下没有可导出的发票','err');
+  const rows=invoices.filter(r=>ids.has(String(r.id))&&r.direction==='进项'&&r.status!=='已驳回'&&r.settle!=='仅做账');
+  if(!rows.length)return toast('该报销批次没有可导出的发票','err');
   const withPdf=rows.filter(r=>r.cloud_path).sort((a,b)=>(a.invoice_date||'').localeCompare(b.invoice_date||''));
   const missing=rows.length-withPdf.length;
-  if(!withPdf.length)return toast(`该报销人名下 ${rows.length} 张发票均未上传 PDF 原件`,'err');
-  if(!confirm(`将把「${name}」名下 ${withPdf.length} 张发票原件合并为一个 PDF，是否继续？`))return;
-  toast(`正在生成「${name}」的发票 PDF，请稍候…`,'info');
+  if(!withPdf.length)return toast(`该报销批次 ${rows.length} 张发票均未上传 PDF 原件`,'err');
+  if(!confirm(`将把「${name}」${batchRow.batch?'付款日期 '+batchRow.batch:'待付款'} 批次的 ${withPdf.length} 张发票原件合并为一个 PDF，是否继续？`))return;
+  toast(`正在生成「${name}」（${batchRow.batch||'待付款'}）的发票 PDF，请稍候…`,'info');
   try{
     const merged=await PDFLib.PDFDocument.create();
     let ok=0,fail=0;
@@ -2969,7 +2988,7 @@ async function exportClaimantInvoicesPdf(name){
     const blob=new Blob([out],{type:'application/pdf'});
     const a=document.createElement('a');
     a.href=URL.createObjectURL(blob);
-    a.download=`${name.replace(/[\\/:*?"<>|]/g,'_')}_发票原件_${Date.now()}.pdf`;
+    a.download=`${name.replace(/[\\/:*?"<>|]/g,'_')}_${(batchRow.batch||'待付款').replace(/[\\/:*?"<>|]/g,'_')}_发票原件_${Date.now()}.pdf`;
     a.click();
     URL.revokeObjectURL(a.href);
     const extra=[missing?`${missing} 张未上传原件`:null,fail?`${fail} 张合并失败`:null].filter(Boolean);

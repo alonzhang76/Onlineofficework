@@ -3910,7 +3910,6 @@ function renderOrderProcessStats(data) {
     String(a.process).localeCompare(String(b.process), 'zh') || String(a.employee).localeCompare(String(b.employee), 'zh')));
 
   const visibleGroups = orderList.reduce((arr, o) => arr.concat(o.rows), []);
-  const grandQty = orderList.reduce((s, o) => s + o.qty, 0);
   const grandAmount = orderList.reduce((s, o) => s + o.amount, 0);
   const procCount = new Set(visibleGroups.map(g => g.process)).size;
   const empCount = new Set(visibleGroups.map(g => g.employee)).size;
@@ -3923,14 +3922,13 @@ function renderOrderProcessStats(data) {
         ${i === 0 ? `<td rowspan="${o.rows.length}" style="font-weight:600;vertical-align:top;">${o.orderNo}${sub ? `<div style="font-size:11px;color:var(--text-light);font-weight:400;">${sub}</div>` : ''}</td>` : ''}
         <td>${g.process}</td>
         <td>${g.employee}</td>
-        <td style="text-align:right;">${g.qty}</td>
+        <td style="text-align:right;">${g.qty.toFixed(1)}</td>
         <td style="text-align:right;font-weight:600;">${UI.fmtMoney(g.amount)}</td>
         <td style="text-align:right;color:var(--text-light);">${g.count}</td>
       </tr>`;
     });
     body += `<tr class="total-row">
-      <td colspan="3" style="text-align:right;">${o.orderNo} 小计</td>
-      <td style="text-align:right;">${o.qty}</td>
+      <td colspan="4" style="text-align:right;">${o.orderNo} 小计</td>
       <td style="text-align:right;">${UI.fmtMoney(o.amount)}</td>
       <td></td>
     </tr>`;
@@ -3941,10 +3939,10 @@ function renderOrderProcessStats(data) {
       <div class="stat-card"><div class="stat-label">订单数</div><div class="stat-value">${orderList.length}</div><div class="stat-sub">含工序记录的订单</div></div>
       <div class="stat-card stat-success"><div class="stat-label">工序种类</div><div class="stat-value">${procCount}</div><div class="stat-sub">不同工序</div></div>
       <div class="stat-card stat-warn"><div class="stat-label">参与员工</div><div class="stat-value">${empCount}</div><div class="stat-sub">人</div></div>
-      <div class="stat-card"><div class="stat-label">金额合计</div><div class="stat-value">${UI.fmtMoney(grandAmount)}</div><div class="stat-sub">数量合计 ${grandQty}</div></div>
+      <div class="stat-card"><div class="stat-label">金额合计</div><div class="stat-value">${UI.fmtMoney(grandAmount)}</div><div class="stat-sub">共 ${visibleGroups.length} 条工序明细</div></div>
     </div>
     <div class="card">
-      <div class="card-title">订单工序统计<span style="font-weight:400;color:var(--text-light);font-size:13px;margin-left:10px;">按下单日期倒序；同一工序多人操作按员工分行，同一员工合并为一行（不含无订单号记录）</span></div>
+      <div class="card-title">订单工序统计<span style="font-weight:400;color:var(--text-light);font-size:13px;margin-left:10px;">按下单日期倒序；同一工序多人操作按员工分行，同一员工合并为一行（数量保留1位小数，小计仅汇总金额）</span></div>
       <div class="table-wrap">
         <table class="data-table summary-table">
           <thead><tr>
@@ -3955,8 +3953,7 @@ function renderOrderProcessStats(data) {
           </tr></thead>
           <tbody>${body}
             <tr class="total-row">
-              <td colspan="3" style="text-align:right;font-weight:700;">总计</td>
-              <td style="text-align:right;font-weight:700;">${grandQty}</td>
+              <td colspan="4" style="text-align:right;font-weight:700;">总计</td>
               <td style="text-align:right;font-weight:700;">${UI.fmtMoney(grandAmount)}</td>
               <td></td>
             </tr>
@@ -4170,8 +4167,8 @@ function exportStats() {
       String(a.process).localeCompare(String(b.process), 'zh') ||
       String(a.employee).localeCompare(String(b.employee), 'zh'));
     wsData = [['订单号', '客户', '工序', '员工', '数量合计', '金额合计', '记录数']];
-    list.forEach(g => wsData.push([g.orderNo, g.customer, g.process, g.employee, g.qty, g.amount.toFixed(2), g.count]));
-    wsData.push(['合计', '', '', '', list.reduce((s,g)=>s+g.qty,0), list.reduce((s,g)=>s+g.amount,0).toFixed(2), '']);
+    list.forEach(g => wsData.push([g.orderNo, g.customer, g.process, g.employee, Number(g.qty.toFixed(1)), g.amount.toFixed(2), g.count]));
+    wsData.push(['合计', '', '', '', '', list.reduce((s,g)=>s+g.amount,0).toFixed(2), '']);
   } else if (stats === 'employee' || stats === 'process') {
     const fieldMap = { employee: 'employee' };
     const statsData = DB.getStats(filters, fieldMap[stats]);

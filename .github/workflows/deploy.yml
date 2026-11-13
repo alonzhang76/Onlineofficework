@@ -79,12 +79,42 @@ jobs:
           # 整命令级重试：tcb hosting deploy 按文件 hash 跳过已上传项
           for i in 1 2 3 4 5; do
             echo "===== 部署尝试 $i/5 ====="
-            if tcb hosting deploy _deploy / -e "$TCB_ENV_ID" \
-              --concurrency 16 --retry-count 4 --retry-interval 2000; then
-              echo "✅ 部署成功（第 $i 次尝试）"
+            start=$(date +%s)
+            set +e
+            tcb hosting deploy _deploy / -e "$TCB_ENV_ID" \
+              --concurrency 16 --retry-count 4 --retry-interval 2000 &
+            pid=$!
+
+            # 心跳：tcb 在上传/比对阶段长时间不输出，避免 Actions 看起来“卡死”
+            (
+              while kill -0 "$pid" 2>/dev/null; do
+                sleep 20
+                echo "⏳ 部署进行中：已用时 $(( $(date +%s) - start ))s（网络较慢时该阶段可能持续数分钟）"
+              done
+            ) &
+            hb=$!
+
+            # 单次尝试看门狗：12 分钟仍未结束则终止，交给下一轮重试（已上传文件会被跳过）
+            (
+              sleep 720
+              if kill -0 "$pid" 2>/dev/null; then
+                echo "⚠️ 单次部署超过 12 分钟，终止本次尝试并进入重试"
+                kill -TERM "$pid" 2>/dev/null
+                sleep 3
+                kill -9 "$pid" 2>/dev/null
+              fi
+            ) &
+            wd=$!
+
+            wait "$pid"; code=$?
+            set -e
+            kill "$hb" "$wd" 2>/dev/null || true
+            wait "$hb" "$wd" 2>/dev/null || true
+
+            if [ "$code" -eq 0 ]; then
+              echo "✅ 部署成功（第 $i 次尝试，用时 $(( $(date +%s) - start ))s）"
               break
             else
-              code=$?
               echo "⚠️ 第 $i 次尝试失败（exit $code），tcb 会跳过已传文件，5 秒后重试..."
               [ "$i" -eq 5 ] && { echo "❌ 5 次均失败，部署终止"; exit 1; }
               sleep 5
