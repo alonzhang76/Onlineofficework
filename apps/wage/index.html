@@ -836,6 +836,7 @@ table.data-table .del-btn:hover { background: var(--danger); color: #fff; }
           <div class="inner-tab active" data-stat="overview">经营总览</div>
           <div class="inner-tab" data-stat="employee">员工排名</div>
           <div class="inner-tab" data-stat="order">订单分析</div>
+          <div class="inner-tab" data-stat="orderProcess">订单工序统计</div>
           <div class="inner-tab" data-stat="orderStat">订单统计</div>
           <div class="inner-tab" data-stat="trend">月度趋势</div>
           <div class="inner-tab" data-stat="matrix">员工×工序矩阵</div>
@@ -2118,8 +2119,12 @@ function saveBatch() {
   const defCust = defParts[0] || '';
   const defOrd = defParts[1] || '';
   const editId = document.getElementById('entryId').value;
+  const editRec = editId ? DB.records.find(r => r.id === editId) : null;
+  // 记录编辑前的日期/员工：updateRecord 会原地修改对象，需先取快照
+  const oldDate = editRec ? editRec.date : '';
+  const oldEmployee = editRec ? editRec.employee : '';
+  const oldProcess = editRec ? editRec.process : '';
   let saved = 0;
-  let rewardBase = 0;
   const rows = document.querySelectorAll('#batchRows tr');
   rows.forEach(tr => {
     const proc = tr.querySelector('.batch-proc').value;
@@ -2138,8 +2143,6 @@ function saveBatch() {
     const procData = DB.processes.find(p => p.name === proc);
     const quota = procData ? (procData.dailyQuota || 0) : 0;
     const total = (quota > 0 && qty > quota ? (price * quota + overSub) : (price * qty)) + rewardAmt - penaltyAmt;
-    // 超产奖励基数：排除“试用计时工资”整行，且奖励金额不参与计算
-    if (proc.trim() !== '试用计时工资') rewardBase += total - rewardAmt;
     const rec = { date, employee, process: proc, unitPrice: price, quantity: qty, overSubtotal: overSub, reward: rewardAmt, penalty: penaltyAmt, totalAmount: total, customer, orderNo, notes, overtime };
     if (editId && saved === 0) { DB.updateRecord(editId, rec); }
     else { DB.addRecord(rec); }
@@ -2148,14 +2151,57 @@ function saveBatch() {
   if (saved === 0) { UI.toast('没有有效数据，请至少填写一行', 'error'); return; }
   UI.toast(`已保存 ${saved} 条记录`);
   clearBatch();
+
+  // 超产奖励：(当日有效工序合计 − 90) × 40%
+  // 编辑 / 复制工序后，按最新工序动态重算当天已有的“超产奖励”记录（不新增第二条）
+  const base = calcDailyRewardBase(employee, date);
+  const reward = calcOvertimeReward(base);
+  const existingReward = DB.records.find(r => r.employee === employee && r.date === date && r.process === '超产奖励');
+  if (existingReward) {
+    if (reward > 0) {
+      const oldAmount = parseFloat(existingReward.totalAmount) || 0;
+      if (Math.abs(oldAmount - reward) > 0.005) {
+        DB.updateRecord(existingReward.id, { unitPrice: reward, quantity: 1, totalAmount: reward });
+        UI.toast(`已按最新工序更新超产奖励：${UI.fmtMoney(reward)} 元`);
+      }
+    } else {
+      DB.deleteRecord(existingReward.id);
+      UI.toast('工序合计未达奖励条件，已移除当日超产奖励');
+    }
+  } else if (!editId && reward > 0) {
+    showOvertimeReward({ date, employee, base, reward });
+  }
+  // 编辑时若改动了日期或员工，旧日期/旧员工的奖励记录同样需要同步
+  if (editId && oldProcess !== '超产奖励' && (oldDate !== date || oldEmployee !== employee)) {
+    syncOvertimeReward(oldEmployee, oldDate);
+  }
   renderTodayRecords();
   executeQuery();
+}
 
-  // 超产奖励：(除试用计时工资外的合计 − 90) × 40%
-  // 编辑已有记录后不再提示；同一员工同一天已有“超产奖励”记录时也不重复提示
-  const reward = Math.round((rewardBase - 90) * 0.4 * 100) / 100;
-  const hasOvertimeReward = DB.records.some(r => r.employee === employee && r.date === date && r.process === '超产奖励');
-  if (!editId && reward > 0 && !hasOvertimeReward) showOvertimeReward({ date, employee, base: rewardBase, reward });
+// 当日超产奖励基数：排除“超产奖励”与“试用计时工资”，奖励字段不计入基数
+function calcDailyRewardBase(employee, date) {
+  return DB.records
+    .filter(r => r.employee === employee && r.date === date && r.process !== '超产奖励' && String(r.process || '').trim() !== '试用计时工资')
+    .reduce((s, r) => s + (parseFloat(r.totalAmount) || 0) - (parseFloat(r.reward) || 0), 0);
+}
+
+function calcOvertimeReward(base) {
+  return Math.round((base - 90) * 0.4 * 100) / 100;
+}
+
+// 同步某员工某天已有的“超产奖励”记录；没有则不动，金额不足时移除
+function syncOvertimeReward(employee, date) {
+  const existing = DB.records.find(r => r.employee === employee && r.date === date && r.process === '超产奖励');
+  if (!existing) return;
+  const reward = calcOvertimeReward(calcDailyRewardBase(employee, date));
+  if (reward > 0) {
+    if (Math.abs((parseFloat(existing.totalAmount) || 0) - reward) > 0.005) {
+      DB.updateRecord(existing.id, { unitPrice: reward, quantity: 1, totalAmount: reward });
+    }
+  } else {
+    DB.deleteRecord(existing.id);
+  }
 }
 
 let _pendingOvertimeReward = null;
@@ -3110,6 +3156,11 @@ function renderStats() {
     return;
   }
 
+  if (DB.currentStat === 'orderProcess') {
+    container.innerHTML = renderOrderProcessStats(data);
+    return;
+  }
+
   if (DB.currentStat === 'orderStat') {
     container.innerHTML = renderOrderStats(colors);
     return;
@@ -3766,6 +3817,96 @@ function renderOrderAnalysis(data, d, colors) {
   return kpi + table + drawingCharts + frameCharts;
 }
 
+// ========== Order × Process Statistics ==========
+// 同一订单号下：相同工序按员工分行（多人操作各占一行），同一员工同一工序合并为一行
+function renderOrderProcessStats(data) {
+  const rows = data.filter(r => r.orderNo);
+  if (!rows.length) {
+    return '<div class="card"><div class="empty-state">所选时间范围内没有带订单号的工序记录</div></div>';
+  }
+
+  const groupMap = {};
+  rows.forEach(r => {
+    const orderNo = r.orderNo;
+    const process = r.process || '未分类';
+    const employee = r.employee || '未指定';
+    const key = [orderNo, process, employee].join('||');
+    if (!groupMap[key]) groupMap[key] = { orderNo, process, employee, customer: '', qty: 0, amount: 0, count: 0 };
+    const g = groupMap[key];
+    g.qty += parseFloat(r.quantity) || 0;
+    g.amount += parseFloat(r.totalAmount) || 0;
+    g.count++;
+    if (!g.customer && r.customer) g.customer = r.customer;
+  });
+
+  const orderMap = {};
+  Object.values(groupMap).forEach(g => {
+    if (!orderMap[g.orderNo]) orderMap[g.orderNo] = { orderNo: g.orderNo, customer: '', qty: 0, amount: 0, rows: [] };
+    const o = orderMap[g.orderNo];
+    if (!o.customer && g.customer) o.customer = g.customer;
+    o.qty += g.qty;
+    o.amount += g.amount;
+    o.rows.push(g);
+  });
+  const orderList = Object.values(orderMap).sort((a, b) => String(b.orderNo).localeCompare(String(a.orderNo)));
+  orderList.forEach(o => o.rows.sort((a, b) =>
+    String(a.process).localeCompare(String(b.process), 'zh') || String(a.employee).localeCompare(String(b.employee), 'zh')));
+
+  const grandQty = orderList.reduce((s, o) => s + o.qty, 0);
+  const grandAmount = orderList.reduce((s, o) => s + o.amount, 0);
+  const procCount = new Set(rows.map(r => r.process)).size;
+  const empCount = new Set(rows.map(r => r.employee)).size;
+
+  let body = '';
+  orderList.forEach(o => {
+    o.rows.forEach((g, i) => {
+      body += `<tr>
+        ${i === 0 ? `<td rowspan="${o.rows.length}" style="font-weight:600;vertical-align:top;">${o.orderNo}${o.customer ? `<div style="font-size:11px;color:var(--text-light);font-weight:400;">${o.customer}</div>` : ''}</td>` : ''}
+        <td>${g.process}</td>
+        <td>${g.employee}</td>
+        <td style="text-align:right;">${g.qty}</td>
+        <td style="text-align:right;font-weight:600;">${UI.fmtMoney(g.amount)}</td>
+        <td style="text-align:right;color:var(--text-light);">${g.count}</td>
+      </tr>`;
+    });
+    body += `<tr class="total-row">
+      <td colspan="3" style="text-align:right;">${o.orderNo} 小计</td>
+      <td style="text-align:right;">${o.qty}</td>
+      <td style="text-align:right;">${UI.fmtMoney(o.amount)}</td>
+      <td></td>
+    </tr>`;
+  });
+
+  return `
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-label">订单数</div><div class="stat-value">${orderList.length}</div><div class="stat-sub">含工序记录的订单</div></div>
+      <div class="stat-card stat-success"><div class="stat-label">工序种类</div><div class="stat-value">${procCount}</div><div class="stat-sub">不同工序</div></div>
+      <div class="stat-card stat-warn"><div class="stat-label">参与员工</div><div class="stat-value">${empCount}</div><div class="stat-sub">人</div></div>
+      <div class="stat-card"><div class="stat-label">金额合计</div><div class="stat-value">${UI.fmtMoney(grandAmount)}</div><div class="stat-sub">数量合计 ${grandQty}</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">订单工序统计<span style="font-weight:400;color:var(--text-light);font-size:13px;margin-left:10px;">同一工序多人操作按员工分行，同一员工合并为一行（不含无订单号记录）</span></div>
+      <div class="table-wrap">
+        <table class="data-table summary-table">
+          <thead><tr>
+            <th style="width:150px;">订单号 / 客户</th><th>工序</th><th>员工</th>
+            <th style="text-align:right;width:90px;">数量合计</th>
+            <th style="text-align:right;width:110px;">金额合计</th>
+            <th style="text-align:right;width:80px;">记录数</th>
+          </tr></thead>
+          <tbody>${body}
+            <tr class="total-row">
+              <td colspan="3" style="text-align:right;font-weight:700;">总计</td>
+              <td style="text-align:right;font-weight:700;">${grandQty}</td>
+              <td style="text-align:right;font-weight:700;">${UI.fmtMoney(grandAmount)}</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
 // 订单分析：当前表格每行的全字段搜索文本（订单号 → 文本）
 let orderCostSearchText = {};
 
@@ -3950,6 +4091,24 @@ function exportStats() {
       wsData.push([i+1, o.orderNo, o.customer, o.amount.toFixed(2), o.output || 0, o.orderQty || '', o.unitCost ? o.unitCost.toFixed(2) : '无法计算', o.productType || '', o.drawingNo || '', o.warning ? '异常' : '正常']);
     });
     wsData.push(['合计', '', '', orders.reduce((s,o)=>s+o.amount,0).toFixed(2), orders.reduce((s,o)=>s+(o.output||0),0), '', '', '', '', '']);
+  } else if (stats === 'orderProcess') {
+    const map = {};
+    data.filter(r => r.orderNo).forEach(r => {
+      const key = [r.orderNo, r.process || '', r.employee || ''].join('||');
+      if (!map[key]) map[key] = { orderNo: r.orderNo, customer: '', process: r.process || '未分类', employee: r.employee || '未指定', qty: 0, amount: 0, count: 0 };
+      const g = map[key];
+      g.qty += parseFloat(r.quantity) || 0;
+      g.amount += parseFloat(r.totalAmount) || 0;
+      g.count++;
+      if (!g.customer && r.customer) g.customer = r.customer;
+    });
+    const list = Object.values(map).sort((a, b) =>
+      String(b.orderNo).localeCompare(String(a.orderNo)) ||
+      String(a.process).localeCompare(String(b.process), 'zh') ||
+      String(a.employee).localeCompare(String(b.employee), 'zh'));
+    wsData = [['订单号', '客户', '工序', '员工', '数量合计', '金额合计', '记录数']];
+    list.forEach(g => wsData.push([g.orderNo, g.customer, g.process, g.employee, g.qty, g.amount.toFixed(2), g.count]));
+    wsData.push(['合计', '', '', '', list.reduce((s,g)=>s+g.qty,0), list.reduce((s,g)=>s+g.amount,0).toFixed(2), '']);
   } else if (stats === 'employee' || stats === 'process') {
     const fieldMap = { employee: 'employee' };
     const statsData = DB.getStats(filters, fieldMap[stats]);

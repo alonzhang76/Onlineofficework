@@ -634,9 +634,13 @@ function renderInvoiceQueueItem() {
 }
 function invoiceForm(rec) {
   const isEdit = !!rec;
-  /* 合同列表只显示未开票/部分开票；编辑时保留当前已绑合同便于回显 */
+  /* 合同列表只显示未开票/部分开票；编辑时仅显示该记录销售方名下的合同，并保留当前已绑合同便于回显 */
   const recCnos = splitMulti(rec && rec.contractNumber);
-  const orders = Data.list('orders').slice().filter(o => (invoicedOfContract(o.contractNumber) < (+o.totalAmount || 0) - 0.005) || recCnos.includes(o.contractNumber)).sort((a, b) => ((b.orderDate || b.createdAt || '').localeCompare((a.orderDate || a.createdAt || ''))) || (b.contractNumber || '').localeCompare(a.contractNumber || ''));
+  const recSupplier = rec ? String(rec.supplier || '').trim() : '';
+  const orders = Data.list('orders').slice().filter(o => {
+    if (recSupplier && String(o.supplier || '').trim() !== recSupplier) return false;
+    return (invoicedOfContract(o.contractNumber) < (+o.totalAmount || 0) - 0.005) || recCnos.includes(o.contractNumber);
+  }).sort((a, b) => ((b.orderDate || b.createdAt || '').localeCompare((a.orderDate || a.createdAt || ''))) || (b.contractNumber || '').localeCompare(a.contractNumber || ''));
   openModal('<h3>' + (isEdit ? '编辑发票' : '登记发票') + '</h3><form id="ivF">' +
     '<div class="form-grid">' +
     '<div><label class="req">发票号码</label><input id="ivNo" required value="' + esc(rec ? rec.invoiceNumber : '') + '" placeholder="发票右上角号码"></div>' +
@@ -660,7 +664,7 @@ function invoiceForm(rec) {
     const first = cnos[0] ? contractByNo(cnos[0]) : null;
     /* 供应商取首个所选合同；无合同则允许手填 */
     if (first) $('#ivSup').value = first.supplier;
-    else if (!isEdit) $('#ivSup').value = rec && rec.supplier ? rec.supplier : '';
+    else $('#ivSup').value = rec && rec.supplier ? rec.supplier : '';
     if (!cnos.length) {
       $('#ivHint').innerHTML = '<span class="subtle">未选合同：本票只进台账，不参与合同级对账（供应商必填）。</span>';
       return;
