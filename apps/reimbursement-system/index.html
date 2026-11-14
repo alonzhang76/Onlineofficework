@@ -69,6 +69,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary);box-shadow:0
 .badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:12px;font-weight:500}
 .b-draft{background:#e2e8f0;color:#475569}.b-dai{background:#fef3c7;color:#92400e}
 .b-pass{background:#dcfce7;color:#166534}.b-rej{background:#fee2e2;color:#991b1b}
+.b-co{background:#e0f2fe;color:#0369a1}
 .b-ru{background:#dbeafe;color:#1e40af}
 table{width:100%;border-collapse:collapse}
 th{background:#f8fafc;font-size:12px;color:var(--muted);text-align:left;padding:10px 10px;border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0}
@@ -373,7 +374,7 @@ html.reim-non-admin #cbBtnClear{display:none!important}
       </table>
     </div>
 
-    <h2 style="margin:18px 0 8px;font-size:14px">② 付给报销人（费用报销）<span style="font-weight:400;color:var(--muted);font-size:12px;margin-left:8px">每行 = 一次报销/付款批次；已付款批次保留原发票，新发票另起一行</span></h2>
+    <h2 style="margin:18px 0 8px;font-size:14px">② 付给报销人（费用报销）<span style="font-weight:400;color:var(--muted);font-size:12px;margin-left:8px">每行 = 同一报销人、同一我方抬头、一次报销/付款批次；不同抬头分行，可整笔付款</span></h2>
     <div class="tbl-topbar" id="payc_pager"></div>
     <div class="tbl-wrap" style="max-height:34vh">
       <table>
@@ -1716,8 +1717,11 @@ function payTableRender(state,tbodyId,pagerId,nameKey,navFn,sizeFn,mode){
   $(('#'+tbodyId)).innerHTML=pageRows.length?pageRows.map(x=>{
     const owed=(x.t||0)-(x.p||0),name=x[nameKey]||'-';
     const batchArg=mode==='claimant'&&x.key?`,'${x.key}'`:'';
+    const nameHtml=owed>0.005&&CAN.pay?`<a class="link" href="javascript:;" onclick="openSupPay('${mode}','${esc(name)}'${batchArg})">${esc(cut(name,20))}</a>`:esc(cut(name,20));
+    // 付报销人拆行后，行内标明本行属于哪家我方抬头
+    const coTag=mode==='claimant'&&x.coTag?` <span class="badge b-co" style="font-size:10px">${esc(x.coTag)}</span>`:'';
     return `<tr>
-      <td title="${esc(name)}">${owed>0.005&&CAN.pay?`<a class="link" href="javascript:;" onclick="openSupPay('${mode}','${esc(name)}'${batchArg})">${esc(cut(name,20))}</a>`:esc(cut(name,20))}</td>
+      <td title="${esc(name)}">${nameHtml}${coTag}</td>
       <td class="num">${x.n}</td>
       <td class="num">${fmt(x.t)}</td>
       <td class="num" style="color:var(--green)">${fmt(x.p)}</td>
@@ -1956,6 +1960,8 @@ function ieCompanyOf(inv){
 function ieMixedRows(rows){
   return [...new Set(rows.map(r=>{const m=ieCompanyOf(r);return m?m.key:'';}).filter(Boolean))].length>1;
 }
+// 我方抬头短标识：无锡龙力 → 龙力，普利美 → 普利美
+function ieCompanyTag(m){return m?(m.key==='company2'?'龙力':m.label):'';}
 function ieOpenCategoryModal(groups,ctx){
   IE_SYNC={queue:groups.slice(),ctx};
   ieShowNext();
@@ -2115,8 +2121,10 @@ async function loadStats(){
     // 一行对应一次报销/付款批次：已付款按付款日期分组；新发票（未付款）单独成行，不并入已付款批次
     const paid=r.paid_amount||0;
     const batch=paid>0.005?String(r.payment_date||'未填付款日期'):'';
-    const key=c+'||'+batch;
-    if(!byClaimant[key])byClaimant[key]={claimant:c,batch,n:0,t:0,p:0,d:'',last_pay:'',ids:[]};
+    // 再按我方抬头（龙力/普利美）拆行：避免一行混两家抬头，登记付款时无法整笔入账
+    const cm=ieCompanyOf(r),ck=cm?cm.key:'';
+    const key=c+'||'+batch+'||'+ck;
+    if(!byClaimant[key])byClaimant[key]={claimant:c,batch,coKey:ck,coTag:cm?ieCompanyTag(cm):'',n:0,t:0,p:0,d:'',last_pay:'',ids:[]};
     const g=byClaimant[key];
     g.n++;g.t+=r.total_amount||0;g.p+=paid;g.ids.push(r.id);
     if(!g.batch)touch(g,r.invoice_date);
