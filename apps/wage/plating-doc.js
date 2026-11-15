@@ -145,7 +145,15 @@
     var today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
     var deliveryId = today + '-' + String(Math.floor(100 + Math.random() * 900));
 
-    document.title = '电镀产品' + docType + '单';
+    // PDF 文件名规则：客户 + 订单号 + 日期 + 随机2位数
+    var pdfCustomer = String(sel[0].customer || (summaries[0] && summaries[0].customer) || '').trim();
+    var pdfOrderNos = Object.keys(orderNoSet).join('-');
+    var pdfRand = String(Math.floor(10 + Math.random() * 90));
+    var pdfName = [pdfCustomer || '未知客户', pdfOrderNos || '无订单号', today, pdfRand]
+      .join('_')
+      .replace(/[\\/:*?"<>|]/g, '')
+      .replace(/\s+/g, '');
+    document.title = pdfName;
     document.getElementById('doc-title').textContent = '电镀产品' + docType + '单';
     document.getElementById('delivery-id').textContent = deliveryId;
     document.getElementById('current-date').textContent = today;
