@@ -689,6 +689,10 @@ html.reim-non-admin #cbBtnClear{display:none!important}
     <div id="ie_info" style="font-size:13px;color:var(--muted);line-height:2;margin-bottom:10px"></div>
     <div class="grid g4">
       <div><label id="ie_cat_label">支出分类 *</label><select id="ie_category"></select></div>
+      <div id="ie_company_wrap" style="display:none"><label>我方抬头 *</label><select id="ie_company">
+        <option value="company2">龙力</option>
+        <option value="company1" selected>普利美</option>
+      </select></div>
       <div><label>金额 *</label><input id="ie_amount" type="number" step="0.01" min="0"></div>
     </div>
     <div class="hint">将写入「收支表」应用对应公司（龙力/普利美）的收入/支出记录，并自动上传云端；点「取消」则不写入（发票收付款记录已保存）。</div>
@@ -1772,7 +1776,7 @@ function supRefreshSel(){
   $('#sup_selamt').textContent=sum.toFixed(2);
   const openCount=SUP.rows.filter(r=>r.balance>0.004).length;
   $('#sup_all').checked=openCount>0&&rows.length===openCount;
-  const mixed=ieMixedRows(rows);
+  const mixed=SUP.mode!=='claimant'&&ieMixedRows(rows); // 付报销人由下拉手动选择抬头，不做多抬头拦截
   $('#sup_mixhint').textContent=mixed?`⚠ 勾选的发票涉及多个我方抬头，整笔${verb}无法正确入账收支表，请逐张点「单独」登记${verb}`:'';
   const dis=mixed||!rows.length;
   const btn=$('#supMask .btn-primary');
@@ -1883,7 +1887,7 @@ async function supSave(){
   const verb=SUP.mode==='buyer'?'收款':'付款';
   if(!rows.length)return toast('请先勾选需要登记的发票','err');
   if(!amount||amount<=0)return toast(`请填写有效的${verb}金额`,'err');
-  if(ieMixedRows(rows))return toast(`勾选的发票涉及多个我方抬头（龙力/普利美），请逐张点「单独」登记${verb}`,'err');
+  if(SUP.mode!=='claimant'&&ieMixedRows(rows))return toast(`勾选的发票涉及多个我方抬头（龙力/普利美），请逐张点「单独」登记${verb}`,'err');
   if(!confirm(`确认${verb==='收款'?'收到':'向'}「${SUP.name}」${verb} ¥${amount.toFixed(2)}？将按开票顺序在勾选的 ${rows.length} 张发票中自动抵扣。`))return;
   let remain=amount;const invoices=await ReimStore.getInvoices();
   const payDate=$('#sup_date').value,payMethod=$('#sup_method').value,payNote=$('#sup_note').value.trim();
@@ -1899,6 +1903,13 @@ async function supSave(){
     inv.payment_date=payDate;inv.payment_method=payMethod;
     inv.payment_note=payNote?payNote:(inv.payment_note||'');
     remain=Math.round((remain-pay)*100)/100;
+    if(SUP.mode==='claimant'){
+      // 付给报销人：抬头由弹窗下拉手动选择（默认普利美），与发票销售方/识别出的抬头无关，统一归入一组
+      if(!ieGroups.claimant)ieGroups.claimant={companyKey:'company1',label:'普利美',kind:'expense',amount:0,nos:[]};
+      ieGroups.claimant.amount=Math.round((ieGroups.claimant.amount+pay)*100)/100;
+      if(inv.invoice_no)ieGroups.claimant.nos.push(inv.invoice_no);
+      continue;
+    }
     const cc=ieCompanyOf(inv);
     if(cc){
       const kind=SUP.mode==='buyer'?'income':'expense';
@@ -1911,7 +1922,7 @@ async function supSave(){
   await ReimStore.saveInvoices(invoices);
   toast(`${verb}已登记`);closeModal('supMask');loadStats();
   const groups=Object.values(ieGroups);
-  if(groups.length)ieOpenCategoryModal(groups,{date:payDate,method:payMethod,note:payNote,payee:SUP.name});
+  if(groups.length)ieOpenCategoryModal(groups,{date:payDate,method:payMethod,note:payNote,payee:SUP.name,pickCompany:SUP.mode==='claimant'});
   else toast('未识别发票所属公司（龙力/普利美），收支表未同步','err');
 }
 
@@ -1975,8 +1986,12 @@ function ieShowNext(){
   sel.value='';
   $('#ie_cat_label').textContent=(kind==='income'?'收入':'支出')+'分类 *';
   $('#ie_kind').textContent='请选择'+(kind==='income'?'收入':'支出')+'分类';
+  // 付给报销人：由下拉选择记入龙力还是普利美，默认普利美
+  const pickCompany=!!(IE_SYNC.ctx&&IE_SYNC.ctx.pickCompany);
+  $('#ie_company_wrap').style.display=pickCompany?'':'none';
+  if(pickCompany)$('#ie_company').value='company1';
   $('#ie_amount').value=g.amount.toFixed(2);
-  $('#ie_info').innerHTML=`公司：<b>${esc(g.label)}</b> ｜ ${kind==='income'?'付款方':'收款对象'}：<b>${esc(IE_SYNC.ctx.payee)}</b> ｜ 抵扣发票 ${g.nos.length} 张`
+  $('#ie_info').innerHTML=(pickCompany?'':`公司：<b>${esc(g.label)}</b> ｜ `)+`${kind==='income'?'付款方':'收款对象'}：<b>${esc(IE_SYNC.ctx.payee)}</b> ｜ 抵扣发票 ${g.nos.length} 张`
     +(IE_SYNC.queue.length>1?`<br>本次${kind==='income'?'收款':'付款'}涉及 ${IE_SYNC.queue.length} 家我方公司，将逐家选择分类写入`:'');
   $('#ieMask').classList.add('show');
 }
@@ -1984,8 +1999,8 @@ function ieSkip(){IE_SYNC.queue.shift();ieShowNext();}
 // 防重复：同一笔付款（公司+日期+付款对象+发票号+分类+金额）生成确定性 ID，
 // 重复点击/重复提交时 upsert 覆盖同一行而不是新增一条
 function ieHash(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))>>>0;return h.toString(36);}
-function ieRecId(g,ctx,catId,amount){
-  return 'ie'+ieHash([g.kind||'expense',g.companyKey,ctx.date||'',ctx.payee||'',g.nos.join(','),catId,amount.toFixed(2)].join('|'));
+function ieRecId(g,ctx,catId,amount,companyKey){
+  return 'ie'+ieHash([g.kind||'expense',companyKey||g.companyKey,ctx.date||'',ctx.payee||'',g.nos.join(','),catId,amount.toFixed(2)].join('|'));
 }
 async function ieConfirm(){
   const g=IE_SYNC.queue[0];if(!g||IE_SYNC.busy)return;
@@ -1997,8 +2012,12 @@ async function ieConfirm(){
   const cats=g.kind==='income'?IE_INCOME_CATS:IE_EXPENSE_CATS;
   const cat=cats.find(c=>c.id===catId);
   const ctx=IE_SYNC.ctx;
+  // 付给报销人：以弹窗下拉选择的我方抬头为准（默认普利美），覆盖自动识别结果
+  const picked=ctx.pickCompany?IE_COMPANY_MAP.find(m=>m.key===$('#ie_company').value):null;
+  const companyKey=picked?picked.key:g.companyKey;
+  const companyLabel=picked?picked.label:g.label;
   const rec={
-    id:ieRecId(g,ctx,catId,amount),
+    id:ieRecId(g,ctx,catId,amount,companyKey),
     type:g.kind==='income'?'income':'expense',
     amount:Math.round(amount*100)/100,
     categoryId:catId,
@@ -2009,7 +2028,7 @@ async function ieConfirm(){
     paymentMethod:ctx.method||'',
     createdAt:new Date().toISOString()
   };
-  const lsKey=`transactions_${g.companyKey}`,storeKey=`incomeexpense__${lsKey}`;
+  const lsKey=`transactions_${companyKey}`,storeKey=`incomeexpense__${lsKey}`;
   try{
     const sb=await ReimStore.waitForSupabase();
     // 基底选择（LWW）：云端较新或本地缺失时以云端为准，防止本机空库覆盖云端历史
@@ -2027,11 +2046,11 @@ async function ieConfirm(){
     if(!base.some(t=>t.id===rec.id))base.push(rec);
     const now=Date.now();
     localStorage.setItem(lsKey,JSON.stringify(base));
-    localStorage.setItem(`lastUpdated_${g.companyKey}`,new Date().toISOString().split('T')[0]);
+    localStorage.setItem(`lastUpdated_${companyKey}`,new Date().toISOString().split('T')[0]);
     lv[lsKey]=now;localStorage.setItem('__cb_local_versions__',JSON.stringify(lv));
     const up=await sb.from('app_data_store').upsert({store_key:storeKey,payload:base,updated_at:new Date(now).toISOString()},{onConflict:'store_key'});
     if(up&&up.error)throw up.error;
-    toast(`已写入收支表·${g.label}并上传云端`);
+    toast(`已写入收支表·${companyLabel}并上传云端`);
   }catch(e){toast('收支表同步失败：'+(e&&e.message||e),'err');}
   IE_SYNC.busy=false;if(btn)btn.disabled=false;
   IE_SYNC.queue.shift();ieShowNext();
