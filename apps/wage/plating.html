@@ -3876,6 +3876,7 @@
                 settlementPriceInput.type = 'text';
                 settlementPriceInput.inputMode = 'decimal';
                 settlementPriceInput.className = 'form-input w-28';
+                settlementPriceInput.placeholder = '未设置';
                 settlementPriceInput.dataset.orderNumber = orderNumber;
                 settlementPriceInput.dataset.field = 'settlementPrice';
                 settlementPriceInput.value = settlement.settlementPrice === undefined || settlement.settlementPrice === null
@@ -7039,6 +7040,41 @@
                         || (r.number && r.number === mapped.number));
                     if (idx >= 0) localInvoices[idx] = Object.assign({}, localInvoices[idx], mapped);
                     else localInvoices.push(mapped);
+
+                    // 报销系统登记的发票付款（累计已付）回流到电镀付款记录，并驱动订单「已付款」状态
+                    const paidAmount = Number(c.paid_amount || 0);
+                    if (paidAmount > 0.004) {
+                        const basePay = {
+                            date: c.payment_date || c.invoice_date || '',
+                            method: c.payment_method || '',
+                            remarks: c.payment_note || '', vendor: c.seller_name || '',
+                            invoiceNo: c.invoice_no || '', cloudStatus: '已付款', syncedAt: 'cloud'
+                        };
+                        // 发票分摊到多个订单时，按分摊比例把已付金额拆到各订单
+                        const allocs = localInvoices[idx >= 0 ? idx : localInvoices.length - 1].allocations;
+                        let allocTotal = 0;
+                        if (allocs && typeof allocs === 'object') {
+                            Object.keys(allocs).forEach(k => { allocTotal += parseQuantity(allocs[k]) || 0; });
+                        }
+                        const rows = (allocs && allocTotal > 0.004)
+                            ? Object.keys(allocs).map(orderNo => Object.assign({}, basePay, {
+                                orderId: orderNo,
+                                amount: Math.round(paidAmount * (parseQuantity(allocs[orderNo]) || 0) / allocTotal * 100) / 100,
+                                cloudId: 'invpay_' + c.id + '_' + orderNo
+                            }))
+                            : [Object.assign({}, basePay, {
+                                orderId: c.project || '',
+                                amount: Math.round(paidAmount * 100) / 100,
+                                cloudId: 'invpay_' + c.id
+                            })];
+                        rows.forEach(payRow => {
+                            const pIdx = localPayments.findIndex(r =>
+                                (r.cloudId && String(r.cloudId) === String(payRow.cloudId))
+                                || (r.invoiceNo && r.invoiceNo === payRow.invoiceNo && r.orderId === payRow.orderId));
+                            if (pIdx >= 0) localPayments[pIdx] = Object.assign({}, localPayments[pIdx], payRow);
+                            else localPayments.push(payRow);
+                        });
+                    }
                 });
                 cloudPayments.forEach(p => {
                     const mapped = {
@@ -8209,7 +8245,9 @@
             }
             box.innerHTML = '';
             list.forEach(item => {
-                const disabled = item.remain <= 0.004 && !selected.has(item.no);
+                // 应开金额为 0（未设置结算单价或良品为 0）不等于“已开完”，仍允许选择并手工填写票面金额
+                const noPrice = item.payable <= 0.004;
+                const disabled = !noPrice && item.remain <= 0.004 && !selected.has(item.no);
                 const label = document.createElement('label');
                 label.className = 'flex items-center px-3 py-1.5 text-sm ' + (disabled ? 'text-gray-400 bg-gray-50' : 'hover:bg-blue-50 cursor-pointer');
                 const cb = document.createElement('input');
@@ -8229,7 +8267,9 @@
                 right.className = 'text-xs ' + (disabled ? 'text-gray-400' : 'text-gray-500');
                 right.textContent = disabled
                     ? '已开完'
-                    : '应开 ¥' + formatNumber(item.payable, 2) + '，已开 ¥' + formatNumber(item.invoiced, 2) + '，剩余 ¥' + formatNumber(Math.max(0, item.remain), 2);
+                    : noPrice
+                        ? '应开 ¥0.00（未设置结算单价）· 已开 ¥' + formatNumber(item.invoiced, 2)
+                        : '应开 ¥' + formatNumber(item.payable, 2) + '，已开 ¥' + formatNumber(item.invoiced, 2) + '，剩余 ¥' + formatNumber(Math.max(0, item.remain), 2);
                 text.appendChild(left);
                 text.appendChild(right);
                 label.appendChild(text);
@@ -8567,20 +8607,29 @@
                                 return;
                             }
                         }
-                        // 严格防重复：本次开票总额（票面+抵扣）不得超过所选订单剩余应开合计
+                        // 严格防重复：已设结算单价的订单不得超过其剩余应开；
+                        // 未设结算单价（应开=0）的订单无法计算上限，允许按票面金额登记（不再误判为已开完）
                         const invoicedMap = getOrderInvoicedMap(excludeIndex);
                         const statsMap = getDeliveryOrderStats();
                         const settings = getOrderSettlementSettings();
-                        let totalRemain = 0;
+                        let cappedRemain = 0;
+                        let cappedCount = 0;
                         const remainMap = new Map();
                         orderIds.forEach(no => {
-                            const remain = Math.max(0, getOrderPayableAmount(no, statsMap, settings) - (invoicedMap.get(no) || 0));
-                            remainMap.set(no, remain);
-                            totalRemain += remain;
+                            const payable = getOrderPayableAmount(no, statsMap, settings);
+                            const invoiced = invoicedMap.get(no) || 0;
+                            if (payable > 0.004) {
+                                const remain = Math.max(0, payable - invoiced);
+                                remainMap.set(no, remain);
+                                cappedRemain += remain;
+                                cappedCount++;
+                            } else {
+                                remainMap.set(no, Infinity);
+                            }
                         });
                         const totalInvoice = amount + deduction;
-                        if (totalInvoice > totalRemain + 0.004) {
-                            showToast('开票总额 ¥' + formatNumber(totalInvoice, 2) + ' 超出所选订单剩余应开合计 ¥' + formatNumber(totalRemain, 2) + '，已阻止重复开票', 'danger');
+                        if (cappedCount === orderIds.length && totalInvoice > cappedRemain + 0.004) {
+                            showToast('开票总额 ¥' + formatNumber(totalInvoice, 2) + ' 超出所选订单剩余应开合计 ¥' + formatNumber(cappedRemain, 2) + '，已阻止重复开票', 'danger');
                             return;
                         }
                         // 按勾选顺序把开票总额分摊到各订单
