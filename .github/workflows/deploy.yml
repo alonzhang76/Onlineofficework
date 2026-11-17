@@ -1,6 +1,6 @@
 name: Deploy to CloudBase
 
-# 推送到 main/master 自动整站部署；也支持在 Actions 页面手动触发
+# 推送到 main/master：按改动范围增量部署；根门户文件变化或手动触发时整站部署
 on:
   push:
     branches: [main, master]
@@ -19,10 +19,13 @@ jobs:
     defaults:
       run:
         shell: bash
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # 需要拿到上一次提交做 diff，用来判断哪些子应用发生了变化
+          fetch-depth: 2
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -45,13 +48,91 @@ jobs:
         run: |
           tcb login --apiKeyId "$TCB_SECRET_ID" --apiKey "$TCB_SECRET_KEY"
 
-      - name: Prepare Deploy Directory
+      - name: Detect Changes
+        id: changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
         run: |
-          # 只打包线上需要的静态资源：门户 + 全部子应用，部署到静态托管根目录
+          set -euo pipefail
+          FULL=0
+          APPS_FILE=$(mktemp)
+
+          if [ "$EVENT_NAME" != "push" ] || [ -z "${BEFORE_SHA:-}" ] || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            FULL=1
+            echo "ℹ️ 手动触发或缺少上一次提交，执行整站部署"
+          else
+            # checkout 只拉取了最近 2 个提交；多提交推送时按需补拉 before 提交
+            if ! git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
+              git fetch --no-tags --depth=1 origin "$BEFORE_SHA" || FULL=1
+            fi
+
+            if [ "$FULL" -eq 0 ]; then
+              CHANGED=$(git diff --name-only "$BEFORE_SHA" "$CURRENT_SHA" || true)
+              echo "===== 本次变更文件 ====="
+              echo "${CHANGED:-（无）}"
+              while IFS= read -r f; do
+                [ -z "$f" ] && continue
+                case "$f" in
+                  # 本地开发用的种子/备份数据，不参与线上部署，也不应触发部署
+                  apps/*/seed_data.js|apps/*/excel_data.json) continue ;;
+                  # 子应用内的文件：只增量部署该应用
+                  apps/*/*)
+                    app=${f#apps/}
+                    app=${app%%/*}
+                    if [ -d "apps/$app" ]; then
+                      echo "$app" >> "$APPS_FILE"
+                    else
+                      # 应用目录被整体删除时无法增量部署，退回整站部署
+                      FULL=1
+                    fi
+                    ;;
+                  # 非 apps 子目录（.github、cloudfunctions、mini program 等）不触发静态部署
+                  */*) ;;
+                  # 门户根文件或根图片变化：整站部署
+                  index.html|apps.json|*.jpg|*.png|*.ico|*.gif|*.webp) FULL=1 ;;
+                  # 其它根目录文件不参与静态托管
+                  *) ;;
+                esac
+              done <<< "$CHANGED"
+            fi
+          fi
+
+          if [ "$FULL" -eq 1 ]; then
+            MODE=full
+            APPS=""
+          else
+            APPS=$(sort -u "$APPS_FILE" | tr '\n' ' ' | sed 's/ *$//')
+            if [ -z "$APPS" ]; then MODE=skip; else MODE=apps; fi
+          fi
+          rm -f "$APPS_FILE"
+
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "apps=$APPS" >> "$GITHUB_OUTPUT"
+          echo "📦 部署模式：$MODE"
+          [ -n "$APPS" ] && echo "📦 变更应用：$APPS"
+
+      - name: Prepare Deploy Directory
+        if: steps.changes.outputs.mode != 'skip'
+        env:
+          DEPLOY_MODE: ${{ steps.changes.outputs.mode }}
+          DEPLOY_APPS: ${{ steps.changes.outputs.apps }}
+        run: |
           mkdir -p _deploy
-          cp index.html apps.json _deploy/
-          find . -maxdepth 1 -type f \( -name '*.jpg' -o -name '*.png' -o -name '*.ico' -o -name '*.gif' -o -name '*.webp' \) -exec cp {} _deploy/ \;
-          cp -r apps _deploy/
+          if [ "$DEPLOY_MODE" = "full" ]; then
+            # 整站：门户 + 全部子应用，部署到静态托管根目录
+            cp index.html apps.json _deploy/
+            find . -maxdepth 1 -type f \( -name '*.jpg' -o -name '*.png' -o -name '*.ico' -o -name '*.gif' -o -name '*.webp' \) -exec cp {} _deploy/ \;
+            cp -r apps _deploy/
+          else
+            # 增量：只准备本次变更的子应用
+            mkdir -p _deploy/apps
+            for app in $DEPLOY_APPS; do
+              echo "准备 apps/$app"
+              cp -r "apps/$app" "_deploy/apps/"
+            done
+          fi
 
           # 清理不需要发布到静态托管的文件（源码/备份/脚本/压缩包等）
           find _deploy -type d -name '.github' -prune -exec rm -rf {} +
@@ -71,55 +152,72 @@ jobs:
           find _deploy -type f | sort
 
       - name: Deploy Static Hosting
+        if: steps.changes.outputs.mode != 'skip'
         env:
           TCB_ENV_ID: ${{ secrets.TCB_ENV_ID }}
+          DEPLOY_MODE: ${{ steps.changes.outputs.mode }}
+          DEPLOY_APPS: ${{ steps.changes.outputs.apps }}
         run: |
           # self-hosted runner（境内）→ 腾讯云 COS 链路快，但保留重试以防偶发抖动
           export COS_SDK_KEEPALIVE=false
-          # 整命令级重试：tcb hosting deploy 按文件 hash 跳过已上传项
-          for i in 1 2 3 4 5; do
-            echo "===== 部署尝试 $i/5 ====="
-            start=$(date +%s)
-            set +e
-            tcb hosting deploy _deploy / -e "$TCB_ENV_ID" \
-              --concurrency 16 --retry-count 4 --retry-interval 2000 &
-            pid=$!
 
-            # 心跳：tcb 在上传/比对阶段长时间不输出，避免 Actions 看起来“卡死”
-            (
-              while kill -0 "$pid" 2>/dev/null; do
-                sleep 20
-                echo "⏳ 部署进行中：已用时 $(( $(date +%s) - start ))s（网络较慢时该阶段可能持续数分钟）"
-              done
-            ) &
-            hb=$!
+          deploy_with_retry() {
+            local src="$1"
+            local dest="$2"
+            for i in 1 2 3 4 5; do
+              echo "===== 部署尝试 $i/5：$src → $dest ====="
+              local start=$(date +%s)
+              set +e
+              tcb hosting deploy "$src" "$dest" -e "$TCB_ENV_ID" \
+                --concurrency 16 --retry-count 4 --retry-interval 2000 &
+              local pid=$!
 
-            # 单次尝试看门狗：12 分钟仍未结束则终止，交给下一轮重试（已上传文件会被跳过）
-            (
-              sleep 720
-              if kill -0 "$pid" 2>/dev/null; then
-                echo "⚠️ 单次部署超过 12 分钟，终止本次尝试并进入重试"
-                kill -TERM "$pid" 2>/dev/null
-                sleep 3
-                kill -9 "$pid" 2>/dev/null
+              # 心跳：tcb 在上传/比对阶段长时间不输出，避免 Actions 看起来“卡死”
+              (
+                while kill -0 "$pid" 2>/dev/null; do
+                  sleep 20
+                  echo "⏳ 部署进行中：已用时 $(( $(date +%s) - start ))s（网络较慢时该阶段可能持续数分钟）"
+                done
+              ) &
+              local hb=$!
+
+              # 单次尝试看门狗：12 分钟仍未结束则终止，交给下一轮重试（已上传文件会被跳过）
+              (
+                sleep 720
+                if kill -0 "$pid" 2>/dev/null; then
+                  echo "⚠️ 单次部署超过 12 分钟，终止本次尝试并进入重试"
+                  kill -TERM "$pid" 2>/dev/null
+                  sleep 3
+                  kill -9 "$pid" 2>/dev/null
+                fi
+              ) &
+              local wd=$!
+
+              wait "$pid"; local code=$?
+              set -e
+              kill "$hb" "$wd" 2>/dev/null || true
+              wait "$hb" "$wd" 2>/dev/null || true
+
+              if [ "$code" -eq 0 ]; then
+                echo "✅ 部署成功（第 $i 次尝试，用时 $(( $(date +%s) - start ))s）"
+                return 0
+              else
+                echo "⚠️ 第 $i 次尝试失败（exit $code），tcb 会跳过已传文件，5 秒后重试..."
+                [ "$i" -eq 5 ] && { echo "❌ 5 次均失败，部署终止"; exit 1; }
+                sleep 5
               fi
-            ) &
-            wd=$!
+            done
+          }
 
-            wait "$pid"; code=$?
-            set -e
-            kill "$hb" "$wd" 2>/dev/null || true
-            wait "$hb" "$wd" 2>/dev/null || true
-
-            if [ "$code" -eq 0 ]; then
-              echo "✅ 部署成功（第 $i 次尝试，用时 $(( $(date +%s) - start ))s）"
-              break
-            else
-              echo "⚠️ 第 $i 次尝试失败（exit $code），tcb 会跳过已传文件，5 秒后重试..."
-              [ "$i" -eq 5 ] && { echo "❌ 5 次均失败，部署终止"; exit 1; }
-              sleep 5
-            fi
-          done
+          if [ "$DEPLOY_MODE" = "full" ]; then
+            echo "===== 整站部署 ====="
+            deploy_with_retry _deploy /
+          else
+            for app in $DEPLOY_APPS; do
+              echo "===== 增量部署 apps/$app ====="
+              deploy_with_retry "_deploy/apps/$app" "apps/$app"
+            done
+          fi
 
       # 云函数 tcb-file-list（可选增强，已在线上）不在 CI 中部署。
       # 函数代码变更时在本机手动部署（cloudbaserc.json 已锁定 Event 类型/入口，
@@ -127,9 +225,21 @@ jobs:
       #   cd cloudfunctions/tcb-file-list && npm i --omit=dev
       #   tcb fn deploy tcb-file-list --dir . -e onlineofficework-d4e93l98bdf879e --force --install-dependency false
 
+      - name: Nothing to Deploy
+        if: steps.changes.outputs.mode == 'skip'
+        run: |
+          echo "✅ 本次提交只包含非静态托管文件（如 workflow/docs/云函数），已跳过部署。"
+
       - name: Deployment Summary
+        if: steps.changes.outputs.mode != 'skip'
         env:
           TCB_ENV_ID: ${{ secrets.TCB_ENV_ID }}
+          DEPLOY_MODE: ${{ steps.changes.outputs.mode }}
+          DEPLOY_APPS: ${{ steps.changes.outputs.apps }}
         run: |
-          echo "✅ 整站部署完成"
+          if [ "$DEPLOY_MODE" = "full" ]; then
+            echo "✅ 整站部署完成"
+          else
+            echo "✅ 增量部署完成：$DEPLOY_APPS"
+          fi
           echo "环境 ID: $TCB_ENV_ID"
