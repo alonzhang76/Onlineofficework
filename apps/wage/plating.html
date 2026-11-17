@@ -999,16 +999,9 @@
 
                     <!-- 开票记录 -->
                     <div class="bg-white rounded-lg shadow mb-6">
-                        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                        <div class="px-6 py-4 border-b border-gray-200">
                             <h3 class="text-lg font-semibold text-gray-900">开票记录</h3>
-                            <div class="flex gap-3">
-                                <button id="createInvoiceBtn" class="btn-primary flex items-center">
-                                    <i class="fa fa-plus mr-2"></i> 新增发票
-                                </button>
-                                <button id="invoicesDeleteAll" class="btn-danger flex items-center">
-                                    <i class="fa fa-trash mr-2"></i> 清空
-                                </button>
-                            </div>
+                            <p class="text-xs text-gray-500 mt-1">发票由小程序「电镀开票付款」导入后自动同步；此处仅用于查看与纠错。</p>
                         </div>
                         <div class="p-6">
                             <div class="flex flex-wrap gap-4 mb-6">
@@ -1061,16 +1054,9 @@
 
                     <!-- 付款记录 -->
                     <div class="bg-white rounded-lg shadow mb-6">
-                        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                        <div class="px-6 py-4 border-b border-gray-200">
                             <h3 class="text-lg font-semibold text-gray-900">付款记录</h3>
-                            <div class="flex gap-3">
-                                <button id="createPaymentBtn" class="btn-primary flex items-center">
-                                    <i class="fa fa-plus mr-2"></i> 新增付款
-                                </button>
-                                <button id="paymentsDeleteAll" class="btn-danger flex items-center">
-                                    <i class="fa fa-trash mr-2"></i> 清空
-                                </button>
-                            </div>
+                            <p class="text-xs text-gray-500 mt-1">付款在报销系统登记后自动同步，此处仅用于查看与纠错。</p>
                         </div>
                         <div class="p-6">
                             <div class="flex flex-wrap gap-4 mb-6">
@@ -3057,12 +3043,12 @@
         </div>
     </div>
 
-    <!-- 新增发票模态框 -->
+    <!-- 发票编辑模态框（新增入口已移除，仅保留行内编辑纠错） -->
     <div id="add-invoice-modal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
         <div class="absolute inset-0 bg-gray-600 bg-opacity-50"></div>
         <div class="relative bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto z-10">
             <div class="flex justify-between items-center p-6 border-b">
-                <h3 class="text-xl font-bold text-gray-800">新增发票</h3>
+                <h3 class="text-xl font-bold text-gray-800">编辑发票</h3>
                 <button id="close-invoice-modal" class="text-gray-400 hover:text-gray-600 focus:outline-none">
                     <i class="fa fa-times text-xl"></i>
                 </button>
@@ -3136,12 +3122,12 @@
         </div>
     </div>
 
-    <!-- 新增付款模态框 -->
+    <!-- 付款编辑模态框（新增入口已移除，仅保留行内编辑纠错） -->
     <div id="add-payment-modal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
         <div class="absolute inset-0 bg-gray-600 bg-opacity-50"></div>
         <div class="relative bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto z-10">
             <div class="flex justify-between items-center p-6 border-b">
-                <h3 class="text-xl font-bold text-gray-800">新增付款</h3>
+                <h3 class="text-xl font-bold text-gray-800">编辑付款</h3>
                 <button id="close-payment-modal" class="text-gray-400 hover:text-gray-600 focus:outline-none">
                     <i class="fa fa-times text-xl"></i>
                 </button>
@@ -3240,7 +3226,6 @@
             },
             invoices: {
                 tableBodyId: 'invoicesTableBody',
-                deleteAllButtonId: 'invoicesDeleteAll',
                 itemsPerPage: 10,
                 currentPage: 1,
                 totalPages: 1,
@@ -3250,7 +3235,6 @@
             },
             payments: {
                 tableBodyId: 'paymentsTableBody',
-                deleteAllButtonId: 'paymentsDeleteAll',
                 itemsPerPage: 10,
                 currentPage: 1,
                 totalPages: 1,
@@ -8077,12 +8061,7 @@
             const formattedDate = today.toISOString().split('T')[0];
             shipmentDate.value = formattedDate;
             
-            // 新增发票模态框功能
-            const invoiceModal = document.getElementById('add-invoice-modal');
-            const openInvoiceModalBtn = document.getElementById('createInvoiceBtn');
-            const closeInvoiceModalBtn = document.getElementById('close-invoice-modal');
-            const cancelInvoiceBtn = document.getElementById('cancel-invoice-btn');
-            const invoiceForm = document.getElementById('add-invoice-form');
+            // 发票日期默认今日（编辑弹窗复用）
             const invoiceDate = document.getElementById('invoice-date');
             
             // 设置开票日期默认为今日
@@ -8346,14 +8325,12 @@
     
         document.addEventListener('DOMContentLoaded', function() {
             // 重新获取元素，因为原来的变量在不同的作用域
-            const openInvoiceModalBtn = document.getElementById('createInvoiceBtn');
             const invoiceModal = document.getElementById('add-invoice-modal');
             const closeInvoiceModalBtn = document.getElementById('close-invoice-modal');
             const cancelInvoiceBtn = document.getElementById('cancel-invoice-btn');
             const invoiceForm = document.getElementById('add-invoice-form');
             const shipmentForm = document.getElementById('add-shipment-form');
             const invoiceDate = document.getElementById('invoice-date');
-            const openPaymentModalBtn = document.getElementById('createPaymentBtn');
             const paymentModal = document.getElementById('add-payment-modal');
             const closePaymentModalBtn = document.getElementById('close-payment-modal');
             const cancelPaymentBtn = document.getElementById('cancel-payment-btn');
@@ -8364,20 +8341,6 @@
             const formattedDate = today.toISOString().split('T')[0];
             invoiceDate.value = formattedDate;
             paymentDate.value = formattedDate;
-            
-            // 打开发票模态框
-            if (openInvoiceModalBtn) {
-                openInvoiceModalBtn.addEventListener('click', function() {
-                    delete invoiceForm.dataset.editIndex;
-                    document.querySelector('#add-invoice-modal h3').textContent = '新增发票';
-                    // 填充订单号下拉框
-                    populateInvoiceOrderNumbers();
-                    document.getElementById('invoice-vendor').value = '';
-                    document.getElementById('invoice-buyer').value = defaultReimBuyer();
-                    invoiceModal.classList.remove('hidden');
-                    document.body.style.overflow = 'hidden';
-                });
-            }
             
             // 预开开关、购方、抵扣金额联动
             const invoicePrepaid = document.getElementById('invoice-prepaid');
@@ -8402,7 +8365,7 @@
                 invoiceForm.reset();
                 // 移除编辑索引
                 delete invoiceForm.dataset.editIndex;
-                document.querySelector('#add-invoice-modal h3').textContent = '新增发票';
+                document.querySelector('#add-invoice-modal h3').textContent = '编辑发票';
                 document.body.style.overflow = 'auto';
             }
             
@@ -8432,20 +8395,6 @@
                 }
             });
 
-            // 打开付款模态框
-            if (openPaymentModalBtn) {
-                openPaymentModalBtn.addEventListener('click', function() {
-                    delete paymentForm.dataset.editIndex;
-                    document.querySelector('#add-payment-modal h3').textContent = '新增付款';
-                    populatePaymentOrderNumbers();
-                    document.getElementById('payment-vendor').value = '';
-                    document.getElementById('payment-invoice-no').value = '';
-                    paymentDate.value = formattedDate;
-                    paymentModal.classList.remove('hidden');
-                    document.body.style.overflow = 'hidden';
-                });
-            }
-
             // 付款订单号变化时自动带出电镀厂
             const paymentOrderId = document.getElementById('payment-order-id');
             if (paymentOrderId) {
@@ -8460,7 +8409,7 @@
                 paymentModal.classList.add('hidden');
                 paymentForm.reset();
                 delete paymentForm.dataset.editIndex;
-                document.querySelector('#add-payment-modal h3').textContent = '新增付款';
+                document.querySelector('#add-payment-modal h3').textContent = '编辑付款';
                 document.body.style.overflow = 'auto';
             }
 
