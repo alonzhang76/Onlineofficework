@@ -338,6 +338,43 @@ const paginations = {
 // 订单跨页选中状态：保存选中订单的ID，分页切换时保留选中状态
 const selectedOrderIds = new Set();
 
+// 订单号 → 业务模式映射（agency=外贸代理，self=自营，domestic=国内贸易）
+function getOrderBusinessModeMap() {
+    const map = {};
+    storage.getOrderRecords().forEach(o => {
+        if (o.orderNo) map[String(o.orderNo).trim()] = o.businessMode || 'agency';
+    });
+    return map;
+}
+
+// 发票付款状态判断用的已回款金额（按订单号）
+// 外贸代理：取账务管理付款记录；自营/国内贸易：不登记账务，取收汇管理记录（收款金额+手续费）×汇率
+function buildInvoicePaidAmountByOrderNo() {
+    const modeMap = getOrderBusinessModeMap();
+    const paidMap = {};
+
+    storage.getPaymentRecords().forEach(payment => {
+        if (!payment.orderNo) return;
+        String(payment.orderNo).split(',').map(no => no.trim()).filter(Boolean).forEach(orderNo => {
+            if ((modeMap[orderNo] || 'agency') !== 'agency') return;
+            paidMap[orderNo] = (paidMap[orderNo] || 0) + (parseFloat(payment.amount) || 0);
+        });
+    });
+
+    storage.getReceiptRecords().forEach(receipt => {
+        if (!receipt.orderNo) return;
+        const exchangeRate = parseFloat(receipt.exchangeRate);
+        const rate = (isNaN(exchangeRate) || exchangeRate <= 0) ? 1 : exchangeRate;
+        const amount = ((parseFloat(receipt.amountReceived) || 0) + (parseFloat(receipt.fee) || 0)) * rate;
+        String(receipt.orderNo).split(',').map(no => no.trim()).filter(Boolean).forEach(orderNo => {
+            if ((modeMap[orderNo] || 'agency') === 'agency') return;
+            paidMap[orderNo] = (paidMap[orderNo] || 0) + amount;
+        });
+    });
+
+    return paidMap;
+}
+
 // 页面控制器类
 class PageController {
     constructor() {
@@ -1364,9 +1401,12 @@ class PageController {
                     statusClass = defaultStatusClassMap[chineseStatus] || '';
                 }
                 
-                // 检查订单号是否在账务管理中存在
+                // 检查订单号是否在账务管理中存在（自营/国内贸易无需账务登记，不做此提示）
                 const orderNos = (orderNo || '').split(',').map(no => no.trim()).filter(Boolean);
-                const hasUnpaidOrder = orderNos.some(no => !paymentOrderNos.has(no));
+                const hasUnpaidOrder = orderNos.some(no => {
+                    if ((orderBusinessModeMap[no] || 'agency') !== 'agency') return false;
+                    return !paymentOrderNos.has(no);
+                });
                 
                 // 渲染订单号单元格
                 let orderNoCell = '';
@@ -1577,24 +1617,8 @@ class PageController {
         if (currentPageData.length === 0) {
                 tableBody.innerHTML = '<tr><td colspan="18" class="text-center text-gray-500 py-4">暂无数据</td></tr>';
             } else {
-            // 获取所有付款记录，用于检查订单付款情况
-            const allPaymentRecords = storage.getPaymentRecords();
-            
-            // 按订单号汇总付款金额
-            const paymentByOrderNo = {};
-            allPaymentRecords.forEach(payment => {
-                if (payment.orderNo) {
-                    // 处理付款记录中的多个订单号情况，按逗号分隔
-                    const paymentOrderNos = payment.orderNo.split(',').map(no => no.trim()).filter(Boolean);
-                    // 将付款金额分配给每个订单号
-                    paymentOrderNos.forEach(orderNo => {
-                        if (!paymentByOrderNo[orderNo]) {
-                            paymentByOrderNo[orderNo] = 0;
-                        }
-                        paymentByOrderNo[orderNo] += parseFloat(payment.amount || 0);
-                    });
-                }
-            });
+            // 发票付款状态：外贸代理取账务管理付款记录，自营/国内贸易取收汇管理记录
+            const paidByOrderNo = buildInvoicePaidAmountByOrderNo();
             
             // 渲染数据行
             currentPageData.forEach(record => {
@@ -1607,7 +1631,7 @@ class PageController {
                         const orderNos = (record.orderNo || '').split(',').map(no => no.trim()).filter(Boolean);
                         // 计算所有相关订单的总付款金额
                         const totalPaymentAmount = orderNos.reduce((total, orderNo) => {
-                            return total + (paymentByOrderNo[orderNo] || 0);
+                            return total + (paidByOrderNo[orderNo] || 0);
                         }, 0);
                         
                         if (totalPaymentAmount === 0) {
@@ -1623,7 +1647,7 @@ class PageController {
                         const orderNos = (record.orderNo || '').split(',').map(no => no.trim()).filter(Boolean);
                         // 计算所有相关订单的总付款金额
                         const totalPaymentAmount = orderNos.reduce((total, orderNo) => {
-                            return total + (paymentByOrderNo[orderNo] || 0);
+                            return total + (paidByOrderNo[orderNo] || 0);
                         }, 0);
                         
                         if (totalPaymentAmount === 0) {
@@ -1809,30 +1833,17 @@ class PageController {
         // 支持多词搜索，词与词之间用英文逗号分隔
         const searchTerms = searchInputValue.split(',').map(t => t.trim().toLowerCase()).filter(t => t);
         
-        // 获取所有发票记录和付款记录
+        // 获取所有发票记录
         let allInvoiceRecords = storage.getInvoiceRecords();
-        const allPaymentRecords = storage.getPaymentRecords();
-        
-        // 按订单号汇总付款金额
-        const paymentByOrderNo = {};
-        allPaymentRecords.forEach(payment => {
-            if (payment.orderNo) {
-                const paymentOrderNos = payment.orderNo.split(',').map(no => no.trim()).filter(Boolean);
-                paymentOrderNos.forEach(orderNo => {
-                    if (!paymentByOrderNo[orderNo]) {
-                        paymentByOrderNo[orderNo] = 0;
-                    }
-                    paymentByOrderNo[orderNo] += parseFloat(payment.amount) || 0;
-                });
-            }
-        });
+        // 发票付款状态：外贸代理取账务管理付款记录，自营/国内贸易取收汇管理记录
+        const paidByOrderNo = buildInvoicePaidAmountByOrderNo();
         
         // 获取发票状态的辅助函数
         const getInvoiceStatus = (record) => {
             const invoiceAmount = parseFloat(record.amount || 0);
             const orderNos = (record.orderNo || '').split(',').map(no => no.trim()).filter(Boolean);
             const totalPaymentAmount = orderNos.reduce((total, orderNo) => {
-                return total + (paymentByOrderNo[orderNo] || 0);
+                return total + (paidByOrderNo[orderNo] || 0);
             }, 0);
             
             if (totalPaymentAmount === 0) {
@@ -2977,21 +2988,12 @@ class PageController {
                 const orderNos = orderNoInput.value.split(',').map(no => no.trim()).filter(no => no !== '');
                 
                 if (orderNos.length > 0) {
-                    // 从账务管理表格中获取对应订单号的所有付款记录
-                    const paymentRecords = storage.getPaymentRecords();
-                    
-                    // 筛选出匹配的付款记录
-                    const matchedPayments = paymentRecords.filter(record => 
-                        record.orderNo && orderNos.some(no => record.orderNo.includes(no))
-                    );
-                    
-                    // 计算付款金额总和
-                    const totalPaymentAmount = matchedPayments.reduce((total, record) => {
-                        return total + parseFloat(record.amount || 0);
-                    }, 0);
+                    // 外贸代理取账务管理付款记录，自营/国内贸易取收汇管理记录
+                    const paidByOrderNo = buildInvoicePaidAmountByOrderNo();
+                    const totalPaymentAmount = orderNos.reduce((total, no) => total + (paidByOrderNo[no] || 0), 0);
                     
                     // 设置悬停提示
-                    this.title = `该订单号在账务管理表格中所有付款金额的汇总额: ¥${totalPaymentAmount.toFixed(2)}`;
+                    this.title = `该订单号已登记的回款合计（外贸代理取账务管理，国内贸易取收汇管理）: ¥${totalPaymentAmount.toFixed(2)}`;
                 } else {
                     this.title = '';
                 }
@@ -3167,6 +3169,15 @@ class PageController {
             record.receiptTotal = record.receiptTotal.replace(/US\$|EU\$|￥|\s/g, '');
         }
         
+        // 自营订单无需在发票管理登记（与订单下拉过滤保持一致）
+        const invoiceModeMap = getOrderBusinessModeMap();
+        const selfOrderNos = String(record.orderNo || '').split(',').map(no => no.trim()).filter(Boolean)
+            .filter(no => invoiceModeMap[no] === 'self');
+        if (selfOrderNos.length > 0) {
+            this.showNotification('自营订单无需在发票管理登记：' + selfOrderNos.join('、'), 'error');
+            return;
+        }
+        
         storage.addInvoiceRecord(record);
         this.renderInvoiceTable();
         this.updateReports();
@@ -3254,6 +3265,15 @@ class PageController {
         // 手动校验：订单号必填（隐藏的 select 无法靠 HTML5 required 拦截，需在这里兜底）
         if (!record.orderNo || !record.orderNo.trim()) {
             this.showNotification('请填写订单号', 'error');
+            return;
+        }
+        
+        // 自营/国内贸易订单无需在账务管理登记
+        const paymentModeMap = getOrderBusinessModeMap();
+        const nonAgencyOrderNos = record.orderNo.split(',').map(no => no.trim()).filter(Boolean)
+            .filter(no => paymentModeMap[no] && paymentModeMap[no] !== 'agency');
+        if (nonAgencyOrderNos.length > 0) {
+            this.showNotification('自营/国内贸易订单无需在账务管理登记：' + nonAgencyOrderNos.join('、'), 'error');
             return;
         }
         
@@ -3491,24 +3511,8 @@ class PageController {
                     return direction === 'asc' ? comparison : -comparison;
                 } else {
                     // 发票管理表格的状态列排序
-                    // 获取所有付款记录，用于计算付款情况
-                    const allPaymentRecords = storage.getPaymentRecords();
-                    
-                    // 按订单号汇总付款金额
-                    const paymentByOrderNo = {};
-                    allPaymentRecords.forEach(payment => {
-                        if (payment.orderNo) {
-                            // 处理付款记录中的多个订单号情况，按逗号分隔
-                            const paymentOrderNos = payment.orderNo.split(',').map(no => no.trim()).filter(Boolean);
-                            // 将付款金额分配给每个订单号
-                            paymentOrderNos.forEach(orderNo => {
-                                if (!paymentByOrderNo[orderNo]) {
-                                    paymentByOrderNo[orderNo] = 0;
-                                }
-                                paymentByOrderNo[orderNo] += parseFloat(payment.amount) || 0;
-                            });
-                        }
-                    });
+                    // 发票付款状态：外贸代理取账务管理付款记录，自营/国内贸易取收汇管理记录
+                    const paidByOrderNo = buildInvoicePaidAmountByOrderNo();
                     
                     // 获取发票的状态
                     const getInvoiceStatus = (record) => {
@@ -3517,7 +3521,7 @@ class PageController {
                         const orderNos = (record.orderNo || '').split(',').map(no => no.trim()).filter(Boolean);
                         // 计算所有相关订单的总付款金额
                         const totalPaymentAmount = orderNos.reduce((total, orderNo) => {
-                            return total + (paymentByOrderNo[orderNo] || 0);
+                            return total + (paidByOrderNo[orderNo] || 0);
                         }, 0);
                         
                         if (totalPaymentAmount === 0) {
@@ -5665,12 +5669,12 @@ function openModal(modalId) {
                 // 清空现有选项
                 orderSelect.innerHTML = '';
                 
-                // 获取所有订单记录，去重（外贸代理 + 国内贸易订单，自营订单无需付款登记）
+                // 获取所有订单记录，去重（仅外贸代理订单需要账务管理登记；自营、国内贸易无需登记）
                 const orderRecords = storage.getOrderRecords();
                 const uniqueOrders = {};
 
                 orderRecords.forEach(record => {
-                    if ((record.businessMode || 'agency') !== 'self' && record.orderNo) {
+                    if ((record.businessMode || 'agency') === 'agency' && record.orderNo) {
                         uniqueOrders[record.orderNo] = record;
                     }
                 });
@@ -5801,7 +5805,10 @@ function openModal(modalId) {
                     paymentOrderNoSearch.parentElement.appendChild(valHint);
                 }
                 function refreshHint() {
-                    const knownNos = new Set(storage.getOrderRecords().map(r => r.orderNo));
+                    // 仅外贸代理订单需要账务管理登记
+                    const orderRecords = storage.getOrderRecords();
+                    const agencyOrderRecords = orderRecords.filter(r => (r.businessMode || 'agency') === 'agency');
+                    const knownNos = new Set(agencyOrderRecords.map(r => r.orderNo));
                     // 所有已输入订单号（含 pending）
                     const { closed, pending } = parseEnteredOrderNos(paymentOrderNoSearch.value);
                     const allEntered = pending ? [...closed, pending] : closed;
@@ -5810,11 +5817,10 @@ function openModal(modalId) {
                     const invalidList = allEntered.filter(no => !knownNos.has(no));
                     const okColor = invalidList.length === 0 ? '#16a34a' : '#0f766e';
                     const ok = `<span style="color:${okColor}">已输入 ${allEntered.length} 个：${allEntered.map((no,i)=>`<b style="color:${knownNos.has(no)?'#16a34a':'#dc2626'}">${no}</b>${i<allEntered.length-1?'·':''}`).join('')}</span>`;
-                    valHint.innerHTML = ok + (invalidList.length ? `<span style="color:#dc2626">　⚠ 其中 ${invalidList.length} 个在订单管理中不存在</span>` : '');
+                    valHint.innerHTML = ok + (invalidList.length ? `<span style="color:#dc2626">　⚠ 其中 ${invalidList.length} 个不存在或无需账务登记（自营/国内贸易）</span>` : '');
                     // 客户 / 收款单位自动填充：取第一个有效订单
                     if (validList.length > 0) {
-                        const orderRecords = storage.getOrderRecords();
-                        const firstValid = orderRecords.find(r => r.orderNo === validList[0]);
+                        const firstValid = agencyOrderRecords.find(r => r.orderNo === validList[0]);
                         const customerInput = document.getElementById('paymentCustomer');
                         if (customerInput && firstValid && firstValid.customer) customerInput.value = firstValid.customer;
                         autoFillRecipientForFinalPayment(validList[0]);
@@ -5826,7 +5832,7 @@ function openModal(modalId) {
                 function handleOrderNoSearch() {
                     try {
                         const { pending } = parseEnteredOrderNos(this.value);
-                        const orderRecords = storage.getOrderRecords();
+                        const orderRecords = storage.getOrderRecords().filter(r => (r.businessMode || 'agency') === 'agency');
                         const knownNos = new Set(orderRecords.map(r => r.orderNo));
                         // 待搜索 token 为空，或已经是完整订单号 → 隐藏建议下拉
                         if (!pending) { paymentOrderNoSuggestions.classList.add('hidden'); return; }
@@ -6788,10 +6794,14 @@ function searchReceiptRecords() {
             return false;
         }
         
-        // 人民币未支付筛选
+        // 人民币未支付筛选（自营/国内贸易无需账务登记，不计入未支付）
         if (unpaidFilter) {
+            const modeMap = getOrderBusinessModeMap();
             const orderNos = (record.orderNo || '').split(',').map(no => no.trim()).filter(Boolean);
-            const hasUnpaidOrder = orderNos.some(no => !paymentOrderNos.has(no));
+            const hasUnpaidOrder = orderNos.some(no => {
+                if ((modeMap[no] || 'agency') !== 'agency') return false;
+                return !paymentOrderNos.has(no);
+            });
             
             if (unpaidFilter === 'yes' && !hasUnpaidOrder) {
                 return false;
@@ -8843,30 +8853,17 @@ function searchInvoiceRecords() {
     const dateFrom = document.getElementById('invoiceDateFrom').value;
     const dateTo = document.getElementById('invoiceDateTo').value;
     
-    // 获取所有发票记录和付款记录
+    // 获取所有发票记录
     const allInvoiceRecords = storage.getInvoiceRecords();
-    const allPaymentRecords = storage.getPaymentRecords();
-    
-    // 按订单号汇总付款金额
-    const paymentByOrderNo = {};
-    allPaymentRecords.forEach(payment => {
-        if (payment.orderNo) {
-            const paymentOrderNos = payment.orderNo.split(',').map(no => no.trim()).filter(Boolean);
-            paymentOrderNos.forEach(orderNo => {
-                if (!paymentByOrderNo[orderNo]) {
-                    paymentByOrderNo[orderNo] = 0;
-                }
-                paymentByOrderNo[orderNo] += parseFloat(payment.amount) || 0;
-            });
-        }
-    });
+    // 发票付款状态：外贸代理取账务管理付款记录，自营/国内贸易取收汇管理记录
+    const paidByOrderNo = buildInvoicePaidAmountByOrderNo();
     
     // 获取发票状态的辅助函数
     const getInvoiceStatus = (record) => {
         const invoiceAmount = parseFloat(record.amount || 0);
         const orderNos = (record.orderNo || '').split(',').map(no => no.trim()).filter(Boolean);
         const totalPaymentAmount = orderNos.reduce((total, orderNo) => {
-            return total + (paymentByOrderNo[orderNo] || 0);
+            return total + (paidByOrderNo[orderNo] || 0);
         }, 0);
         
         if (totalPaymentAmount === 0) {

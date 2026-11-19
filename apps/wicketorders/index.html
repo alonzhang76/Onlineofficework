@@ -1695,7 +1695,7 @@
                 <!-- 业务模式提示 -->
                 <div class="mb-3 p-3 rounded-lg flex items-center gap-2" style="background:#fff3cd;border:1px solid #ffeaa7;color:#856404;font-size:0.875rem;">
                     <span>ℹ️</span>
-                    <span>发票管理用于<strong>外贸代理</strong>订单（开票给代理公司如天梁）和<strong>国内贸易</strong>订单（开票给国内客户）。<strong>自营</strong>订单无需此步骤。</span>
+                    <span>发票管理用于<strong>外贸代理</strong>订单（开票给代理公司如天梁）和<strong>国内贸易</strong>订单（开票给国内客户）；<strong>国内贸易</strong>发票的付款状态按<strong>收汇管理</strong>记录自动判断。<strong>自营</strong>订单无需此步骤。</span>
                 </div>
                 <!-- 操作按钮区 -->
                 <div class="flex justify-between items-center mb-4" style="position: relative; z-index: 20;">
@@ -2028,7 +2028,7 @@
                 <!-- 业务模式提示 -->
                 <div class="mb-3 p-3 rounded-lg flex items-center gap-2" style="background:#fff3cd;border:1px solid #ffeaa7;color:#856404;font-size:0.875rem;">
                     <span>ℹ️</span>
-                    <span>账务管理用于<strong>外贸代理</strong>订单（代理公司如天梁的付款登记）和<strong>国内贸易</strong>订单（国内客户收款登记）。<strong>自营</strong>订单无需此步骤。</span>
+                    <span>账务管理仅用于<strong>外贸代理</strong>订单（代理公司如天梁的付款登记）。<strong>自营</strong>、<strong>国内贸易</strong>订单无需此步骤；国内贸易回款请在<strong>收汇管理</strong>登记，发票付款状态会自动按收汇记录判断。</span>
                 </div>
                 <!-- 操作按钮区 -->
                 <div class="flex justify-between items-center mb-4" style="position: relative; z-index: 20;">
@@ -2767,6 +2767,7 @@
                 
                 // 获取客户名称
                 const customerName = order ? order.customer : '未知客户';
+                const businessMode = order ? (order.businessMode || 'agency') : 'agency';
                 
                 // 检查订单状态
                 if (!order) {
@@ -2825,61 +2826,65 @@
                     }
                 }
                 
-                // 检查发票情况
-                if (invoice.length === 0) {
-                    reminders.push({
-                        orderNo,
-                        customer: customerName,
-                        type: 'info',
-                        message: `订单号 ${orderNo} 暂无发票记录`,
-                        timestamp: new Date().toISOString()
-                    });
-                } else {
-                    // 检查发票状态
-                    const pendingInvoices = invoice.filter(i => i.status === 'pending' || i.status === 'processing');
-                    if (pendingInvoices.length > 0) {
+                // 检查发票情况（自营订单无需开票）
+                if (businessMode !== 'self') {
+                    if (invoice.length === 0) {
                         reminders.push({
                             orderNo,
                             customer: customerName,
-                            type: 'warning',
-                            message: `订单号 ${orderNo} 有 ${pendingInvoices.length} 张发票正在处理中`,
+                            type: 'info',
+                            message: `订单号 ${orderNo} 暂无发票记录`,
                             timestamp: new Date().toISOString()
                         });
+                    } else {
+                        // 检查发票状态
+                        const pendingInvoices = invoice.filter(i => i.status === 'pending' || i.status === 'processing');
+                        if (pendingInvoices.length > 0) {
+                            reminders.push({
+                                orderNo,
+                                customer: customerName,
+                                type: 'warning',
+                                message: `订单号 ${orderNo} 有 ${pendingInvoices.length} 张发票正在处理中`,
+                                timestamp: new Date().toISOString()
+                            });
+                        }
                     }
                 }
                 
-                // 检查付款情况
-                if (payment.length === 0) {
-                    reminders.push({
-                        orderNo,
-                        customer: customerName,
-                        type: 'info',
-                        message: `订单号 ${orderNo} 暂无付款记录`,
-                        timestamp: new Date().toISOString()
-                    });
-                } else {
-                    // 检查付款状态
-                    const pendingPayments = payment.filter(p => p.status === 'pending' || p.status === 'processing');
-                    if (pendingPayments.length > 0) {
+                // 检查付款情况（仅外贸代理订单需要账务登记）
+                if (businessMode === 'agency') {
+                    if (payment.length === 0) {
                         reminders.push({
                             orderNo,
                             customer: customerName,
-                            type: 'warning',
-                            message: `订单号 ${orderNo} 有 ${pendingPayments.length} 笔付款正在处理中`,
+                            type: 'info',
+                            message: `订单号 ${orderNo} 暂无付款记录`,
                             timestamp: new Date().toISOString()
                         });
-                    }
-                    
-                    // 检查是否有预付款，且订单未出货
-                    const advancePayments = payment.filter(p => p.paymentMethod === '预付款');
-                    if (advancePayments.length > 0 && exportList.length === 0) {
-                        reminders.push({
-                            orderNo,
-                            customer: customerName,
-                            type: 'success',
-                            message: `订单号 ${orderNo} 有 ${advancePayments.length} 笔预付款`,
-                            timestamp: new Date().toISOString()
-                        });
+                    } else {
+                        // 检查付款状态
+                        const pendingPayments = payment.filter(p => p.status === 'pending' || p.status === 'processing');
+                        if (pendingPayments.length > 0) {
+                            reminders.push({
+                                orderNo,
+                                customer: customerName,
+                                type: 'warning',
+                                message: `订单号 ${orderNo} 有 ${pendingPayments.length} 笔付款正在处理中`,
+                                timestamp: new Date().toISOString()
+                            });
+                        }
+                        
+                        // 检查是否有预付款，且订单未出货
+                        const advancePayments = payment.filter(p => p.paymentMethod === '预付款');
+                        if (advancePayments.length > 0 && exportList.length === 0) {
+                            reminders.push({
+                                orderNo,
+                                customer: customerName,
+                                type: 'success',
+                                message: `订单号 ${orderNo} 有 ${advancePayments.length} 笔预付款`,
+                                timestamp: new Date().toISOString()
+                            });
+                        }
                     }
                 }
             });
@@ -4531,11 +4536,11 @@
                             </label>
                             <label class="flex items-center gap-2 cursor-pointer" style="font-size: 0.9rem;">
                                 <input type="radio" name="businessMode" value="self" style="width:18px;height:18px;accent-color:#28a745;">
-                                <span><strong>自营</strong> — 订单→收汇→出口（无需开票给代理/代理付款）</span>
+                                <span><strong>自营</strong> — 订单→收汇→出口（无需发票/账务登记）</span>
                             </label>
                             <label class="flex items-center gap-2 cursor-pointer" style="font-size: 0.9rem;">
                                 <input type="radio" name="businessMode" value="domestic" style="width:18px;height:18px;accent-color:#fd7e14;">
-                                <span><strong>国内贸易</strong> — 订单→收汇→出口→开票给国内客户→国内收款</span>
+                                <span><strong>国内贸易</strong> — 订单→收汇→出口→开票给国内客户（付款状态按收汇管理判断）</span>
                             </label>
                         </div>
                     </div>
@@ -4740,11 +4745,11 @@
                             </label>
                             <label class="flex items-center gap-2 cursor-pointer" style="font-size: 0.9rem;">
                                 <input type="radio" name="businessMode" value="self" style="width:18px;height:18px;accent-color:#28a745;">
-                                <span><strong>自营</strong> — 订单→收汇→出口（无需开票给代理/代理付款）</span>
+                                <span><strong>自营</strong> — 订单→收汇→出口（无需发票/账务登记）</span>
                             </label>
                             <label class="flex items-center gap-2 cursor-pointer" style="font-size: 0.9rem;">
                                 <input type="radio" name="businessMode" value="domestic" style="width:18px;height:18px;accent-color:#fd7e14;">
-                                <span><strong>国内贸易</strong> — 订单→收汇→出口→开票给国内客户→国内收款</span>
+                                <span><strong>国内贸易</strong> — 订单→收汇→出口→开票给国内客户（付款状态按收汇管理判断）</span>
                             </label>
                         </div>
                     </div>
@@ -5350,7 +5355,7 @@
     </div>
 
     <!-- JavaScript文件 -->
-    <script src="app.js?v=20261019b"></script>
+    <script src="app.js?v=20261119a"></script>
     <!-- 日历记事功能（交货日期同步） -->
     <script src="calendar-notes.js?v=20260923a"></script>
     <!-- enhanced-payment.js 已并入 app.js：移除 cloneNode 破坏性替换和重复监听器注册 -->
