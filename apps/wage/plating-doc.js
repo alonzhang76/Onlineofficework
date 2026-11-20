@@ -215,11 +215,22 @@
     var today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
     var deliveryId = today + '-' + String(Math.floor(100 + Math.random() * 900));
 
-    // PDF 文件名规则：客户 + 订单号 + 日期 + 随机2位数
+    // PDF 文件名规则：客户 + 订单号 + 产品名称 + 日期 + 随机2位数
     var pdfCustomer = String(sel[0].customer || (summaries[0] && summaries[0].customer) || '').trim();
     var pdfOrderNos = Object.keys(orderNoSet).join('-');
+    var pdfProducts = [];
+    detailRows.forEach(function (d) {
+      var name = String(d.productName || '').trim();
+      if (name && pdfProducts.indexOf(name) < 0) pdfProducts.push(name);
+    });
+    if (!pdfProducts.length) {
+      summaries.forEach(function (s) {
+        var name = String(s.productName || '').trim();
+        if (name && pdfProducts.indexOf(name) < 0) pdfProducts.push(name);
+      });
+    }
     var pdfRand = String(Math.floor(10 + Math.random() * 90));
-    var pdfName = [pdfCustomer || '未知客户', pdfOrderNos || '无订单号', today, pdfRand]
+    var pdfName = [pdfCustomer || '未知客户', pdfOrderNos || '无订单号', pdfProducts.join('-') || '无产品', today, pdfRand]
       .join('_')
       .replace(/[\\/:*?"<>|]/g, '')
       .replace(/\s+/g, '');
