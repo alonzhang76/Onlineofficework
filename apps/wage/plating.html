@@ -3524,37 +3524,73 @@
             return '已付款';
         }
 
-        // 获取订单的数量与单价（本地订单表优先，其次读 wage「订单管理」）
-        function getOrderQuantityAndPrice(orderNumber, wageOrderMap) {
+        // 订单行：同一客户同一订单号可能对应多个品名（wage「订单管理」已按产品拆行）
+        function getOrderLines(orderNumber, wageOrders) {
+            const lines = [];
+            const seen = new Set();
+            const pushLine = (productName, spec, drawingNo, bow, qty, unitPrice, customer) => {
+                const key = [productName, spec, drawingNo, bow, qty]
+                    .map(v => String(v == null ? '' : v).trim().toLowerCase()).join('|');
+                if (seen.has(key)) return;
+                seen.add(key);
+                lines.push({
+                    productName: productName || '',
+                    spec: spec || '',
+                    drawingNo: drawingNo || '',
+                    bow: bow || '',
+                    quantity: parseQuantity(qty),
+                    unitPrice: parseQuantity(unitPrice),
+                    customer: customer || ''
+                });
+            };
+
+            const wageList = (wageOrders || []).filter(o => o && o.orderNo === orderNumber);
+            if (wageList.length) {
+                wageList.forEach(o => pushLine(o.type || o.productName, o.spec, o.drawingNo, o.bow, o.qty, o.unitPrice, o.customer));
+                return lines;
+            }
+
+            // 电镀页的订单表通常为空，仅在 wage 订单缺失时回退本地订单表
             const orders = (tableConfigs.orders && tableConfigs.orders.originalData) || [];
-            const order = orders.find(item => {
-                const cells = item.cells || [];
-                return cells[4] === orderNumber || cells[0] === orderNumber;
+            orders.forEach(item => {
+                const cells = (item && item.cells) || [];
+                if (cells.length >= 15) {
+                    if (cells[4] === orderNumber) pushLine(cells[7], cells[8], '', '', cells[9], cells[10], cells[5]);
+                } else if (cells[0] === orderNumber) {
+                    pushLine(cells[5], cells[6], '', '', cells[7], cells[8], cells[1]);
+                }
             });
-            if (order) {
-                const cells = order.cells || [];
-                const isNewFormat = cells.length >= 15;
-                return {
-                    quantity: parseQuantity(isNewFormat ? cells[9] : cells[7]),
-                    unitPrice: parseQuantity(isNewFormat ? cells[10] : cells[8])
-                };
+            return lines;
+        }
+
+        // 获取订单数量与单价；传入品名/图纸号时取对应产品行，否则汇总该订单号全部产品行
+        function getOrderQuantityAndPrice(orderNumber, wageOrders, productName, drawingNo) {
+            const lines = getOrderLines(orderNumber, wageOrders);
+            if (!lines.length) return { quantity: 0, unitPrice: 0 };
+
+            if (productName || drawingNo) {
+                const nameKey = String(productName || '').trim().toLowerCase();
+                const drawingKey = String(drawingNo || '').trim().toLowerCase();
+                let match = lines.find(l => String(l.productName || '').trim().toLowerCase() === nameKey &&
+                    (!drawingKey || String(l.drawingNo || '').trim().toLowerCase() === drawingKey));
+                if (!match && nameKey) {
+                    match = lines.find(l => String(l.productName || '').trim().toLowerCase() === nameKey);
+                }
+                if (!match && drawingKey) {
+                    match = lines.find(l => String(l.drawingNo || '').trim().toLowerCase() === drawingKey);
+                }
+                if (match) return { quantity: match.quantity, unitPrice: match.unitPrice };
             }
-            // 电镀页的订单表通常为空，订单维护在 wage「订单管理」里，按订单号取订单数量
-            const wageOrder = (wageOrderMap ? wageOrderMap.get(orderNumber) : null) || getWageOrderByNo(orderNumber);
-            if (wageOrder) {
-                return {
-                    quantity: parseQuantity(wageOrder.qty),
-                    unitPrice: parseQuantity(wageOrder.unitPrice)
-                };
-            }
-            return { quantity: 0, unitPrice: 0 };
+
+            const totalQuantity = lines.reduce((sum, line) => sum + (line.quantity || 0), 0);
+            const priceLine = lines.find(line => line.unitPrice);
+            return { quantity: totalQuantity, unitPrice: priceLine ? priceLine.unitPrice : 0 };
         }
 
         // 按订单号汇总收发货流水
         function getDeliveryOrderStats() {
             const statsMap = new Map();
-            // wage「订单管理」按订单号建索引，一次读取避免逐行调用父页面
-            const wageOrderMap = new Map(getWageOrderList().map(o => [o.orderNo, o]));
+            const wageOrders = getWageOrderList();
             const deliveriesData = (tableConfigs.deliveries && tableConfigs.deliveries.originalData) || [];
             deliveriesData.forEach(item => {
                 const cells = item.cells || [];
@@ -3583,7 +3619,7 @@
                 stats.replateTotal += parseQuantity(cells[7]);
             });
             statsMap.forEach((stats, orderNumber) => {
-                const orderInfo = getOrderQuantityAndPrice(orderNumber, wageOrderMap);
+                const orderInfo = getOrderQuantityAndPrice(orderNumber, wageOrders);
                 // 良品累计：成品累计已包含返镀件（重镀后再次收回），需扣除返镀与报废
                 stats.goodTotal = stats.electroplateTotal - stats.replateTotal - stats.scrapTotal;
                 // 净毛坯 = 毛坯总发 - 返修：返修件修复后是按毛坯再次发货的，会被重复累计一次
@@ -3598,6 +3634,50 @@
             return statsMap;
         }
 
+        // 按「订单号 + 品名」汇总收发货流水，用于收发货表格逐行显示对应产品的订单数量与差额
+        function getDeliveryProductStats() {
+            const productStatsMap = new Map();
+            const wageOrders = getWageOrderList();
+            const deliveriesData = (tableConfigs.deliveries && tableConfigs.deliveries.originalData) || [];
+            deliveriesData.forEach(item => {
+                const cells = item.cells || [];
+                const orderNumber = cells[2];
+                if (!orderNumber) return;
+                const productName = String(cells[4] || '').trim();
+                const key = orderNumber + '\u0000' + productName;
+                if (!productStatsMap.has(key)) {
+                    productStatsMap.set(key, {
+                        orderNumber,
+                        productName,
+                        roughTotal: 0,
+                        electroplateTotal: 0,
+                        replateTotal: 0,
+                        repairTotal: 0,
+                        scrapTotal: 0,
+                        goodTotal: 0,
+                        difference: 0
+                    });
+                }
+                const stats = productStatsMap.get(key);
+                if ((cells[0] || '').trim() === '收货') {
+                    stats.electroplateTotal += parseQuantity(cells[6]);
+                    stats.repairTotal += parseQuantity(cells[8]);
+                    stats.scrapTotal += parseQuantity(cells[9]);
+                } else {
+                    stats.roughTotal += parseQuantity(cells[5]);
+                }
+                stats.replateTotal += parseQuantity(cells[7]);
+            });
+            productStatsMap.forEach(stats => {
+                stats.netRoughTotal = stats.roughTotal - stats.repairTotal;
+                stats.netElectroplateTotal = stats.electroplateTotal - stats.replateTotal;
+                stats.goodTotal = stats.electroplateTotal - stats.replateTotal - stats.scrapTotal;
+                stats.difference = stats.netRoughTotal - stats.goodTotal;
+                stats.orderQuantity = getOrderQuantityAndPrice(stats.orderNumber, wageOrders, stats.productName).quantity;
+            });
+            return productStatsMap;
+        }
+
         // 订单汇总：读取结算单价 / 报废单价设置
         function getOrderSettlementSettings() {
             try {
@@ -3609,22 +3689,31 @@
             }
         }
 
-        // 订单汇总：取该订单号最近一条收发货中的客户、产品名称、图纸号、蝴蝶结
+        // 订单汇总：汇总该订单号全部产品的客户、品名、图纸号、蝴蝶结（同一订单号可能多品名）
         function getLatestDeliveryInfo(orderNumber) {
-            const info = { customer: '', productName: '', drawingNumber: '', bow: '' };
+            const unique = values => Array.from(new Set(values.map(v => String(v || '').trim()).filter(Boolean)));
+            const lines = getOrderLines(orderNumber, getWageOrderList());
             const deliveries = (tableConfigs.deliveries && tableConfigs.deliveries.originalData) || [];
             const records = deliveries
                 .filter(item => item && item.cells && item.cells[2] === orderNumber)
                 .sort((a, b) => String(b.cells[1] || '').localeCompare(String(a.cells[1] || '')));
-            for (const record of records) {
-                const cells = record.cells;
-                if (!info.customer) info.customer = (cells[3] || '').trim();
-                if (!info.productName) info.productName = (cells[4] || '').trim();
-                if (!info.drawingNumber) info.drawingNumber = (cells[11] || '').trim();
-                if (!info.bow) info.bow = (cells[12] || '').trim();
-                if (info.customer && info.productName && info.drawingNumber && info.bow) break;
-            }
-            return info;
+
+            const lineCustomer = (lines.find(line => line.customer) || {}).customer || '';
+            const deliveryCustomer = (records.find(record => (record.cells[3] || '').trim()) || { cells: [] }).cells[3] || '';
+
+            let productNames = unique(lines.map(line => line.productName));
+            let drawingNumbers = unique(lines.map(line => line.drawingNo));
+            let bows = unique(lines.map(line => line.bow));
+            if (!productNames.length) productNames = unique(records.map(record => record.cells[4]));
+            if (!drawingNumbers.length) drawingNumbers = unique(records.map(record => record.cells[11]));
+            if (!bows.length) bows = unique(records.map(record => record.cells[12]));
+
+            return {
+                customer: lineCustomer || deliveryCustomer,
+                productName: productNames.join('、'),
+                drawingNumber: drawingNumbers.join('、'),
+                bow: bows.join('、')
+            };
         }
 
         // 订单汇总：结算金额 = 良品数量 × 结算单价 − 报废数量 × 报废单价 − 额外扣减
@@ -4184,52 +4273,11 @@
 
         // 根据收发货计算并更新订单的滞留数量
         function updateOrderRetainQuantity() {
-            // 获取收发货数据和订单数据
-            const deliveriesData = tableConfigs.deliveries.originalData;
+            // 获取订单数据
             const ordersData = tableConfigs.orders.originalData;
-            
-            // 创建订单号到数量汇总的映射
-            const orderQuantityMap = new Map();
-            
-            // 初始化订单数量汇总结构
-            function getOrderQuantity(orderNumber) {
-                if (!orderQuantityMap.has(orderNumber)) {
-                    orderQuantityMap.set(orderNumber, {
-                        roughTotal: 0,     // 毛坯数量总计
-                        replateTotal: 0,   // 返镀数量总计
-                        repairTotal: 0,    // 返修数量总计
-                        scrapTotal: 0,     // 报废数量总计
-                        electroplateTotal: 0 // 电镀数量总计
-                    });
-                }
-                return orderQuantityMap.get(orderNumber);
-            }
-            
-            // 遍历收发货，按订单号汇总各项数量
-            deliveriesData.forEach(delivery => {
-                const orderNumber = delivery.cells[2];
-                const deliveryType = (delivery.cells[0] || '').trim(); // 收发类型
-                const roughQuantity = parseQuantity(delivery.cells[5]);
-                const electroplateQuantity = parseQuantity(delivery.cells[6]);
-                const replateQuantity = parseQuantity(delivery.cells[7]);
-                const repairQuantity = parseQuantity(delivery.cells[8]);
-                const scrapQuantity = parseQuantity(delivery.cells[9]);
-                
-                // 获取该订单的数量汇总
-                const orderQuantity = getOrderQuantity(orderNumber);
-                
-                if (deliveryType === '收货') {
-                    // 收货只汇总电镀成品、返修、报废
-                    orderQuantity.electroplateTotal += electroplateQuantity;
-                    orderQuantity.repairTotal += repairQuantity;
-                    orderQuantity.scrapTotal += scrapQuantity;
-                } else {
-                    // 发货只累计新毛坯；返镀退回重镀不计入毛坯总数
-                    orderQuantity.roughTotal += roughQuantity;
-                }
-                // 返镀在“发货”行登记（退回电镀厂重镀），旧数据可能登记在收货行，一并累计
-                orderQuantity.replateTotal += replateQuantity;
-            });
+            // 按「订单号 + 品名」汇总，避免同一订单号多品名时互相串数
+            const productStatsMap = getDeliveryProductStats();
+            const orderStatsMap = getDeliveryOrderStats();
             
             // 计算每个订单的滞留数量：滞留数量=毛坯总发-电镀成品累计（尚未收回的数量）
             // 计算每个订单的良品数量：良品数量=电镀成品累计-返镀累计-报废累计
@@ -4237,20 +4285,22 @@
             // 计算每个订单的状态
             // 更新订单数据中的滞留数量、良品数量、差额和状态字段
             ordersData.forEach(order => {
-                const orderNumber = order.cells[4]; // 订单号在订单数据的cells[4]位置
-                const quantity = parseNumber(order.cells[9] || 0); // 数量在订单数据的cells[9]位置，使用parseNumber处理带逗号的数值
+                const isNewFormat = order.cells.length >= 15;
+                const orderNumber = isNewFormat ? order.cells[4] : order.cells[0]; // 订单号
+                const productName = String((isNewFormat ? order.cells[7] : order.cells[5]) || '').trim();
+                const quantity = parseNumber((isNewFormat ? order.cells[9] : order.cells[7]) || 0);
+                const orderQuantity = productStatsMap.get(orderNumber + '\u0000' + productName) || orderStatsMap.get(orderNumber);
                 
-                if (orderQuantityMap.has(orderNumber)) {
-                    const orderQuantity = orderQuantityMap.get(orderNumber);
+                if (orderQuantity) {
                     // 净毛坯 = 毛坯总发 - 返修（返修件修复后按毛坯再次发货，避免重复累计）
-                    const netRoughQuantity = orderQuantity.roughTotal - orderQuantity.repairTotal;
+                    const netRoughQuantity = orderQuantity.netRoughTotal;
                     // 净成品 = 电镀成品累计 - 返镀（返镀件重镀后再次收货，避免重复累计）
-                    const netElectroplateQuantity = orderQuantity.electroplateTotal - orderQuantity.replateTotal;
+                    const netElectroplateQuantity = orderQuantity.netElectroplateTotal;
                     // 计算滞留数量：滞留数量=净毛坯-净成品（尚未收回的数量）
                     const retainQuantity = netRoughQuantity - netElectroplateQuantity;
                     
                     // 计算良品数量：良品数量=电镀成品累计-返镀累计-报废累计
-                    const goodQuantity = orderQuantity.electroplateTotal - orderQuantity.replateTotal - orderQuantity.scrapTotal;
+                    const goodQuantity = orderQuantity.goodTotal;
                     
                     // 计算差额：订单数量减去已经计算得到的良品数量
                     const difference = quantity - goodQuantity;
@@ -4598,8 +4648,9 @@
             // 清空表格
             tableBody.innerHTML = '';
             
-            // 收发货表格按订单号汇总累计数据
+            // 收发货表格按订单号汇总累计数据；逐行按「订单号 + 品名」取对应产品统计
             const deliveryStats = tableName === 'deliveries' ? getDeliveryOrderStats() : null;
+            const deliveryProductStats = tableName === 'deliveries' ? getDeliveryProductStats() : null;
             
             // 渲染当前页的数据
             currentPageData.forEach((item, itemIndex) => {
@@ -4653,7 +4704,9 @@
                 // 收发货表格：按新表头顺序组装显示数据，并补入订单数量、良品数量、差额
                 if (tableName === 'deliveries') {
                     const sourceCells = item.cells;
-                    const stats = deliveryStats.get(sourceCells[2]) || { orderQuantity: 0, difference: 0 };
+                    const orderStats = deliveryStats.get(sourceCells[2]) || { orderQuantity: 0, difference: 0 };
+                    const productKey = String(sourceCells[2] || '') + '\u0000' + String(sourceCells[4] || '').trim();
+                    const stats = (deliveryProductStats && deliveryProductStats.get(productKey)) || orderStats;
                     const rowType = (sourceCells[0] || '').trim();
                     const rowGoodQuantity = rowType === '收货'
                         ? Math.max(0, parseQuantity(sourceCells[6]) - parseQuantity(sourceCells[7]) - parseQuantity(sourceCells[9]))
