@@ -3634,7 +3634,52 @@
             return statsMap;
         }
 
-        // 按「订单号 + 品名」汇总收发货流水，用于收发货表格逐行显示对应产品的订单数量与差额
+        // 同一订单号多品名时生成 A/B/C 后缀，保证各产品统计可区分
+        function normalizeOrderProductName(name) {
+            return String(name == null ? '' : name).trim().toLowerCase();
+        }
+
+        function orderSuffixLetter(index) {
+            let result = '';
+            let n = index + 1;
+            while (n > 0) {
+                const r = (n - 1) % 26;
+                result = String.fromCharCode(65 + r) + result;
+                n = Math.floor((n - 1) / 26);
+            }
+            return result;
+        }
+
+        // 返回订单号 → { 标准化品名: A/B/C }，仅当存在多个品名时生成
+        function getOrderProductSuffixMap(orderNumber, wageOrders) {
+            const names = [];
+            const seen = new Set();
+            const addName = name => {
+                const key = normalizeOrderProductName(name);
+                if (!key || seen.has(key)) return;
+                seen.add(key);
+                names.push(name);
+            };
+            getOrderLines(orderNumber, wageOrders).forEach(line => addName(line.productName));
+            const deliveries = (tableConfigs.deliveries && tableConfigs.deliveries.originalData) || [];
+            deliveries.forEach(item => {
+                const cells = (item && item.cells) || [];
+                if (cells[2] === orderNumber) addName(cells[4]);
+            });
+            const map = new Map();
+            if (names.length <= 1) return map;
+            names.forEach((name, index) => map.set(normalizeOrderProductName(name), orderSuffixLetter(index)));
+            return map;
+        }
+
+        // 显示用订单号：多品名时在订单号后追加 A/B/C
+        function formatOrderNoWithSuffix(orderNumber, productName, wageOrders) {
+            const suffixMap = getOrderProductSuffixMap(orderNumber, wageOrders || getWageOrderList());
+            const suffix = suffixMap.get(normalizeOrderProductName(productName));
+            return suffix ? orderNumber + suffix : orderNumber;
+        }
+
+        // 按「订单号 + 品名」汇总收发货流水，用于收发货表格与订单汇总逐产品统计
         function getDeliveryProductStats() {
             const productStatsMap = new Map();
             const wageOrders = getWageOrderList();
@@ -3644,11 +3689,14 @@
                 const orderNumber = cells[2];
                 if (!orderNumber) return;
                 const productName = String(cells[4] || '').trim();
-                const key = orderNumber + '\u0000' + productName;
+                const key = orderNumber + '::' + productName;
                 if (!productStatsMap.has(key)) {
                     productStatsMap.set(key, {
                         orderNumber,
                         productName,
+                        drawingNumber: cells[11] || '',
+                        bow: cells[12] || '',
+                        customer: cells[3] || '',
                         roughTotal: 0,
                         electroplateTotal: 0,
                         replateTotal: 0,
@@ -3668,12 +3716,38 @@
                 }
                 stats.replateTotal += parseQuantity(cells[7]);
             });
+            const suffixCache = new Map();
+            const statsByOrder = new Map();
             productStatsMap.forEach(stats => {
                 stats.netRoughTotal = stats.roughTotal - stats.repairTotal;
                 stats.netElectroplateTotal = stats.electroplateTotal - stats.replateTotal;
                 stats.goodTotal = stats.electroplateTotal - stats.replateTotal - stats.scrapTotal;
                 stats.difference = stats.netRoughTotal - stats.goodTotal;
                 stats.orderQuantity = getOrderQuantityAndPrice(stats.orderNumber, wageOrders, stats.productName).quantity;
+
+                const lines = getOrderLines(stats.orderNumber, wageOrders);
+                const line = lines.find(item => normalizeOrderProductName(item.productName) === normalizeOrderProductName(stats.productName));
+                if (line) {
+                    if (line.drawingNo) stats.drawingNumber = line.drawingNo;
+                    if (line.bow) stats.bow = line.bow;
+                    if (line.customer) stats.customer = line.customer;
+                }
+
+                if (!suffixCache.has(stats.orderNumber)) {
+                    suffixCache.set(stats.orderNumber, getOrderProductSuffixMap(stats.orderNumber, wageOrders));
+                }
+                const suffixMap = suffixCache.get(stats.orderNumber);
+                stats.suffix = suffixMap.get(normalizeOrderProductName(stats.productName)) || '';
+                stats.displayOrderNumber = stats.suffix ? stats.orderNumber + stats.suffix : stats.orderNumber;
+                stats.key = stats.orderNumber + '::' + stats.productName;
+
+                if (!statsByOrder.has(stats.orderNumber)) statsByOrder.set(stats.orderNumber, []);
+                statsByOrder.get(stats.orderNumber).push(stats);
+            });
+            // 同一订单号仅首产品行承载整单的开票/付款/额外扣减，避免重复统计
+            statsByOrder.forEach(list => {
+                list.sort((a, b) => String(a.suffix).localeCompare(String(b.suffix)));
+                list.forEach((stats, index) => { stats.isPrimary = index === 0; });
             });
             return productStatsMap;
         }
@@ -3729,7 +3803,7 @@
             const settlement = getOrderSettlementSettings()[orderNumber] || {};
             const settlementPrice = parseQuantity(settlement.settlementPrice);
             const scrapPrice = parseQuantity(settlement.scrapPrice);
-            const extraDeduction = parseQuantity(settlement.extraDeduction);
+            const extraDeduction = row.dataset.isPrimary === 'true' ? parseQuantity(settlement.extraDeduction) : 0;
             const amount = calcOrderSettlementAmount(
                 parseQuantity(row.dataset.goodTotal),
                 parseQuantity(row.dataset.scrapTotal),
@@ -3741,35 +3815,49 @@
             if (amountCell) amountCell.textContent = formatNumber(amount, 2);
         }
 
-        // 订单汇总：按当前搜索条件取订单号列表
+        // 订单汇总：按「订单号 + 品名」拆分后的行数据
+        function getOrderSummaryRows() {
+            const rows = Array.from(getDeliveryProductStats().values());
+            rows.sort((a, b) => {
+                const byOrder = String(a.orderNumber).localeCompare(String(b.orderNumber));
+                if (byOrder !== 0) return byOrder;
+                return String(a.suffix).localeCompare(String(b.suffix));
+            });
+            return rows;
+        }
+
+        // 订单汇总：按当前搜索条件取行 key 列表
         function getOrderSummaryOrderNums() {
             const osConfig = tableConfigs.orderSummary;
-            const statsMap = getDeliveryOrderStats();
             const keyword = (osConfig.keyword || '').trim().toLowerCase();
-            let orderNums = Array.from(statsMap.keys()).sort();
+            let rows = getOrderSummaryRows();
             if (keyword) {
-                orderNums = orderNums.filter(orderNo => {
-                    const info = getLatestDeliveryInfo(orderNo);
+                rows = rows.filter(row => {
                     const hay = [
-                        orderNo,
-                        info.customer,
-                        info.productName,
-                        info.drawingNumber,
-                        info.bow
+                        row.displayOrderNumber,
+                        row.orderNumber,
+                        row.customer,
+                        row.productName,
+                        row.drawingNumber,
+                        row.bow
                     ].join(' ').toLowerCase();
                     return hay.includes(keyword);
                 });
             }
-            return orderNums;
+            return rows.map(row => row.key);
         }
 
-        // 订单汇总：渲染合计行（统计当前搜索结果的全部订单，不受分页影响）
-        function renderOrderSummaryTotalRow(orderNums) {
+        // 订单汇总：渲染合计行（统计当前搜索结果的全部产品行，不受分页影响）
+        function renderOrderSummaryTotalRow(rowsOrKeys) {
             const tableBody = document.getElementById('orderSummaryTableBody');
             const table = document.getElementById('orderSummaryTable');
-            if (!tableBody || !table || !orderNums || !orderNums.length) return;
+            if (!tableBody || !table || !rowsOrKeys || !rowsOrKeys.length) return;
 
-            const statsMap = getDeliveryOrderStats();
+            const allRows = getOrderSummaryRows();
+            const rowMap = new Map(allRows.map(row => [row.key, row]));
+            const rows = rowsOrKeys
+                .map(item => typeof item === 'string' ? rowMap.get(item) : item)
+                .filter(Boolean);
             const settlementData = getOrderSettlementSettings();
             const invoicePaymentStats = getInvoicePaymentOrderStats();
 
@@ -3789,33 +3877,37 @@
                 unpaid: 0
             };
 
-            orderNums.forEach(orderNumber => {
-                const stats = statsMap.get(orderNumber);
-                if (!stats) return;
-                const settlement = settlementData[orderNumber] || {};
-                const extraDeduction = parseQuantity(settlement.extraDeduction);
+            const orderFinancialSeen = new Set();
+            rows.forEach(row => {
+                const settlement = settlementData[row.orderNumber] || {};
+                const isFirstRowOfOrder = !orderFinancialSeen.has(row.orderNumber);
+                orderFinancialSeen.add(row.orderNumber);
+                // 额外扣减 / 开票 / 付款是整单数据，同一订单号只计一次
+                const extraDeduction = isFirstRowOfOrder ? parseQuantity(settlement.extraDeduction) : 0;
 
-                totals.orderQuantity += stats.orderQuantity || 0;
-                totals.roughTotal += stats.roughTotal || 0;
-                totals.electroplateTotal += stats.electroplateTotal || 0;
-                totals.replateTotal += stats.replateTotal || 0;
-                totals.repairTotal += stats.repairTotal || 0;
-                totals.scrapTotal += stats.scrapTotal || 0;
-                totals.goodTotal += stats.goodTotal || 0;
-                totals.difference += stats.difference || 0;
-                totals.extraDeduction += extraDeduction;
+                totals.orderQuantity += row.orderQuantity || 0;
+                totals.roughTotal += row.roughTotal || 0;
+                totals.electroplateTotal += row.electroplateTotal || 0;
+                totals.replateTotal += row.replateTotal || 0;
+                totals.repairTotal += row.repairTotal || 0;
+                totals.scrapTotal += row.scrapTotal || 0;
+                totals.goodTotal += row.goodTotal || 0;
+                totals.difference += row.difference || 0;
+                if (isFirstRowOfOrder) totals.extraDeduction += extraDeduction;
                 totals.amount += calcOrderSettlementAmount(
-                    stats.goodTotal,
-                    stats.scrapTotal,
+                    row.goodTotal,
+                    row.scrapTotal,
                     parseQuantity(settlement.settlementPrice),
                     parseQuantity(settlement.scrapPrice),
                     extraDeduction
                 );
 
-                const paymentStats = invoicePaymentStats.get(orderNumber) || { invoiced: 0, paid: 0 };
-                totals.invoiced += paymentStats.invoiced;
-                totals.paid += paymentStats.paid;
-                totals.unpaid += paymentStats.invoiced - paymentStats.paid;
+                if (isFirstRowOfOrder) {
+                    const paymentStats = invoicePaymentStats.get(row.orderNumber) || { invoiced: 0, paid: 0 };
+                    totals.invoiced += paymentStats.invoiced;
+                    totals.paid += paymentStats.paid;
+                    totals.unpaid += paymentStats.invoiced - paymentStats.paid;
+                }
             });
 
             const totalRow = document.createElement('tr');
@@ -3859,13 +3951,29 @@
             if (!tableBody) return;
 
             const osConfig = tableConfigs.orderSummary;
-            const statsMap = getDeliveryOrderStats();
             const settlementData = getOrderSettlementSettings();
             const invoicePaymentStats = getInvoicePaymentOrderStats();
 
-            // 1. 搜索过滤
+            // 1. 搜索过滤：按「订单号 + 品名」拆行，订单号显示 A/B/C 后缀
             const keyword = (osConfig.keyword || '').trim().toLowerCase();
-            const orderNums = getOrderSummaryOrderNums();
+            let allRows = getOrderSummaryRows();
+            if (keyword) {
+                allRows = allRows.filter(row => [
+                    row.displayOrderNumber,
+                    row.orderNumber,
+                    row.customer,
+                    row.productName,
+                    row.drawingNumber,
+                    row.bow
+                ].join(' ').toLowerCase().includes(keyword));
+            }
+            const rowMap = new Map(allRows.map(row => [row.key, row]));
+            const orderNums = allRows.map(row => row.key);
+            // 搜索结果中同一订单号的首行承载整单财务信息
+            const financialRowByOrder = new Map();
+            allRows.forEach(row => {
+                if (!financialRowByOrder.has(row.orderNumber)) financialRowByOrder.set(row.orderNumber, row.key);
+            });
 
             // 2. 分页
             const total = orderNums.length;
@@ -3897,19 +4005,22 @@
                 return;
             }
 
-            pageOrderNums.forEach(orderNumber => {
-                const stats = statsMap.get(orderNumber);
+            pageOrderNums.forEach(rowKey => {
+                const stats = rowMap.get(rowKey);
                 if (!stats) return;
-                const info = getLatestDeliveryInfo(orderNumber);
+                const orderNumber = stats.orderNumber;
+                const isFinancialRow = financialRowByOrder.get(orderNumber) === rowKey;
                 const settlement = settlementData[orderNumber] || {};
                 const settlementPrice = parseQuantity(settlement.settlementPrice);
                 const scrapPrice = parseQuantity(settlement.scrapPrice);
-                const extraDeduction = parseQuantity(settlement.extraDeduction);
+                const extraDeduction = isFinancialRow ? parseQuantity(settlement.extraDeduction) : 0;
                 const amount = calcOrderSettlementAmount(stats.goodTotal, stats.scrapTotal, settlementPrice, scrapPrice, extraDeduction);
 
                 const row = document.createElement('tr');
                 row.className = 'table-row';
                 row.dataset.orderNumber = orderNumber;
+                row.dataset.rowKey = rowKey;
+                row.dataset.isPrimary = isFinancialRow ? 'true' : 'false';
                 row.dataset.goodTotal = String(stats.goodTotal);
                 row.dataset.scrapTotal = String(stats.scrapTotal);
 
@@ -3918,16 +4029,16 @@
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
                 checkbox.className = 'order-summary-checkbox';
-                checkbox.value = orderNumber;
+                checkbox.value = rowKey;
                 checkboxCell.appendChild(checkbox);
                 row.appendChild(checkboxCell);
 
                 [
-                    orderNumber,
-                    info.customer,
-                    info.productName,
-                    info.drawingNumber,
-                    info.bow,
+                    stats.displayOrderNumber,
+                    stats.customer,
+                    stats.productName,
+                    stats.drawingNumber,
+                    stats.bow,
                     String(stats.orderQuantity || 0),
                     String(stats.roughTotal),
                     String(stats.electroplateTotal),
@@ -3974,16 +4085,20 @@
 
                 const extraDeductionCell = document.createElement('td');
                 extraDeductionCell.className = 'table-cell';
-                const extraDeductionInput = document.createElement('input');
-                extraDeductionInput.type = 'text';
-                extraDeductionInput.inputMode = 'decimal';
-                extraDeductionInput.className = 'form-input w-24';
-                extraDeductionInput.dataset.orderNumber = orderNumber;
-                extraDeductionInput.dataset.field = 'extraDeduction';
-                extraDeductionInput.value = settlement.extraDeduction === undefined || settlement.extraDeduction === null
-                    ? ''
-                    : String(settlement.extraDeduction);
-                extraDeductionCell.appendChild(extraDeductionInput);
+                if (isFinancialRow) {
+                    const extraDeductionInput = document.createElement('input');
+                    extraDeductionInput.type = 'text';
+                    extraDeductionInput.inputMode = 'decimal';
+                    extraDeductionInput.className = 'form-input w-24';
+                    extraDeductionInput.dataset.orderNumber = orderNumber;
+                    extraDeductionInput.dataset.field = 'extraDeduction';
+                    extraDeductionInput.value = settlement.extraDeduction === undefined || settlement.extraDeduction === null
+                        ? ''
+                        : String(settlement.extraDeduction);
+                    extraDeductionCell.appendChild(extraDeductionInput);
+                } else {
+                    extraDeductionCell.textContent = '—';
+                }
                 row.appendChild(extraDeductionCell);
 
                 const amountCell = document.createElement('td');
@@ -3991,36 +4106,38 @@
                 amountCell.textContent = formatNumber(amount, 2);
                 row.appendChild(amountCell);
 
-                // 追加开票 / 付款汇总列
-                const paymentStats = invoicePaymentStats.get(orderNumber) || { invoiced: 0, paid: 0 };
-                const invoicedAmount = paymentStats.invoiced;
-                const paidAmount = paymentStats.paid;
-                const unpaidAmount = invoicedAmount - paidAmount;
-                [
-                    formatNumber(invoicedAmount, 2),
-                    formatNumber(paidAmount, 2),
-                    formatNumber(unpaidAmount, 2)
-                ].forEach(value => {
+                // 开票 / 付款为整单数据，只挂在同一订单号的首产品行，避免重复统计
+                const paymentStats = isFinancialRow
+                    ? (invoicePaymentStats.get(orderNumber) || { invoiced: 0, paid: 0 })
+                    : null;
+                const invoicedAmount = paymentStats ? paymentStats.invoiced : null;
+                const paidAmount = paymentStats ? paymentStats.paid : null;
+                const unpaidAmount = paymentStats ? invoicedAmount - paidAmount : null;
+                [invoicedAmount, paidAmount, unpaidAmount].forEach(value => {
                     const cell = document.createElement('td');
                     cell.className = 'table-cell';
-                    cell.textContent = value;
+                    cell.textContent = value === null ? '—' : formatNumber(value, 2);
                     row.appendChild(cell);
                 });
 
                 // 开票付款状态：不同状态显示不同背景色
                 const statusCell = document.createElement('td');
                 statusCell.className = 'table-cell';
-                const statusText = getInvoicePaymentStatus(invoicedAmount, paidAmount);
-                const statusBadge = document.createElement('span');
-                const statusClassMap = {
-                    '未开票': 'bg-gray-100 text-gray-600',
-                    '已开票·未付款': 'bg-red-100 text-red-700',
-                    '部分付款': 'bg-yellow-100 text-yellow-700',
-                    '已付款': 'bg-green-100 text-green-700'
-                };
-                statusBadge.className = (statusClassMap[statusText] || 'bg-gray-100 text-gray-600') + ' px-2 py-1 rounded font-medium';
-                statusBadge.textContent = statusText;
-                statusCell.appendChild(statusBadge);
+                if (!isFinancialRow) {
+                    statusCell.textContent = '—';
+                } else {
+                    const statusText = getInvoicePaymentStatus(invoicedAmount, paidAmount);
+                    const statusBadge = document.createElement('span');
+                    const statusClassMap = {
+                        '未开票': 'bg-gray-100 text-gray-600',
+                        '已开票·未付款': 'bg-red-100 text-red-700',
+                        '部分付款': 'bg-yellow-100 text-yellow-700',
+                        '已付款': 'bg-green-100 text-green-700'
+                    };
+                    statusBadge.className = (statusClassMap[statusText] || 'bg-gray-100 text-gray-600') + ' px-2 py-1 rounded font-medium';
+                    statusBadge.textContent = statusText;
+                    statusCell.appendChild(statusBadge);
+                }
                 row.appendChild(statusCell);
 
                 tableBody.appendChild(row);
@@ -4126,8 +4243,13 @@
                 return;
             }
 
-            const orderNumbers = checkedBoxes.map(cb => cb.value);
-            const statsMap = getDeliveryOrderStats();
+            const rowKeys = checkedBoxes.map(cb => cb.value);
+            const rowMap = new Map(getOrderSummaryRows().map(row => [row.key, row]));
+            const financialRowByOrder = new Map();
+            rowKeys.forEach(key => {
+                const row = rowMap.get(key);
+                if (row && !financialRowByOrder.has(row.orderNumber)) financialRowByOrder.set(row.orderNumber, key);
+            });
             const settlementData = getOrderSettlementSettings();
             const invoicePaymentStats = getInvoicePaymentOrderStats();
             const deliveries = (tableConfigs.deliveries && tableConfigs.deliveries.originalData) || [];
@@ -4137,53 +4259,60 @@
             const generatedAt = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
             const esc = escapeStatementHtml;
 
-            const sections = orderNumbers.map(orderNumber => {
-                const stats = statsMap.get(orderNumber) || {};
-                const info = getLatestDeliveryInfo(orderNumber);
+            const sections = rowKeys.map(rowKey => {
+                const row = rowMap.get(rowKey);
+                if (!row) return '';
+                const orderNumber = row.orderNumber;
+                const isFinancialRow = financialRowByOrder.get(orderNumber) === rowKey;
                 const settlement = settlementData[orderNumber] || {};
                 const settlementPrice = parseQuantity(settlement.settlementPrice);
                 const scrapPrice = parseQuantity(settlement.scrapPrice);
-                const extraDeduction = parseQuantity(settlement.extraDeduction);
+                const extraDeduction = isFinancialRow ? parseQuantity(settlement.extraDeduction) : 0;
                 const amount = calcOrderSettlementAmount(
-                    parseQuantity(stats.goodTotal),
-                    parseQuantity(stats.scrapTotal),
+                    parseQuantity(row.goodTotal),
+                    parseQuantity(row.scrapTotal),
                     settlementPrice,
                     scrapPrice,
                     extraDeduction
                 );
-                const payment = invoicePaymentStats.get(orderNumber) || { invoiced: 0, paid: 0 };
-                const unpaid = payment.invoiced - payment.paid;
+                const payment = isFinancialRow
+                    ? (invoicePaymentStats.get(orderNumber) || { invoiced: 0, paid: 0 })
+                    : null;
+                const unpaid = payment ? payment.invoiced - payment.paid : 0;
+                const paymentCell = value => payment ? formatStatementNumber(value, 2) : '—';
 
                 const summaryRows = [
-                    ['订单号', esc(orderNumber)],
-                    ['客户', esc(info.customer)],
-                    ['产品名称', esc(info.productName)],
-                    ['图纸号', esc(info.drawingNumber)],
-                    ['蝴蝶结', esc(info.bow)],
-                    ['订单数量', formatStatementNumber(stats.orderQuantity, 0)],
-                    ['毛坯总发', formatStatementNumber(stats.roughTotal, 0)],
-                    ['电镀成品数', formatStatementNumber(stats.electroplateTotal, 0)],
-                    ['返镀数量', formatStatementNumber(stats.replateTotal, 0)],
-                    ['毛坯返修', formatStatementNumber(stats.repairTotal, 0)],
-                    ['报废数量', formatStatementNumber(stats.scrapTotal, 0)],
-                    ['良品数量', formatStatementNumber(stats.goodTotal, 0)],
-                    ['差额', formatStatementNumber(stats.difference, 0)],
+                    ['订单号', esc(row.displayOrderNumber)],
+                    ['客户', esc(row.customer)],
+                    ['产品名称', esc(row.productName)],
+                    ['图纸号', esc(row.drawingNumber)],
+                    ['蝴蝶结', esc(row.bow)],
+                    ['订单数量', formatStatementNumber(row.orderQuantity, 0)],
+                    ['毛坯总发', formatStatementNumber(row.roughTotal, 0)],
+                    ['电镀成品数', formatStatementNumber(row.electroplateTotal, 0)],
+                    ['返镀数量', formatStatementNumber(row.replateTotal, 0)],
+                    ['毛坯返修', formatStatementNumber(row.repairTotal, 0)],
+                    ['报废数量', formatStatementNumber(row.scrapTotal, 0)],
+                    ['良品数量', formatStatementNumber(row.goodTotal, 0)],
+                    ['差额', formatStatementNumber(row.difference, 0)],
                     ['结算单价', formatStatementNumber(settlementPrice, 2)],
                     ['报废单价', formatStatementNumber(scrapPrice, 2)],
-                    ['额外扣减', formatStatementNumber(extraDeduction, 2)],
+                    ['额外扣减', isFinancialRow ? formatStatementNumber(extraDeduction, 2) : '—'],
                     ['结算金额', formatStatementNumber(amount, 2)],
-                    ['开票金额', formatStatementNumber(payment.invoiced, 2)],
-                    ['已付金额', formatStatementNumber(payment.paid, 2)],
-                    ['未付金额', formatStatementNumber(unpaid, 2)],
-                    ['开票付款状态', esc(getInvoicePaymentStatus(payment.invoiced, payment.paid))]
+                    ['开票金额', paymentCell(payment ? payment.invoiced : 0)],
+                    ['已付金额', paymentCell(payment ? payment.paid : 0)],
+                    ['未付金额', paymentCell(unpaid)],
+                    ['开票付款状态', payment ? esc(getInvoicePaymentStatus(payment.invoiced, payment.paid)) : '—']
                 ];
 
                 const summaryHtml = summaryRows
                     .map(([label, value]) => `<tr><th>${label}</th><td>${value}</td></tr>`)
                     .join('');
 
+                // 只展示该产品对应的收发货流水
                 const flowRecords = deliveries
-                    .filter(item => item && item.cells && item.cells[2] === orderNumber)
+                    .filter(item => item && item.cells && item.cells[2] === orderNumber &&
+                        normalizeOrderProductName(item.cells[4]) === normalizeOrderProductName(row.productName))
                     .sort((a, b) => String(a.cells[1] || '').localeCompare(String(b.cells[1] || '')));
 
                 const flowHtml = flowRecords.length
@@ -4206,7 +4335,7 @@
                     : '<tr><td colspan="11" class="empty-row">暂无流水记录</td></tr>';
 
                 return '<section class="statement">' +
-                    `<h2>订单号：${esc(orderNumber)}</h2>` +
+                    `<h2>订单号：${esc(row.displayOrderNumber)}　产品名称：${esc(row.productName)}</h2>` +
                     '<table class="summary-table">' + summaryHtml + '</table>' +
                     '<div class="flow-title">收发货流水</div>' +
                     '<table class="flow-table">' +
@@ -4289,7 +4418,7 @@
                 const orderNumber = isNewFormat ? order.cells[4] : order.cells[0]; // 订单号
                 const productName = String((isNewFormat ? order.cells[7] : order.cells[5]) || '').trim();
                 const quantity = parseNumber((isNewFormat ? order.cells[9] : order.cells[7]) || 0);
-                const orderQuantity = productStatsMap.get(orderNumber + '\u0000' + productName) || orderStatsMap.get(orderNumber);
+                const orderQuantity = productStatsMap.get(orderNumber + '::' + productName) || orderStatsMap.get(orderNumber);
                 
                 if (orderQuantity) {
                     // 净毛坯 = 毛坯总发 - 返修（返修件修复后按毛坯再次发货，避免重复累计）
@@ -4651,6 +4780,7 @@
             // 收发货表格按订单号汇总累计数据；逐行按「订单号 + 品名」取对应产品统计
             const deliveryStats = tableName === 'deliveries' ? getDeliveryOrderStats() : null;
             const deliveryProductStats = tableName === 'deliveries' ? getDeliveryProductStats() : null;
+            const deliveryWageOrders = tableName === 'deliveries' ? getWageOrderList() : [];
             
             // 渲染当前页的数据
             currentPageData.forEach((item, itemIndex) => {
@@ -4705,7 +4835,7 @@
                 if (tableName === 'deliveries') {
                     const sourceCells = item.cells;
                     const orderStats = deliveryStats.get(sourceCells[2]) || { orderQuantity: 0, difference: 0 };
-                    const productKey = String(sourceCells[2] || '') + '\u0000' + String(sourceCells[4] || '').trim();
+                    const productKey = String(sourceCells[2] || '') + '::' + String(sourceCells[4] || '').trim();
                     const stats = (deliveryProductStats && deliveryProductStats.get(productKey)) || orderStats;
                     const rowType = (sourceCells[0] || '').trim();
                     const rowGoodQuantity = rowType === '收货'
@@ -4715,7 +4845,7 @@
                         sourceCells[0] || '',                 // 类型
                         sourceCells[1] || '',                 // 收发日期
                         sourceCells[3] || '',                 // 客户
-                        sourceCells[2] || '',                 // 订单号
+                        formatOrderNoWithSuffix(sourceCells[2], sourceCells[4], deliveryWageOrders), // 订单号（多品名加 A/B/C）
                         String(stats.orderQuantity || 0),     // 订单数量
                         sourceCells[4] || '',                 // 产品名称
                         sourceCells[11] || '',                // 图纸号
@@ -6704,7 +6834,14 @@
                     allSettings[orderNumber][field] = numericValue;
                     localStorage.setItem('orderSettlementData', JSON.stringify(allSettings));
 
-                    recalcOrderSummaryRowAmount(input.closest('tr'));
+                    // 同一订单号可能拆成多产品行：同步更新这些行的输入值和结算金额
+                    const siblingRows = Array.from(orderSummaryTableBody.querySelectorAll('tr[data-order-number]'))
+                        .filter(row => row.dataset.orderNumber === orderNumber);
+                    siblingRows.forEach(row => {
+                        const targetInput = row.querySelector(`input[data-field="${field}"]`);
+                        if (targetInput) targetInput.value = rawValue;
+                        recalcOrderSummaryRowAmount(row);
+                    });
                     renderOrderSummaryTotalRow(getOrderSummaryOrderNums());
                 };
                 // change 覆盖失焦提交，focusout 兜底失焦场景

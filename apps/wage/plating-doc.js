@@ -75,59 +75,48 @@
     var orderNoSet = {};
     sel.forEach(function (d) { if (d.orderNo) orderNoSet[d.orderNo] = true; });
 
-    // ---- 订单汇总（与「收发货」订单汇总口径一致）----
-    var summaries = Object.keys(orderNoSet).map(function (orderNo) {
-      var s = { orderNo: orderNo, customer: '', productName: '', drawingNo: '', orderQuantity: 0,
-        blank: 0, electroplating: 0, replating: 0, repair: 0, scrap: 0,
-        productNames: [], drawingNos: [] };
-      deliveries.forEach(function (d) {
-        if (d.orderNo !== orderNo) return;
-        if (d.type === '收货') { s.electroplating += d.electroplate; s.repair += d.repair; s.scrap += d.scrap; }
-        else if (d.type === '发货') { s.blank += d.rough; }
-        s.replating += d.replate;
-        if (!s.customer && d.customer) s.customer = d.customer;
-        if (d.productName && s.productNames.indexOf(d.productName) < 0) s.productNames.push(d.productName);
-        if (d.drawingNo && s.drawingNos.indexOf(d.drawingNo) < 0) s.drawingNos.push(d.drawingNo);
-      });
-      s.productName = s.productNames.join('、');
-      s.drawingNo = s.drawingNos.join('、');
-      s.good = s.electroplating - s.replating - s.scrap;
-      s.difference = (s.blank - s.repair) - s.good;
-      return s;
-    });
+    // ---- 订单行：同一订单号可能对应多个品名 ----
+    function normalizeName(name) {
+      return String(name == null ? '' : name).trim().toLowerCase();
+    }
 
-    // 订单数量 / 品名：同一客户同一订单号可能对应多个产品，按订单行累加
-    function createOrderLines() {
-      var map = {};
-      var seen = {};
-      return {
-        map: map,
-        add: function (orderNo, qty, productName, drawingNo, customer) {
-          if (!orderNo) return;
-          var name = String(productName || '').trim();
-          var drawing = String(drawingNo || '').trim();
-          var lineKey = [orderNo, name, drawing, num(qty)].join('|');
-          if (seen[lineKey]) return;
-          seen[lineKey] = true;
-          var b = map[orderNo] || (map[orderNo] = { qty: 0, names: [], drawings: [], customer: '' });
-          b.qty += num(qty);
-          if (name && b.names.indexOf(name) < 0) b.names.push(name);
-          if (drawing && b.drawings.indexOf(drawing) < 0) b.drawings.push(drawing);
-          if (!b.customer && customer) b.customer = customer;
-        }
-      };
+    function suffixLetter(index) {
+      var result = '';
+      var n = index + 1;
+      while (n > 0) {
+        var r = (n - 1) % 26;
+        result = String.fromCharCode(65 + r) + result;
+        n = Math.floor((n - 1) / 26);
+      }
+      return result;
+    }
+
+    var orderLinesByNo = {};
+    var orderLineSeen = {};
+    function addOrderLine(orderNo, qty, productName, drawingNo, customer) {
+      if (!orderNo) return;
+      var name = String(productName || '').trim();
+      var drawing = String(drawingNo || '').trim();
+      var lineKey = [orderNo, name, drawing, num(qty)].join('|');
+      if (orderLineSeen[lineKey]) return;
+      orderLineSeen[lineKey] = true;
+      (orderLinesByNo[orderNo] = orderLinesByNo[orderNo] || []).push({
+        productName: name,
+        drawingNo: drawing,
+        quantity: num(qty),
+        customer: customer || ''
+      });
     }
 
     // plating 内部订单表
-    var localOrderLines = createOrderLines();
     readJSON('ordersData', []).forEach(function (order) {
       if (!order || !order.cells) return;
       var c = order.cells;
-      if (c.length === 15) localOrderLines.add(c[4], c[9], c[7], '', c[5]);
-      else if (c.length === 13) localOrderLines.add(c[0], c[7], c[5], '', c[1]);
+      if (c.length === 15) addOrderLine(c[4], c[9], c[7], '', c[5]);
+      else if (c.length === 13) addOrderLine(c[0], c[7], c[5], '', c[1]);
     });
 
-    // wage 订单管理（同域 localStorage / opener），优先使用其中按产品拆分的订单行
+    // wage 订单管理（同域 localStorage / opener），按产品拆分的订单行优先
     var wageOrders = readJSON('wage_orders', []);
     if (!wageOrders.length) {
       try {
@@ -136,19 +125,77 @@
         else if (w && w.parent && w.parent.wageGetOrders) wageOrders = w.parent.wageGetOrders() || [];
       } catch (e) {}
     }
-    var wageOrderLines = createOrderLines();
     wageOrders.forEach(function (o) {
       if (!o) return;
-      wageOrderLines.add(o.orderNo, o.qty, o.type || o.productName, o.drawingNo, o.customer);
+      addOrderLine(o.orderNo, o.qty, o.type || o.productName, o.drawingNo, o.customer);
+    });
+
+    // 同一订单号多品名 → A/B/C 后缀
+    var suffixMaps = {};
+    function getSuffixMap(orderNo) {
+      if (suffixMaps[orderNo]) return suffixMaps[orderNo];
+      var names = [];
+      var seenNames = {};
+      function addName(name) {
+        var key = normalizeName(name);
+        if (!key || seenNames[key]) return;
+        seenNames[key] = true;
+        names.push(name);
+      }
+      (orderLinesByNo[orderNo] || []).forEach(function (line) { addName(line.productName); });
+      deliveries.forEach(function (d) {
+        if (d.orderNo === orderNo) addName(d.productName);
+      });
+      var map = {};
+      if (names.length > 1) {
+        names.forEach(function (name, index) { map[normalizeName(name)] = suffixLetter(index); });
+      }
+      suffixMaps[orderNo] = map;
+      return map;
+    }
+
+    // ---- 订单汇总：按「订单号 + 品名」拆分，与收发货订单汇总口径一致 ----
+    var summaryMap = {};
+    var summaries = [];
+    deliveries.forEach(function (d) {
+      if (!d.orderNo || !orderNoSet[d.orderNo]) return;
+      var key = d.orderNo + '::' + normalizeName(d.productName);
+      var s = summaryMap[key];
+      if (!s) {
+        s = { orderNo: d.orderNo, productName: d.productName || '', drawingNo: d.drawingNo || '',
+          customer: d.customer || '', orderQuantity: 0,
+          blank: 0, electroplating: 0, replating: 0, repair: 0, scrap: 0 };
+        summaryMap[key] = s;
+        summaries.push(s);
+      }
+      if (d.type === '收货') { s.electroplating += d.electroplate; s.repair += d.repair; s.scrap += d.scrap; }
+      else if (d.type === '发货') { s.blank += d.rough; }
+      s.replating += d.replate;
+      if (!s.customer && d.customer) s.customer = d.customer;
+      if (!s.drawingNo && d.drawingNo) s.drawingNo = d.drawingNo;
     });
 
     summaries.forEach(function (s) {
-      var b = wageOrderLines.map[s.orderNo] || localOrderLines.map[s.orderNo];
-      if (!b) return;
-      if (b.qty) s.orderQuantity = b.qty;
-      if (b.names.length) s.productName = b.names.join('、');
-      if (b.drawings.length) s.drawingNo = b.drawings.join('、');
-      if (!s.customer && b.customer) s.customer = b.customer;
+      var lines = orderLinesByNo[s.orderNo] || [];
+      var line = null;
+      for (var i = 0; i < lines.length; i++) {
+        if (normalizeName(lines[i].productName) === normalizeName(s.productName)) { line = lines[i]; break; }
+      }
+      if (!line && !String(s.productName || '').trim() && lines.length === 1) line = lines[0];
+      if (line) {
+        s.orderQuantity = line.quantity;
+        if (!s.drawingNo && line.drawingNo) s.drawingNo = line.drawingNo;
+        if (!s.customer && line.customer) s.customer = line.customer;
+      }
+      var suffix = getSuffixMap(s.orderNo)[normalizeName(s.productName)] || '';
+      s.suffix = suffix;
+      s.displayOrderNo = suffix ? s.orderNo + suffix : s.orderNo;
+      s.good = s.electroplating - s.replating - s.scrap;
+      s.difference = (s.blank - s.repair) - s.good;
+    });
+    summaries.sort(function (a, b) {
+      var byOrder = String(a.orderNo).localeCompare(String(b.orderNo));
+      return byOrder !== 0 ? byOrder : String(a.suffix).localeCompare(String(b.suffix));
     });
 
     // ---- 该订单号的全部收发货记录（按时间倒序）----
@@ -222,7 +269,7 @@
     injectColgroup(sumTable, sumWidths);
     sumTable.querySelector('thead').innerHTML = '<tr>' + sumCols.map(function (c) { return '<th>' + c + '</th>'; }).join('') + '</tr>';
     sumTable.querySelector('tbody').innerHTML = summaries.map(function (s) {
-      return '<tr><td>' + esc(s.orderNo) + '</td><td>' + esc(s.customer || '-') + '</td><td>' + esc(s.productName || '-') +
+      return '<tr><td>' + esc(s.displayOrderNo || s.orderNo) + '</td><td>' + esc(s.customer || '-') + '</td><td>' + esc(s.productName || '-') +
         '</td><td>' + esc(s.drawingNo) + '</td><td>' + fmtQty(s.orderQuantity) + '</td><td>' + fmtQty(s.blank) +
         '</td><td>' + fmtQty(s.electroplating) + '</td><td>' + fmtQty(s.replating) + '</td><td>' + fmtQty(s.repair) +
         '</td><td>' + fmtQty(s.scrap) + '</td><td>' + fmtQty(s.good) + '</td><td>' + fmtQty(s.difference) + '</td></tr>';
@@ -251,7 +298,7 @@
     var container = document.getElementById('qrcodes-container');
     container.innerHTML = '';
     summaries.forEach(function (s) {
-      var text = '订单号: ' + s.orderNo + '\n\n' +
+      var text = '订单号: ' + (s.displayOrderNo || s.orderNo) + '\n\n' +
         '客户: ' + (s.customer || '') + '\n' +
         '产品名称: ' + (s.productName || '') + '\n' +
         '图纸号: ' + (s.drawingNo || '') + '\n' +
@@ -266,7 +313,7 @@
       var item = document.createElement('div');
       item.className = 'qrcode-item';
       var h4 = document.createElement('h4');
-      h4.textContent = '订单号: ' + s.orderNo;
+      h4.textContent = '订单号: ' + (s.displayOrderNo || s.orderNo);
       var imgBox = document.createElement('div');
       item.appendChild(h4);
       item.appendChild(imgBox);
