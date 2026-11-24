@@ -193,20 +193,24 @@
         }
 
         // 页面加载完成后初始化并代理
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', function() {
-                try {
-                    if (window.CloudbaseStore && typeof CloudbaseStore.init === 'function') {
-                        CloudbaseStore.init().then(function() { installProxy(); });
-                    } else { installProxy(); }
-                } catch (e) { installProxy(); }
-            });
-        } else {
+        // 注意：不能只依赖 CloudbaseStore.init() 的 Promise 回调，个别情况下该回调不执行，
+        // 会导致 localStorage 代理永远装不上，结算单价等"隐式保存"只落本地、不上云端。
+        function bootCloudProxy() {
             try {
                 if (window.CloudbaseStore && typeof CloudbaseStore.init === 'function') {
-                    CloudbaseStore.init().then(function() { installProxy(); });
-                } else { installProxy(); }
-            } catch (e) { installProxy(); }
+                    CloudbaseStore.init()
+                        .catch(function() {})
+                        .then(function() { installProxy(); });
+                }
+            } catch (e) {}
+            // 双保险：立即启动安装重试；installProxy 内部会每 300ms 检查一次，直到 CloudbaseStore 就绪
+            installProxy();
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', bootCloudProxy);
+        } else {
+            bootCloudProxy();
         }
 
         // 定时刷新云端数据（10 秒一次，与 wage 主应用一致）
@@ -3589,6 +3593,52 @@
             return { quantity: totalQuantity, unitPrice: priceLine ? priceLine.unitPrice : 0 };
         }
 
+        // 发货毛坯超量提醒阈值：累计发货毛坯超过订单数量的千分之四（0.4%）时提醒
+        const ROUGH_OVER_ORDER_LIMIT_RATIO = 0.004;
+
+        // 判断「订单号 + 产品」的累计发货毛坯是否超过订单数量 4‰，返回提示文案（未超量返回空串）
+        // cellsList：全部收发货记录；candidateCells：本次待保存的记录；excludeIndex：编辑时排除的原记录下标
+        function getRoughOverOrderWarning(cellsList, candidateCells, excludeIndex) {
+            const cells = candidateCells || [];
+            if (String(cells[0] || '').trim() !== '发货') return '';
+            const orderNumber = String(cells[2] || '').trim();
+            const productName = String(cells[4] || '').trim();
+            if (!orderNumber) return '';
+
+            let cumRough = parseQuantity(cells[5]);
+            let cumRepair = 0;
+            (cellsList || []).forEach((rec, idx) => {
+                if (typeof excludeIndex === 'number' && excludeIndex >= 0 && idx === excludeIndex) return;
+                const c = (rec && rec.cells) || [];
+                if (String(c[2] || '').trim() !== orderNumber) return;
+                if (String(c[4] || '').trim() !== productName) return;
+                if (String(c[0] || '').trim() === '收货') {
+                    cumRepair += parseQuantity(c[8]);
+                } else {
+                    cumRough += parseQuantity(c[5]);
+                }
+            });
+
+            // 返修件退回后会按毛坯再次发货，用净毛坯（毛坯−返修）避免重复计算
+            const netRough = cumRough - cumRepair;
+
+            // 订单数量按「订单号 + 产品」取，与订单汇总的算法保持一致
+            const orderQty = getOrderQuantityAndPrice(orderNumber, getWageOrderList(), productName, cells[11]).quantity;
+            if (!(orderQty > 0)) return '';
+
+            const limit = orderQty * (1 + ROUGH_OVER_ORDER_LIMIT_RATIO);
+            if (netRough <= limit + 1e-9) return '';
+
+            const over = netRough - orderQty;
+            const permille = (over / orderQty * 1000).toFixed(1);
+            const roughText = cumRepair > 0
+                ? netRough + '（毛坯 ' + cumRough + ' − 返修 ' + cumRepair + '）'
+                : String(netRough);
+            return '订单 ' + orderNumber + ' 产品「' + productName + '」累计发货净毛坯 ' + roughText
+                + '，已超过订单数量 ' + orderQty + ' 的千分之四（允许上限 ' + Number(limit.toFixed(2))
+                + '，超出 ' + Number(over.toFixed(2)) + '，约 ' + permille + '‰）。\n\n请确认是否继续保存？';
+        }
+
         // 按订单号汇总收发货流水
         function getDeliveryOrderStats() {
             const statsMap = new Map();
@@ -5483,6 +5533,12 @@
                                     }
                                 }
                                 
+                                // 发货毛坯超量提醒：累计发货毛坯超过订单数量 4‰ 时先确认
+                                if (tableName === 'deliveries') {
+                                    const overWarning = getRoughOverOrderWarning(config.originalData, updatedCells, rowIndex);
+                                    if (overWarning && !confirm(overWarning)) return;
+                                }
+
                                 // 更新originalData
                                 config.originalData[rowIndex] = {
                                     cells: updatedCells
@@ -6885,6 +6941,13 @@
                     allSettings[settlementKey][field] = numericValue;
                     localStorage.setItem('orderSettlementData', JSON.stringify(allSettings));
 
+                    // 显式上传云端：不依赖 localStorage 代理（代理未装上时数据只落本地）
+                    if (typeof window.flushKeyUpload === 'function') {
+                        window.flushKeyUpload('orderSettlementData', allSettings).catch(function(e) {
+                            console.warn('[电镀管理] 结算设置上传云端失败:', e && e.message ? e.message : e);
+                        });
+                    }
+
                     // 只更新对应产品行的输入值和结算金额
                     const siblingRows = Array.from(orderSummaryTableBody.querySelectorAll('tr[data-order-number]'))
                         .filter(row => row.dataset.settlementKey === settlementKey);
@@ -7880,6 +7943,15 @@
                     // 添加到原始数据和当前数据（编辑时更新原记录）
                     const editIndexRaw = addDeliveryForm.dataset.editIndex;
                     const isEditingRecord = editIndexRaw !== undefined && editIndexRaw !== '';
+
+                    // 发货毛坯超量提醒：累计发货毛坯超过订单数量 4‰ 时先确认
+                    const overWarning = getRoughOverOrderWarning(
+                        deliveriesConfig.originalData,
+                        newRowData.cells,
+                        isEditingRecord ? parseInt(editIndexRaw, 10) : -1
+                    );
+                    if (overWarning && !confirm(overWarning)) return;
+
                     if (isEditingRecord) {
                         const editIndex = parseInt(editIndexRaw, 10);
                         if (editIndex >= 0 && editIndex < deliveriesConfig.originalData.length) {
