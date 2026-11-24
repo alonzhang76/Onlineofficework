@@ -802,10 +802,11 @@
                                             <th scope="col" class="table-header">蝴蝶结</th>
                                             <th scope="col" class="table-header">电镀厂</th>
                                             <th scope="col" class="table-header">毛坯数量</th>
-                                            <th scope="col" class="table-header">良品数量</th>
+                                            <th scope="col" class="table-header">良品数量<span class="block text-xs font-normal text-gray-400">订单累计</span></th>
                                             <th scope="col" class="table-header">差额<span class="block text-xs font-normal text-gray-400">报废+滞留数</span></th>
-                                            <th scope="col" class="table-header">电镀成品数</th>
+                                            <th scope="col" class="table-header">电镀成品数<span class="block text-xs font-normal text-gray-400">含返镀</span></th>
                                             <th scope="col" class="table-header">返镀数量</th>
+                                            <th scope="col" class="table-header">净成品<span class="block text-xs font-normal text-gray-400">成品−返镀</span></th>
                                             <th scope="col" class="table-header">毛坯返修</th>
                                             <th scope="col" class="table-header">报废数量</th>
                                             <th scope="col" class="table-header">备注</th>
@@ -852,8 +853,9 @@
                                             <th scope="col" class="table-header">蝴蝶结</th>
                                             <th scope="col" class="table-header">订单数量</th>
                                             <th scope="col" class="table-header">毛坯总发</th>
-                                            <th scope="col" class="table-header">电镀成品数</th>
+                                            <th scope="col" class="table-header">电镀成品数<span class="block text-xs font-normal text-gray-400">含返镀</span></th>
                                             <th scope="col" class="table-header">返镀数量</th>
+                                            <th scope="col" class="table-header">净成品<span class="block text-xs font-normal text-gray-400">成品−返镀</span></th>
                                             <th scope="col" class="table-header">毛坯返修</th>
                                             <th scope="col" class="table-header">报废数量</th>
                                             <th scope="col" class="table-header">良品数量</th>
@@ -3744,7 +3746,7 @@
                 if (!statsByOrder.has(stats.orderNumber)) statsByOrder.set(stats.orderNumber, []);
                 statsByOrder.get(stats.orderNumber).push(stats);
             });
-            // 同一订单号仅首产品行承载整单的开票/付款/额外扣减，避免重复统计
+            // 同一订单号仅首产品行承载整单的开票/付款，避免重复统计；额外扣减按产品独立填写
             statsByOrder.forEach(list => {
                 list.sort((a, b) => String(a.suffix).localeCompare(String(b.suffix)));
                 list.forEach((stats, index) => { stats.isPrimary = index === 0; });
@@ -3761,6 +3763,33 @@
             } catch (e) {
                 return {};
             }
+        }
+
+        // 同一订单号多品名时，结算单价/报废单价按「订单号 + 品名」分别保存
+        function getOrderProductSettlementKey(orderNumber, productName) {
+            return String(orderNumber || '') + '::' + normalizeOrderProductName(productName);
+        }
+
+        // 优先取产品设置；旧数据没有产品设置时回退到订单号设置
+        // 旧版额外扣减是整单值，只回退给该订单的首个产品，避免多产品重复扣减
+        function getProductSettlementSettings(settings, orderNumber, productName, isLegacyPrimary) {
+            const all = settings || getOrderSettlementSettings();
+            const legacy = all[orderNumber] || {};
+            const product = all[getOrderProductSettlementKey(orderNumber, productName)] || {};
+            const pick = field => product[field] !== undefined && product[field] !== null
+                ? product[field]
+                : legacy[field];
+            const productExtra = product.extraDeduction;
+            const extraDeduction = productExtra !== undefined && productExtra !== null
+                ? productExtra
+                : (isLegacyPrimary && legacy.extraDeduction !== undefined && legacy.extraDeduction !== null
+                    ? legacy.extraDeduction
+                    : 0);
+            return {
+                settlementPrice: pick('settlementPrice'),
+                scrapPrice: pick('scrapPrice'),
+                extraDeduction: extraDeduction
+            };
         }
 
         // 订单汇总：汇总该订单号全部产品的客户、品名、图纸号、蝴蝶结（同一订单号可能多品名）
@@ -3800,10 +3829,10 @@
         function recalcOrderSummaryRowAmount(row) {
             if (!row) return;
             const orderNumber = row.dataset.orderNumber;
-            const settlement = getOrderSettlementSettings()[orderNumber] || {};
+            const settlement = getProductSettlementSettings(null, orderNumber, row.dataset.productName, row.dataset.legacyPrimary === 'true');
             const settlementPrice = parseQuantity(settlement.settlementPrice);
             const scrapPrice = parseQuantity(settlement.scrapPrice);
-            const extraDeduction = row.dataset.isPrimary === 'true' ? parseQuantity(settlement.extraDeduction) : 0;
+            const extraDeduction = parseQuantity(settlement.extraDeduction);
             const amount = calcOrderSettlementAmount(
                 parseQuantity(row.dataset.goodTotal),
                 parseQuantity(row.dataset.scrapTotal),
@@ -3866,6 +3895,7 @@
                 roughTotal: 0,
                 electroplateTotal: 0,
                 replateTotal: 0,
+                netElectroplateTotal: 0,
                 repairTotal: 0,
                 scrapTotal: 0,
                 goodTotal: 0,
@@ -3879,21 +3909,22 @@
 
             const orderFinancialSeen = new Set();
             rows.forEach(row => {
-                const settlement = settlementData[row.orderNumber] || {};
+                const settlement = getProductSettlementSettings(settlementData, row.orderNumber, row.productName, row.isPrimary);
                 const isFirstRowOfOrder = !orderFinancialSeen.has(row.orderNumber);
                 orderFinancialSeen.add(row.orderNumber);
-                // 额外扣减 / 开票 / 付款是整单数据，同一订单号只计一次
-                const extraDeduction = isFirstRowOfOrder ? parseQuantity(settlement.extraDeduction) : 0;
+                // 额外扣减每个产品行独立；开票 / 付款仍是整单数据，同一订单号只计一次
+                const extraDeduction = parseQuantity(settlement.extraDeduction);
 
                 totals.orderQuantity += row.orderQuantity || 0;
                 totals.roughTotal += row.roughTotal || 0;
                 totals.electroplateTotal += row.electroplateTotal || 0;
                 totals.replateTotal += row.replateTotal || 0;
+                totals.netElectroplateTotal += (row.electroplateTotal || 0) - (row.replateTotal || 0);
                 totals.repairTotal += row.repairTotal || 0;
                 totals.scrapTotal += row.scrapTotal || 0;
                 totals.goodTotal += row.goodTotal || 0;
                 totals.difference += row.difference || 0;
-                if (isFirstRowOfOrder) totals.extraDeduction += extraDeduction;
+                totals.extraDeduction += extraDeduction;
                 totals.amount += calcOrderSettlementAmount(
                     row.goodTotal,
                     row.scrapTotal,
@@ -3913,7 +3944,7 @@
             const totalRow = document.createElement('tr');
             totalRow.className = 'order-summary-total-row total-row bg-gray-50 font-semibold';
 
-            // 列顺序：复选框, 订单号, 客户, 产品名称, 图纸号, 蝴蝶结, 订单数量, 毛坯总发, 电镀成品数, 返镀数量, 返修数量, 报废数量, 良品数量, 差额, 结算单价, 报废单价, 额外扣减, 结算金额, 开票金额, 已付金额, 未付金额, 开票付款状态
+            // 列顺序：复选框, 订单号, 客户, 产品名称, 图纸号, 蝴蝶结, 订单数量, 毛坯总发, 电镀成品数, 返镀数量, 净成品, 返修数量, 报废数量, 良品数量, 差额, 结算单价, 报废单价, 额外扣减, 结算金额, 开票金额, 已付金额, 未付金额, 开票付款状态
             const totalCells = [
                 '<td class="table-cell"></td>', // 复选框列
                 '<td class="table-cell font-semibold">合计：</td>', // 订单号列
@@ -3925,6 +3956,7 @@
                 `<td class="table-cell">${formatNumber(totals.roughTotal, 0)}</td>`, // 毛坯总发列
                 `<td class="table-cell">${formatNumber(totals.electroplateTotal, 0)}</td>`, // 电镀成品数列
                 `<td class="table-cell">${formatNumber(totals.replateTotal, 0)}</td>`, // 返镀数量列
+                `<td class="table-cell">${formatNumber(totals.netElectroplateTotal, 0)}</td>`, // 净成品列
                 `<td class="table-cell">${formatNumber(totals.repairTotal, 0)}</td>`, // 返修数量列
                 `<td class="table-cell">${formatNumber(totals.scrapTotal, 0)}</td>`, // 报废数量列
                 `<td class="table-cell">${formatNumber(totals.goodTotal, 0)}</td>`, // 良品数量列
@@ -3996,7 +4028,7 @@
                 const emptyRow = document.createElement('tr');
                 const emptyCell = document.createElement('td');
                 emptyCell.className = 'table-cell text-center text-gray-500';
-                emptyCell.colSpan = 22;
+                emptyCell.colSpan = 23;
                 emptyCell.textContent = keyword ? '没有匹配的订单' : '暂无数据';
                 emptyRow.appendChild(emptyCell);
                 tableBody.appendChild(emptyRow);
@@ -4010,17 +4042,20 @@
                 if (!stats) return;
                 const orderNumber = stats.orderNumber;
                 const isFinancialRow = financialRowByOrder.get(orderNumber) === rowKey;
-                const settlement = settlementData[orderNumber] || {};
+                const settlement = getProductSettlementSettings(settlementData, orderNumber, stats.productName, stats.isPrimary);
                 const settlementPrice = parseQuantity(settlement.settlementPrice);
                 const scrapPrice = parseQuantity(settlement.scrapPrice);
-                const extraDeduction = isFinancialRow ? parseQuantity(settlement.extraDeduction) : 0;
+                const extraDeduction = parseQuantity(settlement.extraDeduction);
                 const amount = calcOrderSettlementAmount(stats.goodTotal, stats.scrapTotal, settlementPrice, scrapPrice, extraDeduction);
 
                 const row = document.createElement('tr');
                 row.className = 'table-row';
                 row.dataset.orderNumber = orderNumber;
+                row.dataset.productName = stats.productName;
+                row.dataset.settlementKey = getOrderProductSettlementKey(orderNumber, stats.productName);
                 row.dataset.rowKey = rowKey;
                 row.dataset.isPrimary = isFinancialRow ? 'true' : 'false';
+                row.dataset.legacyPrimary = stats.isPrimary ? 'true' : 'false';
                 row.dataset.goodTotal = String(stats.goodTotal);
                 row.dataset.scrapTotal = String(stats.scrapTotal);
 
@@ -4043,6 +4078,7 @@
                     String(stats.roughTotal),
                     String(stats.electroplateTotal),
                     String(stats.replateTotal),
+                    String(stats.netElectroplateTotal || ((stats.electroplateTotal || 0) - (stats.replateTotal || 0))),
                     String(stats.repairTotal),
                     String(stats.scrapTotal),
                     String(stats.goodTotal),
@@ -4062,6 +4098,7 @@
                 settlementPriceInput.className = 'form-input w-28';
                 settlementPriceInput.placeholder = '未设置';
                 settlementPriceInput.dataset.orderNumber = orderNumber;
+                settlementPriceInput.dataset.settlementKey = getOrderProductSettlementKey(orderNumber, stats.productName);
                 settlementPriceInput.dataset.field = 'settlementPrice';
                 settlementPriceInput.value = settlement.settlementPrice === undefined || settlement.settlementPrice === null
                     ? ''
@@ -4076,6 +4113,7 @@
                 scrapPriceInput.inputMode = 'decimal';
                 scrapPriceInput.className = 'form-input w-28';
                 scrapPriceInput.dataset.orderNumber = orderNumber;
+                scrapPriceInput.dataset.settlementKey = getOrderProductSettlementKey(orderNumber, stats.productName);
                 scrapPriceInput.dataset.field = 'scrapPrice';
                 scrapPriceInput.value = settlement.scrapPrice === undefined || settlement.scrapPrice === null
                     ? ''
@@ -4085,20 +4123,17 @@
 
                 const extraDeductionCell = document.createElement('td');
                 extraDeductionCell.className = 'table-cell';
-                if (isFinancialRow) {
-                    const extraDeductionInput = document.createElement('input');
-                    extraDeductionInput.type = 'text';
-                    extraDeductionInput.inputMode = 'decimal';
-                    extraDeductionInput.className = 'form-input w-24';
-                    extraDeductionInput.dataset.orderNumber = orderNumber;
-                    extraDeductionInput.dataset.field = 'extraDeduction';
-                    extraDeductionInput.value = settlement.extraDeduction === undefined || settlement.extraDeduction === null
-                        ? ''
-                        : String(settlement.extraDeduction);
-                    extraDeductionCell.appendChild(extraDeductionInput);
-                } else {
-                    extraDeductionCell.textContent = '—';
-                }
+                const extraDeductionInput = document.createElement('input');
+                extraDeductionInput.type = 'text';
+                extraDeductionInput.inputMode = 'decimal';
+                extraDeductionInput.className = 'form-input w-24';
+                extraDeductionInput.dataset.orderNumber = orderNumber;
+                extraDeductionInput.dataset.settlementKey = getOrderProductSettlementKey(orderNumber, stats.productName);
+                extraDeductionInput.dataset.field = 'extraDeduction';
+                extraDeductionInput.value = settlement.extraDeduction === undefined || settlement.extraDeduction === null
+                    ? ''
+                    : String(settlement.extraDeduction);
+                extraDeductionCell.appendChild(extraDeductionInput);
                 row.appendChild(extraDeductionCell);
 
                 const amountCell = document.createElement('td');
@@ -4264,10 +4299,10 @@
                 if (!row) return '';
                 const orderNumber = row.orderNumber;
                 const isFinancialRow = financialRowByOrder.get(orderNumber) === rowKey;
-                const settlement = settlementData[orderNumber] || {};
+                const settlement = getProductSettlementSettings(settlementData, orderNumber, row.productName, row.isPrimary);
                 const settlementPrice = parseQuantity(settlement.settlementPrice);
                 const scrapPrice = parseQuantity(settlement.scrapPrice);
-                const extraDeduction = isFinancialRow ? parseQuantity(settlement.extraDeduction) : 0;
+                const extraDeduction = parseQuantity(settlement.extraDeduction);
                 const amount = calcOrderSettlementAmount(
                     parseQuantity(row.goodTotal),
                     parseQuantity(row.scrapTotal),
@@ -4291,13 +4326,14 @@
                     ['毛坯总发', formatStatementNumber(row.roughTotal, 0)],
                     ['电镀成品数', formatStatementNumber(row.electroplateTotal, 0)],
                     ['返镀数量', formatStatementNumber(row.replateTotal, 0)],
+                    ['净成品', formatStatementNumber(row.netElectroplateTotal || ((row.electroplateTotal || 0) - (row.replateTotal || 0)), 0)],
                     ['毛坯返修', formatStatementNumber(row.repairTotal, 0)],
                     ['报废数量', formatStatementNumber(row.scrapTotal, 0)],
                     ['良品数量', formatStatementNumber(row.goodTotal, 0)],
                     ['差额', formatStatementNumber(row.difference, 0)],
                     ['结算单价', formatStatementNumber(settlementPrice, 2)],
                     ['报废单价', formatStatementNumber(scrapPrice, 2)],
-                    ['额外扣减', isFinancialRow ? formatStatementNumber(extraDeduction, 2) : '—'],
+                    ['额外扣减', formatStatementNumber(extraDeduction, 2)],
                     ['结算金额', formatStatementNumber(amount, 2)],
                     ['开票金额', paymentCell(payment ? payment.invoiced : 0)],
                     ['已付金额', paymentCell(payment ? payment.paid : 0)],
@@ -4837,10 +4873,8 @@
                     const orderStats = deliveryStats.get(sourceCells[2]) || { orderQuantity: 0, difference: 0 };
                     const productKey = String(sourceCells[2] || '') + '::' + String(sourceCells[4] || '').trim();
                     const stats = (deliveryProductStats && deliveryProductStats.get(productKey)) || orderStats;
-                    const rowType = (sourceCells[0] || '').trim();
-                    const rowGoodQuantity = rowType === '收货'
-                        ? Math.max(0, parseQuantity(sourceCells[6]) - parseQuantity(sourceCells[7]) - parseQuantity(sourceCells[9]))
-                        : 0;
+                    // 良品改为按「订单号 + 产品」累计显示，避免逐行扣返镀/报废后与合计对不上
+                    const rowGoodQuantity = stats.goodTotal || 0;
                     cells = [
                         sourceCells[0] || '',                 // 类型
                         sourceCells[1] || '',                 // 收发日期
@@ -4852,10 +4886,11 @@
                         sourceCells[12] || '',                // 蝴蝶结（产品 LOGO）
                         sourceCells[13] || '',                // 电镀厂（新增，兼容旧数据回退空）
                         sourceCells[5] || '0',                // 毛坯数量
-                        String(rowGoodQuantity || 0),         // 良品数量
+                        String(rowGoodQuantity || 0),         // 良品数量（订单累计）
                         String(stats.difference || 0),        // 差额（订单累计）
-                        sourceCells[6] || '0',                // 电镀成品数
+                        sourceCells[6] || '0',                // 电镀成品数（含返镀）
                         sourceCells[7] || '0',                // 返镀数量
+                        String(stats.netElectroplateTotal || 0), // 净成品（成品−返镀，订单累计）
                         sourceCells[8] || '0',                // 返修数量
                         sourceCells[9] || '0',                // 报废数量
                         sourceCells[10] || ''                 // 备注
@@ -5008,9 +5043,9 @@
                     }
                 }
                 
-                // 对于收发货表格，保留17个数据列（与表头一致：…电镀成品数、返镀、返修、报废、备注），并移除null值
+                // 对于收发货表格，保留18个数据列（与表头一致：…电镀成品数、返镀、净成品、返修、报废、备注），并移除null值
                 if (tableName === 'deliveries') {
-                    cells = cells.slice(0, 17).map(cell => cell || '');
+                    cells = cells.slice(0, 18).map(cell => cell || '');
                 }
                 
                 // 构建表格行HTML
@@ -5034,8 +5069,8 @@
                     
                     // 根据表格类型和列索引确定需要格式化的列
                     if (tableName === 'deliveries') {
-                        // 收发货表格：订单数量、毛坯、良品、差额、成品、返镀、返修、报废
-                        if ([4, 9, 10, 11, 12, 13, 14, 15].includes(index)) {
+                        // 收发货表格：订单数量、毛坯、良品、差额、成品、返镀、净成品、返修、报废
+                        if ([4, 9, 10, 11, 12, 13, 14, 15, 16].includes(index)) {
                             formattedCell = formatNumber(cell, 0);
                         }
                     } else if (tableName === 'orders') {
@@ -5123,6 +5158,16 @@
 
                 
                 row.innerHTML = rowHTML;
+
+                // 历史数据检查：收货行的成品数小于报废数时，说明报废未计入成品，标红提醒
+                if (tableName === 'deliveries') {
+                    const src = (config.originalData[originalIndex] || {}).cells || [];
+                    if ((src[0] || '').trim() === '收货' && parseQuantity(src[6]) < parseQuantity(src[9])) {
+                        row.style.backgroundColor = '#fff1f2';
+                        row.title = '电镀成品数小于报废数量：报废件应同时计入电镀成品数，否则报废会被重复扣减。';
+                    }
+                }
+
                 tableBody.appendChild(row);
             });
             
@@ -5317,8 +5362,8 @@
                                         originalCells[10] || '', originalCells[11] || '',
                                         originalCells[12] || '', originalCells[13] || ''
                                     ];
-                                    // DOM列索引 -> 存贮 cells 索引（跳过复选框、订单数量、良品、差额和操作列）
-                                    // 显示结构：复选框 | 类型 | 日期 | 客户 | 订单号 | 订单数量(自动) | 产品 | 图纸 | 蝴蝶结 | 电镀厂 | 毛坯 | 良品(自动) | 差额(自动) | 成品 | 返镀 | 返修 | 报废 | 备注 | 操作
+                                    // DOM列索引 -> 存贮 cells 索引（跳过复选框、订单数量、良品、差额、净成品和操作列）
+                                    // 显示结构：复选框 | 类型 | 日期 | 客户 | 订单号 | 订单数量(自动) | 产品 | 图纸 | 蝴蝶结 | 电镀厂 | 毛坯 | 良品(自动) | 差额(自动) | 成品 | 返镀 | 净成品(自动) | 返修 | 报废 | 备注 | 操作
                                     const deliveryColumnMap = {
                                         1: 0,   // 类型
                                         2: 1,   // 收发日期
@@ -5331,9 +5376,9 @@
                                         10: 5,  // 毛坯数量
                                         13: 6,  // 电镀成品数
                                         14: 7,  // 返镀数量
-                                        15: 8,  // 返修数量
-                                        16: 9,  // 报废数量
-                                        17: 10  // 备注
+                                        16: 8,  // 返修数量
+                                        17: 9,  // 报废数量
+                                        18: 10  // 备注
                                     };
                                     Object.keys(deliveryColumnMap).forEach(domIndex => {
                                         const cell = cells[Number(domIndex)];
@@ -5732,6 +5777,7 @@
                     '<td class="table-cell">-</td>', // 差额列（按订单累计，不做跨行求和）
                     `<td class="table-cell">${totals.electroplateQuantity}</td>`, // 电镀成品数列
                     `<td class="table-cell">${totals.replateQuantity}</td>`, // 返镀数量列
+                    `<td class="table-cell">${totals.netElectroplateQuantity}</td>`, // 净成品列
                     `<td class="table-cell">${totals.repairQuantity}</td>`, // 返修数量列
                     `<td class="table-cell">${totals.scrapQuantity}</td>`, // 报废数量列
                     '<td class="table-cell"></td>', // 备注列
@@ -5819,10 +5865,11 @@
             let quantity = 0;
             let amount = 0;
             
-            // 初始化收发货表格的合计变量（5个数量列）
+            // 初始化收发货表格的合计变量（6个数量列）
             let roughQuantity = 0;
             let electroplateQuantity = 0;
             let replateQuantity = 0;
+            let netElectroplateQuantity = 0;
             let repairQuantity = 0;
             let scrapQuantity = 0;
             
@@ -5832,14 +5879,15 @@
             data.forEach(row => {
                 
                 if (tableName === 'deliveries') {
-                    if (row.length >= 17) {
-                        // 表格显示结构：[类型, 收发日期, 客户, 订单号, 订单数量, 产品名称, 图纸号, 蝴蝶结, 电镀厂, 毛坯, 良品, 差额, 成品数, 返镀, 返修, 报废, 备注]
+                    if (row.length >= 18) {
+                        // 表格显示结构：[类型, 收发日期, 客户, 订单号, 订单数量, 产品名称, 图纸号, 蝴蝶结, 电镀厂, 毛坯, 良品, 差额, 成品数, 返镀, 净成品, 返修, 报废, 备注]
                         roughQuantity += parseNumber(row[9]);
                         goodQuantity += parseNumber(row[10]);
                         electroplateQuantity += parseNumber(row[12]);
                         replateQuantity += parseNumber(row[13]);
-                        repairQuantity += parseNumber(row[14]);
-                        scrapQuantity += parseNumber(row[15]);
+                        netElectroplateQuantity += parseNumber(row[14]);
+                        repairQuantity += parseNumber(row[15]);
+                        scrapQuantity += parseNumber(row[16]);
                     } else {
                         // 存贮结构：[类型, 收发日期, 订单号, 客户, 产品名称, 毛坯, 成品数, 返镀, 返修, 报废, 备注]
                         const rowType = (row[0] || '').trim();
@@ -5932,12 +5980,15 @@
             if (tableName === 'deliveries') {
                 // 良品合计 = 成品累计 - 返镀累计 - 报废累计（返镀件重镀后成品会被重复累计，需扣除返镀）
                 goodQuantity = electroplateQuantity - replateQuantity - scrapQuantity;
+                // 净成品合计 = 成品累计 - 返镀累计
+                netElectroplateQuantity = electroplateQuantity - replateQuantity;
                 // 返回收发货表格的合计值
                 return {
                     roughQuantity: formatNumber(roughQuantity, 0),
                     goodQuantity: formatNumber(goodQuantity, 0),
                     electroplateQuantity: formatNumber(electroplateQuantity, 0),
                     replateQuantity: formatNumber(replateQuantity, 0),
+                    netElectroplateQuantity: formatNumber(netElectroplateQuantity, 0),
                     repairQuantity: formatNumber(repairQuantity, 0),
                     scrapQuantity: formatNumber(scrapQuantity, 0)
                 };
@@ -6653,9 +6704,9 @@
                         10: 5,  // 毛坯数量
                         13: 6,  // 电镀成品数
                         14: 7,  // 返镀数量
-                        15: 8,  // 返修数量
-                        16: 9,  // 报废数量
-                        17: 10  // 备注
+                        16: 8,  // 返修数量
+                        17: 9,  // 报废数量
+                        18: 10  // 备注
                     };
                     if (!(columnIndex in deliverySortMap)) return 0;
                     sortDataIndex = deliverySortMap[columnIndex];
@@ -6827,16 +6878,16 @@
                     const rawValue = input.value;
                     const numericValue = rawValue.trim() === '' ? 0 : parseQuantity(rawValue);
 
+                    // 结算单价、报废单价、额外扣减均按「订单号 + 品名」保存
+                    const settlementKey = input.dataset.settlementKey || orderNumber;
                     const allSettings = getOrderSettlementSettings();
-                    if (!allSettings[orderNumber]) {
-                        allSettings[orderNumber] = { settlementPrice: 0, scrapPrice: 0, extraDeduction: 0 };
-                    }
-                    allSettings[orderNumber][field] = numericValue;
+                    if (!allSettings[settlementKey]) allSettings[settlementKey] = {};
+                    allSettings[settlementKey][field] = numericValue;
                     localStorage.setItem('orderSettlementData', JSON.stringify(allSettings));
 
-                    // 同一订单号可能拆成多产品行：同步更新这些行的输入值和结算金额
+                    // 只更新对应产品行的输入值和结算金额
                     const siblingRows = Array.from(orderSummaryTableBody.querySelectorAll('tr[data-order-number]'))
-                        .filter(row => row.dataset.orderNumber === orderNumber);
+                        .filter(row => row.dataset.settlementKey === settlementKey);
                     siblingRows.forEach(row => {
                         const targetInput = row.querySelector(`input[data-field="${field}"]`);
                         if (targetInput) targetInput.value = rawValue;
@@ -7745,8 +7796,45 @@
                     
                     // 收货时成品数必须覆盖报废数量
                     if (!isShipping && parseQuantity(electroplateValue) < parseQuantity(scrapValue)) {
-                        alert('电镀成品数不能小于报废数量');
+                        alert('电镀成品数不能小于报废数量。\n报废件属于本次收回数量的一部分，请把报废数量同时计入电镀成品数。');
                         return;
+                    }
+
+                    // 累计校验：净成品（成品−返镀）不能超过净毛坯（毛坯−返修）
+                    {
+                        const checkList = (tableConfigs.deliveries && tableConfigs.deliveries.originalData) || [];
+                        const editIndexRawForCheck = addDeliveryForm.dataset.editIndex;
+                        const editIndexForCheck = (editIndexRawForCheck !== undefined && editIndexRawForCheck !== '')
+                            ? parseInt(editIndexRawForCheck, 10) : -1;
+                        const checkProduct = String(deliveryProduct.value || '').trim();
+                        let cumRough = 0, cumElectro = 0, cumReplate = 0, cumRepair = 0;
+                        checkList.forEach((rec, idx) => {
+                            if (idx === editIndexForCheck) return;
+                            const c = (rec && rec.cells) || [];
+                            if (String(c[2] || '').trim() !== String(orderNumber || '').trim()) return;
+                            if (String(c[4] || '').trim() !== checkProduct) return;
+                            if (String(c[0] || '').trim() === '收货') {
+                                cumElectro += parseQuantity(c[6]);
+                                cumRepair += parseQuantity(c[8]);
+                            } else {
+                                cumRough += parseQuantity(c[5]);
+                            }
+                            cumReplate += parseQuantity(c[7]);
+                        });
+                        if (isShipping) {
+                            cumRough += parseQuantity(deliveryRaw.value || '0');
+                        } else {
+                            cumElectro += parseQuantity(electroplateValue);
+                            cumRepair += parseQuantity(repairValue);
+                        }
+                        cumReplate += parseQuantity(replateValue);
+
+                        const netRough = cumRough - cumRepair;
+                        const netElectro = cumElectro - cumReplate;
+                        if (netElectro > netRough) {
+                            alert('累计净成品（' + netElectro + '）不能大于累计净毛坯（' + netRough + '）。\n请检查：收货的成品数是否包含了报废数量，或是否有毛坯发货漏登。');
+                            return;
+                        }
                     }
                     
                     const deliveryData = {
@@ -8336,9 +8424,25 @@
 
         // 订单对账应开金额（良品×结算单价 − 报废×报废单价 − 额外扣减）
         function getOrderPayableAmount(orderNo, statsMap, settlementSettings) {
+            const settings = settlementSettings || getOrderSettlementSettings();
+            const rows = getOrderSummaryRows().filter(row => row.orderNumber === orderNo);
+            if (rows.length) {
+                let total = 0;
+                rows.forEach(row => {
+                    const s = getProductSettlementSettings(settings, orderNo, row.productName, row.isPrimary);
+                    total += calcOrderSettlementAmount(
+                        parseQuantity(row.goodTotal),
+                        parseQuantity(row.scrapTotal),
+                        parseQuantity(s.settlementPrice),
+                        parseQuantity(s.scrapPrice),
+                        parseQuantity(s.extraDeduction)
+                    );
+                });
+                return total;
+            }
+            // 没有收发货流水时退回订单级旧口径
             const stats = (statsMap || getDeliveryOrderStats()).get(orderNo);
             if (!stats) return 0;
-            const settings = settlementSettings || getOrderSettlementSettings();
             const s = settings[orderNo] || {};
             return calcOrderSettlementAmount(stats.goodTotal, stats.scrapTotal, parseQuantity(s.settlementPrice), parseQuantity(s.scrapPrice), parseQuantity(s.extraDeduction));
         }
@@ -9190,7 +9294,7 @@
             const headers = [
                 '类型', '收发日期', '客户', '订单号', '订单数量', '产品名称',
                 '图纸号', '蝴蝶结', '电镀厂',
-                '毛坯数量', '良品数量', '差额', '电镀成品数', '返镀数量', '毛坯返修', '报废数量', '备注'
+                '毛坯数量', '良品数量(订单累计)', '差额(报废+滞留)', '电镀成品数(含返镀)', '返镀数量', '净成品(成品−返镀)', '毛坯返修', '报废数量', '备注'
             ];
             
             const selectedRows = document.querySelectorAll('#deliveriesTableBody .table-row input[type="checkbox"]:checked');
@@ -9200,7 +9304,7 @@
             
             const rowsToExport = [];
             const totals = new Array(headers.length).fill(0);
-            const numberIndexes = [4, 9, 10, 12, 13, 14, 15]; // 订单数量、毛坯、良品、成品、返镀、返修、报废
+            const numberIndexes = [4, 9, 10, 12, 13, 14, 15, 16]; // 订单数量、毛坯、良品、成品、返镀、净成品、返修、报废
             
             rows.forEach(row => {
                 const cells = row.querySelectorAll('.table-cell:not(:first-child):not(:last-child)');
@@ -9216,20 +9320,22 @@
             });
             
             // 良品合计 = 成品合计 - 返镀合计 - 报废合计（返镀件重镀后成品会被重复累计，需扣除返镀）
-            totals[10] = totals[12] - totals[13] - totals[15];
+            totals[10] = totals[12] - totals[13] - totals[16];
+            // 净成品合计 = 成品合计 - 返镀合计
+            totals[14] = totals[12] - totals[13];
             
             // 合计行（订单数量与差额不跨行求和）
             const totalRow = new Array(headers.length).fill('');
             totalRow[4] = '合计';
-            [9, 10, 12, 13, 14, 15].forEach(index => {
+            [9, 10, 12, 13, 14, 15, 16].forEach(index => {
                 totalRow[index] = totals[index];
             });
             rowsToExport.push(totalRow);
             
             const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rowsToExport]);
             
-            // 设置数量列的数字格式（订单数量、毛坯、良品、成品、返镀、返修、报废）
-            ['E', 'J', 'K', 'M', 'N', 'O', 'P'].forEach(col => {
+            // 设置数量列的数字格式（订单数量、毛坯、良品、成品、返镀、净成品、返修、报废）
+            ['E', 'J', 'K', 'M', 'N', 'O', 'P', 'Q'].forEach(col => {
                 for (let row = 2; row <= rowsToExport.length + 1; row++) {
                     const cellAddress = `${col}${row}`;
                     if (worksheet[cellAddress] && typeof worksheet[cellAddress].v === 'number') {
