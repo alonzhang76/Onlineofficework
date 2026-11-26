@@ -319,6 +319,26 @@
             .table-row {
                 @apply hover:bg-gray-50;
             }
+            /* 订单汇总：已完成订单绿色底 + 绿色状态徽标 */
+            .table-row.summary-done {
+                background-color: #f0fdf4;
+            }
+            .table-row.summary-done:hover {
+                background-color: #dcfce7;
+            }
+            .order-done-badge {
+                display: inline-block;
+                margin-left: 6px;
+                padding: 1px 7px;
+                border-radius: 9999px;
+                background: #16a34a;
+                color: #fff;
+                font-size: 11px;
+                font-weight: 600;
+                line-height: 1.5;
+                vertical-align: middle;
+                white-space: nowrap;
+            }
             .toast {
                 @apply fixed top-4 right-4 px-6 py-3 rounded-md shadow-lg transform transition-all duration-300 translate-x-full opacity-0 z-50;
             }
@@ -843,6 +863,11 @@
                                 <div class="w-full md:w-80">
                                     <input type="text" id="orderSummarySearchInput" placeholder="搜索订单号、客户、产品..." class="form-input">
                                 </div>
+                                <select id="orderSummaryStatusFilter" class="form-input w-40">
+                                    <option value="all">全部状态</option>
+                                    <option value="doing">进行中</option>
+                                    <option value="done">已完成</option>
+                                </select>
                                 <span class="text-sm text-gray-500 order-summary-count" id="orderSummaryCount"></span>
                             </div>
                             <div class="overflow-x-auto">
@@ -3071,6 +3096,7 @@
                         </div>
                         <div id="invoice-order-picker" class="border border-gray-300 rounded-md max-h-44 overflow-y-auto divide-y divide-gray-100 bg-white"></div>
                         <input type="hidden" id="invoice-order-id">
+                        <div id="invoice-amount-check" class="text-xs text-gray-400 mt-1"></div>
                     </div>
                     <div>
                         <label for="invoice-customer" class="block text-sm font-medium text-gray-700 mb-1">客户</label>
@@ -3252,7 +3278,8 @@
                 itemsPerPage: 10,
                 currentPage: 1,
                 totalPages: 1,
-                keyword: ''
+                keyword: '',
+                statusFilter: 'all'
             }
         };
 
@@ -3776,6 +3803,8 @@
                 stats.goodTotal = stats.electroplateTotal - stats.replateTotal - stats.scrapTotal;
                 stats.difference = stats.netRoughTotal - stats.goodTotal;
                 stats.orderQuantity = getOrderQuantityAndPrice(stats.orderNumber, wageOrders, stats.productName).quantity;
+                // 良品数量 ≥ 订单数量 → 该产品行已完成
+                stats.done = stats.orderQuantity > 0 && stats.goodTotal >= stats.orderQuantity - 0.004;
 
                 const lines = getOrderLines(stats.orderNumber, wageOrders);
                 const line = lines.find(item => normalizeOrderProductName(item.productName) === normalizeOrderProductName(stats.productName));
@@ -3898,6 +3927,8 @@
         function getOrderSummaryRows() {
             const rows = Array.from(getDeliveryProductStats().values());
             rows.sort((a, b) => {
+                // 已完成的排到列表下方，进行中始终在上方
+                if (!!a.done !== !!b.done) return a.done ? 1 : -1;
                 const byOrder = String(a.orderNumber).localeCompare(String(b.orderNumber));
                 if (byOrder !== 0) return byOrder;
                 return String(a.suffix).localeCompare(String(b.suffix));
@@ -4049,6 +4080,10 @@
                     row.bow
                 ].join(' ').toLowerCase().includes(keyword));
             }
+            // 1.1 状态过滤：进行中 / 已完成
+            const statusFilter = osConfig.statusFilter || 'all';
+            if (statusFilter === 'done') allRows = allRows.filter(row => row.done);
+            else if (statusFilter === 'doing') allRows = allRows.filter(row => !row.done);
             const rowMap = new Map(allRows.map(row => [row.key, row]));
             const orderNums = allRows.map(row => row.key);
             // 搜索结果中同一订单号的首行承载整单财务信息
@@ -4099,7 +4134,7 @@
                 const amount = calcOrderSettlementAmount(stats.goodTotal, stats.scrapTotal, settlementPrice, scrapPrice, extraDeduction);
 
                 const row = document.createElement('tr');
-                row.className = 'table-row';
+                row.className = 'table-row' + (stats.done ? ' summary-done' : '');
                 row.dataset.orderNumber = orderNumber;
                 row.dataset.productName = stats.productName;
                 row.dataset.settlementKey = getOrderProductSettlementKey(orderNumber, stats.productName);
@@ -4118,8 +4153,21 @@
                 checkboxCell.appendChild(checkbox);
                 row.appendChild(checkboxCell);
 
+                // 订单号列：已完成的订单追加绿色“已完成”徽标
+                const orderNoCell = document.createElement('td');
+                orderNoCell.className = 'table-cell';
+                const orderNoText = document.createElement('span');
+                orderNoText.textContent = stats.displayOrderNumber;
+                orderNoCell.appendChild(orderNoText);
+                if (stats.done) {
+                    const doneBadge = document.createElement('span');
+                    doneBadge.className = 'order-done-badge';
+                    doneBadge.textContent = '已完成';
+                    orderNoCell.appendChild(doneBadge);
+                }
+                row.appendChild(orderNoCell);
+
                 [
-                    stats.displayOrderNumber,
                     stats.customer,
                     stats.productName,
                     stats.drawingNumber,
@@ -6985,6 +7033,16 @@
                 });
             }
 
+            // 订单汇总：状态过滤（全部 / 进行中 / 已完成）
+            const orderSummaryStatusFilter = document.getElementById('orderSummaryStatusFilter');
+            if (orderSummaryStatusFilter) {
+                orderSummaryStatusFilter.addEventListener('change', function() {
+                    tableConfigs.orderSummary.statusFilter = this.value || 'all';
+                    tableConfigs.orderSummary.currentPage = 1;
+                    renderOrderSummary();
+                });
+            }
+
             // 订单汇总：表头全选复选框
             const orderSummarySelectAll = document.getElementById('orderSummarySelectAll');
             if (orderSummarySelectAll) {
@@ -8598,14 +8656,24 @@
             statsMap.forEach((_, no) => orderNos.add(no));
             selected.forEach(no => orderNos.add(no));
 
+            // 仅显示「已完成（良品数量≥订单数量）且尚未开满」的订单；编辑已有发票时保留其已关联订单
             const list = Array.from(orderNos).map(no => {
                 const payable = getOrderPayableAmount(no, statsMap, settings);
                 const invoiced = invoicedMap.get(no) || 0;
-                return { no, customer: getOrderCustomerName(no), payable, invoiced, remain: payable - invoiced };
+                const st = statsMap.get(no) || {};
+                const done = parseQuantity(st.orderQuantity) > 0
+                    && parseQuantity(st.goodTotal) >= parseQuantity(st.orderQuantity) - 0.004;
+                return { no, customer: getOrderCustomerName(no), payable, invoiced, remain: payable - invoiced, done };
+            }).filter(item => {
+                if (selected.has(item.no)) return true;
+                if (!item.done) return false;
+                if (item.payable > 0.004 && item.remain <= 0.004) return false;
+                return true;
             }).sort((a, b) => (b.remain > 0.004 ? 1 : 0) - (a.remain > 0.004 ? 1 : 0));
 
             if (!list.length) {
-                box.innerHTML = '<div class="p-3 text-sm text-gray-400">暂无可开票订单</div>';
+                box.innerHTML = '<div class="p-3 text-sm text-gray-400">暂无已完成且未开票的订单</div>';
+                updateInvoicePrepaidUI();
                 return;
             }
             box.innerHTML = '';
@@ -8630,11 +8698,11 @@
                 left.textContent = item.no + (item.customer ? '（' + item.customer + '）' : '');
                 const right = document.createElement('span');
                 right.className = 'text-xs ' + (disabled ? 'text-gray-400' : 'text-gray-500');
-                right.textContent = disabled
+                right.textContent = (!item.done ? '未完成 · ' : '') + (disabled
                     ? '已开完'
                     : noPrice
                         ? '应开 ¥0.00（未设置结算单价）· 已开 ¥' + formatNumber(item.invoiced, 2)
-                        : '应开 ¥' + formatNumber(item.payable, 2) + '，已开 ¥' + formatNumber(item.invoiced, 2) + '，剩余 ¥' + formatNumber(Math.max(0, item.remain), 2);
+                        : '应开 ¥' + formatNumber(item.payable, 2) + '，已开 ¥' + formatNumber(item.invoiced, 2) + '，剩余 ¥' + formatNumber(Math.max(0, item.remain), 2));
                 text.appendChild(left);
                 text.appendChild(right);
                 label.appendChild(text);
@@ -8652,7 +8720,7 @@
             box.classList.toggle('opacity-50', on);
             box.querySelectorAll('.invoice-order-check').forEach(cb => { cb.disabled = on || cb.dataset.full === '1'; });
             updateDeductionVisibility();
-            if (!on) updateInvoiceAmountSuggestion();
+            updateInvoiceAmountSuggestion();
         }
 
         // 抵扣区显隐：非预开且购方有预开余额时显示
@@ -8673,31 +8741,64 @@
             }
         }
 
-        // 勾选订单后自动合计开票金额 = Σ剩余应开 − 抵扣，并带出客户与电镀厂
+        // 勾选订单后：带出客户/电镀厂、累加所选订单剩余应开，并显示与开票金额的差额
         function updateInvoiceAmountSuggestion() {
             const prepaid = document.getElementById('invoice-prepaid');
-            if (prepaid && prepaid.checked) return;
+            const isPrepaid = !!(prepaid && prepaid.checked);
             const excludeIndex = getInvoiceFormExcludeIndex();
-            const editingRec = excludeIndex !== undefined ? getInvoiceRecords()[excludeIndex] : null;
-            // 已同步到报销系统的发票：手工补关联订单时保持票面金额不变
-            if (editingRec && editingRec.syncedAt === 'cloud') return;
             const invoicedMap = getOrderInvoicedMap(excludeIndex);
             const statsMap = getDeliveryOrderStats();
             const settings = getOrderSettlementSettings();
-            let total = 0, firstOrder = null;
-            getSelectedInvoiceOrders().forEach(no => {
-                if (!firstOrder) firstOrder = no;
+            const selected = isPrepaid ? [] : getSelectedInvoiceOrders();
+            let total = 0;
+            selected.forEach(no => {
                 total += Math.max(0, getOrderPayableAmount(no, statsMap, settings) - (invoicedMap.get(no) || 0));
             });
-            const deduction = parseQuantity(document.getElementById('invoice-deduction').value) || 0;
-            document.getElementById('invoice-amount').value = Math.max(0, total - deduction).toFixed(2);
-            const hidden = document.getElementById('invoice-order-id');
-            if (hidden) hidden.value = firstOrder || '';
-            if (firstOrder) {
-                document.getElementById('invoice-customer').value = getOrderCustomerName(firstOrder);
-                const order = getWageOrderByNo(firstOrder);
+            // 客户 / 电镀厂按第一个勾选订单自动带出
+            if (selected.length) {
+                document.getElementById('invoice-customer').value = getOrderCustomerName(selected[0]);
+                const order = getWageOrderByNo(selected[0]);
                 if (order && order.plating) document.getElementById('invoice-vendor').value = order.plating;
+                const hidden = document.getElementById('invoice-order-id');
+                if (hidden) hidden.value = selected[0];
             }
+            const editingRec = excludeIndex !== undefined ? getInvoiceRecords()[excludeIndex] : null;
+            // 已同步到报销系统的发票：手工补关联订单时保持票面金额不变
+            if (!isPrepaid && !(editingRec && editingRec.syncedAt === 'cloud')) {
+                const deduction = parseQuantity(document.getElementById('invoice-deduction').value) || 0;
+                document.getElementById('invoice-amount').value = Math.max(0, total - deduction).toFixed(2);
+            }
+            updateInvoiceAmountCheck(total);
+        }
+
+        // 订单合计 vs 开票金额：显示已选订单合计、票面金额与差额，便于校对
+        function updateInvoiceAmountCheck(selectedTotal) {
+            const hint = document.getElementById('invoice-amount-check');
+            if (!hint) return;
+            const selected = getSelectedInvoiceOrders();
+            if (!selected.length) {
+                hint.textContent = '';
+                hint.className = 'text-xs text-gray-400 mt-1';
+                return;
+            }
+            let total = selectedTotal;
+            if (total === undefined) {
+                const excludeIndex = getInvoiceFormExcludeIndex();
+                const invoicedMap = getOrderInvoicedMap(excludeIndex);
+                const statsMap = getDeliveryOrderStats();
+                const settings = getOrderSettlementSettings();
+                total = 0;
+                selected.forEach(no => {
+                    total += Math.max(0, getOrderPayableAmount(no, statsMap, settings) - (invoicedMap.get(no) || 0));
+                });
+            }
+            const amount = parseQuantity(document.getElementById('invoice-amount').value);
+            const diff = amount - total;
+            const ok = Math.abs(diff) < 0.005;
+            hint.className = 'text-xs mt-1 ' + (ok ? 'text-green-600' : 'text-amber-600');
+            hint.textContent = '已选 ' + selected.length + ' 单 · 应开合计 ¥' + formatNumber(total, 2)
+                + ' ｜ 开票金额 ¥' + formatNumber(amount, 2)
+                + ' ｜ 差额 ¥' + formatNumber(diff, 2) + (ok ? '（一致）' : '');
         }
 
         // 填充付款模态框的订单号（同一订单允许多次付款）
@@ -8747,6 +8848,11 @@
             if (invoiceDeductionInput) {
                 invoiceDeductionInput.addEventListener('input', updateInvoiceAmountSuggestion);
             }
+            // 手工修改开票金额时，同步刷新「订单合计 / 差额」校对行
+            const invoiceAmountInput = document.getElementById('invoice-amount');
+            if (invoiceAmountInput) {
+                invoiceAmountInput.addEventListener('input', function() { updateInvoiceAmountCheck(); });
+            }
             
             // 关闭发票模态框
             function closeInvoiceModal() {
@@ -8754,6 +8860,8 @@
                 invoiceForm.reset();
                 // 移除编辑索引
                 delete invoiceForm.dataset.editIndex;
+                const amountCheck = document.getElementById('invoice-amount-check');
+                if (amountCheck) { amountCheck.textContent = ''; amountCheck.className = 'text-xs text-gray-400 mt-1'; }
                 document.querySelector('#add-invoice-modal h3').textContent = '编辑发票';
                 document.body.style.overflow = 'auto';
             }
