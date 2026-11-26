@@ -5179,7 +5179,8 @@
                     } else if (tableName === 'invoices' || tableName === 'payments') {
                         // 开票 / 付款记录表格：操作列动态生成编辑、删除按钮
                         if (index === cells.length - 1) {
-                            formattedCell = '<button class="text-gray-500 hover:text-gray-700 mr-3 edit-button" data-row-index="' + originalIndex + '"><i class="fa fa-edit"></i></button>'
+                            const editTitle = tableName === 'invoices' ? ' title="编辑 / 关联订单"' : '';
+                            formattedCell = '<button class="text-gray-500 hover:text-gray-700 mr-3 edit-button"' + editTitle + ' data-row-index="' + originalIndex + '"><i class="fa fa-edit"></i></button>'
                                 + '<button class="text-danger hover:text-danger/80 delete-button" data-row-index="' + originalIndex + '"><i class="fa fa-trash"></i></button>';
                         }
                         rowHTML += `<td class="table-cell">${formattedCell}</td>`;
@@ -7086,13 +7087,16 @@
             if (!p) throw new Error('请从 wage 主应用内打开电镀管理');
             const token = await p.CloudbaseGetAccessToken();
             if (!token) throw new Error('登录态未就绪');
+            // app_data_store 的行结构为 { id, data }，id 即 store_key；
+            // 不能按 data->>store_key 过滤或按 updated_at 排序（列不存在，会返回 HTTP 400）
             const url = 'https://' + p.CLOUDBASE_ENV + '.api.tcloudbasegateway.com/v1/rdb/rest/app_data_store'
-                + '?select=id,data&data->>store_key=eq.' + encodeURIComponent(key)
-                + '&order=updated_at.desc&limit=1';
+                + '?select=id,data&id=eq.' + encodeURIComponent(key);
             const resp = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
             if (!resp.ok) throw new Error('云端读取失败 HTTP ' + resp.status);
             const rows = await resp.json();
-            const payload = rows[0] && rows[0].data ? rows[0].data.payload : null;
+            const d = (rows[0] && rows[0].data) || {};
+            // 标准形态 { store_key, payload, updated_at }；兼容旧报销系统 { id, data: [...] }
+            const payload = d.payload !== undefined ? d.payload : d.data;
             if (Array.isArray(payload)) return payload;
             if (typeof payload === 'string') {
                 try { const parsed = JSON.parse(payload); return Array.isArray(parsed) ? parsed : []; } catch (e) { return []; }
@@ -7155,6 +7159,10 @@
                 throw new Error('发票号 ' + record.number + ' 已提交报销系统，请勿重复录入');
             }
             const cloudId = existing ? existing.id : Date.now();
+            const projectText = (record.orderIds && record.orderIds.length)
+                ? record.orderIds.join('，')
+                : (record.orderId || (record.prepaid ? '预开发票' : null));
+            const keepApproved = !!existing && (existing.status === '已通过' || existing.status === '已入账');
             const item = {
                 id: cloudId,
                 invoice_no: record.number,
@@ -7170,12 +7178,13 @@
                 total_amount: Number(record.amount) || 0,
                 subject_code: null,
                 subject_name: '电镀加工费',
-                claimant: '电镀管理',
+                claimant: (existing && existing.claimant) || '电镀管理',
                 department: '电镀',
-                project: record.orderId || (record.prepaid ? '预开发票' : null),
+                project: projectText,
                 remark: record.remarks || null,
                 check_code: null,
-                status: '待审核',
+                // 已审核/已入账的发票（如仅补关联订单）保持原状态，避免重新走审批
+                status: keepApproved ? existing.status : '待审核',
                 user_id: null,
                 company_id: match.company_id,
                 direction: match.direction,
@@ -7305,7 +7314,12 @@
                     reimCloudGet(REIM_KEYS.invoices), reimCloudGet(REIM_KEYS.payments), reimCloudGet(REIM_KEYS.companies)
                 ]);
                 reimFillBuyers(companies);
-                const platingVendors = Array.from(new Set(getWageOrderList().map(o => (o.plating || '').trim()).filter(Boolean)));
+                // 电镀厂名单：工资订单里的电镀厂 + 收发货记录登记的电镀厂（与小程序端判定一致）
+                const deliveryVendors = ((tableConfigs.deliveries && tableConfigs.deliveries.originalData) || [])
+                    .map(r => String(((r && r.cells) || [])[13] || '').trim());
+                const platingVendors = Array.from(new Set(
+                    getWageOrderList().map(o => String(o.plating || '').trim()).concat(deliveryVendors)
+                )).filter(v => v && v !== '无' && v !== '不电镀' && v !== '否' && v.length >= 3);
                 const isPlatingVendor = name => {
                     const n = String(name || '').trim();
                     return n && platingVendors.some(v => n === v || n.indexOf(v) >= 0 || v.indexOf(n) >= 0);
@@ -7317,13 +7331,19 @@
                 const localPayments = getPaymentRecords();
 
                 cloudInvoices.forEach(c => {
+                    // 电镀侧 project 存的是订单号（多订单以「，」分隔），拆成 orderIds 便于逐单分摊
+                    const projText = String(c.project || '').trim();
+                    const projOrders = projText
+                        ? projText.split(/[，,、;；\s]+/).map(s => s.trim()).filter(Boolean)
+                        : [];
                     const mapped = {
-                        orderId: c.project || '', date: c.invoice_date || '', number: c.invoice_no || '',
+                        orderId: projOrders[0] || '', date: c.invoice_date || '', number: c.invoice_no || '',
                         amount: Number(c.total_amount || c.amount || 0), remarks: c.remark || '',
                         vendor: c.seller_name || '', buyer: c.buyer_name || '',
                         invoiceType: c.invoice_type || '', cloudId: c.id, cloudStatus: c.status || '',
                         syncedAt: 'cloud'
                     };
+                    if (projOrders.length) mapped.orderIds = projOrders;
                     const idx = localInvoices.findIndex(r => (r.cloudId && String(r.cloudId) === String(c.id))
                         || (r.number && r.number === mapped.number));
                     if (idx >= 0) localInvoices[idx] = Object.assign({}, localInvoices[idx], mapped);
@@ -8658,6 +8678,9 @@
             const prepaid = document.getElementById('invoice-prepaid');
             if (prepaid && prepaid.checked) return;
             const excludeIndex = getInvoiceFormExcludeIndex();
+            const editingRec = excludeIndex !== undefined ? getInvoiceRecords()[excludeIndex] : null;
+            // 已同步到报销系统的发票：手工补关联订单时保持票面金额不变
+            if (editingRec && editingRec.syncedAt === 'cloud') return;
             const invoicedMap = getOrderInvoicedMap(excludeIndex);
             const statsMap = getDeliveryOrderStats();
             const settings = getOrderSettlementSettings();
@@ -9455,6 +9478,14 @@
             setTimeout(function() { reimRefreshRecords(true); }, 1200);
             const invoicesTab = document.querySelector('.sidebar-link[data-target="invoices"]');
             if (invoicesTab) invoicesTab.addEventListener('click', function() { setTimeout(function() { reimRefreshRecords(true); }, 100); });
+
+            // 云端同步（含小程序导入的 dyf_invoices）发生变化时，自动刷新开票/付款视图
+            window.addEventListener('cloud-data-updated', function(e) {
+                const keys = (e && e.detail && e.detail.keys) || [];
+                if (!keys.length || keys.indexOf('dyf_invoices') >= 0 || keys.indexOf('dyf_payments') >= 0) {
+                    if (typeof refreshInvoicePaymentViews === 'function') refreshInvoicePaymentViews();
+                }
+            });
         });
     </script>
 

@@ -363,8 +363,11 @@ async function pushAll(alsoDelete, onProgress) {
        其中存的可能是云端回写的旧值。2026-10-16 事故：B 电脑保存 18 标注新版时
        _localSet quota 失败，pushAll 误把 localStorage 里的 A22227 空占位推上云端。 */
     if (_cache[key] !== undefined) {
-      keysToUpload.push({ key: key, value: _cache[key] });
-      seenKeys[key] = true;
+      // 空数组不上传（除非是明确的“清空”操作）：避免本机空台账覆盖其他端刚导入的数据
+      if (!(Array.isArray(_cache[key]) && _cache[key].length === 0 && !getClearFlag(key))) {
+        keysToUpload.push({ key: key, value: _cache[key] });
+        seenKeys[key] = true;
+      }
       continue;
     }
     var raw = null;
@@ -372,6 +375,7 @@ async function pushAll(alsoDelete, onProgress) {
     if (raw === null || raw === undefined || raw === '') continue;
     var value;
     try { value = JSON.parse(raw); } catch (e) { value = raw; }
+    if (Array.isArray(value) && value.length === 0 && !getClearFlag(key)) continue;
     keysToUpload.push({ key: key, value: value });
     seenKeys[key] = true;
   }
