@@ -35,11 +35,29 @@ function waitForSupabase(timeout) {
  *   物理行 { id: store_key, data: { store_key, payload, updated_at } }
  * 兼容层 _expand 会把 data 内字段展平到行上 → 读取时取 row.payload。
  * 历史形态（旧版 store.js upsert {id, data:数组}）展平后是 row.data，做兜底兼容。 */
+/**
+ * 同一 id 可能存在历史重复行（旧版 upsert 缺陷遗留），Postgres 默认按物理顺序返回，
+ * r.data[0] 往往是最旧的一行。必须取 updated_at 最新行，否则电脑端会读到旧台账、
+ * 漏掉手机端新导入的发票（与小程序端 pickNewestRow 保持一致）。
+ */
+function pickNewestRow(rows) {
+  if (!Array.isArray(rows) || !rows.length) return null;
+  var best = rows[0], bestMs = -Infinity;
+  for (var i = 0; i < rows.length; i++) {
+    var raw = rows[i] || {};
+    var d = (raw.data && typeof raw.data === 'object' && !Array.isArray(raw.data)) ? raw.data : {};
+    var ms = Date.parse(raw.updated_at || d.updated_at || '');
+    var score = isNaN(ms) ? -1 : ms;
+    if (score > bestMs) { bestMs = score; best = raw; }
+  }
+  return best;
+}
+
 async function storeGet(key) {
   var sb = await waitForSupabase();
   var r = await sb.from('app_data_store').select('*').eq('id', key);
   if (r.error) throw r.error;
-  var row = (r.data && r.data[0]) || null;
+  var row = pickNewestRow(r.data);
   if (!row) return null;
   if (row.payload !== undefined && row.payload !== null) return row.payload;
   return (row.data !== undefined && row.data !== null) ? row.data : null;

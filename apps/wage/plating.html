@@ -7152,7 +7152,14 @@
             const resp = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
             if (!resp.ok) throw new Error('云端读取失败 HTTP ' + resp.status);
             const rows = await resp.json();
-            const d = (rows[0] && rows[0].data) || {};
+            // 同一 id 可能有历史重复行：取 updated_at 最新的一行，避免读到旧台账漏掉新发票
+            let bestRow = null, bestMs = -Infinity;
+            (Array.isArray(rows) ? rows : []).forEach(rr => {
+                const dd = (rr && rr.data && typeof rr.data === 'object') ? rr.data : {};
+                const ms = Date.parse(dd.updated_at || '') || -1;
+                if (ms > bestMs) { bestMs = ms; bestRow = rr; }
+            });
+            const d = (bestRow && bestRow.data) || {};
             // 标准形态 { store_key, payload, updated_at }；兼容旧报销系统 { id, data: [...] }
             const payload = d.payload !== undefined ? d.payload : d.data;
             if (Array.isArray(payload)) return payload;
