@@ -3532,6 +3532,48 @@
             });
         }
 
+        // 旧数据修复：发票缺失 allocations（例如从报销系统回流的记录）时，
+        // 按各关联订单的应开金额比例推导分摊，避免订单汇总里相关订单全部显示“未开票”
+        function deriveInvoiceAllocations(record, statsMap, settings) {
+            if (!record || record.prepaid) return null;
+            const nos = (record.orderIds && record.orderIds.length)
+                ? record.orderIds.filter(Boolean)
+                : (record.orderId ? [record.orderId] : []);
+            if (!nos.length) return null;
+            const total = (parseQuantity(record.amount) || 0) + (parseQuantity(record.deduction) || 0);
+            const allocs = {};
+            if (nos.length === 1) {
+                allocs[nos[0]] = Math.round(total * 100) / 100;
+                return allocs;
+            }
+            const sm = statsMap || getDeliveryOrderStats();
+            const st = settings || getOrderSettlementSettings();
+            const weights = nos.map(no => Math.max(0, getOrderPayableAmount(no, sm, st)));
+            const weightSum = weights.reduce((a, b) => a + b, 0);
+            let left = total;
+            nos.forEach((no, i) => {
+                let share;
+                if (weightSum > 0.004 && weights[i] > 0.004) {
+                    share = Math.min(weights[i], left);
+                } else {
+                    share = Math.min(total / nos.length, left);
+                }
+                share = Math.max(0, Math.round(share * 100) / 100);
+                allocs[no] = share;
+                left -= share;
+            });
+            return allocs;
+        }
+
+        function getEffectiveInvoiceAllocations(record, statsMap, settings) {
+            const cur = record && record.allocations;
+            if (cur && typeof cur === 'object'
+                && Object.keys(cur).some(k => (parseQuantity(cur[k]) || 0) > 0.004)) {
+                return cur;
+            }
+            return deriveInvoiceAllocations(record, statsMap, settings);
+        }
+
         // 按订单号汇总开票金额与已付金额
         function getInvoicePaymentOrderStats() {
             const statsMap = new Map();
@@ -3539,12 +3581,16 @@
                 if (!statsMap.has(orderId)) statsMap.set(orderId, { invoiced: 0, paid: 0 });
                 return statsMap.get(orderId);
             }
-            getInvoiceRecords().forEach(record => {
+            const records = getInvoiceRecords();
+            const orderStats = getDeliveryOrderStats();
+            const settlementSettings = getOrderSettlementSettings();
+            records.forEach(record => {
                 if (record.prepaid) return; // 预开发票不计入订单已开票
-                if (record.allocations && typeof record.allocations === 'object') {
-                    Object.keys(record.allocations).forEach(orderNo => {
+                const allocs = getEffectiveInvoiceAllocations(record, orderStats, settlementSettings);
+                if (allocs) {
+                    Object.keys(allocs).forEach(orderNo => {
                         const key = (orderNo || '').trim();
-                        if (key) ensure(key).invoiced += parseQuantity(record.allocations[orderNo]) || 0;
+                        if (key) ensure(key).invoiced += parseQuantity(allocs[orderNo]) || 0;
                     });
                 } else {
                     const orderId = (record.orderId || '').trim();
@@ -7476,6 +7522,21 @@
                     else localPayments.push(mapped);
                 });
 
+                // 旧数据修复：从报销系统回流的发票只有订单号、没有分摊明细，
+                // 按各订单应开金额比例补一份分摊并持久化，否则订单汇总会全部显示“未开票”
+                const repairStats = getDeliveryOrderStats();
+                const repairSettings = getOrderSettlementSettings();
+                localInvoices.forEach(r => {
+                    if (!r || r.prepaid) return;
+                    const cur = r.allocations;
+                    const hasAlloc = cur && typeof cur === 'object'
+                        && Object.keys(cur).some(k => (parseQuantity(cur[k]) || 0) > 0.004);
+                    if (hasAlloc) return;
+                    const nos = (r.orderIds && r.orderIds.length) ? r.orderIds : (r.orderId ? [r.orderId] : []);
+                    if (nos.length < 2) return; // 单订单无需分摊
+                    r.allocations = deriveInvoiceAllocations(r, repairStats, repairSettings);
+                });
+
                 saveInvoiceRecords(localInvoices);
                 savePaymentRecords(localPayments);
                 syncInvoiceTableData();
@@ -7483,6 +7544,7 @@
                 renderTable('invoices');
                 renderTable('payments');
                 if (typeof renderInvoicePaymentStats === 'function') renderInvoicePaymentStats();
+                renderOrderSummary();
                 const pending = localInvoices.filter(r => r.syncedAt !== 'cloud').length
                     + localPayments.filter(r => r.syncedAt !== 'cloud').length;
                 setReimStatus('已连接 · 发票 ' + cloudInvoices.length + ' / 付款 ' + cloudPayments.length + ' · 待同步 ' + pending, true);
@@ -8619,12 +8681,16 @@
         // 每个订单已开票金额（含抵扣分摊；excludeIndex 用于编辑时排除自身）
         function getOrderInvoicedMap(excludeIndex) {
             const map = new Map();
-            getInvoiceRecords().forEach((r, idx) => {
+            const records = getInvoiceRecords();
+            const orderStats = getDeliveryOrderStats();
+            const settlementSettings = getOrderSettlementSettings();
+            records.forEach((r, idx) => {
                 if (excludeIndex !== undefined && idx === excludeIndex) return;
                 if (r.prepaid) return;
-                if (r.allocations && typeof r.allocations === 'object') {
-                    Object.keys(r.allocations).forEach(o => {
-                        map.set(o, (map.get(o) || 0) + (parseQuantity(r.allocations[o]) || 0));
+                const allocs = getEffectiveInvoiceAllocations(r, orderStats, settlementSettings);
+                if (allocs) {
+                    Object.keys(allocs).forEach(o => {
+                        map.set(o, (map.get(o) || 0) + (parseQuantity(allocs[o]) || 0));
                     });
                 } else if (r.orderId) {
                     map.set(r.orderId, (map.get(r.orderId) || 0) + (r.amount || 0) + (r.deduction || 0));
@@ -8671,6 +8737,15 @@
             const statsMap = getDeliveryOrderStats();
             const settings = getOrderSettlementSettings();
 
+            // 「已完成」口径与订单汇总一致：只看有收发货记录的产品行，全部完成才算整单完成。
+            // 不能用整单汇总比较（工资订单里未发货的产品行会把订单数量抬高，导致明明可开票的订单被过滤）
+            const doneByOrder = new Map();
+            getDeliveryProductStats().forEach(st => {
+                const no = st.orderNumber;
+                const prev = doneByOrder.has(no) ? doneByOrder.get(no) : true;
+                doneByOrder.set(no, prev && !!st.done);
+            });
+
             const orderNos = new Set();
             statsMap.forEach((_, no) => orderNos.add(no));
             selected.forEach(no => orderNos.add(no));
@@ -8679,9 +8754,7 @@
             const list = Array.from(orderNos).map(no => {
                 const payable = getOrderPayableAmount(no, statsMap, settings);
                 const invoiced = invoicedMap.get(no) || 0;
-                const st = statsMap.get(no) || {};
-                const done = parseQuantity(st.orderQuantity) > 0
-                    && parseQuantity(st.goodTotal) >= parseQuantity(st.orderQuantity) - 0.004;
+                const done = doneByOrder.get(no) === true;
                 return { no, customer: getOrderCustomerName(no), payable, invoiced, remain: payable - invoiced, done };
             }).filter(item => {
                 if (selected.has(item.no)) return true;

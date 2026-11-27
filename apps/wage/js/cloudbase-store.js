@@ -35,6 +35,20 @@ function normalizePayload(payload) {
   return payload;
 }
 
+// 云端为空数组而本地有数据时保留本地：防止云端空台账把真实数据（如 dyf_invoices 发票）覆盖掉
+function _isNonEmptyLocal(key) {
+  var c = _cache[key];
+  if (Array.isArray(c) && c.length > 0) return true;
+  try {
+    var raw = localStorage.getItem(key);
+    if (raw) {
+      var p = JSON.parse(raw);
+      if (Array.isArray(p) && p.length > 0) return true;
+    }
+  } catch (e) {}
+  return false;
+}
+
 // 上传状态通知：转发到 window.CloudSyncStatus 指示灯
 function notifyStatus(state) {
   try {
@@ -206,6 +220,16 @@ var CloudbaseStore = {
                 if (!isNaN(lt0) && !isNaN(ct0) && ct0 <= lt0) return;
               }
               var pv = normalizePayload(row.payload);
+              if (Array.isArray(pv) && pv.length === 0 && _isNonEmptyLocal(row.store_key)) {
+                // 云端是空数组但本地有数据：保留本地，并把本地内容标记为最新，避免后续刷新再次被覆盖
+                console.warn('[CloudbaseStore] 云端 ' + row.store_key + ' 为空，本地有数据，已保留本地');
+                try {
+                  var lraw = localStorage.getItem(row.store_key);
+                  if (lraw) _cache[row.store_key] = JSON.parse(lraw);
+                } catch (e) {}
+                _cacheTimestamps[row.store_key] = new Date().toISOString();
+                return;
+              }
               _cache[row.store_key] = pv;
               _cacheTimestamps[row.store_key] = row.updated_at || '';
               // 持久化到 localStorage，保证刷新后还能看到
@@ -508,6 +532,10 @@ async function refreshFromCloud() {
       }
 
       var newVal = normalizePayload(row.payload);
+      if (Array.isArray(newVal) && newVal.length === 0 && _isNonEmptyLocal(key)) {
+        console.warn('[CloudbaseStore] 云端 ' + key + ' 为空，本地有数据，已跳过本次覆盖');
+        return;
+      }
       var oldVal = _cache[key];
       var isChanged = false;
       if (oldVal === undefined) {
