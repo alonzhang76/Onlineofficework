@@ -7196,6 +7196,13 @@
                     if (Array.isArray(list) && list.length) return list;
                 }
             } catch (e) { /* 非同源或父页面未就绪时忽略 */ }
+            // 独立打开（含 ?view=readonly 只读访客链接）时没有父页面：
+            // 直接读 CloudBase 同步到本地的 wage_orders，否则订单数量取不到、
+            // 订单汇总的“已完成”状态与绿色行背景都会失效
+            try {
+                const cached = JSON.parse(localStorage.getItem('wage_orders') || '[]');
+                if (Array.isArray(cached) && cached.length) return cached;
+            } catch (e) { /* 缓存缺失或损坏时继续走本地订单表兜底 */ }
             const orders = (typeof tableConfigs !== 'undefined' && tableConfigs.orders && tableConfigs.orders.originalData) || [];
             return orders.map(item => {
                 const c = item.cells || [];
@@ -9725,7 +9732,23 @@
                 if (!keys.length || keys.indexOf('dyf_invoices') >= 0 || keys.indexOf('dyf_payments') >= 0) {
                     if (typeof refreshInvoicePaymentViews === 'function') refreshInvoicePaymentViews();
                 }
+                // 订单/收发货/结算数据云端就绪后重算订单汇总：
+                // 独立打开的只读页首次渲染时 wage_orders 可能尚未拉取，完成状态和绿色行需在这里补上
+                if (!keys.length || ['wage_orders', 'deliveriesData', 'orderSettlementData', 'ordersData'].some(k => keys.indexOf(k) >= 0)) {
+                    if (typeof renderOrderSummary === 'function') renderOrderSummary();
+                }
             });
+
+            // 独立打开（含只读访客链接）时，wage_orders 在 CloudBase 初始化阶段写入本地，
+            // 而初始化不会派发 cloud-data-updated 事件；这里补几次延时重算，
+            // 确保订单汇总的“已完成”徽标和绿色行背景在数据就绪后正常显示
+            let standalone = true;
+            try { standalone = !(window.parent && typeof window.parent.wageGetOrders === 'function'); } catch (e) {}
+            if (standalone) {
+                [800, 2000, 5000].forEach(function (ms) {
+                    setTimeout(function () { if (typeof renderOrderSummary === 'function') renderOrderSummary(); }, ms);
+                });
+            }
         });
     </script>
 
