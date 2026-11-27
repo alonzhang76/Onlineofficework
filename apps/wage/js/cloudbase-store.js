@@ -341,6 +341,10 @@ var CloudbaseStore = {
 
 /** 实际执行单次 upsert（供 pushAll 调用） */
 async function _doUpload(key, value) {
+  if (window.__PLATING_GUEST__) {
+    console.warn('[CloudbaseStore] 只读访客模式，已阻止云端写入:', key);
+    return false;
+  }
   var sb = getClient();
   if (!sb || !sb.from) return false;
 
@@ -373,6 +377,10 @@ async function _doUpload(key, value) {
 // 手动上传所有本地数据到云端
 // onProgress 可选：onProgress({phase:'start'|'progress'|'cleanup'|'reauth', current, total, key, ok})
 async function pushAll(alsoDelete, onProgress) {
+  if (window.__PLATING_GUEST__) {
+    console.warn('[CloudbaseStore] 只读访客模式，已阻止上传云端');
+    return;
+  }
   var sb = getClient();
   if (!sb || !sb.from) return { ok: false, msg: '同步层未就绪' };
   function emit(p) { if (typeof onProgress === 'function') { try { onProgress(p); } catch (e) {} } }

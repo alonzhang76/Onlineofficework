@@ -4,6 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>电镀管理</title>
+    <!-- 只读访客模式：链接加 ?view=readonly 进入，需输入统一访问口令，仅供查看/搜索 -->
+    <script>
+        (function () {
+            try {
+                if (new URLSearchParams(location.search).get('view') !== 'readonly') return;
+                window.__PLATING_GUEST__ = true; // 只读：禁止一切云端写入（cloudbase-store 会检查此标记）
+                // 口令的 SHA-256（不存明文）。默认口令 Lori2026；要改口令，只需替换为新口令的 SHA-256
+                window.__PLATING_GUEST_HASH__ = '84ff7c93e23bcc963bd8829358a0db330a088b0089768de025362d19b4f78ccc';
+            } catch (e) {}
+        })();
+    </script>
     <!-- Tailwind CSS v3 -->
     <script>
         // 在加载Tailwind之前先重写控制台警告
@@ -444,6 +455,35 @@
         .plating-tabs .sidebar-link.sidebar-active i { color: #2563eb !important; }
         .page-content { padding: 20px !important; }
         .page-content h2 { font-size: 20px !important; }
+    </style>
+    <!-- 只读访客模式：隐藏编辑类控件、弹窗只读 -->
+    <style>
+        /* 隐藏新增/编辑/删除/上传/导入按钮（:has 同时覆盖动态渲染的行内按钮） */
+        body.guest-readonly button:has(i.fa-plus),
+        body.guest-readonly button:has(i.fa-edit),
+        body.guest-readonly button:has(i.fa-pencil),
+        body.guest-readonly button:has(i.fa-trash),
+        body.guest-readonly button:has(i.fa-cloud-upload),
+        body.guest-readonly button:has(i.fa-upload),
+        body.guest-readonly #deliveries-export-btn,
+        body.guest-readonly #generateOrderStatementBtn,
+        body.guest-readonly #reim-sync-all-btn,
+        body.guest-readonly #ordersDeleteAll,
+        body.guest-readonly #deleteAllShipmentsBtn,
+        body.guest-readonly #delete-all-customers { display: none !important; }
+        /* 所有弹窗只读，且隐藏保存按钮 */
+        body.guest-readonly [id$="-modal"] input,
+        body.guest-readonly [id$="-modal"] select,
+        body.guest-readonly [id$="-modal"] textarea { pointer-events: none; background: #f9fafb; }
+        body.guest-readonly [id$="-modal"] button[type="submit"] { display: none !important; }
+        /* 口令门 */
+        #guest-gate { position: fixed; inset: 0; z-index: 99999; background: #f3f4f6; display: flex; align-items: center; justify-content: center; padding: 16px; }
+        #guest-gate .gate-card { background: #fff; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.12); padding: 28px; width: 100%; max-width: 360px; }
+        #guest-gate input { width: 100%; border: 1px solid #d1d5db; border-radius: 8px; padding: 10px 12px; font-size: 15px; outline: none; }
+        #guest-gate input:focus { border-color: #2563eb; }
+        #guest-gate button { width: 100%; margin-top: 12px; background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 11px; font-size: 15px; cursor: pointer; }
+        #guest-gate .gate-err { color: #dc2626; font-size: 13px; margin-top: 10px; min-height: 18px; }
+        .guest-badge { position: fixed; right: 12px; bottom: 12px; z-index: 70; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; border-radius: 999px; padding: 6px 14px; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
     </style>
 </head>
 <body class="bg-gray-100 font-sans">
@@ -9691,6 +9731,97 @@
 
 
 
+    <!-- 只读访客模式：口令门 + 操作锁定（仅在 ?view=readonly 时生效） -->
+    <script>
+    (function () {
+        if (!window.__PLATING_GUEST__) return;
+
+        function showGuestToast(msg) {
+            var t = document.createElement('div');
+            t.style.cssText = 'position:fixed;left:50%;top:18%;transform:translateX(-50%);background:rgba(17,24,39,.9);color:#fff;padding:10px 18px;border-radius:8px;font-size:14px;z-index:100000';
+            t.textContent = msg;
+            document.body.appendChild(t);
+            setTimeout(function () { t.remove(); }, 1800);
+        }
+
+        // 只读锁定：角标 + 点击/提交兜底拦截（即使按钮未被 CSS 隐藏也不会生效）
+        function lockdown() {
+            document.body.classList.add('guest-readonly');
+            if (!document.querySelector('.guest-badge')) {
+                var badge = document.createElement('div');
+                badge.className = 'guest-badge';
+                badge.innerHTML = '<i class="fa fa-eye"></i> 只读模式 · 仅供查看与查询';
+                document.body.appendChild(badge);
+            }
+            document.addEventListener('click', function (e) {
+                var el = e.target.closest ? e.target.closest('button, a') : null;
+                if (!el || el.closest('#guest-gate')) return;
+                var inModal = !!el.closest('[id$="-modal"]');
+                var isMutating = (el.type === 'submit' && inModal)
+                    || !!el.querySelector('i.fa-edit, i.fa-pencil, i.fa-trash, i.fa-plus, i.fa-cloud-upload, i.fa-upload')
+                    || /新增|编辑|删除|保存|清空|导入|上传|同步未同步|生成订单对账|生成对账/.test(el.textContent || '');
+                if (isMutating) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    showGuestToast('只读模式，仅支持查看和查询');
+                }
+            }, true);
+            document.addEventListener('submit', function (e) {
+                if (e.target.closest && e.target.closest('[id$="-modal"]')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            }, true);
+        }
+
+        function sha256(text) {
+            if (window.crypto && crypto.subtle && window.isSecureContext) {
+                return crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)).then(function (buf) {
+                    return Array.from(new Uint8Array(buf)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+                });
+            }
+            return Promise.resolve(null); // 非 HTTPS 环境（如本地 file://）退化为明文比对
+        }
+
+        var gate = document.createElement('div');
+        gate.id = 'guest-gate';
+        gate.innerHTML =
+            '<div class="gate-card">' +
+            '  <div style="font-size:18px;font-weight:600;color:#111827">电镀管理 · 数据查询</div>' +
+            '  <div style="font-size:13px;color:#6b7280;margin:6px 0 18px">收发货 / 订单汇总 / 开票付款（只读）</div>' +
+            '  <input id="guest-pass" type="password" placeholder="请输入访问口令" autocomplete="off" />' +
+            '  <button id="guest-unlock" type="button">进入查看</button>' +
+            '  <div class="gate-err" id="guest-err"></div>' +
+            '  <div style="font-size:12px;color:#9ca3af;margin-top:6px">口令请联系管理员获取</div>' +
+            '</div>';
+        document.body.appendChild(gate);
+
+        function unlock() {
+            try { sessionStorage.setItem('plating_guest_unlocked', '1'); } catch (e) {}
+            gate.remove();
+            lockdown();
+        }
+
+        var already = false;
+        try { already = sessionStorage.getItem('plating_guest_unlocked') === '1'; } catch (e) {}
+        if (already) { unlock(); return; }
+
+        var input = gate.querySelector('#guest-pass');
+        var errBox = gate.querySelector('#guest-err');
+        function attempt() {
+            var val = (input.value || '').trim();
+            if (!val) { errBox.textContent = '请输入访问口令'; return; }
+            sha256(val).then(function (hash) {
+                var ok = hash ? (hash === window.__PLATING_GUEST_HASH__) : (val === 'Lori2026');
+                if (ok) { unlock(); }
+                else { errBox.textContent = '口令不正确，请重试'; input.select(); }
+            }).catch(function () { errBox.textContent = '校验失败，请重试'; });
+        }
+        gate.querySelector('#guest-unlock').addEventListener('click', attempt);
+        input.addEventListener('keydown', function (e) { if (e.key === 'Enter') attempt(); });
+        setTimeout(function () { input.focus(); }, 50);
+    })();
+    </script>
         </div>
     </div>
 </body>
