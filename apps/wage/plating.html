@@ -3452,6 +3452,16 @@
             return latest.customer || '';
         }
 
+        // 多个订单对应的客户名称（去重后以“、”连接），供编辑发票时展示与核对
+        function getInvoiceCustomerNames(orderNos) {
+            const names = [];
+            (orderNos || []).forEach(no => {
+                const name = getOrderCustomerName(no);
+                if (name && names.indexOf(name) === -1) names.push(name);
+            });
+            return names.join('、');
+        }
+
         function buildInvoiceTableRow(record, sourceIndex) {
             const orderText = record.prepaid
                 ? '预开发票'
@@ -5287,7 +5297,9 @@
                 // 填充表单字段
                 document.getElementById('invoice-prepaid').checked = !!invoice.prepaid;
                 document.getElementById('invoice-deduction').value = invoice.deduction || '';
-                document.getElementById('invoice-customer').value = getOrderCustomerName(invoice.orderId);
+                document.getElementById('invoice-customer').value = getInvoiceCustomerNames(
+                    (invoice.orderIds && invoice.orderIds.length) ? invoice.orderIds : (invoice.orderId ? [invoice.orderId] : [])
+                );
                 document.getElementById('invoice-date').value = invoice.date;
                 document.getElementById('invoice-number').value = invoice.number;
                 document.getElementById('invoice-amount').value = invoice.amount;
@@ -8761,9 +8773,9 @@
             selected.forEach(no => {
                 total += Math.max(0, getOrderPayableAmount(no, statsMap, settings) - (invoicedMap.get(no) || 0));
             });
-            // 客户 / 电镀厂按第一个勾选订单自动带出
+            // 客户：列出所有勾选订单对应的客户（去重），而非只取第一个
             if (selected.length) {
-                document.getElementById('invoice-customer').value = getOrderCustomerName(selected[0]);
+                document.getElementById('invoice-customer').value = getInvoiceCustomerNames(selected);
                 const order = getWageOrderByNo(selected[0]);
                 if (order && order.plating) document.getElementById('invoice-vendor').value = order.plating;
                 const hidden = document.getElementById('invoice-order-id');
