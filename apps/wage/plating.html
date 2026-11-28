@@ -244,7 +244,13 @@
                 if (window.CloudbaseStore && typeof CloudbaseStore.init === 'function') {
                     CloudbaseStore.init()
                         .catch(function() {})
-                        .then(function() { installProxy(); });
+                        .then(function() {
+                            installProxy();
+                            // 云端就绪后重绘主表：首个渲染早于云同步，访客会看到空表
+                            if (typeof window.reloadAllTableData === 'function') {
+                                try { window.reloadAllTableData(); } catch (e) {}
+                            }
+                        });
                 }
             } catch (e) {}
             // 双保险：立即启动安装重试；installProxy 内部会每 300ms 检查一次，直到 CloudbaseStore 就绪
@@ -4762,6 +4768,22 @@
             renderTable('recentOrders');
         }
         
+        // 云端数据就绪后重读并重绘所有表格（不重复绑定事件）。
+        // 首次渲染发生在 CloudBase 初始化之前，只读访客 / 新设备本地缓存为空时会渲染成空表，
+        // 需要等云端拉取完成后再刷一次，否则要手动刷新页面才能看到数据。
+        function reloadAllTableData() {
+            Object.keys(tableConfigs).forEach(function (tableName) {
+                var cfg = tableConfigs[tableName];
+                if (!cfg || !cfg.tableBodyId) return;
+                try { loadTableData(tableName); } catch (e) {}
+                try { renderTable(tableName); } catch (e) {}
+            });
+            try { updateOrderRetainQuantity(); } catch (e) {}
+            try { renderInvoicePaymentStats(); } catch (e) {}
+            try { renderOrderSummary(); } catch (e) {}
+        }
+        window.reloadAllTableData = reloadAllTableData;
+
         // 初始化所有表格功能
         function initializeAllTables() {
             // 为每个表格初始化功能
@@ -9767,7 +9789,13 @@
                 }
                 // 订单/收发货/结算数据云端就绪后重算订单汇总：
                 // 独立打开的只读页首次渲染时 wage_orders 可能尚未拉取，完成状态和绿色行需在这里补上
-                if (!keys.length || ['wage_orders', 'deliveriesData', 'orderSettlementData', 'ordersData'].some(k => keys.indexOf(k) >= 0)) {
+                if (!keys.length || ['wage_orders', 'deliveriesData', 'orderSettlementData', 'ordersData', 'orders', 'dyf_invoices', 'dyf_payments'].some(k => keys.indexOf(k) >= 0)) {
+                    // 正在单元格里编辑时不重绘，避免打断输入
+                    var ae = document.activeElement;
+                    var editing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT');
+                    if (!editing && typeof window.reloadAllTableData === 'function') {
+                        try { window.reloadAllTableData(); } catch (e) {}
+                    }
                     if (typeof renderOrderSummary === 'function') renderOrderSummary();
                 }
             });
@@ -9779,7 +9807,12 @@
             try { standalone = !(window.parent && typeof window.parent.wageGetOrders === 'function'); } catch (e) {}
             if (standalone) {
                 [800, 2000, 5000].forEach(function (ms) {
-                    setTimeout(function () { if (typeof renderOrderSummary === 'function') renderOrderSummary(); }, ms);
+                    setTimeout(function () {
+                        if (typeof window.reloadAllTableData === 'function') {
+                            try { window.reloadAllTableData(); } catch (e) {}
+                        }
+                        if (typeof renderOrderSummary === 'function') renderOrderSummary();
+                    }, ms);
                 });
             }
         });
