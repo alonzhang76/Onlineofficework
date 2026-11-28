@@ -87,15 +87,48 @@
             ]);
         }
 
+        // 数组型台账去重合并：本地上传值在前，云端已有记录追加在后，按 JSON 签名判重。
+        // 避免本机内存里的旧快照覆盖其它端（如小程序）刚新增的记录。
+        function _unionArrayRecords(localArr, cloudArr) {
+            var out = [], seen = {};
+            function add(item) {
+                if (item === null || item === undefined) return;
+                var sig;
+                try { sig = JSON.stringify(item); } catch (e) { sig = String(item); }
+                if (seen[sig]) return;
+                seen[sig] = true;
+                out.push(item);
+            }
+            (Array.isArray(localArr) ? localArr : []).forEach(add);
+            (Array.isArray(cloudArr) ? cloudArr : []).forEach(add);
+            return out;
+        }
+
         async function uploadKeyToCloud(key, value) {
             if (typeof window.CloudbaseWhenReady === 'function') {
                 await withTimeout(window.CloudbaseWhenReady(), 10000, '云端登录超时');
             }
             var sb = window.supabase;
             if (!sb || typeof sb.from !== 'function') throw new Error('同步层未就绪');
+            var payload = value;
+            // 数组型台账：先读云端当前值做并集，防止本机旧快照覆盖其它端刚新增的记录
+            if (Array.isArray(value)) {
+                try {
+                    var cur = await withTimeout(
+                        sb.from('app_data_store').select('store_key,payload,updated_at').eq('id', key),
+                        10000, '云端读取超时');
+                    var rows = (cur && (cur.data || cur.rows)) || [];
+                    if (!cur || !cur.error) {
+                        var row = (rows && rows[0]) || {};
+                        if (Array.isArray(row.payload)) {
+                            payload = _unionArrayRecords(value, row.payload);
+                        }
+                    }
+                } catch (e) { /* 读不到云端就按原值上传，不阻断保存 */ }
+            }
             var res = await withTimeout(sb.from('app_data_store').upsert({
                 store_key: key,
-                payload: value,
+                payload: payload,
                 updated_at: new Date().toISOString()
             }, { onConflict: 'store_key' }), 15000, '云端写入超时');
             if (res && res.error) throw new Error(res.error.message || '云端写入失败');
